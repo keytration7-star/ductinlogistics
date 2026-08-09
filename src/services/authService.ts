@@ -140,11 +140,19 @@ export const AuthService = {
       return { success: false, error: 'Mật khẩu không chính xác. Vui lòng thử lại.' };
     }
 
-    // Bind current device
     const deviceId = DeviceService.getDeviceId();
     const deviceName = DeviceService.getDeviceName();
     const now = new Date().toISOString();
 
+    // 🔒 Block multi-device login for non-ADMIN accounts
+    if (found.role !== 'ADMIN' && found.activeDeviceId && found.activeDeviceId !== deviceId) {
+      return {
+        success: false,
+        error: `Tài khoản đang được đăng nhập trên thiết bị: "${found.activeDeviceName || 'máy khác'}". Vui lòng liên hệ Admin để được hỗ trợ đăng xuất thiết bị cũ.`,
+      };
+    }
+
+    // Bind current device
     found.lastLoginAt = now;
     found.activeDeviceId = deviceId;
     found.activeDeviceName = deviceName;
