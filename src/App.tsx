@@ -164,6 +164,7 @@ export function App() {
             <ShopManagementView
               shops={shops}
               onSaveShops={handleSaveShops}
+              currentUser={currentUser}
             />
           )}
 
@@ -191,6 +192,7 @@ export function App() {
                 setActiveTab('reconciliation');
               }}
               onDeleteSession={handleDeleteSession}
+              currentUser={currentUser}
             />
           )}
 

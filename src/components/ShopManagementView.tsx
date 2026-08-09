@@ -12,12 +12,13 @@ import {
   X,
   Sliders
 } from 'lucide-react';
-import type { Shop, WeightStepRule } from '../types';
+import type { Shop, WeightStepRule, UserAccount } from '../types';
 import { calculateWeightFee } from '../services/reconciliationService';
 
 interface ShopManagementViewProps {
   shops: Shop[];
   onSaveShops: (shops: Shop[]) => void;
+  currentUser?: UserAccount;
 }
 
 const VIETNAM_BANKS = [
@@ -40,7 +41,7 @@ const VIETNAM_BANKS = [
   'Khác',
 ];
 
-export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops }) => {
+export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops, currentUser }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +98,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
   };
 
   const handleDeleteShop = async (shopId: string, shopName: string) => {
+    if (currentUser?.role !== 'ADMIN') {
+      await showConfirm({
+        title: '🔒 Quyền Quản Trị Viên',
+        message: 'Tài khoản Kế toán / Nhân viên không có quyền xóa Shop khỏi hệ thống. Chỉ Admin mới có quyền thực hiện thao tác này.',
+        confirmText: 'Đã hiểu',
+      });
+      return;
+    }
     const ok = await showConfirm({
       title: 'Xoá Shop',
       message: `Bạn có chắc chắn muốn xóa shop "${shopName}" khỏi hệ thống?`,
