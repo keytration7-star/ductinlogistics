@@ -4,11 +4,15 @@ import {
   Check, Sun, Moon, ChevronRight,
   FileSpreadsheet, ArrowRight, Smartphone,
   Filter, CheckCircle2, Info, Monitor, Lock, Users,
-  Settings
+  Settings, Eye, EyeOff, Server, HelpCircle, ExternalLink,
+  Send, ShieldCheck as ShieldOk
 } from 'lucide-react';
-import type { CompanyInfo } from '../types';
+import type { CompanyInfo, EmailSettings } from '../types';
 import { StorageService } from '../services/storage';
+import { EmailService } from '../services/emailService';
+import { UserManagementView } from './UserManagementView';
 import { useToast } from './UIFeedback';
+import type { UserAccount } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,17 +20,19 @@ interface SettingsModalProps {
   theme: 'dark' | 'light';
   setTheme: (t: 'dark' | 'light') => void;
   userRole?: string;
+  currentUser?: UserAccount;
   onSaved?: () => void;
   onNavigateTo?: (tab: string) => void;
 }
 
-type SettingsTab = 'company' | 'ui' | 'email' | 'security' | 'guide';
+type SettingsTab = 'company' | 'ui' | 'email' | 'security' | 'accounts' | 'guide';
 
-const TAB_LIST: { id: SettingsTab; icon: React.ReactNode; label: string }[] = [
+const BASE_TABS: { id: SettingsTab; icon: React.ReactNode; label: string }[] = [
   { id: 'company', icon: <Building2 size={15} />, label: 'Công Ty' },
   { id: 'ui', icon: <Palette size={15} />, label: 'Giao Diện' },
-  { id: 'email', icon: <Mail size={15} />, label: 'Email' },
+  { id: 'email', icon: <Mail size={15} />, label: 'Cài Đặt Mail' },
   { id: 'security', icon: <ShieldCheck size={15} />, label: 'Bảo Mật' },
+  { id: 'accounts', icon: <Users size={15} />, label: 'Tài Khoản' }, // ADMIN only
   { id: 'guide', icon: <BookOpen size={15} />, label: 'Hướng Dẫn' },
 ];
 
@@ -153,42 +159,159 @@ const TabUI: React.FC<{ theme: 'dark' | 'light'; setTheme: (t: 'dark' | 'light')
   </div>
 );
 
-/* ─────────────── TAB: EMAIL ─────────────── */
-const TabEmail: React.FC<{ onNavigateTo?: (tab: string) => void; onClose: () => void }> = ({ onNavigateTo, onClose }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-    <div style={{ background: 'linear-gradient(135deg,rgba(16,185,129,.08),rgba(79,70,229,.06))', borderRadius: 'var(--radius-md)', padding: '20px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-      <Mail size={40} color="var(--primary)" style={{ marginBottom: 10 }} />
-      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-main)', marginBottom: 6 }}>Cấu Hình Gửi Email Đối Soát</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-        Cài đặt Gmail, nội dung mẫu, chữ ký và danh sách nhận — trong tab Email chính.
-      </div>
-      <button
-        className="btn btn-primary"
-        onClick={() => { if (onNavigateTo) onNavigateTo('email'); onClose(); }}
-      >
-        <Mail size={14} /> Mở Tab Cấu Hình Email
-      </button>
-    </div>
+/* ─────────────── TAB: EMAIL (Full Config) ─────────────── */
+const TabEmail: React.FC = () => {
+  const { showToast } = useToast();
+  const [form, setForm] = useState<EmailSettings>(() => ({
+    ...StorageService.getEmailSettings(),
+  }));
+  const [showPwd, setShowPwd] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testStatus, setTestStatus] = useState<{ type: 'success' | 'error' | 'sending'; msg: string } | null>(null);
+  const [saved, setSaved] = useState(false);
 
-    <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text-main)' }}>📋 Những Gì Có Thể Cài Đặt Trong Email:</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {[
-          ['📧 Gmail gửi', 'Địa chỉ Gmail và App Password'],
-          ['✍️ Tên người gửi', 'Hiển thị trên hộp thư của khách'],
-          ['📝 Nội dung mẫu', 'Template body email với biến động ({tên}, {tiền}...)'],
-          ['📅 Kỳ đối soát', 'Tiêu đề email và ghi chú kỳ'],
-          ['👁️ Xem trước', 'Preview email trước khi gửi hàng loạt'],
-        ].map(([t, d]) => (
-          <div key={t} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, minWidth: 140, color: 'var(--text-main)' }}>{t}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d}</span>
-          </div>
-        ))}
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.senderEmail.trim()) { showToast('Vui lòng nhập địa chỉ Email gửi', 'warning'); return; }
+    if (!(form.emailPassword ?? '').trim()) { showToast('Vui lòng nhập Mật khẩu ứng dụng (App Password)', 'warning'); return; }
+    StorageService.saveEmailSettings(form);
+    setSaved(true);
+    showToast('Đã lưu cài đặt Email thành công!', 'success');
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleTest = async () => {
+    if (!form.senderEmail || !form.emailPassword) {
+      setTestStatus({ type: 'error', msg: 'Vui lòng điền Email gửi và Mật khẩu App Password trước.' });
+      return;
+    }
+    if (!testEmail.trim()) {
+      setTestStatus({ type: 'error', msg: 'Vui lòng nhập email nhận để gửi thử.' });
+      return;
+    }
+    setTestStatus({ type: 'sending', msg: 'Đang kết nối SMTP và gửi email thử...' });
+    const res = await EmailService.sendRealEmail({
+      senderName: form.senderName,
+      senderEmail: form.senderEmail,
+      emailPassword: form.emailPassword,
+      smtpHost: form.smtpHost || 'smtp.gmail.com',
+      smtpPort: form.smtpPort || 465,
+      to: testEmail.trim(),
+      subject: `【KIỂM TRA】Thử nghiệm kết nối Email từ ${form.senderName}`,
+      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống GomDon Pro.\nTài khoản gửi: ${form.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình đã hoàn toàn chính xác!`,
+    });
+    setTestStatus(res.success
+      ? { type: 'success', msg: `✓ Thành công! Đã gửi email thử tới: ${testEmail}. Kiểm tra hộp thư đến.` }
+      : { type: 'error', msg: `✕ Lỗi: ${res.error}` }
+    );
+  };
+
+  return (
+    <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(16,185,129,.06))', borderRadius: 'var(--radius-md)', padding: '12px 16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Mail size={18} color="#fff" />
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>Cài Đặt Gmail / SMTP Gửi Email Đối Soát</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Thiết lập tài khoản Gmail để tự động gửi bảng kê COD cho các Shop</div>
+        </div>
       </div>
-    </div>
-  </div>
-);
+
+      {/* Sender Info */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="input-group" style={{ marginBottom: 0 }}>
+          <label className="input-label">Tên Hiển Thị Người Gửi (*)</label>
+          <input type="text" className="input-field" required placeholder="VD: Đức Tín Logistics"
+            value={form.senderName} onChange={e => setForm({ ...form, senderName: e.target.value })} />
+        </div>
+        <div className="input-group" style={{ marginBottom: 0 }}>
+          <label className="input-label">Địa Chỉ Email Gửi (*)</label>
+          <input type="email" className="input-field" required placeholder="doisoat@gmail.com"
+            value={form.senderEmail} onChange={e => setForm({ ...form, senderEmail: e.target.value })} />
+        </div>
+      </div>
+
+      {/* App Password */}
+      <div className="input-group" style={{ marginBottom: 0 }}>
+        <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Lock size={13} /> Mật Khẩu Ứng Dụng — Gmail App Password (*)
+        </label>
+        <div style={{ position: 'relative' }}>
+          <input
+            type={showPwd ? 'text' : 'password'}
+            className="input-field"
+            required
+            placeholder="Nhập 16 ký tự App Password (VD: abcd efgh ijkl mnop)..."
+            value={form.emailPassword}
+            onChange={e => setForm({ ...form, emailPassword: e.target.value })}
+            style={{ paddingRight: 40, fontFamily: showPwd ? 'monospace' : 'inherit' }}
+          />
+          <button type="button" onClick={() => setShowPwd(!showPwd)}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex' }}>
+            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+      </div>
+
+      {/* SMTP */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+        <div className="input-group" style={{ marginBottom: 0 }}>
+          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Server size={13} /> SMTP Host</label>
+          <input type="text" className="input-field" placeholder="smtp.gmail.com"
+            value={form.smtpHost || 'smtp.gmail.com'} onChange={e => setForm({ ...form, smtpHost: e.target.value })} />
+        </div>
+        <div className="input-group" style={{ marginBottom: 0 }}>
+          <label className="input-label">Port</label>
+          <input type="number" className="input-field" placeholder="465"
+            value={form.smtpPort || 465} onChange={e => setForm({ ...form, smtpPort: parseInt(e.target.value) || 465 })} />
+        </div>
+      </div>
+
+      {/* How to get App Password */}
+      <div style={{ background: 'rgba(79,70,229,.06)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 14px', fontSize: 12 }}>
+        <div style={{ fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <HelpCircle size={14} /> Cách lấy "Mật khẩu ứng dụng" Gmail:
+        </div>
+        <ol style={{ paddingLeft: 18, margin: 0, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+          <li>Vào: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 2 }}>myaccount.google.com/security <ExternalLink size={10} /></a></li>
+          <li>Bật <strong style={{ color: 'var(--text-main)' }}>"Xác minh 2 bước"</strong></li>
+          <li>Tìm <strong style={{ color: 'var(--text-main)' }}>"Mật khẩu ứng dụng"</strong> → Tạo mới → Copy 16 ký tự → Dán vào ô trên</li>
+        </ol>
+      </div>
+
+      {/* Test send */}
+      <div style={{ background: 'var(--bg-tertiary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>🧪 Gửi Email Test Kết Nối:</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input type="email" className="input-field" placeholder="Email nhận thử (ví dụ: your@gmail.com)..."
+            value={testEmail} onChange={e => setTestEmail(e.target.value)}
+            style={{ flex: 1, padding: '7px 12px', fontSize: 12.5 }} />
+          <button type="button" className="btn btn-secondary btn-sm" onClick={handleTest} style={{ whiteSpace: 'nowrap' }}>
+            <Send size={13} /> Gửi Test
+          </button>
+        </div>
+        {testStatus && (
+          <div className={`badge ${testStatus.type === 'success' ? 'badge-success' : testStatus.type === 'error' ? 'badge-danger' : 'badge-warning'}`}
+            style={{ padding: '6px 10px', fontSize: 11.5 }}>
+            {testStatus.msg}
+          </div>
+        )}
+      </div>
+
+      {/* Footer save */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <ShieldOk size={13} color="var(--success)" /> Mật khẩu lưu trữ an toàn trên thiết bị của bạn.
+        </div>
+        <button type="submit" className={`btn ${saved ? 'btn-success' : 'btn-primary'}`} style={{ minWidth: 160 }}>
+          {saved ? <><CheckCircle2 size={15} /> Đã Lưu!</> : <><Check size={15} /> Lưu Cài Đặt Mail</>}
+        </button>
+      </div>
+    </form>
+  );
+};
 
 /* ─────────────── TAB: BẢO MẬT ─────────────── */
 const TabSecurity: React.FC<{ isAdmin: boolean; onNavigateTo?: (tab: string) => void; onClose: () => void }> = ({ isAdmin, onNavigateTo, onClose }) => (
@@ -521,12 +644,23 @@ const TabGuide: React.FC = () => {
   );
 };
 
+/* ─────────────── TAB: TÀI KHOẢN (ADMIN ONLY) ─────────────── */
+const TabAccounts: React.FC<{ currentUser?: UserAccount }> = ({ currentUser }) => {
+  if (!currentUser) return null;
+  return (
+    <div style={{ margin: '-20px -24px' }}>
+      <UserManagementView currentUser={currentUser} />
+    </div>
+  );
+};
+
 /* ─────────────── MAIN MODAL ─────────────── */
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen, onClose, theme, setTheme, userRole = 'STAFF', onSaved, onNavigateTo,
+  isOpen, onClose, theme, setTheme, userRole = 'STAFF', currentUser, onSaved, onNavigateTo,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const isAdmin = userRole === 'ADMIN';
+  const TAB_LIST = isAdmin ? BASE_TABS : BASE_TABS.filter(t => t.id !== 'accounts');
 
   useEffect(() => {
     if (isOpen) setActiveTab('company');
@@ -578,11 +712,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Tab Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: activeTab === 'accounts' ? 0 : '20px 24px' }}>
           {activeTab === 'company' && <TabCompany onSaved={onSaved} isAdmin={isAdmin} />}
           {activeTab === 'ui' && <TabUI theme={theme} setTheme={setTheme} />}
-          {activeTab === 'email' && <TabEmail onNavigateTo={onNavigateTo} onClose={onClose} />}
+          {activeTab === 'email' && <TabEmail />}
           {activeTab === 'security' && <TabSecurity isAdmin={isAdmin} onNavigateTo={onNavigateTo} onClose={onClose} />}
+          {activeTab === 'accounts' && isAdmin && <TabAccounts currentUser={currentUser} />}
           {activeTab === 'guide' && <TabGuide />}
         </div>
       </div>

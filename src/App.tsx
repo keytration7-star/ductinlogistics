@@ -281,6 +281,7 @@ export function App() {
         theme={theme}
         setTheme={setTheme}
         userRole={currentUser.role}
+        currentUser={currentUser}
         onSaved={loadAllData}
         onNavigateTo={(tab) => { setActiveTab(tab); setIsSettingsModalOpen(false); }}
       />
