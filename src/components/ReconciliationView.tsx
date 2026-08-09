@@ -96,7 +96,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [showCarrierConfigModal, setShowCarrierConfigModal] = useState(false);
+  const [configCarrier, setConfigCarrier] = useState<CarrierWholesaleTier | null>(null);
 
   // Discovered New Shops from uploaded App file
   const [discoveredNewShops, setDiscoveredNewShops] = useState<{ name: string; phone: string; address: string; orderCount: number }[]>([]);
@@ -498,7 +498,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>📦 Chọn Thẻ Đơn Vị Vận Chuyển Đối Soát:</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
-                (Cấu hình ánh xạ cột & mẫu xuất Excel sẽ tự động chuyển theo thẻ của từng Hãng)
+                (Bấm vào thẻ để chọn/bỏ chọn, bấm bánh răng ⚙️ để cài đặt Ánh Xạ Cột & Mẫu Xuất)
               </span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>
@@ -508,8 +508,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
-            gap: 10,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+            gap: 12,
           }}>
             {carriers.map(c => {
               const isSelected = c.carrierId === selectedCarrierId || c.id === selectedCarrierId;
@@ -518,7 +518,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   key={c.id || c.carrierId}
                   onClick={() => setSelectedCarrierId(c.carrierId || c.id)}
                   style={{
-                    padding: '10px 14px',
+                    padding: '12px 14px',
                     borderRadius: 'var(--radius-md)',
                     background: isSelected 
                       ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.14) 0%, rgba(16, 185, 129, 0.10) 100%)' 
@@ -532,19 +532,54 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                     justifyContent: 'space-between',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
-                      color: isSelected ? '#fff' : 'var(--text-muted)',
-                      textTransform: 'uppercase',
-                    }}>
-                      {c.carrierId.toUpperCase()}
-                    </span>
-                    {isSelected && <CheckCircle2 size={16} color="var(--primary)" />}
+                  {/* Card Header: Checkbox + Code + ⚙️ Gear Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => setSelectedCarrierId(c.carrierId || c.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                        title="Chọn / Bỏ chọn thẻ này"
+                      />
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
+                        color: isSelected ? '#fff' : 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                      }}>
+                        {c.carrierId.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* BÁNH RĂNG CÀI ĐẶT THẺ NVC */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfigCarrier(c);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        padding: '3px 7px',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 11,
+                        background: isSelected ? 'rgba(79, 70, 229, 0.15)' : 'var(--bg-tertiary)',
+                        border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                        color: isSelected ? 'var(--primary)' : 'var(--text-muted)',
+                      }}
+                      title={`Bấm để cài đặt Ánh Xạ Cột & Mẫu Xuất cho ${c.carrierName}`}
+                    >
+                      <Settings2 size={13} color="var(--primary)" />
+                      <span>Cài đặt</span>
+                    </button>
                   </div>
 
                   <div style={{
@@ -736,38 +771,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           borderTop: '1px solid var(--border-color)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* THẺ CÀI ĐẶT ĐƠN VỊ VẬN CHUYỂN */}
-            <button
-              onClick={() => setShowCarrierConfigModal(true)}
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 14px',
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
-                border: '1px solid var(--primary)',
-                color: 'var(--text-main)',
-                fontWeight: 600,
-                borderRadius: 'var(--radius-md)',
-              }}
-              title={`Bấm để mở cài đặt Ánh Xạ Cột & Mẫu Xuất File cho ${selectedCarrierTier?.carrierName}`}
-            >
-              <span style={{
-                background: 'var(--primary)',
-                color: '#fff',
-                padding: '2px 6px',
-                borderRadius: 4,
-                fontSize: 10,
-                fontWeight: 800,
-                textTransform: 'uppercase',
-              }}>
-                {selectedCarrierTier?.carrierId?.toUpperCase() || 'NVC'}
-              </span>
-              <Settings2 size={15} color="var(--primary)" />
-              <span>Cài Đặt Hồ Sơ Hãng: <strong style={{ color: 'var(--primary)' }}>{selectedCarrierTier?.carrierName}</strong> (Ánh Xạ + Mẫu Xuất)</span>
-            </button>
-
             {(nvcFile || appFile || currentSession) && (
               <button
                 onClick={handleResetReconciliation}
@@ -1304,12 +1307,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       )}
 
       {/* Unified Carrier Profile Config Modal */}
-      {showCarrierConfigModal && (
+      {configCarrier && (
         <CarrierProfileConfigModal
-          isOpen={showCarrierConfigModal}
-          onClose={() => setShowCarrierConfigModal(false)}
-          carrierId={selectedCarrierId}
-          carrierName={selectedCarrierTier?.carrierName || 'NVC'}
+          isOpen={!!configCarrier}
+          onClose={() => setConfigCarrier(null)}
+          carrierId={configCarrier.carrierId || configCarrier.id}
+          carrierName={configCarrier.carrierName}
           nvcHeaders={nvcHeaders}
           appHeaders={appHeaders}
           nvcMapping={nvcMapping}
