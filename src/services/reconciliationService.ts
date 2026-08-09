@@ -106,12 +106,20 @@ export function calculateWeightFee(weight: number, plan: ShopPricingPlan): numbe
 
   const sortedRules = [...plan.weightRules].sort((a, b) => a.maxWeight - b.maxWeight);
 
-  for (const rule of sortedRules) {
-    if (weight <= rule.maxWeight) {
-      return rule.price;
-    }
+  // Step 1: Find exact matching rule using BOTH minWeight and maxWeight
+  const exactMatch = sortedRules.find(rule => weight >= rule.minWeight && weight <= rule.maxWeight);
+  if (exactMatch) {
+    return exactMatch.price;
   }
 
+  // Step 2: If no exact match (e.g. weight falls in a gap between ranges),
+  // find the first rule whose maxWeight >= weight (nearest ceiling)
+  const nearestCeiling = sortedRules.find(rule => weight <= rule.maxWeight);
+  if (nearestCeiling) {
+    return nearestCeiling.price;
+  }
+
+  // Step 3: Weight exceeds all rules -> apply extra step pricing from highest rule
   const highestRule = sortedRules[sortedRules.length - 1];
   const excessWeight = weight - highestRule.maxWeight;
   const stepWeight = plan.extraStepWeight > 0 ? plan.extraStepWeight : 1;
