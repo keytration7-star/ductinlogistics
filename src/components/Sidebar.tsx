@@ -145,7 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             justifyContent: 'space-between',
             boxShadow: 'var(--shadow-sm)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+            <div 
+              onClick={onOpenCompanyModal}
+              title="Bấm để cài đặt thông tin Công Ty / Nhà Gom Đơn"
+              style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, cursor: 'pointer', flex: 1 }}
+            >
               <div style={{
                 width: 34,
                 height: 34,
@@ -175,12 +179,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={handleConfirmLogout}
               className="btn btn-secondary btn-sm"
-              style={{ padding: '6px 8px', color: 'var(--danger)' }}
+              style={{ padding: '6px 8px', color: 'var(--danger)', flexShrink: 0, marginLeft: 4 }}
               title="Đăng xuất khỏi tài khoản"
             >
               <LogOut size={14} />
             </button>
           </div>
+
 
           {/* 2. GOMDON PRO HUB BRANDING */}
           <div 
