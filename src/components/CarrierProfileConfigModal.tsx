@@ -185,8 +185,8 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     }, 450);
   };
 
-  const nvcCustoms = localNvcMapping.customColumns || [];
-  const appCustoms = localAppMapping.customColumns || [];
+
+
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -391,301 +391,354 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               )}
 
               {/* Sub-tab Content: File NVC */}
-              {mappingSubTab === 'nvc' && (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
-                    
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Mã Vận Đơn (*)</label>
-                      <select
-                        value={localNvcMapping.waybillColumn || ''}
-                        onChange={(e) => updateNvcField('waybillColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Chọn cột --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
+              {mappingSubTab === 'nvc' && (() => {
+                // All configurable NVC fields (beyond mandatory waybill)
+                const NVC_OPTIONAL_FIELDS: { key: keyof ColumnMappingConfig; label: string; emoji: string; hint: string }[] = [
+                  { key: 'codColumn',       label: 'Tiền COD Thu Hộ',          emoji: '💰', hint: 'Dùng để lấy số tiền COD của đơn' },
+                  { key: 'feeColumn',       label: 'Cước Chính NVC',            emoji: '🚚', hint: 'Dùng để tính lợi nhuận nhà gom' },
+                  { key: 'otherFeeColumn',  label: 'Phụ Phí / Hoàn / Bảo Hiểm',emoji: '➕', hint: 'Phí phát sinh thêm' },
+                  { key: 'weightColumn',    label: 'Khối Lượng (kg/g)',          emoji: '⚖️', hint: 'Dùng để tính lại cước theo bảng giá shop' },
+                  { key: 'statusColumn',    label: 'Trạng Thái Giao Hàng',      emoji: '📋', hint: 'Phân loại: giao thành công / đang giao / hoàn' },
+                  { key: 'dateColumn',      label: 'Ngày Giao Hàng',            emoji: '📅', hint: 'Ngày hoàn tất giao hàng' },
+                ];
+                const activeNvcFields = NVC_OPTIONAL_FIELDS.filter(f => !!localNvcMapping[f.key]);
+                const inactiveNvcFields = NVC_OPTIONAL_FIELDS.filter(f => !localNvcMapping[f.key]);
+                const hasHeaders = nvcHeaders.length > 0;
 
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Tiền COD Thu Hộ</label>
-                      <select
-                        value={localNvcMapping.codColumn || ''}
-                        onChange={(e) => updateNvcField('codColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Cước Chính NVC</label>
-                      <select
-                        value={localNvcMapping.feeColumn || ''}
-                        onChange={(e) => updateNvcField('feeColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Phụ Phí / Hoàn / Bảo Hiểm NVC</label>
-                      <select
-                        value={localNvcMapping.otherFeeColumn || ''}
-                        onChange={(e) => updateNvcField('otherFeeColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Khối Lượng (kg/g)</label>
-                      <select
-                        value={localNvcMapping.weightColumn || ''}
-                        onChange={(e) => updateNvcField('weightColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Trạng Thái Giao Hàng</label>
-                      <select
-                        value={localNvcMapping.statusColumn || ''}
-                        onChange={(e) => updateNvcField('statusColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                  </div>
-
-                  {/* Custom Extra Columns NVC */}
-                  <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px dashed var(--border-color)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
-                      ➕ CÁC CỘT TÙY CHỈNH THÊM TỪ FILE NVC ({nvcCustoms.length})
-                    </div>
-
-                    {nvcCustoms.map(c => (
-                      <div key={c.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: 'var(--bg-secondary)',
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-color)',
-                        marginBottom: 6,
-                      }}>
-                        <span style={{ fontSize: 12 }}>
-                          <strong style={{ color: 'var(--primary)' }}>{c.label}</strong> 👉 Cột Excel: <strong>{c.excelColumn}</strong>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCustomColumn(c.id)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '2px 5px' }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
-                      <div>
-                        <input
-                          type="text"
-                          value={newCustomLabel}
-                          onChange={(e) => setNewCustomLabel(e.target.value)}
-                          placeholder="Tên nhãn cột muốn thêm..."
-                          className="input-field"
-                          style={{ padding: '5px 8px', fontSize: 12 }}
-                        />
-                      </div>
-                      <div>
+                return (
+                  <div>
+                    {/* MANDATORY: Mã Vận Đơn */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
+                      border: '2px solid var(--primary)',
+                      borderRadius: 'var(--radius-md)',
+                      marginBottom: 10,
+                    }}>
+                      <span style={{ fontSize: 18 }}>🔑</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 3 }}>
+                          Cột Mã Vận Đơn — Bắt Buộc (Khóa Ghép 2 File)
+                        </div>
                         <select
-                          value={newCustomExcelCol}
-                          onChange={(e) => setNewCustomExcelCol(e.target.value)}
+                          value={localNvcMapping.waybillColumn || ''}
+                          onChange={(e) => updateNvcField('waybillColumn', e.target.value)}
                           className="select-field"
-                          style={{ padding: '5px 8px', fontSize: 12 }}
+                          style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
                         >
-                          <option value="">-- Chọn cột trong file NVC --</option>
+                          <option value="">-- Chọn cột Mã Vận Đơn trong file NVC --</option>
                           {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                         </select>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleAddCustomColumn}
-                        className="btn btn-primary btn-sm"
-                        style={{ height: 32, padding: '0 10px', fontSize: 11 }}
-                      >
-                        <Plus size={13} />
-                        <span>Thêm</span>
-                      </button>
-                    </div>
-                  </div>
-
-                </div>
-              )}
-
-              {/* Sub-tab Content: File App */}
-              {mappingSubTab === 'app' && (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
-                    
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Mã Vận Đơn (*)</label>
-                      <select
-                        value={localAppMapping.waybillColumn || ''}
-                        onChange={(e) => updateAppField('waybillColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Chọn cột --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
                     </div>
 
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Tên Shop / Người Gửi (*)</label>
-                      <select
-                        value={localAppMapping.shopNameColumn || ''}
-                        onChange={(e) => updateAppField('shopNameColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Chọn cột --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột SĐT Shop</label>
-                      <select
-                        value={localAppMapping.shopPhoneColumn || ''}
-                        onChange={(e) => updateAppField('shopPhoneColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Tên Người Nhận</label>
-                      <select
-                        value={localAppMapping.receiverNameColumn || ''}
-                        onChange={(e) => updateAppField('receiverNameColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột SĐT Người Nhận</label>
-                      <select
-                        value={localAppMapping.receiverPhoneColumn || ''}
-                        onChange={(e) => updateAppField('receiverPhoneColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group" style={{ marginBottom: 0 }}>
-                      <label className="input-label">Cột Địa Chỉ Nhận Hàng</label>
-                      <select
-                        value={localAppMapping.receiverAddressColumn || ''}
-                        onChange={(e) => updateAppField('receiverAddressColumn', e.target.value)}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                  </div>
-
-                  {/* Custom Extra Columns App */}
-                  <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px dashed var(--border-color)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', marginBottom: 8 }}>
-                      ➕ CÁC CỘT TÙY CHỈNH THÊM TỪ FILE APP ({appCustoms.length})
-                    </div>
-
-                    {appCustoms.map(c => (
-                      <div key={c.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: 'var(--bg-secondary)',
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-color)',
-                        marginBottom: 6,
-                      }}>
-                        <span style={{ fontSize: 12 }}>
-                          <strong style={{ color: 'var(--primary)' }}>{c.label}</strong> 👉 Cột Excel: <strong>{c.excelColumn}</strong>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCustomColumn(c.id)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '2px 5px' }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                    {/* OPTIONAL ACTIVE FIELDS */}
+                    {activeNvcFields.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Cột Tuỳ Chọn Đang Bật ({activeNvcFields.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {activeNvcFields.map(f => (
+                            <div key={f.key as string} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '7px 12px',
+                              background: 'var(--bg-primary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: 'var(--radius-md)',
+                            }}>
+                              <span style={{ fontSize: 16, flexShrink: 0 }}>{f.emoji}</span>
+                              <div style={{ width: 180, flexShrink: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>{f.label}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.hint}</div>
+                              </div>
+                              <select
+                                value={(localNvcMapping[f.key] as string) || ''}
+                                onChange={(e) => updateNvcField(f.key, e.target.value)}
+                                className="select-field"
+                                style={{ flex: 1, padding: '4px 8px', fontSize: 12 }}
+                              >
+                                <option value="">-- Không chọn --</option>
+                                {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              {/* Nút xoá hàng này */}
+                              <button
+                                type="button"
+                                onClick={() => updateNvcField(f.key, '')}
+                                className="btn btn-danger btn-sm"
+                                style={{ padding: '3px 6px', flexShrink: 0 }}
+                                title={`Xoá cột "${f.label}" khỏi ánh xạ`}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
+                    )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
-                      <div>
+                    {/* THÊM CỘT TỪ DANH SÁCH PRESET */}
+                    {inactiveNvcFields.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Thêm Cột Ánh Xạ
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {inactiveNvcFields.map(f => (
+                            <button
+                              key={f.key as string}
+                              type="button"
+                              onClick={() => {
+                                // Auto-select first header or leave empty
+                                updateNvcField(f.key, nvcHeaders[0] || '');
+                              }}
+                              disabled={!hasHeaders}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 11, padding: '4px 10px', opacity: hasHeaders ? 1 : 0.5 }}
+                              title={hasHeaders ? `Thêm ánh xạ cho ${f.label}` : 'Vui lòng tải file NVC lên trước'}
+                            >
+                              <Plus size={11} />
+                              <span>{f.emoji} {f.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {!hasHeaders && (
+                          <div style={{ fontSize: 11, color: '#92400e', marginTop: 6, padding: '4px 8px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 4 }}>
+                            ⚠️ Cần tải file NVC lên để kích hoạt thêm cột mới
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CỘT TUỲ CHỈNH THÊM (extra custom) */}
+                    <div style={{ paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                        Cột Tuỳ Chỉnh Thêm Từ File NVC ({(localNvcMapping.customColumns || []).length})
+                      </div>
+                      {(localNvcMapping.customColumns || []).map(c => (
+                        <div key={c.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          background: 'var(--bg-secondary)', padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: 6,
+                        }}>
+                          <span style={{ fontSize: 12, flex: 1 }}>
+                            <strong style={{ color: 'var(--primary)' }}>{c.label}</strong> → Cột: <strong>{c.excelColumn}</strong>
+                          </span>
+                          <button type="button" onClick={() => handleRemoveCustomColumn(c.id)} className="btn btn-danger btn-sm" style={{ padding: '2px 5px' }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginTop: 6 }}>
                         <input
                           type="text"
                           value={newCustomLabel}
                           onChange={(e) => setNewCustomLabel(e.target.value)}
-                          placeholder="Tên nhãn cột muốn thêm..."
+                          placeholder="Tên nhãn cột..."
                           className="input-field"
                           style={{ padding: '5px 8px', fontSize: 12 }}
+                          disabled={!hasHeaders}
                         />
-                      </div>
-                      <div>
                         <select
                           value={newCustomExcelCol}
                           onChange={(e) => setNewCustomExcelCol(e.target.value)}
                           className="select-field"
                           style={{ padding: '5px 8px', fontSize: 12 }}
+                          disabled={!hasHeaders}
                         >
-                          <option value="">-- Chọn cột trong file App --</option>
+                          <option value="">{hasHeaders ? '-- Chọn cột trong file NVC --' : '⚠️ Cần tải file NVC trước'}</option>
+                          {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleAddCustomColumn}
+                          className="btn btn-primary btn-sm"
+                          style={{ height: 32, padding: '0 10px', fontSize: 11 }}
+                          disabled={!hasHeaders}
+                          title={!hasHeaders ? 'Cần tải file NVC lên để thêm cột tuỳ chỉnh' : ''}
+                        >
+                          <Plus size={13} />
+                          <span>Thêm</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Sub-tab Content: File App */}
+              {mappingSubTab === 'app' && (() => {
+                const APP_OPTIONAL_FIELDS: { key: keyof ColumnMappingConfig; label: string; emoji: string; hint: string }[] = [
+                  { key: 'shopNameColumn',      label: 'Tên Shop / Người Gửi',  emoji: '🏪', hint: 'Dùng để khớp shop trong hệ thống' },
+                  { key: 'shopPhoneColumn',     label: 'SĐT Shop / Người Gửi',  emoji: '📞', hint: 'Dùng để khớp shop theo SĐT' },
+                  { key: 'receiverNameColumn',  label: 'Tên Người Nhận',        emoji: '👤', hint: 'Xuất ra bảng kê' },
+                  { key: 'receiverPhoneColumn', label: 'SĐT Người Nhận',        emoji: '📱', hint: 'Xuất ra bảng kê' },
+                  { key: 'receiverAddressColumn',label: 'Địa Chỉ Nhận Hàng',   emoji: '📍', hint: 'Xuất ra bảng kê' },
+                  { key: 'shopAddressColumn',   label: 'Địa Chỉ Shop',          emoji: '🏠', hint: 'Tự động điền khi thêm shop mới' },
+                ];
+                const activeAppFields = APP_OPTIONAL_FIELDS.filter(f => !!localAppMapping[f.key]);
+                const inactiveAppFields = APP_OPTIONAL_FIELDS.filter(f => !localAppMapping[f.key]);
+                const hasHeaders = appHeaders.length > 0;
+
+                return (
+                  <div>
+                    {/* MANDATORY: Mã Vận Đơn App */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                      background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
+                      border: '2px solid var(--primary)', borderRadius: 'var(--radius-md)', marginBottom: 10,
+                    }}>
+                      <span style={{ fontSize: 18 }}>🔑</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 3 }}>
+                          Cột Mã Vận Đơn — Bắt Buộc (Khóa Ghép 2 File)
+                        </div>
+                        <select
+                          value={localAppMapping.waybillColumn || ''}
+                          onChange={(e) => updateAppField('waybillColumn', e.target.value)}
+                          className="select-field"
+                          style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
+                        >
+                          <option value="">-- Chọn cột Mã Vận Đơn trong file App --</option>
                           {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                         </select>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleAddCustomColumn}
-                        className="btn btn-primary btn-sm"
-                        style={{ height: 32, padding: '0 10px', fontSize: 11 }}
-                      >
-                        <Plus size={13} />
-                        <span>Thêm</span>
-                      </button>
+                    </div>
+
+                    {/* OPTIONAL ACTIVE FIELDS */}
+                    {activeAppFields.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Cột Tuỳ Chọn Đang Bật ({activeAppFields.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {activeAppFields.map(f => (
+                            <div key={f.key as string} style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+                              background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+                            }}>
+                              <span style={{ fontSize: 16, flexShrink: 0 }}>{f.emoji}</span>
+                              <div style={{ width: 180, flexShrink: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>{f.label}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.hint}</div>
+                              </div>
+                              <select
+                                value={(localAppMapping[f.key] as string) || ''}
+                                onChange={(e) => updateAppField(f.key, e.target.value)}
+                                className="select-field"
+                                style={{ flex: 1, padding: '4px 8px', fontSize: 12 }}
+                              >
+                                <option value="">-- Không chọn --</option>
+                                {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => updateAppField(f.key, '')}
+                                className="btn btn-danger btn-sm"
+                                style={{ padding: '3px 6px', flexShrink: 0 }}
+                                title={`Xoá cột "${f.label}" khỏi ánh xạ`}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* THÊM CỘT TỪ DANH SÁCH PRESET */}
+                    {inactiveAppFields.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                          Thêm Cột Ánh Xạ
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {inactiveAppFields.map(f => (
+                            <button
+                              key={f.key as string}
+                              type="button"
+                              onClick={() => updateAppField(f.key, appHeaders[0] || '')}
+                              disabled={!hasHeaders}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 11, padding: '4px 10px', opacity: hasHeaders ? 1 : 0.5 }}
+                              title={hasHeaders ? `Thêm ánh xạ cho ${f.label}` : 'Vui lòng tải file App lên trước'}
+                            >
+                              <Plus size={11} />
+                              <span>{f.emoji} {f.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {!hasHeaders && (
+                          <div style={{ fontSize: 11, color: '#92400e', marginTop: 6, padding: '4px 8px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 4 }}>
+                            ⚠️ Cần tải file App lên để kích hoạt thêm cột mới
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CỘT TUỲ CHỈNH THÊM */}
+                    <div style={{ paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                        Cột Tuỳ Chỉnh Thêm Từ File App ({(localAppMapping.customColumns || []).length})
+                      </div>
+                      {(localAppMapping.customColumns || []).map(c => (
+                        <div key={c.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          background: 'var(--bg-secondary)', padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: 6,
+                        }}>
+                          <span style={{ fontSize: 12, flex: 1 }}>
+                            <strong style={{ color: 'var(--primary)' }}>{c.label}</strong> → Cột: <strong>{c.excelColumn}</strong>
+                          </span>
+                          <button type="button" onClick={() => handleRemoveCustomColumn(c.id)} className="btn btn-danger btn-sm" style={{ padding: '2px 5px' }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginTop: 6 }}>
+                        <input
+                          type="text"
+                          value={newCustomLabel}
+                          onChange={(e) => setNewCustomLabel(e.target.value)}
+                          placeholder="Tên nhãn cột..."
+                          className="input-field"
+                          style={{ padding: '5px 8px', fontSize: 12 }}
+                          disabled={!hasHeaders}
+                        />
+                        <select
+                          value={newCustomExcelCol}
+                          onChange={(e) => setNewCustomExcelCol(e.target.value)}
+                          className="select-field"
+                          style={{ padding: '5px 8px', fontSize: 12 }}
+                          disabled={!hasHeaders}
+                        >
+                          <option value="">{hasHeaders ? '-- Chọn cột trong file App --' : '⚠️ Cần tải file App trước'}</option>
+                          {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleAddCustomColumn}
+                          className="btn btn-primary btn-sm"
+                          style={{ height: 32, padding: '0 10px', fontSize: 11 }}
+                          disabled={!hasHeaders}
+                        >
+                          <Plus size={13} />
+                          <span>Thêm</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                </div>
-              )}
+                );
+              })()}
 
             </div>
           )}
+
 
           {/* ═══════════════════════════════════════════ */}
           {/* TAB 2: MẪU XUẤT EXCEL (EXPORT SETTINGS) */}
