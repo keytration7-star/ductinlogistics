@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, Sparkles, Layers } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, Layers } from 'lucide-react';
 import { AuthService } from '../services/authService';
 import type { UserAccount } from '../types';
 
@@ -8,8 +8,8 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('Ductin-admin');
-  const [password, setPassword] = useState('ductin@admin');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,15 +26,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       } else {
-        setErrorMsg(res.error || 'Đăng nhập không thành công.');
+        setErrorMsg(res.error || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
     }, 300);
-  };
-
-  const handleFillAdmin = () => {
-    setUsername('Ductin-admin');
-    setPassword('ductin@admin');
-    setErrorMsg(null);
   };
 
   return (
@@ -80,7 +74,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         background: 'var(--bg-secondary)',
         border: '1px solid rgba(255, 255, 255, 0.1)',
         borderRadius: 'var(--radius-xl)',
-        padding: '36px 32px',
+        padding: '38px 34px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(79, 70, 229, 0.2)',
         backdropFilter: 'blur(16px)',
         position: 'relative',
@@ -149,6 +143,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <input
                 type="text"
                 required
+                autoFocus
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Nhập tên tài khoản..."
@@ -219,7 +214,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              marginTop: 6,
+              marginTop: 8,
             }}
           >
             {isLoading ? (
@@ -232,36 +227,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             )}
           </button>
 
-          {/* Quick Fill Admin Helper */}
-          <div style={{
-            background: 'var(--bg-primary)',
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px dashed var(--border-color)',
-            marginTop: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Sparkles size={13} /> Tài khoản Admin mặc định:
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'monospace' }}>
-                User: <strong>Ductin-admin</strong> | Pass: <strong>ductin@admin</strong>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleFillAdmin}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: 11, padding: '4px 8px' }}
-            >
-              Điền nhanh
-            </button>
-          </div>
-
         </form>
 
         {/* Security Footer */}
@@ -272,7 +237,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           gap: 6,
           fontSize: 12,
           color: 'var(--text-dim)',
-          marginTop: 24,
+          marginTop: 28,
           paddingTop: 16,
           borderTop: '1px solid var(--border-color)',
         }}>
