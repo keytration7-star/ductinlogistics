@@ -13,7 +13,8 @@ import {
   Users,
   LogOut,
   UserCheck,
-  CreditCard
+  CreditCard,
+  Settings
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -24,12 +25,13 @@ interface SidebarProps {
   setTheme: (theme: 'dark' | 'light') => void;
   onOpenBackupModal: () => void;
   onOpenCompanyModal: () => void;
+  onOpenSettingsModal: () => void;
   currentUser: UserAccount;
   onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, onOpenCompanyModal, currentUser, onLogout,
+  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, onOpenCompanyModal, onOpenSettingsModal, currentUser, onLogout,
 }) => {
   const { showConfirm } = useConfirm();
   const allNavItems = [
@@ -336,6 +338,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Chuyển đổi giao diện Sáng / Tối"
           >
             {theme === 'dark' ? <Sun size={13} color="#f59e0b" /> : <Moon size={13} color="#4f46e5" />}
+          </button>
+
+          {/* Settings Button */}
+          <button
+            onClick={onOpenSettingsModal}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '6px 8px', fontSize: 11.5 }}
+            title="Cài đặt hệ thống & hướng dẫn sử dụng"
+          >
+            <Settings size={13} />
           </button>
         </div>
 

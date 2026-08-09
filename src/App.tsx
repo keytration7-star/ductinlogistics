@@ -10,6 +10,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
 import { CompanySettingsModal } from './components/CompanySettingsModal';
+import { SettingsModal } from './components/SettingsModal';
 import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 
@@ -36,6 +37,7 @@ export function App() {
   const [currentSession, setCurrentSession] = useState<ReconciliationSession | null>(null);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -142,6 +144,7 @@ export function App() {
         setTheme={setTheme}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
+        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
@@ -269,6 +272,17 @@ export function App() {
         onClose={() => setIsCompanyModalOpen(false)}
         onSaved={loadAllData}
         userRole={currentUser.role}
+      />
+
+      {/* Settings Modal — Cài đặt & Hướng dẫn sử dụng */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        theme={theme}
+        setTheme={setTheme}
+        userRole={currentUser.role}
+        onSaved={loadAllData}
+        onNavigateTo={(tab) => { setActiveTab(tab); setIsSettingsModalOpen(false); }}
       />
 
       {/* Security Anti-Screenshot Watermark Overlay */}
