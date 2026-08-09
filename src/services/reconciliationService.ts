@@ -235,9 +235,18 @@ export function performReconciliation(
       shopName = (appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] : '') || 'Shop Không Tên';
       shopPhone = (appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] : '') || '';
       shopAddress = (appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] : '') || '';
-      receiverName = (appMapping.receiverNameColumn ? appRow[appMapping.receiverNameColumn] : '') || 'Khách Nhận';
-      receiverPhone = (appMapping.receiverPhoneColumn ? appRow[appMapping.receiverPhoneColumn] : '') || '';
-      receiverAddress = (appMapping.receiverAddressColumn ? appRow[appMapping.receiverAddressColumn] : '') || '';
+      
+      receiverName = (appMapping.receiverNameColumn ? appRow[appMapping.receiverNameColumn] : '') ||
+                     (nvcMapping.receiverNameColumn ? nvcRow[nvcMapping.receiverNameColumn] : '') ||
+                     appRow['Tên người nhận'] || appRow['Người nhận'] || nvcRow['Tên người nhận'] || nvcRow['Người nhận'] || '';
+
+      receiverPhone = (appMapping.receiverPhoneColumn ? appRow[appMapping.receiverPhoneColumn] : '') ||
+                      (nvcMapping.receiverPhoneColumn ? nvcRow[nvcMapping.receiverPhoneColumn] : '') ||
+                      appRow['SĐT người nhận'] || appRow['Số điện thoại'] || nvcRow['SĐT người nhận'] || nvcRow['SĐT nhận'] || '';
+
+      receiverAddress = (appMapping.receiverAddressColumn ? appRow[appMapping.receiverAddressColumn] : '') ||
+                        (nvcMapping.receiverAddressColumn ? nvcRow[nvcMapping.receiverAddressColumn] : '') ||
+                        appRow['Địa chỉ giao hàng'] || appRow['Địa chỉ'] || appRow['Địa chỉ nhận'] || nvcRow['Địa chỉ giao hàng'] || nvcRow['Địa chỉ nhận'] || '';
 
       const cleanShopName = shopName.toLowerCase().trim();
       const cleanShopPhone = shopPhone.replace(/[^0-9]/g, '');

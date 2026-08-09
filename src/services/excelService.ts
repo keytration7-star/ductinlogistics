@@ -100,29 +100,8 @@ export const ExcelService = {
     const enabledCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
     const company = StorageService.getCompanyInfo();
 
-    // ──────────────────────────────────────────
-    // 🌟 SMART COLUMN FILTERING (Omit 100% empty columns)
-    // ──────────────────────────────────────────
-    const activeCols = enabledCols.filter(col => {
-      if (['stt', 'waybill', 'status', 'codAmount', 'shopFee', 'netPayout'].includes(col.id)) {
-        return true; // Always keep essential columns
-      }
-      return statement.orders.some(order => {
-        let val: any = '';
-        switch (col.id) {
-          case 'date': val = order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày']; break;
-          case 'refOrderCode': val = order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng']; break;
-          case 'receiverName': val = order.receiverName; break;
-          case 'receiverPhone': val = order.receiverPhone; break;
-          case 'receiverAddress': val = order.receiverAddress; break;
-          case 'productName': val = order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa']; break;
-          case 'weight': val = order.weight; break;
-          case 'shopOtherFee': val = order.shopOtherFee; break;
-          case 'orderNote': val = order.rawAppData?.['Ghi chú']; break;
-        }
-        return val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '0';
-      });
-    });
+    // Respect user's explicit column configuration 100%
+    const activeCols = enabledCols;
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
@@ -460,26 +439,8 @@ export const ExcelService = {
     });
     session.unmatchedOrders.forEach(o => allOrders.push(o));
 
-    // Smart Column Filter for Master Details
-    const activeMasterCols = enabledMasterCols.filter(col => {
-      if (['stt', 'waybill', 'carrier', 'shopName', 'status', 'codAmount', 'shopFee', 'netPayout'].includes(col.id)) {
-        return true;
-      }
-      return allOrders.some(order => {
-        let val: any = '';
-        switch (col.id) {
-          case 'shopPhone': val = order.shopPhone; break;
-          case 'receiverName': val = order.receiverName; break;
-          case 'receiverPhone': val = order.receiverPhone; break;
-          case 'receiverAddress': val = order.receiverAddress; break;
-          case 'weight': val = order.weight; break;
-          case 'nvcFee': val = order.nvcBaseFee; break;
-          case 'profit': val = order.profitMargin; break;
-          case 'matchStatus': val = order.matched; break;
-        }
-        return val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '0';
-      });
-    });
+    // Respect user's explicit master column configuration 100%
+    const activeMasterCols = enabledMasterCols;
 
     const wsDetails = workbook.addWorksheet('CHI_TIET_TOAN_BO_DON_HANG');
     wsDetails.columns = activeMasterCols.map((col: ExportColumnItem) => {
