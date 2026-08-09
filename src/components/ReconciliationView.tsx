@@ -30,13 +30,14 @@ import type {
 } from '../types';
 import { ExcelService } from '../services/excelService';
 import { autoDetectColumns } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee } from '../services/reconciliationService';
+import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, type DuplicateCheckResult } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { NewShopsOnboardingModal } from './NewShopsOnboardingModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { CarrierProfileConfigModal } from './CarrierProfileConfigModal';
+import { DuplicateConflictModal } from './DuplicateConflictModal';
 import { useToast, useConfirm } from './UIFeedback';
 import confetti from 'canvas-confetti';
 
@@ -212,14 +213,20 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }
   };
 
-  const executeReconciliation = (effectiveShops: Shop[]) => {
+  // Duplicate Conflict Modal States
+  const [duplicateCheckResult, setDuplicateCheckResult] = useState<DuplicateCheckResult | null>(null);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [targetShopsForExec, setTargetShopsForExec] = useState<Shop[]>(shops);
+
+  const executeReconciliation = (effectiveShops: Shop[], customNvcRows?: Record<string, any>[]) => {
     setIsProcessing(true);
 
     setTimeout(() => {
       const carrierTier = carriers.find(c => c.carrierId === selectedCarrierId) || carriers[0];
+      const rowsToUse = customNvcRows || nvcRows;
       
       const session = performReconciliation(
-        nvcRows,
+        rowsToUse,
         nvcMapping,
         appRows,
         appMapping,
@@ -241,6 +248,42 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         });
       } catch {}
     }, 400);
+  };
+
+  const handleCheckDuplicatesAndProceed = (effectiveShops: Shop[]) => {
+    setTargetShopsForExec(effectiveShops);
+    const dupResult = checkDuplicateWaybills(nvcRows, nvcMapping.waybillColumn, StorageService.getSessions());
+
+    if (dupResult.hasConflict) {
+      setDuplicateCheckResult(dupResult);
+      setIsDuplicateModalOpen(true);
+    } else {
+      executeReconciliation(effectiveShops);
+    }
+  };
+
+  const handleOverwriteConflict = () => {
+    if (duplicateCheckResult?.conflictingSessionId) {
+      StorageService.deleteSession(duplicateCheckResult.conflictingSessionId);
+    }
+    setIsDuplicateModalOpen(false);
+    showToast('Đã ghi đè & cập nhật lại số liệu kỳ đối soát thành công!', 'success');
+    executeReconciliation(targetShopsForExec);
+  };
+
+  const handleFilterNewOnlyConflict = () => {
+    if (!duplicateCheckResult) return;
+    const waybillCol = nvcMapping.waybillColumn;
+    const filteredRows = nvcRows.filter(row => {
+      const val = row[waybillCol];
+      if (!val) return true;
+      const key = val.toString().trim().toUpperCase();
+      return !duplicateCheckResult.duplicateWaybills.has(key);
+    });
+
+    setIsDuplicateModalOpen(false);
+    showToast(`Đã lọc nạp thành công ${duplicateCheckResult.uniqueNewRowsCount} đơn hàng mới!`, 'success');
+    executeReconciliation(targetShopsForExec, filteredRows);
   };
 
   // Run reconciliation with auto new shops detection
@@ -306,14 +349,14 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    executeReconciliation(shops);
+    handleCheckDuplicatesAndProceed(shops);
   };
 
   const handleSaveNewShopsAndContinue = (newShops: Shop[]) => {
     const updatedAllShops = [...shops, ...newShops];
     onSaveShops(updatedAllShops);
     setIsNewShopsModalOpen(false);
-    executeReconciliation(updatedAllShops);
+    handleCheckDuplicatesAndProceed(updatedAllShops);
   };
 
   // Reset uploaded files and current session while preserving shops, pricing & column mapping
@@ -1414,6 +1457,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           discoveredShops={discoveredNewShops}
           existingShops={shops}
           onSaveNewShopsAndContinue={handleSaveNewShopsAndContinue}
+        />
+      )}
+
+      {/* Duplicate Waybills Conflict Modal */}
+      {duplicateCheckResult && (
+        <DuplicateConflictModal
+          isOpen={isDuplicateModalOpen}
+          onClose={() => setIsDuplicateModalOpen(false)}
+          checkResult={duplicateCheckResult}
+          onOverwrite={handleOverwriteConflict}
+          onFilterNewOnly={handleFilterNewOnlyConflict}
         />
       )}
 

@@ -10,6 +10,95 @@ import type {
 } from '../types';
 import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill } from './smartColumnDetector';
 
+export interface DuplicateCheckResult {
+  hasConflict: boolean;
+  totalNewRows: number;
+  duplicateRowsCount: number;
+  uniqueNewRowsCount: number;
+  conflictingSessionName?: string;
+  conflictingSessionId?: string;
+  conflictingSessionDate?: string;
+  duplicateWaybills: Set<string>;
+}
+
+export function checkDuplicateWaybills(
+  nvcRows: Record<string, any>[],
+  waybillCol: string,
+  existingSessions: ReconciliationSession[]
+): DuplicateCheckResult {
+  if (!waybillCol || nvcRows.length === 0) {
+    return {
+      hasConflict: false,
+      totalNewRows: 0,
+      duplicateRowsCount: 0,
+      uniqueNewRowsCount: 0,
+      duplicateWaybills: new Set(),
+    };
+  }
+
+  const existingWaybillMap = new Map<string, { sessionId: string; sessionName: string; createdAt: string }>();
+  for (const session of existingSessions) {
+    for (const stmt of session.statements) {
+      for (const order of stmt.orders) {
+        if (order.waybill) {
+          existingWaybillMap.set(order.waybill.trim().toUpperCase(), {
+            sessionId: session.id,
+            sessionName: session.sessionName,
+            createdAt: session.createdAt,
+          });
+        }
+      }
+    }
+    for (const order of session.unmatchedOrders) {
+      if (order.waybill) {
+        existingWaybillMap.set(order.waybill.trim().toUpperCase(), {
+          sessionId: session.id,
+          sessionName: session.sessionName,
+          createdAt: session.createdAt,
+        });
+      }
+    }
+  }
+
+  const duplicateWaybills = new Set<string>();
+  let conflictingSessionName = '';
+  let conflictingSessionId = '';
+  let conflictingSessionDate = '';
+  let validRowsCount = 0;
+
+  for (const row of nvcRows) {
+    const rawWaybill = row[waybillCol];
+    if (isSummaryOrInvalidWaybill(rawWaybill)) continue;
+
+    validRowsCount++;
+    const key = rawWaybill.toString().trim().toUpperCase();
+    if (existingWaybillMap.has(key)) {
+      duplicateWaybills.add(key);
+      const matchedInfo = existingWaybillMap.get(key)!;
+      if (!conflictingSessionName) {
+        conflictingSessionName = matchedInfo.sessionName;
+        conflictingSessionId = matchedInfo.sessionId;
+        conflictingSessionDate = matchedInfo.createdAt;
+      }
+    }
+  }
+
+  const duplicateRowsCount = duplicateWaybills.size;
+  const hasConflict = duplicateRowsCount > 0;
+  const uniqueNewRowsCount = validRowsCount - duplicateRowsCount;
+
+  return {
+    hasConflict,
+    totalNewRows: validRowsCount,
+    duplicateRowsCount,
+    uniqueNewRowsCount,
+    conflictingSessionName,
+    conflictingSessionId,
+    conflictingSessionDate,
+    duplicateWaybills,
+  };
+}
+
 export function calculateWeightFee(weight: number, plan: ShopPricingPlan): number {
   if (!plan || !plan.weightRules || plan.weightRules.length === 0) {
     return 25000;

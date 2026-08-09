@@ -210,6 +210,12 @@ export const StorageService = {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
   },
 
+  deleteSession(sessionId: string): void {
+    const sessions = this.getSessions().filter(s => s.id !== sessionId);
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  },
+
+
   clearAllData(): void {
     localStorage.setItem(SHOPS_KEY, JSON.stringify([]));
     localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
