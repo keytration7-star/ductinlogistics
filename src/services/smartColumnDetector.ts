@@ -9,7 +9,8 @@ export function normalizeHeader(header: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '_')
-    .replace(/_+/g, '_');
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 const ALIASES = {
@@ -42,26 +43,27 @@ const ALIASES = {
     'status', 'delivery_status', 'ket_qua', 'trang_thai_doi_soat', 'ghi_chu'
   ],
   shopName: [
-    'ten_shop', 'nguoi_gui', 'ten_nguoi_gui', 'shop', 'khach_hang', 'ma_shop',
-    'ten_khach_hang', 'sender_name', 'shop_name', 'cua_hang', 'ten_cua_hang',
-    'ma_khach_hang', 'chu_shop'
+    'ten_shop', 'shop_name', 'ten_nguoi_gui', 'ho_ten_nguoi_gui', 'ten_khach_hang',
+    'ten_cua_hang', 'chu_shop', 'cua_hang', 'shop', 'khach_hang', 'sender_name',
+    'ma_shop', 'ma_khach_hang'
   ],
   shopPhone: [
-    'sdt_shop', 'sdt_nguoi_gui', 'dien_thoai_shop', 'dien_thoai_nguoi_gui', 'sdt_khach',
-    'so_dien_thoai_nguoi_gui', 'sender_phone', 'phone_shop', 'sdt_gui'
+    'sdt_shop', 'sdt_nguoi_gui', 'dien_thoai_shop', 'dien_thoai_nguoi_gui', 'so_dien_thoai_nguoi_gui',
+    'sdt_khach', 'sender_phone', 'phone_shop', 'sdt_gui', 'dien_thoai_gui'
   ],
   shopAddress: [
-    'dia_chi_shop', 'dia_chi_nguoi_gui', 'dia_chi_gui', 'sender_address', 'kho_gui'
+    'dia_chi_shop', 'dia_chi_nguoi_gui', 'dia_chi_gui', 'dia_chi_kho', 'dia_chi_kho_gui',
+    'sender_address', 'kho_gui', 'noi_gui'
   ],
   receiverName: [
-    'nguoi_nhan', 'ten_nguoi_nhan', 'ho_ten_nguoi_nhan', 'receiver_name', 'ten_khach_nhan'
+    'ten_nguoi_nhan', 'ho_ten_nguoi_nhan', 'ten_khach_nhan', 'nguoi_nhan', 'receiver_name'
   ],
   receiverPhone: [
-    'sdt_nhan', 'sdt_nguoi_nhan', 'dien_thoai_nhan', 'receiver_phone', 'so_dien_thoai_nguoi_nhan'
+    'sdt_nhan', 'sdt_nguoi_nhan', 'dien_thoai_nhan', 'so_dien_thoai_nguoi_nhan', 'receiver_phone'
   ],
   receiverAddress: [
-    'dia_chi_nhan', 'dia_chi_nguoi_nhan', 'dia_chi', 'noi_nhan', 'tinh_thanh_nhan',
-    'quan_huyen_nhan', 'receiver_address', 'dia_chi_giao_hang'
+    'dia_chi_nhan', 'dia_chi_nguoi_nhan', 'dia_chi_giao_hang', 'dia_chi_khach_nhan',
+    'receiver_address', 'dia_chi', 'noi_nhan', 'tinh_thanh_nhan', 'quan_huyen_nhan'
   ],
 };
 
@@ -74,20 +76,48 @@ export function autoDetectColumns(
     waybillColumn: '',
   };
 
-  const findBestMatch = (aliases: string[], savedCol?: string): string => {
+  const findBestMatch = (
+    aliases: string[], 
+    savedCol?: string, 
+    mustNotInclude: string[] = []
+  ): string => {
     // 1. If user previously selected a column and it exists in current headers, keep user's choice
     if (savedCol && headers.includes(savedCol)) {
       return savedCol;
     }
-    // 2. Otherwise auto-detect via aliases
+
+    // 2. Exact match check first (highest priority)
     for (const header of headers) {
       const normalized = normalizeHeader(header);
+      
+      // Skip if contains forbidden words
+      if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) {
+        continue;
+      }
+
       for (const alias of aliases) {
-        if (normalized === alias || normalized.includes(alias)) {
+        if (normalized === alias) {
           return header;
         }
       }
     }
+
+    // 3. Prefix/Suffix or substring match
+    for (const header of headers) {
+      const normalized = normalizeHeader(header);
+      
+      // Skip if contains forbidden words
+      if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) {
+        continue;
+      }
+
+      for (const alias of aliases) {
+        if (normalized.startsWith(alias + '_') || normalized.endsWith('_' + alias) || normalized.includes(alias)) {
+          return header;
+        }
+      }
+    }
+
     return '';
   };
 
@@ -100,12 +130,46 @@ export function autoDetectColumns(
     mapping.weightColumn = findBestMatch(ALIASES.weight, savedMapping?.weightColumn);
     mapping.statusColumn = findBestMatch(ALIASES.status, savedMapping?.statusColumn);
   } else {
-    mapping.shopNameColumn = findBestMatch(ALIASES.shopName, savedMapping?.shopNameColumn);
-    mapping.shopPhoneColumn = findBestMatch(ALIASES.shopPhone, savedMapping?.shopPhoneColumn);
-    mapping.shopAddressColumn = findBestMatch(ALIASES.shopAddress, savedMapping?.shopAddressColumn);
-    mapping.receiverNameColumn = findBestMatch(ALIASES.receiverName, savedMapping?.receiverNameColumn);
-    mapping.receiverPhoneColumn = findBestMatch(ALIASES.receiverPhone, savedMapping?.receiverPhoneColumn);
-    mapping.receiverAddressColumn = findBestMatch(ALIASES.receiverAddress, savedMapping?.receiverAddressColumn);
+    // shopName MUST NOT contain 'dia_chi', 'address', 'kho', 'sdt', 'phone', 'dien_thoai', 'ngan_hang', 'stk'
+    mapping.shopNameColumn = findBestMatch(
+      ALIASES.shopName, 
+      savedMapping?.shopNameColumn, 
+      ['dia_chi', 'address', 'kho', 'sdt', 'phone', 'dien_thoai', 'ngan_hang', 'stk', 'so_tai_khoan']
+    );
+
+    // shopPhone MUST NOT contain 'dia_chi', 'address', 'ten', 'name'
+    mapping.shopPhoneColumn = findBestMatch(
+      ALIASES.shopPhone, 
+      savedMapping?.shopPhoneColumn, 
+      ['dia_chi', 'address', 'ten', 'name']
+    );
+
+    // shopAddress
+    mapping.shopAddressColumn = findBestMatch(
+      ALIASES.shopAddress, 
+      savedMapping?.shopAddressColumn
+    );
+
+    // receiverName MUST NOT contain 'dia_chi', 'address', 'sdt', 'phone', 'dien_thoai'
+    mapping.receiverNameColumn = findBestMatch(
+      ALIASES.receiverName, 
+      savedMapping?.receiverNameColumn,
+      ['dia_chi', 'address', 'sdt', 'phone', 'dien_thoai']
+    );
+
+    // receiverPhone MUST NOT contain 'dia_chi', 'address', 'ten', 'name'
+    mapping.receiverPhoneColumn = findBestMatch(
+      ALIASES.receiverPhone, 
+      savedMapping?.receiverPhoneColumn,
+      ['dia_chi', 'address', 'ten', 'name']
+    );
+
+    // receiverAddress
+    mapping.receiverAddressColumn = findBestMatch(
+      ALIASES.receiverAddress, 
+      savedMapping?.receiverAddressColumn
+    );
+
     mapping.weightColumn = findBestMatch(ALIASES.weight, savedMapping?.weightColumn);
     mapping.codColumn = findBestMatch(ALIASES.cod, savedMapping?.codColumn);
   }

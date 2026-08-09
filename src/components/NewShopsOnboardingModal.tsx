@@ -319,6 +319,18 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                   />
                 </div>
               </div>
+
+              <div className="input-group" style={{ marginTop: 10, marginBottom: 0 }}>
+                <label className="input-label">Địa Chỉ Kho Gửi Hàng</label>
+                <input
+                  type="text"
+                  value={currentShop.address}
+                  onChange={(e) => handleUpdateCurrentShop('address', e.target.value)}
+                  className="input-field"
+                  style={{ padding: '8px 12px' }}
+                  placeholder="Địa chỉ kho gửi hàng..."
+                />
+              </div>
             </div>
 
             {/* 2. Bank Details */}
