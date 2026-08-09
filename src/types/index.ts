@@ -94,7 +94,8 @@ export interface ExportColumnItem {
   id: string;
   label: string;
   enabled: boolean;
-  category: 'basic' | 'receiver' | 'finance' | 'carrier' | 'system';
+  category: 'basic' | 'receiver' | 'finance' | 'carrier' | 'system' | 'custom';
+  sourceHeader?: string; // Tên cột thực tế quét được từ File NVC hoặc File App
 }
 
 export interface ExportColumnSettings {

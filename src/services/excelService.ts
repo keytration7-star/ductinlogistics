@@ -251,8 +251,15 @@ export const ExcelService = {
           case 'shopFee': rowData.push(order.shopCalculatedFee); break;
           case 'shopOtherFee': rowData.push(order.shopOtherFee); break;
           case 'netPayout': rowData.push(order.netShopPayout); break;
-          case 'orderNote': rowData.push(order.rawAppData?.['Ghi chú'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ghi_chu', 'note'])); break;
-          default: rowData.push('');
+          default: {
+            const srcHeader = col.sourceHeader || col.label || col.id;
+            const val = (order.rawNvcData && order.rawNvcData[srcHeader] !== undefined ? order.rawNvcData[srcHeader] : undefined) ??
+                        (order.rawAppData && order.rawAppData[srcHeader] !== undefined ? order.rawAppData[srcHeader] : undefined) ??
+                        (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
+                        (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
+            rowData.push(val);
+            break;
+          }
         }
       });
 

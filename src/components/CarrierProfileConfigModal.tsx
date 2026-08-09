@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
-import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert } from 'lucide-react';
+import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert, Zap } from 'lucide-react';
 import type { ColumnMappingConfig, CustomColumnMapping, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
@@ -58,6 +58,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   const [exportSettings, setExportSettings] = useState<ExportColumnSettings>(() => {
     return StorageService.getCarrierExportSettings(carrierId);
   });
+
+  const [selectedExportSourceHeader, setSelectedExportSourceHeader] = useState('');
+  const [customExportLabel, setCustomExportLabel] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,6 +149,92 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
       setLocalAppMapping(newApp);
       triggerAutoSave(newNvc, newApp);
     }
+  };
+
+  // Compute all unique scanned headers from NVC & App files
+  const allScannedHeaders = Array.from(new Set([
+    ...nvcHeaders,
+    ...appHeaders,
+    ...(localNvcMapping.customColumns || []).map(c => c.excelColumn),
+    ...(localAppMapping.customColumns || []).map(c => c.excelColumn),
+  ].filter(Boolean)));
+
+  const handleAddNewCustomExportColumn = () => {
+    if (!selectedExportSourceHeader) {
+      showToast('Vui lòng chọn một cột quét từ file NVC hoặc App.', 'warning');
+      return;
+    }
+    const label = (customExportLabel.trim() || selectedExportSourceHeader);
+    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
+
+    const exists = exportSettings[targetKey].some(c => c.sourceHeader === selectedExportSourceHeader || c.label === label);
+    if (exists) {
+      showToast(`Cột "${label}" đã có sẵn trong mẫu xuất file.`, 'warning');
+      return;
+    }
+
+    const newCol: ExportColumnItem = {
+      id: `exp_custom_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      label,
+      enabled: true,
+      category: 'custom',
+      sourceHeader: selectedExportSourceHeader,
+    };
+
+    const updated = {
+      ...exportSettings,
+      [targetKey]: [...exportSettings[targetKey], newCol],
+    };
+    setExportSettings(updated);
+    triggerAutoSave(localNvcMapping, localAppMapping, updated);
+    showToast(`Đã thêm cột xuất "${label}"!`, 'success');
+    setSelectedExportSourceHeader('');
+    setCustomExportLabel('');
+  };
+
+  const handleRemoveExportColumn = (colId: string) => {
+    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
+    const updated = {
+      ...exportSettings,
+      [targetKey]: exportSettings[targetKey].filter(c => c.id !== colId),
+    };
+    setExportSettings(updated);
+    triggerAutoSave(localNvcMapping, localAppMapping, updated);
+    showToast('Đã xóa cột tùy chọn khỏi mẫu xuất.', 'info');
+  };
+
+  const handleAutoAddAllScannedHeaders = () => {
+    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
+    const currentCols = exportSettings[targetKey];
+    let countAdded = 0;
+
+    const newCols = [...currentCols];
+    allScannedHeaders.forEach(h => {
+      const alreadyHas = newCols.some(c => c.sourceHeader === h || c.label.toLowerCase() === h.toLowerCase());
+      if (!alreadyHas) {
+        newCols.push({
+          id: `exp_auto_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          label: h,
+          enabled: true,
+          category: 'custom',
+          sourceHeader: h,
+        });
+        countAdded++;
+      }
+    });
+
+    if (countAdded === 0) {
+      showToast('Tất cả cột quét được từ 2 file đã có sẵn trong danh sách mẫu xuất!', 'info');
+      return;
+    }
+
+    const updated = {
+      ...exportSettings,
+      [targetKey]: newCols,
+    };
+    setExportSettings(updated);
+    triggerAutoSave(localNvcMapping, localAppMapping, updated);
+    showToast(`Đã tự động thêm ${countAdded} cột mới quét từ 2 file!`, 'success');
   };
 
   // Export handlers — auto-save on every change
@@ -822,6 +911,88 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                 </div>
               )}
 
+              {/* Dynamic Add Scanned Column Box */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
+                padding: 12,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                marginBottom: 14,
+              }}>
+                <div style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: 'var(--primary)',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
+                  <span>➕ Thêm Cột Tùy Chọn Từ File Thực Tế Quét Được ({allScannedHeaders.length} Cột)</span>
+                  {allScannedHeaders.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleAutoAddAllScannedHeaders}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 11, padding: '3px 8px' }}
+                      title="Tự động thêm toàn bộ các cột thực tế tìm thấy trong 2 file"
+                    >
+                      <Zap size={12} color="var(--warning)" />
+                      <span>Tự động thêm tất cả {allScannedHeaders.length} cột</span>
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+                  <select
+                    value={selectedExportSourceHeader}
+                    onChange={(e) => {
+                      setSelectedExportSourceHeader(e.target.value);
+                      if (!customExportLabel) setCustomExportLabel(e.target.value);
+                    }}
+                    className="select-field"
+                    style={{ padding: '5px 10px', fontSize: 12 }}
+                  >
+                    <option value="">
+                      {allScannedHeaders.length > 0
+                        ? `-- Chọn cột thực tế từ File NVC hoặc App (${allScannedHeaders.length} cột) --`
+                        : '⚠️ Chưa quét thấy cột nào (Vui lòng tải file NVC hoặc App)'}
+                    </option>
+                    {allScannedHeaders.map(h => (
+                      <option key={h} value={h}>
+                        {nvcHeaders.includes(h) && appHeaders.includes(h)
+                          ? `[Cả 2 File] ${h}`
+                          : nvcHeaders.includes(h)
+                          ? `[File NVC] ${h}`
+                          : `[File App] ${h}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="Tên tiêu đề hiển thị trên Excel xuất..."
+                    value={customExportLabel}
+                    onChange={(e) => setCustomExportLabel(e.target.value)}
+                    className="input-field"
+                    style={{ padding: '5px 10px', fontSize: 12 }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleAddNewCustomExportColumn}
+                    className="btn btn-primary btn-sm"
+                    style={{ padding: '0 12px', fontSize: 11, height: 32 }}
+                    disabled={!selectedExportSourceHeader}
+                  >
+                    <Plus size={13} />
+                    <span>Thêm Cột Xuất</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Grid of Checkboxes */}
               <div style={{
                 display: 'grid',
@@ -830,8 +1001,10 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               }}>
                 {currentExportColumns.map((col: ExportColumnItem) => {
                   const isMandatory = col.id === 'stt' || col.id === 'waybill';
+                  const isCustom = col.category === 'custom';
+
                   return (
-                    <label
+                    <div
                       key={col.id}
                       style={{
                         display: 'flex',
@@ -841,7 +1014,6 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         borderRadius: 'var(--radius-md)',
                         background: col.enabled ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
                         border: col.enabled ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                        cursor: isMandatory ? 'not-allowed' : 'pointer',
                         transition: 'all 0.15s ease',
                         opacity: isMandatory ? 0.8 : 1,
                       }}
@@ -853,7 +1025,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         onChange={() => handleToggleExportColumn(col.id)}
                         style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: isMandatory ? 'not-allowed' : 'pointer' }}
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ flex: 1, minWidth: 0, cursor: isMandatory ? 'not-allowed' : 'pointer' }} onClick={() => !isMandatory && handleToggleExportColumn(col.id)}>
                         <div style={{
                           fontSize: 12,
                           fontWeight: col.enabled ? 700 : 500,
@@ -865,8 +1037,26 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           {col.label}
                         </div>
                         {isMandatory && <div style={{ fontSize: 10, color: 'var(--primary)' }}>Bắt buộc</div>}
+                        {isCustom && (
+                          <div style={{ fontSize: 9, color: 'var(--warning)', fontWeight: 600 }}>
+                            Quét từ file ({col.sourceHeader || col.label})
+                          </div>
+                        )}
                       </div>
-                    </label>
+
+                      {/* Trash button for custom export columns */}
+                      {isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExportColumn(col.id)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '2px 5px', flexShrink: 0 }}
+                          title="Xóa cột tùy chọn này khỏi danh sách xuất"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
