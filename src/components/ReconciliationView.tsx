@@ -14,11 +14,11 @@ import {
   TrendingUp, 
   Layers, 
   Sparkles,
-  Sliders,
   ArrowUpDown,
   XCircle,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  Settings2
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -36,6 +36,7 @@ import { VietQRModal } from './VietQRModal';
 import { NewShopsOnboardingModal } from './NewShopsOnboardingModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
+import { CarrierProfileConfigModal } from './CarrierProfileConfigModal';
 import confetti from 'canvas-confetti';
 
 import { StorageService } from '../services/storage';
@@ -95,6 +96,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showCarrierConfigModal, setShowCarrierConfigModal] = useState(false);
 
   // Discovered New Shops from uploaded App file
   const [discoveredNewShops, setDiscoveredNewShops] = useState<{ name: string; phone: string; address: string; orderCount: number }[]>([]);
@@ -734,21 +736,36 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           borderTop: '1px solid var(--border-color)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* THẺ CÀI ĐẶT ĐƠN VỊ VẬN CHUYỂN */}
             <button
-              onClick={() => setShowMappingModal(true)}
+              onClick={() => setShowCarrierConfigModal(true)}
               className="btn btn-secondary btn-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 14px',
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+                border: '1px solid var(--primary)',
+                color: 'var(--text-main)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+              }}
+              title={`Bấm để mở cài đặt Ánh Xạ Cột & Mẫu Xuất File cho ${selectedCarrierTier?.carrierName}`}
             >
-              <Sliders size={15} />
-              <span>Tùy Chỉnh Ánh Xạ Cột (Column Mapping)</span>
-            </button>
-
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="btn btn-secondary btn-sm"
-              title="Cấu hình các cột dữ liệu khi xuất file Excel"
-            >
-              <FileSpreadsheet size={15} />
-              <span>⚙️ Cấu Hình Cột Xuất Excel</span>
+              <span style={{
+                background: 'var(--primary)',
+                color: '#fff',
+                padding: '2px 6px',
+                borderRadius: 4,
+                fontSize: 10,
+                fontWeight: 800,
+                textTransform: 'uppercase',
+              }}>
+                {selectedCarrierTier?.carrierId?.toUpperCase() || 'NVC'}
+              </span>
+              <Settings2 size={15} color="var(--primary)" />
+              <span>Cài Đặt Hồ Sơ Hãng: <strong style={{ color: 'var(--primary)' }}>{selectedCarrierTier?.carrierName}</strong> (Ánh Xạ + Mẫu Xuất)</span>
             </button>
 
             {(nvcFile || appFile || currentSession) && (
@@ -758,7 +775,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 title="Hủy file đã tải và kết quả đối soát hiện tại (Giữ nguyên Danh sách Shop & Cài đặt cước)"
               >
                 <RotateCcw size={15} />
-                <span>Làm Mới / Hủy File (Giữ Shop & Giá)</span>
+                <span>Làm Mới / Hủy File</span>
               </button>
             )}
           </div>
@@ -1286,7 +1303,25 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         </div>
       )}
 
-      {/* Column Mapping Modal */}
+      {/* Unified Carrier Profile Config Modal */}
+      {showCarrierConfigModal && (
+        <CarrierProfileConfigModal
+          isOpen={showCarrierConfigModal}
+          onClose={() => setShowCarrierConfigModal(false)}
+          carrierId={selectedCarrierId}
+          carrierName={selectedCarrierTier?.carrierName || 'NVC'}
+          nvcHeaders={nvcHeaders}
+          appHeaders={appHeaders}
+          nvcMapping={nvcMapping}
+          appMapping={appMapping}
+          onSaveMappings={(newNvc, newApp) => {
+            setNvcMapping(newNvc);
+            setAppMapping(newApp);
+          }}
+        />
+      )}
+
+      {/* Column Mapping Modal (Stand-alone fallback if triggered elsewhere) */}
       {showMappingModal && (
         <ColumnMappingModal
           isOpen={showMappingModal}
