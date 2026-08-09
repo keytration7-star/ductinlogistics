@@ -1,4 +1,5 @@
 import type { ShopSettlementStatement, EmailSettings } from '../types';
+import { StorageService } from './storage';
 import * as XLSX from 'xlsx';
 
 export const EmailService = {
@@ -37,10 +38,18 @@ export const EmailService = {
   },
 
   renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings): string {
+    const companyInfo = StorageService.getCompanyInfo();
+    const companyName = companyInfo?.companyName || settings.senderName || 'CÔNG TY LOGISTICS & GOM ĐƠN';
+    const companyAddress = companyInfo?.address || '';
+    const companyPhone = companyInfo?.phone || '';
+    const companyTax = companyInfo?.taxCode || '';
+
+    // Dynamically render custom text body from user settings template
+    const { body: customTextBody } = this.renderEmail(statement, settings);
+
     const totalCodStr = this.formatMoney(statement.totalCod);
     const totalFeeStr = this.formatMoney(statement.totalShopFee + statement.totalShopOtherFee);
     const netPayoutStr = this.formatMoney(statement.totalNetPayout);
-    const senderName = settings.senderName || 'ĐỨC TÍN LOGISTICS';
 
     return `
 <!DOCTYPE html>
@@ -64,7 +73,7 @@ export const EmailService = {
                 <tr>
                   <td align="center">
                     <div style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 6px;">
-                      🚚 ${senderName}
+                      🚚 ${companyName}
                     </div>
                     <div style="font-size: 14px; color: #c7d2fe; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">
                       BẢNG KÊ ĐỐI SOÁT COD & QUYẾT TOÁN CƯỚC
@@ -78,16 +87,12 @@ export const EmailService = {
             </td>
           </tr>
 
-          <!-- Greeting Section -->
+          <!-- Custom Body Content Written by User -->
           <tr>
             <td style="padding: 26px 28px 16px;">
-              <p style="margin: 0 0 10px; font-size: 15px; line-height: 1.6; color: #334155;">
-                Kính gửi Quý Khách hàng: <strong style="color: #1e1b4b; font-size: 16px;">${statement.shopName}</strong> 
-                <span style="font-size: 12px; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-left: 6px;">${statement.shopCode}</span>,
-              </p>
-              <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #64748b;">
-                Phòng Kế Toán & Đối Soát xin trân trọng gửi bảng tổng hợp quyết toán dòng tiền thu hộ (COD) và cước phí vận chuyển của Quý khách kỳ <strong>${statement.periodName}</strong>.
-              </p>
+              <div style="font-size: 14.5px; line-height: 1.7; color: #334155; white-space: pre-wrap; font-family: inherit;">
+                ${customTextBody}
+              </div>
             </td>
           </tr>
 
@@ -202,13 +207,12 @@ export const EmailService = {
           <!-- Email Footer Sign-off -->
           <tr>
             <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 24px 28px; text-align: center;">
-              <div style="font-size: 14px; font-weight: 800; color: #1e1b4b; margin-bottom: 4px;">
-                ${senderName}
+              <div style="font-size: 15px; font-weight: 800; color: #1e1b4b; margin-bottom: 4px;">
+                ${companyName}
               </div>
-              <div style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
-                Hệ Thống Quản Trị & Đối Soát Vận Chuyển Chuyên Nghiệp
-              </div>
-              <div style="font-size: 11px; color: #94a3b8; line-height: 1.5;">
+              ${companyAddress ? `<div style="font-size: 12px; color: #64748b; margin-bottom: 3px;">📍 ${companyAddress}</div>` : ''}
+              ${companyPhone ? `<div style="font-size: 12px; color: #64748b; margin-bottom: 3px;">📞 Hotline: ${companyPhone} ${companyTax ? `• MST: ${companyTax}` : ''}</div>` : ''}
+              <div style="font-size: 11px; color: #94a3b8; line-height: 1.5; margin-top: 10px;">
                 Email này được tạo và gửi tự động từ hệ thống GomDon Pro Enterprise.<br/>
                 Vui lòng không chia sẻ thông tin tài chính đối soát cho bên thứ ba.
               </div>
