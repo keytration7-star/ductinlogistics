@@ -43,7 +43,8 @@ export function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
+    await StorageService.syncWithServer();
     const s = StorageService.getShops();
     const c = StorageService.getCarriers();
     const sess = StorageService.getSessions();

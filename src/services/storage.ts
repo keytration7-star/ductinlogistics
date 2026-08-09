@@ -6,6 +6,7 @@ const SESSIONS_KEY = 'gomdon_sessions_v1';
 const EMAIL_SETTINGS_KEY = 'gomdon_email_settings_v1';
 const COLUMN_MAPPINGS_KEY = 'gomdon_column_mappings_v1';
 const COMPANY_INFO_KEY = 'gomdon_company_info_v1';
+const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   companyName: 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS TRUNG GIAN',
@@ -153,14 +154,72 @@ export const DEFAULT_EXPORT_COLUMNS: ExportColumnSettings = {
   ],
 };
 
-const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
+// Helper for sending server sync requests asynchronously
+async function postServerSync(endpoint: string, body: any) {
+  try {
+    await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.warn(`[Server Sync Fail] ${endpoint}:`, err);
+  }
+}
 
 export const StorageService = {
+  // 🔄 Sync all data from Server on App Launch
+  async syncWithServer(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/db/all');
+      if (!res.ok) return false;
+      const result = await res.json();
+      if (!result.success || !result.data) return false;
+
+      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData } = result.data;
+
+      if (shops && Array.isArray(shops)) {
+        localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
+      }
+      if (carriers && Array.isArray(carriers)) {
+        localStorage.setItem(CARRIERS_KEY, JSON.stringify(carriers));
+      }
+      if (sessions && Array.isArray(sessions)) {
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      }
+      if (companyInfo && Object.keys(companyInfo).length > 0) {
+        localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
+      }
+      if (emailSettings && Object.keys(emailSettings).length > 0) {
+        localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(emailSettings));
+      }
+      if (exportColumns && Object.keys(exportColumns).length > 0) {
+        localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(exportColumns));
+      }
+      if (carrierData && typeof carrierData === 'object') {
+        Object.keys(carrierData).forEach(key => {
+          localStorage.setItem(key, JSON.stringify(carrierData[key]));
+        });
+      }
+
+      // First time sync: If server was empty but client had local data, push client data to server!
+      if (!shops && this.getShops().length > 0) {
+        postServerSync('/api/db/shops', { shops: this.getShops() });
+      }
+      if (!sessions && this.getSessions().length > 0) {
+        postServerSync('/api/db/sessions', { sessions: this.getSessions() });
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('[Server Sync Load Fail]:', err);
+      return false;
+    }
+  },
+
   getShops(): Shop[] {
     const data = localStorage.getItem(SHOPS_KEY);
-    if (!data) {
-      return [];
-    }
+    if (!data) return [];
     try {
       return JSON.parse(data);
     } catch {
@@ -170,6 +229,7 @@ export const StorageService = {
 
   saveShops(shops: Shop[]): void {
     localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
+    postServerSync('/api/db/shops', { shops });
   },
 
   getCarriers(): CarrierWholesaleTier[] {
@@ -187,6 +247,7 @@ export const StorageService = {
 
   saveCarriers(carriers: CarrierWholesaleTier[]): void {
     localStorage.setItem(CARRIERS_KEY, JSON.stringify(carriers));
+    postServerSync('/api/db/carriers', { carriers });
   },
 
   getSessions(): ReconciliationSession[] {
@@ -208,21 +269,25 @@ export const StorageService = {
       sessions.unshift(session);
     }
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    postServerSync('/api/db/sessions', { sessions });
   },
 
   deleteSession(sessionId: string): void {
     const sessions = this.getSessions().filter(s => s.id !== sessionId);
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    postServerSync('/api/db/sessions', { sessions });
   },
-
 
   clearAllData(): void {
     localStorage.setItem(SHOPS_KEY, JSON.stringify([]));
     localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    postServerSync('/api/db/shops', { shops: [] });
+    postServerSync('/api/db/sessions', { sessions: [] });
   },
 
   clearSessionsOnly(): void {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    postServerSync('/api/db/sessions', { sessions: [] });
   },
 
   getEmailSettings(): EmailSettings {
@@ -240,6 +305,7 @@ export const StorageService = {
 
   saveEmailSettings(settings: EmailSettings): void {
     localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(settings));
+    postServerSync('/api/db/email-settings', { emailSettings: settings });
   },
 
   getColumnMappings(): { nvc?: any; app?: any } {
@@ -273,6 +339,14 @@ export const StorageService = {
     const data = { nvc: nvcMapping, app: appMapping };
     localStorage.setItem(key, JSON.stringify(data));
     this.saveColumnMappings(nvcMapping, appMapping);
+    
+    // Sync carrier mappings to server
+    postServerSync('/api/db/carrier-data', {
+      carrierData: {
+        [key]: data,
+        [COLUMN_MAPPINGS_KEY]: data,
+      },
+    });
   },
 
   getCarrierHeaders(carrierId: string): { nvcHeaders: string[]; appHeaders: string[] } {
@@ -294,6 +368,9 @@ export const StorageService = {
     const key = `gomdon_carrier_headers_${carrierId}`;
     const data = { nvcHeaders, appHeaders };
     localStorage.setItem(key, JSON.stringify(data));
+    postServerSync('/api/db/carrier-data', {
+      carrierData: { [key]: data },
+    });
   },
 
   getExportColumnSettings(): ExportColumnSettings {
@@ -314,6 +391,7 @@ export const StorageService = {
 
   saveExportColumnSettings(settings: ExportColumnSettings): void {
     localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(settings));
+    postServerSync('/api/db/export-columns', { exportColumns: settings });
   },
 
   getCarrierExportSettings(carrierId: string): ExportColumnSettings {
@@ -335,6 +413,9 @@ export const StorageService = {
     const key = `gomdon_carrier_export_${carrierId}`;
     localStorage.setItem(key, JSON.stringify(settings));
     this.saveExportColumnSettings(settings);
+    postServerSync('/api/db/carrier-data', {
+      carrierData: { [key]: settings },
+    });
   },
 
   getCompanyInfo(): CompanyInfo {
@@ -352,6 +433,7 @@ export const StorageService = {
 
   saveCompanyInfo(info: CompanyInfo): void {
     localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(info));
+    postServerSync('/api/db/company-info', { companyInfo: info });
   },
 
   exportDatabaseBackup(): string {
@@ -373,10 +455,15 @@ export const StorageService = {
       const backup = JSON.parse(jsonString);
       if (backup.shops) this.saveShops(backup.shops);
       if (backup.carriers) this.saveCarriers(backup.carriers);
-      if (backup.sessions) localStorage.setItem(SESSIONS_KEY, JSON.stringify(backup.sessions));
+      if (backup.sessions) {
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(backup.sessions));
+        postServerSync('/api/db/sessions', { sessions: backup.sessions });
+      }
       if (backup.emailSettings) this.saveEmailSettings(backup.emailSettings);
       if (backup.exportColumns) this.saveExportColumnSettings(backup.exportColumns);
       if (backup.companyInfo) this.saveCompanyInfo(backup.companyInfo);
+
+      postServerSync('/api/db/backup/import', backup);
       return true;
     } catch (e) {
       console.error('Failed to import backup:', e);
@@ -384,4 +471,3 @@ export const StorageService = {
     }
   },
 };
-

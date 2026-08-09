@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 
@@ -9,10 +10,136 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// API Send Email
+// ──────────────────────────────────────────
+// 📁 SERVER-SIDE PERSISTENT STORAGE (JSON DATABASE)
+// ──────────────────────────────────────────
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function readJsonFile(filename, defaultValue) {
+  try {
+    const filePath = path.join(DATA_DIR, filename);
+    if (!fs.existsSync(filePath)) return defaultValue;
+    const content = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(content);
+  } catch (err) {
+    console.error(`[DB Read Error] ${filename}:`, err);
+    return defaultValue;
+  }
+}
+
+function writeJsonFile(filename, data) {
+  try {
+    const filePath = path.join(DATA_DIR, filename);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.error(`[DB Write Error] ${filename}:`, err);
+    return false;
+  }
+}
+
+// ──────────────────────────────────────────
+// 🌐 DB API ENDPOINTS
+// ──────────────────────────────────────────
+
+// GET all data from server storage
+app.get('/api/db/all', (req, res) => {
+  try {
+    const shops = readJsonFile('shops.json', null);
+    const carriers = readJsonFile('carriers.json', null);
+    const sessions = readJsonFile('sessions.json', null);
+    const companyInfo = readJsonFile('company_info.json', null);
+    const emailSettings = readJsonFile('email_settings.json', null);
+    const exportColumns = readJsonFile('export_columns.json', null);
+    const carrierData = readJsonFile('carrier_data.json', {});
+
+    res.json({
+      success: true,
+      data: {
+        shops,
+        carriers,
+        sessions,
+        companyInfo,
+        emailSettings,
+        exportColumns,
+        carrierData,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST save shops
+app.post('/api/db/shops', (req, res) => {
+  const success = writeJsonFile('shops.json', req.body.shops || []);
+  res.json({ success });
+});
+
+// POST save carriers
+app.post('/api/db/carriers', (req, res) => {
+  const success = writeJsonFile('carriers.json', req.body.carriers || []);
+  res.json({ success });
+});
+
+// POST save sessions
+app.post('/api/db/sessions', (req, res) => {
+  const success = writeJsonFile('sessions.json', req.body.sessions || []);
+  res.json({ success });
+});
+
+// POST save company info
+app.post('/api/db/company-info', (req, res) => {
+  const success = writeJsonFile('company_info.json', req.body.companyInfo || {});
+  res.json({ success });
+});
+
+// POST save email settings
+app.post('/api/db/email-settings', (req, res) => {
+  const success = writeJsonFile('email_settings.json', req.body.emailSettings || {});
+  res.json({ success });
+});
+
+// POST save export columns
+app.post('/api/db/export-columns', (req, res) => {
+  const success = writeJsonFile('export_columns.json', req.body.exportColumns || {});
+  res.json({ success });
+});
+
+// POST save carrier data (mappings, export settings, headers per carrier)
+app.post('/api/db/carrier-data', (req, res) => {
+  const current = readJsonFile('carrier_data.json', {});
+  const updated = { ...current, ...req.body.carrierData };
+  const success = writeJsonFile('carrier_data.json', updated);
+  res.json({ success });
+});
+
+// POST import full backup to server
+app.post('/api/db/backup/import', (req, res) => {
+  try {
+    const backup = req.body;
+    if (backup.shops) writeJsonFile('shops.json', backup.shops);
+    if (backup.carriers) writeJsonFile('carriers.json', backup.carriers);
+    if (backup.sessions) writeJsonFile('sessions.json', backup.sessions);
+    if (backup.companyInfo) writeJsonFile('company_info.json', backup.companyInfo);
+    if (backup.emailSettings) writeJsonFile('email_settings.json', backup.emailSettings);
+    if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
+    if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────
+// 📧 EMAIL API
+// ──────────────────────────────────────────
 app.post('/api/send-email', async (req, res) => {
   try {
     const {
