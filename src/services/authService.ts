@@ -1,4 +1,5 @@
 import type { UserAccount, UserRole } from '../types';
+import { DeviceService } from './deviceService';
 
 const USERS_STORAGE_KEY = 'gomdon_users_v1';
 const CURRENT_USER_STORAGE_KEY = 'gomdon_current_user_v1';
@@ -139,9 +140,16 @@ export const AuthService = {
       return { success: false, error: 'Mật khẩu không chính xác. Vui lòng thử lại.' };
     }
 
-    // Update lastLoginAt
+    // Bind current device
+    const deviceId = DeviceService.getDeviceId();
+    const deviceName = DeviceService.getDeviceName();
     const now = new Date().toISOString();
+
     found.lastLoginAt = now;
+    found.activeDeviceId = deviceId;
+    found.activeDeviceName = deviceName;
+    found.lastActiveAt = now;
+
     this.saveUsers(users);
 
     const sessionUser = { ...found };
@@ -153,6 +161,35 @@ export const AuthService = {
 
   logout(): void {
     this.setCurrentUser(null);
+  },
+
+  kickUserDevice(userId: string): { success: boolean; error?: string } {
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (!user) return { success: false, error: 'Không tìm thấy người dùng.' };
+
+    user.activeDeviceId = undefined;
+    user.activeDeviceName = undefined;
+    this.saveUsers(users);
+    return { success: true };
+  },
+
+  async checkDeviceSession(currentUser: UserAccount): Promise<{ isKicked: boolean; newDeviceName?: string }> {
+    if (!currentUser || currentUser.role === 'ADMIN') {
+      return { isKicked: false };
+    }
+    const currentDeviceId = DeviceService.getDeviceId();
+    const users = await this.syncUsersFromServer();
+    const serverUser = users.find(u => u.id === currentUser.id);
+
+    if (serverUser && serverUser.activeDeviceId && serverUser.activeDeviceId !== currentDeviceId) {
+      this.logout();
+      return {
+        isKicked: true,
+        newDeviceName: serverUser.activeDeviceName || 'một thiết bị khác',
+      };
+    }
+    return { isKicked: false };
   },
 
   createUser(data: {

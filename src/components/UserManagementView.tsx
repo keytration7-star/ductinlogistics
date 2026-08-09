@@ -229,110 +229,131 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       {/* Users Table */}
       <div className="table-container glass-panel">
         <table className="data-table">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Họ & Tên</th>
-              <th>Tên Đăng Nhập</th>
-              <th>Vai Trò / Quyền Hạn</th>
-              <th>Liên Hệ</th>
-              <th>Trạng Thái</th>
-              <th>Lần Đăng Nhập Cuối</th>
-              <th style={{ textAlign: 'center' }}>Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, idx) => {
-              const isSuperAdmin = u.username.toLowerCase() === 'ductin-admin';
-              return (
-                <tr key={u.id} style={{ opacity: u.active ? 1 : 0.6 }}>
-                  <td>{idx + 1}</td>
-                  <td>
-                    <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                      {u.fullName}
-                      {isSuperAdmin && (
-                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>
-                          (Chủ Sở Hữu)
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <strong className="mono" style={{ color: 'var(--primary)' }}>
-                      {u.username}
-                    </strong>
-                  </td>
-                  <td>{getRoleBadge(u.role)}</td>
-                  <td>
-                    <div style={{ fontSize: 12 }}>{u.phone || '—'}</div>
-                    {u.email && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.email}</div>}
-                  </td>
-                  <td>
-                    {u.active ? (
-                      <span className="badge badge-success">Đang hoạt động</span>
-                    ) : (
-                      <span className="badge badge-danger">Đang bị khóa</span>
-                    )}
-                  </td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('vi-VN') : 'Chưa đăng nhập'}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                      
-                      {/* Change Password */}
-                      <button
-                        onClick={() => {
-                          setPasswordChangeUser(u);
-                          setNewPasswordInput('');
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '4px 8px', fontSize: 11 }}
-                        title="Đổi mật khẩu"
-                      >
-                        <KeyRound size={13} />
-                      </button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => {
-                          setEditingUser(u);
-                          setFormError(null);
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '4px 8px', fontSize: 11 }}
-                        title="Chỉnh sửa thông tin"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-
-                      {/* Lock / Unlock (Not allowed for super admin) */}
-                      {!isSuperAdmin && (
-                        <button
-                          onClick={() => handleToggleLock(u)}
-                          className={`btn btn-sm ${u.active ? 'btn-secondary' : 'btn-success'}`}
-                          style={{ padding: '4px 8px', fontSize: 11 }}
-                          title={u.active ? 'Khóa tài khoản này' : 'Mở khóa tài khoản'}
-                        >
-                          {u.active ? <Lock size={13} color="var(--warning)" /> : <Unlock size={13} />}
-                        </button>
-                      )}
-
-                      {/* Delete (Not allowed for super admin or self) */}
-                      {!isSuperAdmin && u.id !== currentUser.id && (
-                        <button
-                          onClick={() => handleDeleteUser(u)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '4px 8px', fontSize: 11 }}
-                          title="Xóa tài khoản"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-
-                    </div>
-                  </td>
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Họ & Tên</th>
+                  <th>Tên Đăng Nhập</th>
+                  <th>Vai Trò / Quyền Hạn</th>
+                  <th>💻 Thiết Bị Đã Đăng Nhập</th>
+                  <th>Trạng Thái</th>
+                  <th>Lần Đăng Nhập Cuối</th>
+                  <th style={{ textAlign: 'center' }}>Thao Tác</th>
                 </tr>
+              </thead>
+              <tbody>
+                {users.map((u, idx) => {
+                  const isSuperAdmin = u.username.toLowerCase() === 'ductin-admin';
+                  return (
+                    <tr key={u.id} style={{ opacity: u.active ? 1 : 0.6 }}>
+                      <td>{idx + 1}</td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                          {u.fullName}
+                          {isSuperAdmin && (
+                            <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>
+                              (Chủ Sở Hữu)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <strong className="mono" style={{ color: 'var(--primary)' }}>
+                          {u.username}
+                        </strong>
+                      </td>
+                      <td>{getRoleBadge(u.role)}</td>
+                      <td>
+                        {u.activeDeviceId ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="badge badge-primary" style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              💻 {u.activeDeviceName || '1 Thiết bị'}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Bạn có chắc chắn muốn ngắt kết nối thiết bị "${u.activeDeviceName || 'hiện tại'}" của tài khoản ${u.username}?`)) {
+                                  AuthService.kickUserDevice(u.id);
+                                  setUsers(AuthService.getUsers());
+                                  showToast(`Đã ngắt kết nối thiết bị của ${u.username}!`);
+                                }
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '3px 6px', fontSize: 10, color: 'var(--danger)' }}
+                              title="Ngắt kết nối / Đăng xuất thiết bị này"
+                            >
+                              Ngắt TB
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>⚪ Chưa có thiết bị</span>
+                        )}
+                      </td>
+                      <td>
+                        {u.active ? (
+                          <span className="badge badge-success">Đang hoạt động</span>
+                        ) : (
+                          <span className="badge badge-danger">Đang bị khóa</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('vi-VN') : 'Chưa đăng nhập'}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                          
+                          {/* Change Password */}
+                          <button
+                            onClick={() => {
+                              setPasswordChangeUser(u);
+                              setNewPasswordInput('');
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                            title="Đổi mật khẩu"
+                          >
+                            <KeyRound size={13} />
+                          </button>
+
+                          {/* Edit */}
+                          <button
+                            onClick={() => {
+                              setEditingUser(u);
+                              setFormError(null);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                            title="Chỉnh sửa thông tin"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+
+                          {/* Lock / Unlock (Not allowed for super admin) */}
+                          {!isSuperAdmin && (
+                            <button
+                              onClick={() => handleToggleLock(u)}
+                              className={`btn btn-sm ${u.active ? 'btn-secondary' : 'btn-success'}`}
+                              style={{ padding: '4px 8px', fontSize: 11 }}
+                              title={u.active ? 'Khóa tài khoản này' : 'Mở khóa tài khoản'}
+                            >
+                              {u.active ? <Lock size={13} color="var(--warning)" /> : <Unlock size={13} />}
+                            </button>
+                          )}
+
+                          {/* Delete (Not allowed for super admin or self) */}
+                          {!isSuperAdmin && u.id !== currentUser.id && (
+                            <button
+                              onClick={() => handleDeleteUser(u)}
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: '4px 8px', fontSize: 11 }}
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+
+                        </div>
+                      </td>
+                    </tr>
               );
             })}
           </tbody>

@@ -9,6 +9,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
 import { CompanySettingsModal } from './components/CompanySettingsModal';
+import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 
 import type { 
@@ -42,6 +43,21 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Single Device Session Protection for non-admin accounts
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'ADMIN') return;
+
+    const checkInterval = setInterval(async () => {
+      const result = await AuthService.checkDeviceSession(currentUser);
+      if (result.isKicked) {
+        setCurrentUser(null);
+        alert(`🚨 PHIÊN ĐĂNG NHẬP BỊ NGẮT!\nTài khoản của bạn vừa được đăng nhập trên một thiết bị khác (${result.newDeviceName || 'thiết bị khác'}).\nMỗi tài khoản nhân viên chỉ được phép sử dụng trên 1 thiết bị tại 1 thời điểm.`);
+      }
+    }, 10000);
+
+    return () => clearInterval(checkInterval);
+  }, [currentUser]);
 
   const loadAllData = async () => {
     await StorageService.syncWithServer();
@@ -236,6 +252,9 @@ export function App() {
         onClose={() => setIsCompanyModalOpen(false)}
         userRole={currentUser.role}
       />
+
+      {/* Security Anti-Screenshot Watermark Overlay */}
+      <SecurityWatermark currentUser={currentUser} />
 
     </div>
   </UIFeedbackProvider>
