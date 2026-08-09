@@ -1,4 +1,4 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord } from '../types';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
@@ -7,6 +7,7 @@ const EMAIL_SETTINGS_KEY = 'gomdon_email_settings_v1';
 const COLUMN_MAPPINGS_KEY = 'gomdon_column_mappings_v1';
 const COMPANY_INFO_KEY = 'gomdon_company_info_v1';
 const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
+const PAYMENTS_KEY = 'gomdon_payments_v1';
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   companyName: 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS TRUNG GIAN',
@@ -176,7 +177,7 @@ export const StorageService = {
       const result = await res.json();
       if (!result.success || !result.data) return false;
 
-      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users } = result.data;
+      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users, payments } = result.data;
 
       if (shops && Array.isArray(shops)) {
         localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
@@ -203,6 +204,9 @@ export const StorageService = {
       }
       if (users && Array.isArray(users) && users.length > 0) {
         localStorage.setItem('gomdon_users_v1', JSON.stringify(users));
+      }
+      if (payments && Array.isArray(payments)) {
+        localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
       }
 
       // First time sync: If server was empty but client had local data, push client data to server!
@@ -476,5 +480,36 @@ export const StorageService = {
       console.error('Failed to import backup:', e);
       return false;
     }
+  },
+
+  getPaymentRecords(): PaymentRecord[] {
+    const raw = localStorage.getItem(PAYMENTS_KEY);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  },
+
+  savePaymentRecord(payment: Omit<PaymentRecord, 'id' | 'paidAt'>): PaymentRecord {
+    const payments = this.getPaymentRecords();
+    const newRecord: PaymentRecord = {
+      ...payment,
+      id: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      paidAt: new Date().toISOString(),
+    };
+    payments.unshift(newRecord);
+    localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
+    postServerSync('/api/db/payments', { payments });
+    return newRecord;
+  },
+
+  deletePaymentRecord(paymentId: string): boolean {
+    const payments = this.getPaymentRecords();
+    const filtered = payments.filter(p => p.id !== paymentId);
+    localStorage.setItem(PAYMENTS_KEY, JSON.stringify(filtered));
+    postServerSync('/api/db/payments', { payments: filtered });
+    return true;
   },
 };

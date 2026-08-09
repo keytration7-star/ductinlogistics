@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Users,
   LogOut,
-  UserCheck
+  UserCheck,
+  CreditCard
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -39,6 +40,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: FileSpreadsheet,
       badge: 'Chính',
       roles: ['ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER']
+    },
+    { 
+      id: 'debt', 
+      label: 'Công Nợ & Đi Tiền', 
+      desc: 'Quản lý đi tiền NH cho Shop',
+      icon: CreditCard,
+      badge: 'HOT',
+      roles: ['ADMIN', 'ACCOUNTANT']
     },
     { 
       id: 'shops', 

@@ -59,6 +59,7 @@ app.get('/api/db/all', (req, res) => {
     const exportColumns = readJsonFile('export_columns.json', null);
     const carrierData = readJsonFile('carrier_data.json', {});
     const users = readJsonFile('users.json', null);
+    const payments = readJsonFile('payments.json', []);
 
     res.json({
       success: true,
@@ -71,11 +72,24 @@ app.get('/api/db/all', (req, res) => {
         exportColumns,
         carrierData,
         users,
+        payments,
       },
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// GET payments
+app.get('/api/db/payments', (req, res) => {
+  const payments = readJsonFile('payments.json', []);
+  res.json({ success: true, payments });
+});
+
+// POST save payments
+app.post('/api/db/payments', (req, res) => {
+  const success = writeJsonFile('payments.json', req.body.payments || []);
+  res.json({ success });
 });
 
 // POST save users

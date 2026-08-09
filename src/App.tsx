@@ -5,6 +5,7 @@ import { ShopManagementView } from './components/ShopManagementView';
 import { CarriersPricingView } from './components/CarriersPricingView';
 import { BulkEmailView } from './components/BulkEmailView';
 import { HistoryAndAnalyticsView } from './components/HistoryAndAnalyticsView';
+import { DebtAndPayoutView } from './components/DebtAndPayoutView';
 import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
@@ -181,6 +182,18 @@ export function App() {
               shops={shops}
               onSaveShops={handleSaveShops}
               currentUser={currentUser}
+            />
+          )}
+
+          {activeTab === 'debt' && (
+            <DebtAndPayoutView
+              sessions={sessions}
+              shops={shops}
+              currentUser={currentUser}
+              onRefreshSessions={() => {
+                const updatedSessions = StorageService.getSessions();
+                setSessions(updatedSessions);
+              }}
             />
           )}
 

@@ -133,6 +133,24 @@ export interface ReconciledOrder {
   rawAppData?: Record<string, any>;
 }
 
+export type PayoutStatus = 'UNPAID' | 'HOLD' | 'PARTIAL' | 'PAID';
+
+export interface PaymentRecord {
+  id: string;
+  sessionId: string;
+  sessionName?: string;
+  shopId: string;
+  shopCode: string;
+  shopName: string;
+  amount: number;             // Số tiền đã chuyển khoản qua ngân hàng
+  paidAt: string;             // Thời gian đi tiền
+  paidByUsername: string;     // Kế toán / Admin thực hiện
+  paidByFullName: string;
+  bankName?: string;          // Ngân hàng chuyển
+  transactionRef?: string;    // Mã giao dịch ngân hàng (FT...)
+  note?: string;              // Ghi chú thanh toán
+}
+
 export interface ShopSettlementStatement {
   shopId: string;
   shopCode: string;
@@ -155,6 +173,10 @@ export interface ShopSettlementStatement {
   orders: ReconciledOrder[];
   emailStatus: 'idle' | 'queued' | 'sending' | 'sent' | 'failed';
   emailSentAt?: string;
+  payoutStatus?: PayoutStatus;
+  paidAmount?: number;
+  remainingDebt?: number;
+  paymentHistory?: PaymentRecord[];
 }
 
 export interface ReconciliationSession {
@@ -175,6 +197,9 @@ export interface ReconciliationSession {
   totalProfit: number;          // Tổng lợi nhuận ròng của Nhà Gom Đơn
   statements: ShopSettlementStatement[];
   unmatchedOrders: ReconciledOrder[];
+  payoutStatus?: PayoutStatus;
+  totalPaidAmount?: number;
+  totalRemainingDebt?: number;
 }
 
 export interface EmailSettings {
