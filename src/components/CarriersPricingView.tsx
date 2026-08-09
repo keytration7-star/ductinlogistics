@@ -4,6 +4,7 @@ import type { CarrierWholesaleTier, WeightStepRule } from '../types';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { StorageService } from '../services/storage';
+import { useToast, useConfirm } from './UIFeedback';
 
 interface CarriersPricingViewProps {
   carriers: CarrierWholesaleTier[];
@@ -11,8 +12,10 @@ interface CarriersPricingViewProps {
 }
 
 export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carriers, onSaveCarriers }) => {
+  const { showToast: uiToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [carrierList, setCarrierList] = useState<CarrierWholesaleTier[]>(carriers);
-  const [showToast, setShowToast] = useState(false);
+  const [showSaveToast, setShowSaveToast] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>('Vừa xong');
 
@@ -88,13 +91,19 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   const triggerSaveToast = () => {
     const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLastSavedTime(timeStr);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    setShowSaveToast(true);
+    setTimeout(() => setShowSaveToast(false), 3000);
   };
 
   // Delete Carrier
-  const handleDeleteCarrier = (carrierId: string, carrierName: string) => {
-    if (window.confirm(`Bạn có chắc muốn xóa tạm thời đơn vị vận chuyển "${carrierName}"? Bạn có thể thêm lại bất cứ lúc nào.`)) {
+  const handleDeleteCarrier = async (carrierId: string, carrierName: string) => {
+    const ok = await showConfirm({
+      title: 'Xoá Hãng Vận Chuyển',
+      message: `Bạn có chắc muốn xóa tạm thời đơn vị vận chuyển "${carrierName}"? Bạn có thể thêm lại bất cứ lúc nào.`,
+      confirmText: 'Xoá',
+      warning: true,
+    });
+    if (ok) {
       const updated = carrierList.filter(c => c.id !== carrierId && c.carrierId !== carrierId);
       setCarrierList(updated);
       onSaveCarriers(updated);
@@ -106,7 +115,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   const handleAddNewCarrier = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCarrierName.trim()) {
-      alert('Vui lòng nhập tên đơn vị vận chuyển');
+      uiToast('Vui lòng nhập tên đơn vị vận chuyển', 'warning');
       return;
     }
 
@@ -145,7 +154,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, position: 'relative' }}>
       
       {/* Toast Notification on Save */}
-      {showToast && (
+      {showSaveToast && (
         <div style={{
           position: 'fixed',
           top: 24,
@@ -185,7 +194,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
 
           <button onClick={handleSaveAll} className="btn btn-primary" style={{ minWidth: 190 }}>
             <Check size={16} />
-            <span>{showToast ? '✓ Đã Lưu Xong!' : 'Lưu Thay Đổi Bảng Giá'}</span>
+            <span>{showSaveToast ? '✓ Đã Lưu Xong!' : 'Lưu Thay Đổi Bảng Giá'}</span>
           </button>
         </div>
       </div>

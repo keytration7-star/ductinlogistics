@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast, useConfirm } from './UIFeedback';
 import { SlidersHorizontal, Check, X, Plus, Trash2, RotateCcw, FileSpreadsheet, Layers, Sparkles, AlertCircle } from 'lucide-react';
 import type { ColumnMappingConfig, CustomColumnMapping } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
@@ -16,17 +17,10 @@ interface ColumnMappingModalProps {
   carrierName?: string;
 }
 
-export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
-  isOpen,
-  onClose,
-  nvcHeaders,
-  appHeaders,
-  nvcMapping,
-  appMapping,
-  onSaveMappings,
-  carrierId,
-  carrierName,
-}) => {
+export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => {
+  const { isOpen, onClose, nvcHeaders, appHeaders, nvcMapping, appMapping, onSaveMappings, carrierId, carrierName } = props;
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'nvc' | 'app'>('nvc');
   const [localNvcMapping, setLocalNvcMapping] = useState<ColumnMappingConfig>(nvcMapping);
   const [localAppMapping, setLocalAppMapping] = useState<ColumnMappingConfig>(appMapping);
@@ -47,7 +41,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
 
   const handleAddCustomColumn = () => {
     if (!newCustomLabel.trim() || !newCustomExcelCol) {
-      alert('Vui lòng nhập tên nhãn cột và chọn cột trong file Excel.');
+      showToast('Vui lòng nhập tên nhãn cột và chọn cột trong file Excel.', 'warning');
       return;
     }
 
@@ -86,8 +80,14 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
     }
   };
 
-  const handleAutoRedetect = () => {
-    if (confirm('Khôi phục tự động nhận diện thông minh cho cả 2 file?')) {
+  const handleAutoRedetect = async () => {
+    const ok = await showConfirm({
+      title: 'Nhận Diện Lại',
+      message: 'Khôi phục tự động nhận diện thông minh cho cả 2 file?',
+      confirmText: 'Nhận Diện Lại',
+      warning: true,
+    });
+    if (ok) {
       const newNvc = autoDetectColumns(nvcHeaders, 'nvc');
       const newApp = autoDetectColumns(appHeaders, 'app');
       setLocalNvcMapping(newNvc);
@@ -97,12 +97,12 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
 
   const handleSave = () => {
     if (!localNvcMapping.waybillColumn) {
-      alert('Vui lòng chọn Cột Mã Vận Đơn cho File Đối Soát NVC.');
+      showToast('Vui lòng chọn Cột Mã Vận Đơn cho File Đối Soát NVC.', 'warning');
       setActiveTab('nvc');
       return;
     }
     if (!localAppMapping.waybillColumn) {
-      alert('Vui lòng chọn Cột Mã Vận Đơn cho File Đơn Hàng App.');
+      showToast('Vui lòng chọn Cột Mã Vận Đơn cho File Đơn Hàng App.', 'warning');
       setActiveTab('app');
       return;
     }

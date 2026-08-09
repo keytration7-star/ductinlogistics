@@ -37,6 +37,7 @@ import { NewShopsOnboardingModal } from './NewShopsOnboardingModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { CarrierProfileConfigModal } from './CarrierProfileConfigModal';
+import { useToast, useConfirm } from './UIFeedback';
 import confetti from 'canvas-confetti';
 
 import { StorageService } from '../services/storage';
@@ -58,6 +59,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   onNavigateToEmail,
   onSaveShops,
 }) => {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   // Upload States
   const [nvcFile, setNvcFile] = useState<File | null>(null);
   const [appFile, setAppFile] = useState<File | null>(null);
@@ -144,7 +147,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
       StorageService.saveCarrierHeaders(selectedCarrierId, headers, savedHeaders.appHeaders);
     } catch (err) {
-      alert('Không thể đọc file đối soát NVC. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)');
+      showToast('Không thể đọc file đối soát NVC. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
     }
   };
@@ -164,7 +167,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
       StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
     } catch (err) {
-      alert('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)');
+      showToast('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
     }
   };
@@ -241,14 +244,14 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   };
 
   // Run reconciliation with auto new shops detection
-  const handleRunReconciliation = () => {
+  const handleRunReconciliation = async () => {
     if (nvcRows.length === 0 || appRows.length === 0) {
-      alert('Vui lòng tải lên cả 2 file: File Đối Soát NVC và File Đơn Hàng từ App.');
+      showToast('Vui lòng tải lên cả 2 file: File Đối Soát NVC và File Đơn Hàng từ App.', 'warning');
       return;
     }
 
     if (!nvcMapping.waybillColumn || !appMapping.waybillColumn) {
-      alert('Không tìm thấy cột Mã vận đơn. Vui lòng bấm "Tùy Chỉnh Ánh Xạ Cột" để chọn cột.');
+      showToast('Không tìm thấy cột Mã vận đơn. Vui lòng bấm ⚙️ Cài đặt thẻ hãng để chọn cột.', 'warning');
       setShowMappingModal(true);
       return;
     }
@@ -314,8 +317,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   };
 
   // Reset uploaded files and current session while preserving shops, pricing & column mapping
-  const handleResetReconciliation = () => {
-    if (window.confirm('Bạn có chắc muốn làm mới để tải lại 2 file Excel khác? (Danh sách Shop, Bảng giá và Cấu hình ánh xạ cột sẽ được GIỮ NGUYÊN 100%)')) {
+  const handleResetReconciliation = async () => {
+    const ok = await showConfirm({
+      title: 'Làm Mới File Đối Soát',
+      message: 'Bạn có chắc muốn làm mới để tải lại 2 file Excel khác? Danh sách Shop, Bảng giá và Cấu hình ánh xạ cột sẽ được GIỮ NGUYÊN 100%.',
+      confirmText: 'Làm Mới',
+      cancelText: 'Giữ lại',
+      warning: true,
+    });
+    if (ok) {
       setNvcFile(null);
       setAppFile(null);
       setNvcRows([]);
@@ -436,7 +446,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         setZipProgress({ active: true, percent, currentShop: `Đang đóng gói file: ${currentShop}...` });
       });
     } catch (e) {
-      alert('Có lỗi xảy ra khi tạo tệp ZIP.');
+      showToast('Có lỗi xảy ra khi tạo tệp ZIP.', 'error');
       console.error(e);
     } finally {
       setTimeout(() => {

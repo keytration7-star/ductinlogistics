@@ -16,6 +16,7 @@ import {
 import { StorageService } from '../services/storage';
 import { AuthService } from '../services/authService';
 import type { UserAccount } from '../types';
+import { useConfirm } from './UIFeedback';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   onClearSessionsOnly,
   currentUser,
 }) => {
+  const { showConfirm } = useConfirm();
   // Authentication Gate State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -100,23 +102,41 @@ export const BackupModal: React.FC<BackupModalProps> = ({
     }
   };
 
-  const handleClearSessions = () => {
-    if (window.confirm('Bạn có chắc muốn xóa lịch sử các kỳ đối soát để úp lại file thử nghiệm? (Danh sách Shop và Cài đặt bảng giá vận chuyển sẽ được GIỮ NGUYÊN 100%)')) {
+  const handleClearSessions = async () => {
+    const ok = await showConfirm({
+      title: 'Xoá Lịch Sử Đối Soát',
+      message: 'Bạn có chắc muốn xóa lịch sử các kỳ đối soát để úp lại file thử nghiệm? Danh sách Shop và Cài đặt bảng giá vận chuyển sẽ được GIỮ NGUYÊN 100%.',
+      confirmText: 'Xoá Lịch Sử',
+      warning: true,
+    });
+    if (ok) {
       onClearSessionsOnly();
       setStatusMsg({ type: 'success', text: 'Đã xóa kết quả đối soát! Danh sách Shop & Bảng giá vẫn được giữ nguyên.' });
     }
   };
 
-  const handleClearShopsOnly = () => {
-    if (window.confirm('Bạn có chắc muốn xóa toàn bộ danh sách Shop để nhập lại tệp khách hàng mới? (Bảng giá NVC sỉ và cấu hình sẽ được giữ nguyên)')) {
+  const handleClearShopsOnly = async () => {
+    const ok = await showConfirm({
+      title: 'Xoá Danh Sách Shop',
+      message: 'Bạn có chắc muốn xóa toàn bộ danh sách Shop để nhập lại tệp khách hàng mới? Bảng giá NVC sỉ và cấu hình sẽ được giữ nguyên.',
+      confirmText: 'Xoá Shop',
+      warning: true,
+    });
+    if (ok) {
       StorageService.saveShops([]);
       onDataReloaded();
       setStatusMsg({ type: 'success', text: 'Đã xóa toàn bộ danh sách Shop!' });
     }
   };
 
-  const handleClearAll = () => {
-    if (window.confirm('CẢNH BÁO CAO NHẤT: Thao tác này sẽ xóa sạch toàn bộ danh sách Shop, Bảng giá và Lịch sử đối soát. Bạn có chắc chắn 100% không?')) {
+  const handleClearAll = async () => {
+    const ok = await showConfirm({
+      title: '⚠️ CẢNH BÁO CAO NHẤT',
+      message: 'Thao tác này sẽ xóa sạch toàn bộ danh sách Shop, Bảng giá và Lịch sử đối soát. Bạn có chắc chắn 100% không?',
+      confirmText: 'Xoá Sạch Tất Cả',
+      danger: true,
+    });
+    if (ok) {
       onClearAllData();
       setStatusMsg({ type: 'success', text: 'Đã xóa sạch toàn bộ cơ sở dữ liệu!' });
       setTimeout(() => handleClose(), 1200);

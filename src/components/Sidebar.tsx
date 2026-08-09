@@ -1,4 +1,5 @@
 import React from 'react';
+import { useConfirm } from './UIFeedback';
 import { 
   FileSpreadsheet, 
   Store, 
@@ -26,14 +27,9 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab,
-  setActiveTab,
-  theme,
-  setTheme,
-  onOpenBackupModal,
-  currentUser,
-  onLogout,
+  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, currentUser, onLogout,
 }) => {
+  const { showConfirm } = useConfirm();
   const allNavItems = [
     { 
       id: 'reconciliation', 
@@ -102,10 +98,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const handleConfirmLogout = () => {
-    if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?')) {
-      onLogout();
-    }
+  const handleConfirmLogout = async () => {
+    const ok = await showConfirm({
+      title: 'Đăng Xuất',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?',
+      confirmText: 'Đăng Xuất',
+      warning: true,
+    });
+    if (ok) onLogout();
   };
 
   return (

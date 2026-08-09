@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useConfirm } from './UIFeedback';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -28,6 +29,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   onSelectSession,
   onDeleteSession,
 }) => {
+  const { showConfirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [carrierFilter, setCarrierFilter] = useState('ALL');
 
@@ -80,11 +82,15 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     return matchQuery && matchCarrier;
   });
 
-  const handleDelete = (sess: ReconciliationSession) => {
-    if (window.confirm(`Bạn có chắc muốn xóa kỳ đối soát "${sess.sessionName}"?`)) {
-      if (onDeleteSession) {
-        onDeleteSession(sess.id);
-      }
+  const handleDelete = async (sess: ReconciliationSession) => {
+    const ok = await showConfirm({
+      title: 'Xoá Kỳ Đối Soát',
+      message: `Bạn có chắc muốn xóa kỳ đối soát "${sess.sessionName}"?`,
+      confirmText: 'Xoá',
+      danger: true,
+    });
+    if (ok && onDeleteSession) {
+      onDeleteSession(sess.id);
     }
   };
 

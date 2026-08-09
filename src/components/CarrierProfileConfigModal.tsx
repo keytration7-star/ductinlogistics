@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useToast, useConfirm } from './UIFeedback';
 import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert } from 'lucide-react';
 import type { ColumnMappingConfig, CustomColumnMapping, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
@@ -59,8 +60,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
-  // Auto-save debounce ref
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   if (!isOpen) return null;
 
@@ -93,7 +95,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
   const handleAddCustomColumn = () => {
     if (!newCustomLabel.trim() || !newCustomExcelCol) {
-      alert('Vui lòng nhập tên nhãn cột và chọn cột trong file Excel.');
+      showToast('Vui lòng nhập tên nhãn cột và chọn cột trong file Excel.', 'warning');
       return;
     }
 
@@ -130,8 +132,14 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     }
   };
 
-  const handleAutoRedetect = () => {
-    if (confirm(`Khôi phục tự động nhận diện cột thông minh cho hồ sơ ${carrierName}?`)) {
+  const handleAutoRedetect = async () => {
+    const ok = await showConfirm({
+      title: 'Nhận Diện Lại Cột',
+      message: `Khôi phục tự động nhận diện cột thông minh cho hồ sơ ${carrierName}? Cấu hình hiện tại sẽ bị ghi đè.`,
+      confirmText: 'Nhận Diện Lại',
+      warning: true,
+    });
+    if (ok) {
       const newNvc = autoDetectColumns(nvcHeaders, 'nvc');
       const newApp = autoDetectColumns(appHeaders, 'app');
       setLocalNvcMapping(newNvc);
@@ -167,8 +175,14 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
   };
 
-  const handleResetExportDefaults = () => {
-    if (confirm('Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?')) {
+  const handleResetExportDefaults = async () => {
+    const ok = await showConfirm({
+      title: 'Khôi Phục Mặc Định',
+      message: 'Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?',
+      confirmText: 'Khôi Phục',
+      warning: true,
+    });
+    if (ok) {
       const defaultClone = JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
       setExportSettings(defaultClone);
       StorageService.saveCarrierExportSettings(carrierId, defaultClone);

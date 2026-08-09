@@ -8,6 +8,7 @@ import { HistoryAndAnalyticsView } from './components/HistoryAndAnalyticsView';
 import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
+import { UIFeedbackProvider } from './components/UIFeedback';
 
 import type { 
   Shop, 
@@ -103,10 +104,15 @@ export function App() {
 
   // If not logged in, render the secure LoginView
   if (!currentUser) {
-    return <LoginView onLoginSuccess={(user) => setCurrentUser(user)} />;
+    return (
+      <UIFeedbackProvider>
+        <LoginView onLoginSuccess={(user) => setCurrentUser(user)} />
+      </UIFeedbackProvider>
+    );
   }
 
   return (
+    <UIFeedbackProvider>
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
       {/* Vertical Sidebar on Left */}
       <Sidebar
@@ -217,6 +223,7 @@ export function App() {
         currentUser={currentUser}
       />
     </div>
+  </UIFeedbackProvider>
   );
 }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast, useConfirm } from './UIFeedback';
 import { 
   Plus, 
   Search, 
@@ -40,6 +41,8 @@ const VIETNAM_BANKS = [
 ];
 
 export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops }) => {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingShop, setEditingShop] = useState<Shop | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -93,8 +96,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     setIsModalOpen(true);
   };
 
-  const handleDeleteShop = (shopId: string, shopName: string) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa shop "${shopName}" khỏi hệ thống?`)) {
+  const handleDeleteShop = async (shopId: string, shopName: string) => {
+    const ok = await showConfirm({
+      title: 'Xoá Shop',
+      message: `Bạn có chắc chắn muốn xóa shop "${shopName}" khỏi hệ thống?`,
+      confirmText: 'Xoá',
+      danger: true,
+    });
+    if (ok) {
       const updated = shops.filter(s => s.id !== shopId);
       onSaveShops(updated);
     }
@@ -105,7 +114,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     if (!editingShop) return;
 
     if (!editingShop.name.trim()) {
-      alert('Vui lòng nhập Tên Shop');
+      showToast('Vui lòng nhập Tên Shop', 'warning');
       return;
     }
 

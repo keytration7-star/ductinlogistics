@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from './UIFeedback';
 import { 
   Mail, 
   Send, 
@@ -31,6 +32,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   emailSettings,
   onSaveEmailSettings,
 }) => {
+  const { showToast } = useToast();
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
   const [selectedShopId, setSelectedShopId] = useState<string>(
     currentSession?.statements[0]?.shopId || ''
@@ -84,7 +86,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const handleSaveSettings = () => {
     onSaveEmailSettings(settings);
-    alert('Đã lưu mẫu email thành công!');
+    showToast('Đã lưu mẫu email thành công!', 'success');
   };
 
   const handleInsertVariable = (varName: string) => {
@@ -96,7 +98,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const handleStartBatchSend = async () => {
     if (statements.length === 0) {
-      alert('Chưa có danh sách shop đối soát nào trong kỳ này.');
+      showToast('Chưa có danh sách shop đối soát nào trong kỳ này.', 'warning');
       return;
     }
 
@@ -140,7 +142,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     if (!customDateTimeInput) return;
     const target = new Date(customDateTimeInput);
     if (target.getTime() <= Date.now()) {
-      alert('Thời gian hẹn phải ở tương lai.');
+      showToast('Thời gian hẹn phải ở tương lai.', 'warning');
       return;
     }
     setScheduledTargetTime(target);
@@ -565,7 +567,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                         <button
                           onClick={async () => {
                             if (!stmt.shopEmail) {
-                              alert('Shop chưa có địa chỉ email nhận.');
+                              showToast('Shop chưa có địa chỉ email nhận.', 'warning');
                               return;
                             }
                             setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sending' } }));
