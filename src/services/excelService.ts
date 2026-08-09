@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
@@ -93,11 +94,35 @@ export const ExcelService = {
     return new Intl.NumberFormat('vi-VN').format(num);
   },
 
-  createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): XLSX.WorkBook {
-    const wb = XLSX.utils.book_new();
+  async createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
+    const workbook = new ExcelJS.Workbook();
     const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
-    const activeCols: ExportColumnItem[] = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
+    const enabledCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
     const company = StorageService.getCompanyInfo();
+
+    // ──────────────────────────────────────────
+    // 🌟 SMART COLUMN FILTERING (Omit 100% empty columns)
+    // ──────────────────────────────────────────
+    const activeCols = enabledCols.filter(col => {
+      if (['stt', 'waybill', 'status', 'codAmount', 'shopFee', 'netPayout'].includes(col.id)) {
+        return true; // Always keep essential columns
+      }
+      return statement.orders.some(order => {
+        let val: any = '';
+        switch (col.id) {
+          case 'date': val = order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày']; break;
+          case 'refOrderCode': val = order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng']; break;
+          case 'receiverName': val = order.receiverName; break;
+          case 'receiverPhone': val = order.receiverPhone; break;
+          case 'receiverAddress': val = order.receiverAddress; break;
+          case 'productName': val = order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa']; break;
+          case 'weight': val = order.weight; break;
+          case 'shopOtherFee': val = order.shopOtherFee; break;
+          case 'orderNote': val = order.rawAppData?.['Ghi chú']; break;
+        }
+        return val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '0';
+      });
+    });
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
@@ -105,24 +130,59 @@ export const ExcelService = {
     // ──────────────────────────────────────────
     // SHEET 1: TỔNG HỢP CÔNG NỢ
     // ──────────────────────────────────────────
-    const summaryData = [
-      [companyTitle, '', '', ''],
-      [companySubtitle, '', '', ''],
-      ['BẢNG KÊ ĐỐI SOÁT TIỀN THU HỘ (COD) VÀ CƯỚC PHÍ VẬN CHUYỂN', '', '', ''],
-      ['Kỳ đối soát:', statement.periodName, 'Ngày xuất phiếu:', new Date().toLocaleDateString('vi-VN')],
-      ['', '', '', ''],
-      ['I. THÔNG TIN KHÁCH HÀNG (SHOP)', '', '', ''],
-      ['Tên Shop:', statement.shopName, 'Mã khách hàng:', statement.shopCode],
-      ['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail || ''],
-      ['Địa chỉ gửi:', statement.shopAddress || '', '', ''],
-      ['', '', '', ''],
-      ['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD', '', '', ''],
-      ['Ngân hàng:', statement.bankInfo.bankName, '', ''],
-      ['Số tài khoản:', statement.bankInfo.accountNumber, '', ''],
-      ['Chủ tài khoản:', statement.bankInfo.accountHolder, '', ''],
-      ['', '', '', ''],
-      ['III. BẢNG TỔNG HỢP DÒNG TIỀN ĐỐI SOÁT', '', '', ''],
-      ['Hạng mục', 'Số lượng / Giá trị', 'Đơn vị tính', 'Ghi chú'],
+    const wsSummary = workbook.addWorksheet('TONG_HOP_CONG_NO');
+    wsSummary.columns = [
+      { width: 44 },
+      { width: 30 },
+      { width: 18 },
+      { width: 44 },
+    ];
+
+    // Company Header Section
+    const row1 = wsSummary.addRow([companyTitle]);
+    row1.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FF1E3A8A' } }; // Dark Navy
+
+    const row2 = wsSummary.addRow([companySubtitle]);
+    row2.font = { name: 'Arial', size: 10.5, italic: true, color: { argb: 'FF475569' } }; // Slate Gray
+
+    const row3 = wsSummary.addRow(['BẢNG KÊ ĐỐI SOÁT TIỀN THU HỘ (COD) VÀ CƯỚC PHÍ VẬN CHUYỂN']);
+    row3.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF4F46E5' } }; // Indigo
+
+    const row4 = wsSummary.addRow([`Kỳ đối soát: ${statement.periodName}`, '', `Ngày xuất phiếu: ${new Date().toLocaleDateString('vi-VN')}`]);
+    row4.font = { name: 'Arial', size: 11, color: { argb: 'FF334155' } };
+
+    wsSummary.addRow([]); // Blank line
+
+    // Section I: Shop Info
+    const sec1 = wsSummary.addRow(['I. THÔNG TIN KHÁCH HÀNG (SHOP)']);
+    sec1.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
+
+    wsSummary.addRow(['Tên Shop:', statement.shopName, 'Mã khách hàng:', statement.shopCode]);
+    wsSummary.addRow(['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail || '']);
+    wsSummary.addRow(['Địa chỉ gửi:', statement.shopAddress || '']);
+    wsSummary.addRow([]);
+
+    // Section II: Bank Info
+    const sec2 = wsSummary.addRow(['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD']);
+    sec2.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
+
+    wsSummary.addRow(['Ngân hàng:', statement.bankInfo.bankName]);
+    wsSummary.addRow(['Số tài khoản:', statement.bankInfo.accountNumber]);
+    wsSummary.addRow(['Chủ tài khoản:', statement.bankInfo.accountHolder]);
+    wsSummary.addRow([]);
+
+    // Section III: Financial Summary Table
+    const sec3 = wsSummary.addRow(['III. BẢNG TỔNG HỢP DÒNG TIỀN ĐỐI SOÁT']);
+    sec3.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
+
+    const tblHeader = wsSummary.addRow(['Hạng mục', 'Số lượng / Giá trị', 'Đơn vị tính', 'Ghi chú']);
+    tblHeader.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    const rowsData = [
       ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', ''],
       ['2. Số đơn giao thành công', statement.deliveredOrders, 'Đơn', 'Thu đủ tiền COD'],
       ['3. Số đơn chuyển hoàn', statement.returnedOrders, 'Đơn', 'Tính phí hoàn theo hợp đồng'],
@@ -130,220 +190,218 @@ export const ExcelService = {
       ['5. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền NVC đã thu từ người nhận'],
       ['6. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Tính theo biểu giá riêng của Shop'],
       ['7. Phí phụ thu / Bảo hiểm / Hoàn (-)', statement.totalShopOtherFee, 'VNĐ', ''],
-      ['----------------------------------------', '------------------', '-----', '----------------------------------'],
-      ['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', statement.totalNetPayout, 'VNĐ', 'Tiền công ty sẽ chuyển khoản cho Shop'],
-      ['----------------------------------------', '------------------', '-----', '----------------------------------'],
-      ['', '', '', ''],
-      ['ĐẠI DIỆN NHÀ GOM ĐƠN', '', 'ĐẠI DIỆN KHÁCH HÀNG (SHOP)', ''],
-      ['(Ký & Ghi rõ họ tên)', '', '(Ký & Ghi rõ họ tên)', ''],
     ];
 
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    wsSummary['!cols'] = [
-      { wch: 42 },
-      { wch: 28 },
-      { wch: 16 },
-      { wch: 42 },
-    ];
-
-    // Format monetary cells in Sheet 1 summary (rows 21, 22, 23, 25 in 0-indexed: 20, 21, 22, 24)
-    const moneyRowIndices = [20, 21, 22, 24];
-    moneyRowIndices.forEach(rIdx => {
-      const cellRef = XLSX.utils.encode_cell({ r: rIdx, c: 1 });
-      if (wsSummary[cellRef] && typeof wsSummary[cellRef].v === 'number') {
-        wsSummary[cellRef].z = '#,##0';
+    rowsData.forEach(r => {
+      const addedRow = wsSummary.addRow(r);
+      const valCell = addedRow.getCell(2);
+      if (typeof r[1] === 'number' && (r[0] as string).includes('TỔNG')) {
+        valCell.numFmt = '#,##0';
+        valCell.font = { bold: true };
       }
     });
 
-    // Make Company Title bold in A1 & A2
-    if (wsSummary['A1']) {
-      wsSummary['A1'].s = { font: { bold: true, sz: 14, color: { rgb: '1E3A8A' } } };
-    }
-    if (wsSummary['A2']) {
-      wsSummary['A2'].s = { font: { italic: true, sz: 10, color: { rgb: '4B5563' } } };
-    }
-    if (wsSummary['A3']) {
-      wsSummary['A3'].s = { font: { bold: true, sz: 12, color: { rgb: '111827' } } };
-    }
+    // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text
+    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', statement.totalNetPayout, 'VNĐ', 'Tiền công ty sẽ chuyển khoản cho Shop']);
+    grandRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
+      cell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFF0000' } }; // Red
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'double', color: { argb: 'FF000000' } }
+      };
+    });
+    grandRow.getCell(2).numFmt = '#,##0';
 
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'TONG_HOP_CONG_NO');
+    wsSummary.addRow([]);
+    wsSummary.addRow(['ĐẠI DIỆN NHÀ GOM ĐƠN', '', 'ĐẠI DIỆN KHÁCH HÀNG (SHOP)']);
+    wsSummary.addRow(['(Ký & Ghi rõ họ tên)', '', '(Ký & Ghi rõ họ tên)']);
 
     // ──────────────────────────────────────────
-    // SHEET 2: CHI TIẾT ĐƠN HÀNG (DYNAMIC COLUMNS)
+    // SHEET 2: CHI TIẾT ĐƠN HÀNG (DYNAMIC NON-EMPTY COLUMNS)
     // ──────────────────────────────────────────
+    const wsOrders = workbook.addWorksheet('CHI_TIET_VAN_DON');
+
+    // Column Widths
+    wsOrders.columns = activeCols.map((col: ExportColumnItem) => {
+      if (col.id === 'stt') return { width: 8 };
+      if (col.id === 'waybill') return { width: 22 };
+      if (col.id === 'receiverAddress') return { width: 38 };
+      if (col.id === 'receiverName' || col.id === 'productName') return { width: 26 };
+      return { width: 20 };
+    });
+
+    // Sheet 2 Company Header
+    const oRow1 = wsOrders.addRow([companyTitle]);
+    oRow1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF1E3A8A' } };
+
+    const oRow2 = wsOrders.addRow([companySubtitle]);
+    oRow2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF475569' } };
+
+    const oRow3 = wsOrders.addRow([`BẢNG KÊ CHI TIẾT MÃ VẬN ĐƠN ĐỐI SOÁT - SHOP: ${statement.shopName.toUpperCase()}`]);
+    oRow3.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF4F46E5' } };
+
+    wsOrders.addRow([]); // Blank line
+
+    // Table Header Row
     const headersRow = activeCols.map((c: ExportColumnItem) => c.label);
-    const ordersData: any[] = [headersRow];
+    const oTblHeader = wsOrders.addRow(headersRow);
+    oTblHeader.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
 
+    // Orders Data Rows
     statement.orders.forEach((order, idx) => {
-      const row: any[] = [];
+      const rowData: any[] = [];
       activeCols.forEach((col: ExportColumnItem) => {
         switch (col.id) {
-          case 'stt':
-            row.push(idx + 1);
-            break;
-          case 'waybill':
-            row.push(order.waybill);
-            break;
-          case 'date':
-            row.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || '');
-            break;
-          case 'refOrderCode':
-            row.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || '');
-            break;
-          case 'receiverName':
-            row.push(order.receiverName);
-            break;
-          case 'receiverPhone':
-            row.push(order.receiverPhone);
-            break;
-          case 'receiverAddress':
-            row.push(order.receiverAddress);
-            break;
-          case 'productName':
-            row.push(order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa'] || '');
-            break;
-          case 'weight':
-            row.push(order.weight);
-            break;
-          case 'status':
-            row.push(order.statusText || order.status);
-            break;
-          case 'codAmount':
-            row.push(order.codAmount);
-            break;
-          case 'shopFee':
-            row.push(order.shopCalculatedFee);
-            break;
-          case 'shopOtherFee':
-            row.push(order.shopOtherFee);
-            break;
-          case 'netPayout':
-            row.push(order.netShopPayout);
-            break;
-          case 'orderNote':
-            row.push(order.rawAppData?.['Ghi chú'] || '');
-            break;
-          default:
-            row.push('');
+          case 'stt': rowData.push(idx + 1); break;
+          case 'waybill': rowData.push(order.waybill); break;
+          case 'date': rowData.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || ''); break;
+          case 'refOrderCode': rowData.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || ''); break;
+          case 'receiverName': rowData.push(order.receiverName); break;
+          case 'receiverPhone': rowData.push(order.receiverPhone); break;
+          case 'receiverAddress': rowData.push(order.receiverAddress); break;
+          case 'productName': rowData.push(order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa'] || ''); break;
+          case 'weight': rowData.push(order.weight); break;
+          case 'status': rowData.push(order.statusText || order.status); break;
+          case 'codAmount': rowData.push(order.codAmount); break;
+          case 'shopFee': rowData.push(order.shopCalculatedFee); break;
+          case 'shopOtherFee': rowData.push(order.shopOtherFee); break;
+          case 'netPayout': rowData.push(order.netShopPayout); break;
+          case 'orderNote': rowData.push(order.rawAppData?.['Ghi chú'] || ''); break;
+          default: rowData.push('');
         }
       });
-      ordersData.push(row);
+
+      const addedOrderRow = wsOrders.addRow(rowData);
+      
+      // Formatting cell values
+      activeCols.forEach((col, cIdx) => {
+        const cell = addedOrderRow.getCell(cIdx + 1);
+        if (['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id)) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        } else if (col.id === 'weight') {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right' };
+        } else if (col.id === 'stt' || col.id === 'waybill') {
+          cell.alignment = { horizontal: 'center' };
+        }
+      });
     });
 
-    // 🌟 ADD TOTAL SUMMARY ROW (TỔNG CỘNG BÔI VÀNG Ô CHỮ ĐỎ)
+    // 🌟 TOTAL SUMMARY ROW (TỔNG CỘNG BÔI VÀNG Ô CHỮ ĐỎ)
     const totalWeight = Number(statement.orders.reduce((sum, o) => sum + (o.weight || 0), 0).toFixed(2));
-    const totalRow: any[] = [];
+    const totalRowData: any[] = [];
     activeCols.forEach((col: ExportColumnItem) => {
       switch (col.id) {
-        case 'stt':
-          totalRow.push('TỔNG CỘNG');
-          break;
-        case 'waybill':
-          totalRow.push(`${statement.orders.length} đơn`);
-          break;
-        case 'weight':
-          totalRow.push(totalWeight);
-          break;
-        case 'codAmount':
-          totalRow.push(statement.totalCod);
-          break;
-        case 'shopFee':
-          totalRow.push(statement.totalShopFee);
-          break;
-        case 'shopOtherFee':
-          totalRow.push(statement.totalShopOtherFee);
-          break;
-        case 'netPayout':
-          totalRow.push(statement.totalNetPayout);
-          break;
-        default:
-          totalRow.push('');
-      }
-    });
-    ordersData.push(totalRow);
-
-    const wsOrders = XLSX.utils.aoa_to_sheet(ordersData);
-    wsOrders['!cols'] = activeCols.map((col: ExportColumnItem) => {
-      if (col.id === 'stt') return { wch: 14 };
-      if (col.id === 'waybill') return { wch: 20 };
-      if (col.id === 'receiverAddress') return { wch: 38 };
-      if (col.id === 'receiverName' || col.id === 'productName') return { wch: 25 };
-      return { wch: 18 };
-    });
-
-    // Format all money numbers with VN Currency format '#,##0'
-    const totalRowIndex = ordersData.length - 1;
-    for (let r = 1; r <= totalRowIndex; r++) {
-      activeCols.forEach((col, cIdx) => {
-        const isMoney = ['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id);
-        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
-        if (wsOrders[cellRef]) {
-          if (isMoney && typeof wsOrders[cellRef].v === 'number') {
-            wsOrders[cellRef].z = '#,##0';
-          }
-        }
-      });
-    }
-
-    // 🎨 STYLE SUMMARY ROW: Yellow background + Bold Red text (Ô vàng chữ đỏ)
-    activeCols.forEach((_, cIdx) => {
-      const cellRef = XLSX.utils.encode_cell({ r: totalRowIndex, c: cIdx });
-      if (wsOrders[cellRef]) {
-        wsOrders[cellRef].s = {
-          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' }, // Yellow fill
-          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },     // Red bold text
-          border: {
-            top: { style: 'thin', color: { rgb: '000000' } },
-            bottom: { style: 'double', color: { rgb: '000000' } }
-          }
-        };
+        case 'stt': totalRowData.push('TỔNG CỘNG'); break;
+        case 'waybill': totalRowData.push(`${statement.orders.length} đơn`); break;
+        case 'weight': totalRowData.push(totalWeight); break;
+        case 'codAmount': totalRowData.push(statement.totalCod); break;
+        case 'shopFee': totalRowData.push(statement.totalShopFee); break;
+        case 'shopOtherFee': totalRowData.push(statement.totalShopOtherFee); break;
+        case 'netPayout': totalRowData.push(statement.totalNetPayout); break;
+        default: totalRowData.push('');
       }
     });
 
-    XLSX.utils.book_append_sheet(wb, wsOrders, 'CHI_TIET_VAN_DON');
-    return wb;
+    const oGrandRow = wsOrders.addRow(totalRowData);
+    activeCols.forEach((col, cIdx) => {
+      const cell = oGrandRow.getCell(cIdx + 1);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow Fill
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } }; // Bold Red Text
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'double', color: { argb: 'FF000000' } }
+      };
+
+      if (['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id)) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      } else if (col.id === 'weight') {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right' };
+      } else if (col.id === 'stt' || col.id === 'waybill') {
+        cell.alignment = { horizontal: 'center' };
+      }
+    });
+
+    return workbook;
   },
 
-  downloadShopStatement(statement: ShopSettlementStatement): void {
-    const wb = this.createShopStatementWorkbook(statement);
+  async downloadShopStatement(statement: ShopSettlementStatement): Promise<void> {
+    const workbook = await this.createShopStatementWorkbook(statement);
+    const buffer = await workbook.xlsx.writeBuffer();
     const cleanShopName = statement.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
     const filename = `Doi_Soat_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-    XLSX.writeFile(wb, filename, { cellStyles: true });
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
   },
 
-  createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): XLSX.WorkBook {
-    const wb = XLSX.utils.book_new();
+  async createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
+    const workbook = new ExcelJS.Workbook();
     const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
-    const activeMasterCols: ExportColumnItem[] = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
+    const enabledMasterCols = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
     const company = StorageService.getCompanyInfo();
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
+    // ──────────────────────────────────────────
     // SHEET 1: TỔNG HỢP THEO SHOP
-    const masterData: any[] = [
-      [companyTitle, '', '', '', '', '', '', '', '', ''],
-      [companySubtitle, '', '', '', '', '', '', '', '', ''],
-      ['BÁO CÁO TỔNG HỢP ĐỐI SOÁT & LỢI NHUẬN NHÀ GOM ĐƠN', '', '', '', '', '', '', '', '', ''],
-      ['Kỳ đối soát:', session.sessionName, 'Hãng vận chuyển:', session.carrierName, 'Ngày tạo:', new Date(session.createdAt).toLocaleString('vi-VN')],
-      ['', '', '', '', '', '', '', '', '', ''],
-      [
-        'STT',
-        'Mã Shop',
-        'Tên Shop',
-        'Số ĐT',
-        'Số Đơn',
-        'Tổng COD Thu Hộ (đ)',
-        'Cước Thu Shop (đ)',
-        'Cước Trả NVC (đ)',
-        'LỢI NHUẬN NHÀ GOM (đ)',
-        'THỰC TRẢ CHO SHOP (đ)',
-        'Số TK Ngân Hàng',
-      ]
+    // ──────────────────────────────────────────
+    const wsMaster = workbook.addWorksheet('TONG_HOP_DOANH_THU_LOI_NHUAN');
+    wsMaster.columns = [
+      { width: 12 },
+      { width: 14 },
+      { width: 28 },
+      { width: 16 },
+      { width: 12 },
+      { width: 22 },
+      { width: 20 },
+      { width: 20 },
+      { width: 24 },
+      { width: 24 },
+      { width: 42 },
     ];
 
+    const mRow1 = wsMaster.addRow([companyTitle]);
+    mRow1.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FF1E3A8A' } };
+
+    const mRow2 = wsMaster.addRow([companySubtitle]);
+    mRow2.font = { name: 'Arial', size: 10.5, italic: true, color: { argb: 'FF475569' } };
+
+    const mRow3 = wsMaster.addRow(['BÁO CÁO TỔNG HỢP ĐỐI SOÁT & LỢI NHUẬN NHÀ GOM ĐƠN']);
+    mRow3.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF4F46E5' } };
+
+    wsMaster.addRow([`Kỳ đối soát: ${session.sessionName}`, '', `Hãng VC: ${session.carrierName}`, '', `Ngày tạo: ${new Date(session.createdAt).toLocaleString('vi-VN')}`]);
+    wsMaster.addRow([]);
+
+    const mTblHeader = wsMaster.addRow([
+      'STT',
+      'Mã Shop',
+      'Tên Shop',
+      'Số ĐT',
+      'Số Đơn',
+      'Tổng COD Thu Hộ (đ)',
+      'Cước Thu Shop (đ)',
+      'Cước Trả NVC (đ)',
+      'LỢI NHUẬN NHÀ GOM (đ)',
+      'THỰC TRẢ CHO SHOP (đ)',
+      'Số TK Ngân Hàng',
+    ]);
+    mTblHeader.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
     session.statements.forEach((stmt, idx) => {
-      masterData.push([
+      const addedRow = wsMaster.addRow([
         idx + 1,
         stmt.shopCode,
         stmt.shopName,
@@ -356,10 +414,16 @@ export const ExcelService = {
         stmt.totalNetPayout,
         `${stmt.bankInfo.bankName} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder})`,
       ]);
+
+      [6, 7, 8, 9, 10].forEach(cIdx => {
+        const cell = addedRow.getCell(cIdx);
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      });
     });
 
-    const masterSummaryRowIndex = masterData.length;
-    masterData.push([
+    // Master Summary Row - Yellow Fill + Red Text
+    const mGrandRow = wsMaster.addRow([
       'TỔNG CỘNG',
       '',
       '',
@@ -373,57 +437,76 @@ export const ExcelService = {
       '',
     ]);
 
-    const wsMaster = XLSX.utils.aoa_to_sheet(masterData);
-    wsMaster['!cols'] = [
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 28 },
-      { wch: 15 },
-      { wch: 10 },
-      { wch: 22 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 24 },
-      { wch: 24 },
-      { wch: 40 },
-    ];
+    mGrandRow.eachCell((cell, colNum) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'double', color: { argb: 'FF000000' } }
+      };
 
-    // Format numbers in Master sheet
-    for (let r = 6; r <= masterSummaryRowIndex; r++) {
-      [5, 6, 7, 8, 9].forEach(cIdx => {
-        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
-        if (wsMaster[cellRef] && typeof wsMaster[cellRef].v === 'number') {
-          wsMaster[cellRef].z = '#,##0';
-        }
-      });
-    }
-
-    // Yellow background + Red text for Master summary row
-    for (let c = 0; c <= 10; c++) {
-      const cellRef = XLSX.utils.encode_cell({ r: masterSummaryRowIndex, c });
-      if (wsMaster[cellRef]) {
-        wsMaster[cellRef].s = {
-          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' },
-          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },
-          border: {
-            top: { style: 'thin', color: { rgb: '000000' } },
-            bottom: { style: 'double', color: { rgb: '000000' } }
-          }
-        };
+      if (colNum >= 6 && colNum <= 10) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
       }
-    }
+    });
 
-    XLSX.utils.book_append_sheet(wb, wsMaster, 'TONG_HOP_DOANH_THU_LOI_NHUAN');
-
-    // SHEET 2: DANH SÁCH CHI TIẾT TẤT CẢ ĐƠN HÀNG (THEO CẤU HÌNH CỘT)
+    // ──────────────────────────────────────────
+    // SHEET 2: DANH SÁCH CHI TIẾT TẤT CẢ ĐƠN HÀNG
+    // ──────────────────────────────────────────
     const allOrders: any[] = [];
     session.statements.forEach(stmt => {
       stmt.orders.forEach(o => allOrders.push(o));
     });
     session.unmatchedOrders.forEach(o => allOrders.push(o));
 
+    // Smart Column Filter for Master Details
+    const activeMasterCols = enabledMasterCols.filter(col => {
+      if (['stt', 'waybill', 'carrier', 'shopName', 'status', 'codAmount', 'shopFee', 'netPayout'].includes(col.id)) {
+        return true;
+      }
+      return allOrders.some(order => {
+        let val: any = '';
+        switch (col.id) {
+          case 'shopPhone': val = order.shopPhone; break;
+          case 'receiverName': val = order.receiverName; break;
+          case 'receiverPhone': val = order.receiverPhone; break;
+          case 'receiverAddress': val = order.receiverAddress; break;
+          case 'weight': val = order.weight; break;
+          case 'nvcFee': val = order.nvcBaseFee; break;
+          case 'profit': val = order.profitMargin; break;
+          case 'matchStatus': val = order.matched; break;
+        }
+        return val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '0';
+      });
+    });
+
+    const wsDetails = workbook.addWorksheet('CHI_TIET_TOAN_BO_DON_HANG');
+    wsDetails.columns = activeMasterCols.map((col: ExportColumnItem) => {
+      if (col.id === 'stt') return { width: 8 };
+      if (col.id === 'waybill') return { width: 22 };
+      if (col.id === 'receiverAddress') return { width: 38 };
+      return { width: 20 };
+    });
+
+    const mdRow1 = wsDetails.addRow([companyTitle]);
+    mdRow1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF1E3A8A' } };
+
+    const mdRow2 = wsDetails.addRow([companySubtitle]);
+    mdRow2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF475569' } };
+
+    const mdRow3 = wsDetails.addRow([`BÁO CÁO CHI TIẾT TOÀN BỘ ĐƠN HÀNG - KỲ: ${session.sessionName.toUpperCase()}`]);
+    mdRow3.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF4F46E5' } };
+
+    wsDetails.addRow([]);
+
     const masterHeaders = activeMasterCols.map((c: ExportColumnItem) => c.label);
-    const detailsData: any[] = [masterHeaders];
+    const mdTblHeader = wsDetails.addRow(masterHeaders);
+    mdTblHeader.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
 
     let grandCod = 0;
     let grandShopFee = 0;
@@ -433,7 +516,6 @@ export const ExcelService = {
     let grandWeight = 0;
 
     allOrders.forEach((order, idx) => {
-      const row: any[] = [];
       grandCod += order.codAmount || 0;
       grandShopFee += (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
       grandNvcFee += (order.nvcBaseFee || 0) + (order.nvcOtherFee || 0);
@@ -441,149 +523,97 @@ export const ExcelService = {
       grandNetPayout += order.netShopPayout || 0;
       grandWeight += order.weight || 0;
 
+      const rowData: any[] = [];
       activeMasterCols.forEach((col: ExportColumnItem) => {
         switch (col.id) {
-          case 'stt':
-            row.push(idx + 1);
-            break;
-          case 'waybill':
-            row.push(order.waybill);
-            break;
-          case 'carrier':
-            row.push(session.carrierName);
-            break;
-          case 'shopName':
-            row.push(order.shopName);
-            break;
-          case 'shopPhone':
-            row.push(order.shopPhone);
-            break;
-          case 'receiverName':
-            row.push(order.receiverName);
-            break;
-          case 'receiverPhone':
-            row.push(order.receiverPhone);
-            break;
-          case 'receiverAddress':
-            row.push(order.receiverAddress);
-            break;
-          case 'weight':
-            row.push(order.weight);
-            break;
-          case 'status':
-            row.push(order.statusText || order.status);
-            break;
-          case 'codAmount':
-            row.push(order.codAmount);
-            break;
-          case 'shopFee':
-            row.push(order.shopCalculatedFee + order.shopOtherFee);
-            break;
-          case 'nvcFee':
-            row.push(order.nvcBaseFee + order.nvcOtherFee);
-            break;
-          case 'profit':
-            row.push(order.profitMargin);
-            break;
-          case 'netPayout':
-            row.push(order.netShopPayout);
-            break;
-          case 'matchStatus':
-            row.push(order.matched ? 'Đã khớp Shop' : 'Chưa nhận diện Shop');
-            break;
-          default:
-            row.push('');
+          case 'stt': rowData.push(idx + 1); break;
+          case 'waybill': rowData.push(order.waybill); break;
+          case 'carrier': rowData.push(session.carrierName); break;
+          case 'shopName': rowData.push(order.shopName); break;
+          case 'shopPhone': rowData.push(order.shopPhone); break;
+          case 'receiverName': rowData.push(order.receiverName); break;
+          case 'receiverPhone': rowData.push(order.receiverPhone); break;
+          case 'receiverAddress': rowData.push(order.receiverAddress); break;
+          case 'weight': rowData.push(order.weight); break;
+          case 'status': rowData.push(order.statusText || order.status); break;
+          case 'codAmount': rowData.push(order.codAmount); break;
+          case 'shopFee': rowData.push(order.shopCalculatedFee + order.shopOtherFee); break;
+          case 'nvcFee': rowData.push(order.nvcBaseFee + order.nvcOtherFee); break;
+          case 'profit': rowData.push(order.profitMargin); break;
+          case 'netPayout': rowData.push(order.netShopPayout); break;
+          case 'matchStatus': rowData.push(order.matched ? 'Đã khớp Shop' : 'Chưa nhận diện Shop'); break;
+          default: rowData.push('');
         }
       });
-      detailsData.push(row);
+
+      const addedMdRow = wsDetails.addRow(rowData);
+      activeMasterCols.forEach((col, cIdx) => {
+        const cell = addedMdRow.getCell(cIdx + 1);
+        if (['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id)) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        } else if (col.id === 'weight') {
+          cell.numFmt = '#,##0.00';
+          cell.alignment = { horizontal: 'right' };
+        } else if (col.id === 'stt' || col.id === 'waybill') {
+          cell.alignment = { horizontal: 'center' };
+        }
+      });
     });
 
-    // 🌟 Master Details Summary Row
-    const masterDetailsTotalRow: any[] = [];
+    // Master Details Grand Total Row - Yellow Fill + Red Text
+    const mdGrandRowData: any[] = [];
     activeMasterCols.forEach((col: ExportColumnItem) => {
       switch (col.id) {
-        case 'stt':
-          masterDetailsTotalRow.push('TỔNG CỘNG');
-          break;
-        case 'waybill':
-          masterDetailsTotalRow.push(`${allOrders.length} đơn`);
-          break;
-        case 'weight':
-          masterDetailsTotalRow.push(Number(grandWeight.toFixed(2)));
-          break;
-        case 'codAmount':
-          masterDetailsTotalRow.push(grandCod);
-          break;
-        case 'shopFee':
-          masterDetailsTotalRow.push(grandShopFee);
-          break;
-        case 'nvcFee':
-          masterDetailsTotalRow.push(grandNvcFee);
-          break;
-        case 'profit':
-          masterDetailsTotalRow.push(grandProfit);
-          break;
-        case 'netPayout':
-          masterDetailsTotalRow.push(grandNetPayout);
-          break;
-        default:
-          masterDetailsTotalRow.push('');
-      }
-    });
-    detailsData.push(masterDetailsTotalRow);
-
-    const wsDetails = XLSX.utils.aoa_to_sheet(detailsData);
-    wsDetails['!cols'] = activeMasterCols.map((col: ExportColumnItem) => {
-      if (col.id === 'stt') return { wch: 14 };
-      if (col.id === 'waybill') return { wch: 20 };
-      if (col.id === 'receiverAddress') return { wch: 36 };
-      return { wch: 18 };
-    });
-
-    // Format money numbers and style summary row
-    const masterDetailTotalIndex = detailsData.length - 1;
-    for (let r = 1; r <= masterDetailTotalIndex; r++) {
-      activeMasterCols.forEach((col, cIdx) => {
-        const isMoney = ['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id);
-        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
-        if (wsDetails[cellRef] && isMoney && typeof wsDetails[cellRef].v === 'number') {
-          wsDetails[cellRef].z = '#,##0';
-        }
-      });
-    }
-
-    activeMasterCols.forEach((_, cIdx) => {
-      const cellRef = XLSX.utils.encode_cell({ r: masterDetailTotalIndex, c: cIdx });
-      if (wsDetails[cellRef]) {
-        wsDetails[cellRef].s = {
-          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' },
-          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },
-          border: {
-            top: { style: 'thin', color: { rgb: '000000' } },
-            bottom: { style: 'double', color: { rgb: '000000' } }
-          }
-        };
+        case 'stt': mdGrandRowData.push('TỔNG CỘNG'); break;
+        case 'waybill': mdGrandRowData.push(`${allOrders.length} đơn`); break;
+        case 'weight': mdGrandRowData.push(Number(grandWeight.toFixed(2))); break;
+        case 'codAmount': mdGrandRowData.push(grandCod); break;
+        case 'shopFee': mdGrandRowData.push(grandShopFee); break;
+        case 'nvcFee': mdGrandRowData.push(grandNvcFee); break;
+        case 'profit': mdGrandRowData.push(grandProfit); break;
+        case 'netPayout': mdGrandRowData.push(grandNetPayout); break;
+        default: mdGrandRowData.push('');
       }
     });
 
-    XLSX.utils.book_append_sheet(wb, wsDetails, 'CHI_TIET_TOAN_BO_DON_HANG');
+    const mdGrandRow = wsDetails.addRow(mdGrandRowData);
+    activeMasterCols.forEach((col, cIdx) => {
+      const cell = mdGrandRow.getCell(cIdx + 1);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'double', color: { argb: 'FF000000' } }
+      };
 
-    return wb;
+      if (['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id)) {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      } else if (col.id === 'weight') {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right' };
+      }
+    });
+
+    return workbook;
   },
 
-  downloadMasterProfitReport(session: ReconciliationSession): void {
-    const wb = this.createMasterProfitWorkbook(session);
+  async downloadMasterProfitReport(session: ReconciliationSession): Promise<void> {
+    const workbook = await this.createMasterProfitWorkbook(session);
+    const buffer = await workbook.xlsx.writeBuffer();
     const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-    XLSX.writeFile(wb, filename, { cellStyles: true });
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
   },
 
   async downloadAllStatementsZip(session: ReconciliationSession, onProgress?: (percent: number, currentShop: string) => void): Promise<void> {
     const zip = new JSZip();
     const rootFolder = zip.folder(`DOI_SOAT_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
-    const masterWb = this.createMasterProfitWorkbook(session);
-    const masterBinary = XLSX.write(masterWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-    rootFolder?.file('00_BAO_CAO_TONG_HOP_LOI_NHUAN_NHA_GOM.xlsx', masterBinary);
+    const masterWb = await this.createMasterProfitWorkbook(session);
+    const masterBuffer = await masterWb.xlsx.writeBuffer();
+    rootFolder?.file('00_BAO_CAO_TONG_HOP_LOI_NHUAN_NHA_GOM.xlsx', masterBuffer);
 
     const total = session.statements.length;
     for (let i = 0; i < total; i++) {
@@ -595,11 +625,11 @@ export const ExcelService = {
       const cleanShopFolder = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
       const shopSubFolder = rootFolder?.folder(cleanShopFolder);
       
-      const shopWb = this.createShopStatementWorkbook(stmt);
-      const shopBinary = XLSX.write(shopWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const shopWb = await this.createShopStatementWorkbook(stmt);
+      const shopBuffer = await shopWb.xlsx.writeBuffer();
       const filename = `Doi_soat_${cleanShopFolder}.xlsx`;
       
-      shopSubFolder?.file(filename, shopBinary);
+      shopSubFolder?.file(filename, shopBuffer);
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
