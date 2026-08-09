@@ -267,6 +267,7 @@ export function App() {
       <CompanySettingsModal
         isOpen={isCompanyModalOpen}
         onClose={() => setIsCompanyModalOpen(false)}
+        onSaved={loadAllData}
         userRole={currentUser.role}
       />
 

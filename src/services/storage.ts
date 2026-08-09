@@ -10,8 +10,8 @@ const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
 const PAYMENTS_KEY = 'gomdon_payments_v1';
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  companyName: 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS TRUNG GIAN',
-  address: 'Số 123 Đường Nguyễn Trãi, Thanh Xuân, Hà Nội',
+  companyName: 'ĐỨC TÍN LOGISTICS',
+  address: 'Địa chỉ trụ sở công ty',
   phone: '0988 123 456',
   taxCode: '0101234567',
 };
