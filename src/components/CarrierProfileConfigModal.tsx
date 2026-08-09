@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert } from 'lucide-react';
 import type { ColumnMappingConfig, CustomColumnMapping, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
@@ -59,16 +59,36 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  // Auto-save debounce ref
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (!isOpen) return null;
 
-  // Mapping handlers
+  // Auto-save helper: debounce 400ms after last change
+  const triggerAutoSave = (newNvc: ColumnMappingConfig, newApp: ColumnMappingConfig, newExport?: ExportColumnSettings) => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      StorageService.saveCarrierMapping(carrierId, newNvc, newApp);
+      onSaveMappings(newNvc, newApp);
+      if (newExport) {
+        StorageService.saveCarrierExportSettings(carrierId, newExport);
+      }
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2000);
+    }, 400);
+  };
+
+  // Mapping handlers — auto-save on every change
   const updateNvcField = (field: keyof ColumnMappingConfig, val: string) => {
-    setLocalNvcMapping(prev => ({ ...prev, [field]: val }));
+    const updated = { ...localNvcMapping, [field]: val };
+    setLocalNvcMapping(updated);
+    triggerAutoSave(updated, localAppMapping);
   };
 
   const updateAppField = (field: keyof ColumnMappingConfig, val: string) => {
-    setLocalAppMapping(prev => ({ ...prev, [field]: val }));
+    const updated = { ...localAppMapping, [field]: val };
+    setLocalAppMapping(updated);
+    triggerAutoSave(localNvcMapping, updated);
   };
 
   const handleAddCustomColumn = () => {
@@ -85,17 +105,13 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     };
 
     if (mappingSubTab === 'nvc') {
-      const customs = localNvcMapping.customColumns || [];
-      setLocalNvcMapping({
-        ...localNvcMapping,
-        customColumns: [...customs, newCol],
-      });
+      const updated = { ...localNvcMapping, customColumns: [...(localNvcMapping.customColumns || []), newCol] };
+      setLocalNvcMapping(updated);
+      triggerAutoSave(updated, localAppMapping);
     } else {
-      const customs = localAppMapping.customColumns || [];
-      setLocalAppMapping({
-        ...localAppMapping,
-        customColumns: [...customs, newCol],
-      });
+      const updated = { ...localAppMapping, customColumns: [...(localAppMapping.customColumns || []), newCol] };
+      setLocalAppMapping(updated);
+      triggerAutoSave(localNvcMapping, updated);
     }
 
     setNewCustomLabel('');
@@ -104,11 +120,13 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
   const handleRemoveCustomColumn = (colId: string) => {
     if (mappingSubTab === 'nvc') {
-      const customs = (localNvcMapping.customColumns || []).filter(c => c.id !== colId);
-      setLocalNvcMapping({ ...localNvcMapping, customColumns: customs });
+      const updated = { ...localNvcMapping, customColumns: (localNvcMapping.customColumns || []).filter(c => c.id !== colId) };
+      setLocalNvcMapping(updated);
+      triggerAutoSave(updated, localAppMapping);
     } else {
-      const customs = (localAppMapping.customColumns || []).filter(c => c.id !== colId);
-      setLocalAppMapping({ ...localAppMapping, customColumns: customs });
+      const updated = { ...localAppMapping, customColumns: (localAppMapping.customColumns || []).filter(c => c.id !== colId) };
+      setLocalAppMapping(updated);
+      triggerAutoSave(localNvcMapping, updated);
     }
   };
 
@@ -118,27 +136,22 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
       const newApp = autoDetectColumns(appHeaders, 'app');
       setLocalNvcMapping(newNvc);
       setLocalAppMapping(newApp);
+      triggerAutoSave(newNvc, newApp);
     }
   };
 
-  // Export handlers
+  // Export handlers — auto-save on every change
   const currentExportColumns = exportSubTab === 'shop' ? exportSettings.shopColumns : exportSettings.masterColumns;
 
   const handleToggleExportColumn = (colId: string) => {
     if (colId === 'stt' || colId === 'waybill') return;
-
-    const updatedCols = currentExportColumns.map((col: ExportColumnItem) => {
-      if (col.id === colId) {
-        return { ...col, enabled: !col.enabled };
-      }
-      return col;
-    });
-
+    const updatedCols = currentExportColumns.map((col: ExportColumnItem) => col.id === colId ? { ...col, enabled: !col.enabled } : col);
     const newSettings: ExportColumnSettings = {
       ...exportSettings,
       [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
     };
     setExportSettings(newSettings);
+    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
   };
 
   const handleSelectAllExport = (enabled: boolean) => {
@@ -146,12 +159,12 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
       if (col.id === 'stt' || col.id === 'waybill') return col;
       return { ...col, enabled };
     });
-
     const newSettings: ExportColumnSettings = {
       ...exportSettings,
       [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
     };
     setExportSettings(newSettings);
+    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
   };
 
   const handleResetExportDefaults = () => {
@@ -159,30 +172,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
       const defaultClone = JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
       setExportSettings(defaultClone);
       StorageService.saveCarrierExportSettings(carrierId, defaultClone);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2000);
     }
-  };
-
-  // Unified Save
-  const handleSaveAll = () => {
-    if (!localNvcMapping.waybillColumn && nvcHeaders.length > 0) {
-      alert('Vui lòng chọn Cột Mã Vận Đơn cho File Đối Soát NVC.');
-      setMainTab('mapping');
-      setMappingSubTab('nvc');
-      return;
-    }
-
-    // Save Mapping per carrier
-    StorageService.saveCarrierMapping(carrierId, localNvcMapping, localAppMapping);
-    onSaveMappings(localNvcMapping, localAppMapping);
-
-    // Save Export settings per carrier
-    StorageService.saveCarrierExportSettings(carrierId, exportSettings);
-
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 450);
   };
 
 
@@ -886,27 +878,32 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
         {/* Modal Footer */}
         <div style={{
-          padding: '16px 24px',
+          padding: '12px 24px',
           borderTop: '1px solid var(--border-color)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           background: 'var(--bg-tertiary)',
         }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <AlertCircle size={14} color="var(--primary)" />
-            <span>Mọi thay đổi sẽ được lưu cố định cho hồ sơ <strong>{carrierName}</strong>.</span>
+          {/* Auto-save status */}
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.3s' }}>
+            {savedSuccess ? (
+              <>
+                <span style={{ color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Check size={14} /> Đã lưu tự động
+                </span>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={13} color="var(--primary)" />
+                <span>Mọi thay đổi được <strong>lưu tự động</strong> cho hồ sơ <strong>{carrierName}</strong>.</span>
+              </>
+            )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Đóng
-            </button>
-            <button type="button" onClick={handleSaveAll} className="btn btn-primary">
-              <Check size={16} />
-              <span>{savedSuccess ? 'Đã Lưu Hồ Sơ Thành Công!' : `Lưu Cấu Hình Hồ Sơ ${carrierName}`}</span>
-            </button>
-          </div>
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Đóng
+          </button>
         </div>
 
       </div>
