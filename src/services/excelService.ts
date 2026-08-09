@@ -89,6 +89,7 @@ export const ExcelService = {
   },
 
   formatMoney(num: number): string {
+    if (num === undefined || num === null || isNaN(num)) return '0';
     return new Intl.NumberFormat('vi-VN').format(num);
   },
 
@@ -96,12 +97,17 @@ export const ExcelService = {
     const wb = XLSX.utils.book_new();
     const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
     const activeCols: ExportColumnItem[] = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
+    const company = StorageService.getCompanyInfo();
+
+    const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
+    const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
     // ──────────────────────────────────────────
     // SHEET 1: TỔNG HỢP CÔNG NỢ
     // ──────────────────────────────────────────
     const summaryData = [
-      ['CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS TRUNG GIAN', '', '', ''],
+      [companyTitle, '', '', ''],
+      [companySubtitle, '', '', ''],
       ['BẢNG KÊ ĐỐI SOÁT TIỀN THU HỘ (COD) VÀ CƯỚC PHÍ VẬN CHUYỂN', '', '', ''],
       ['Kỳ đối soát:', statement.periodName, 'Ngày xuất phiếu:', new Date().toLocaleDateString('vi-VN')],
       ['', '', '', ''],
@@ -134,11 +140,32 @@ export const ExcelService = {
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
     wsSummary['!cols'] = [
-      { wch: 38 },
-      { wch: 25 },
+      { wch: 42 },
+      { wch: 28 },
       { wch: 16 },
-      { wch: 38 },
+      { wch: 42 },
     ];
+
+    // Format monetary cells in Sheet 1 summary (rows 21, 22, 23, 25 in 0-indexed: 20, 21, 22, 24)
+    const moneyRowIndices = [20, 21, 22, 24];
+    moneyRowIndices.forEach(rIdx => {
+      const cellRef = XLSX.utils.encode_cell({ r: rIdx, c: 1 });
+      if (wsSummary[cellRef] && typeof wsSummary[cellRef].v === 'number') {
+        wsSummary[cellRef].z = '#,##0';
+      }
+    });
+
+    // Make Company Title bold in A1 & A2
+    if (wsSummary['A1']) {
+      wsSummary['A1'].s = { font: { bold: true, sz: 14, color: { rgb: '1E3A8A' } } };
+    }
+    if (wsSummary['A2']) {
+      wsSummary['A2'].s = { font: { italic: true, sz: 10, color: { rgb: '4B5563' } } };
+    }
+    if (wsSummary['A3']) {
+      wsSummary['A3'].s = { font: { bold: true, sz: 12, color: { rgb: '111827' } } };
+    }
+
     XLSX.utils.book_append_sheet(wb, wsSummary, 'TONG_HOP_CONG_NO');
 
     // ──────────────────────────────────────────
@@ -203,13 +230,74 @@ export const ExcelService = {
       ordersData.push(row);
     });
 
+    // 🌟 ADD TOTAL SUMMARY ROW (TỔNG CỘNG BÔI VÀNG Ô CHỮ ĐỎ)
+    const totalWeight = Number(statement.orders.reduce((sum, o) => sum + (o.weight || 0), 0).toFixed(2));
+    const totalRow: any[] = [];
+    activeCols.forEach((col: ExportColumnItem) => {
+      switch (col.id) {
+        case 'stt':
+          totalRow.push('TỔNG CỘNG');
+          break;
+        case 'waybill':
+          totalRow.push(`${statement.orders.length} đơn`);
+          break;
+        case 'weight':
+          totalRow.push(totalWeight);
+          break;
+        case 'codAmount':
+          totalRow.push(statement.totalCod);
+          break;
+        case 'shopFee':
+          totalRow.push(statement.totalShopFee);
+          break;
+        case 'shopOtherFee':
+          totalRow.push(statement.totalShopOtherFee);
+          break;
+        case 'netPayout':
+          totalRow.push(statement.totalNetPayout);
+          break;
+        default:
+          totalRow.push('');
+      }
+    });
+    ordersData.push(totalRow);
+
     const wsOrders = XLSX.utils.aoa_to_sheet(ordersData);
     wsOrders['!cols'] = activeCols.map((col: ExportColumnItem) => {
-      if (col.id === 'stt') return { wch: 6 };
+      if (col.id === 'stt') return { wch: 14 };
       if (col.id === 'waybill') return { wch: 20 };
-      if (col.id === 'receiverAddress') return { wch: 36 };
-      if (col.id === 'receiverName' || col.id === 'productName') return { wch: 24 };
+      if (col.id === 'receiverAddress') return { wch: 38 };
+      if (col.id === 'receiverName' || col.id === 'productName') return { wch: 25 };
       return { wch: 18 };
+    });
+
+    // Format all money numbers with VN Currency format '#,##0'
+    const totalRowIndex = ordersData.length - 1;
+    for (let r = 1; r <= totalRowIndex; r++) {
+      activeCols.forEach((col, cIdx) => {
+        const isMoney = ['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id);
+        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
+        if (wsOrders[cellRef]) {
+          if (isMoney && typeof wsOrders[cellRef].v === 'number') {
+            wsOrders[cellRef].z = '#,##0';
+          }
+        }
+      });
+    }
+
+    // 🎨 STYLE SUMMARY ROW: Yellow background + Bold Red text (Ô vàng chữ đỏ)
+    activeCols.forEach((_, cIdx) => {
+      const cellRef = XLSX.utils.encode_cell({ r: totalRowIndex, c: cIdx });
+      if (wsOrders[cellRef]) {
+        wsOrders[cellRef].s = {
+          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' }, // Yellow fill
+          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },     // Red bold text
+          border: {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'double', color: { rgb: '000000' } }
+          }
+        };
+      }
     });
 
     XLSX.utils.book_append_sheet(wb, wsOrders, 'CHI_TIET_VAN_DON');
@@ -220,16 +308,22 @@ export const ExcelService = {
     const wb = this.createShopStatementWorkbook(statement);
     const cleanShopName = statement.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
     const filename = `Doi_Soat_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, filename, { cellStyles: true });
   },
 
   createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): XLSX.WorkBook {
     const wb = XLSX.utils.book_new();
     const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
     const activeMasterCols: ExportColumnItem[] = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
+    const company = StorageService.getCompanyInfo();
+
+    const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
+    const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
     // SHEET 1: TỔNG HỢP THEO SHOP
     const masterData: any[] = [
+      [companyTitle, '', '', '', '', '', '', '', '', ''],
+      [companySubtitle, '', '', '', '', '', '', '', '', ''],
       ['BÁO CÁO TỔNG HỢP ĐỐI SOÁT & LỢI NHUẬN NHÀ GOM ĐƠN', '', '', '', '', '', '', '', '', ''],
       ['Kỳ đối soát:', session.sessionName, 'Hãng vận chuyển:', session.carrierName, 'Ngày tạo:', new Date(session.createdAt).toLocaleString('vi-VN')],
       ['', '', '', '', '', '', '', '', '', ''],
@@ -264,9 +358,10 @@ export const ExcelService = {
       ]);
     });
 
+    const masterSummaryRowIndex = masterData.length;
     masterData.push([
-      '',
       'TỔNG CỘNG',
+      '',
       '',
       '',
       session.matchedOrdersCount,
@@ -280,18 +375,44 @@ export const ExcelService = {
 
     const wsMaster = XLSX.utils.aoa_to_sheet(masterData);
     wsMaster['!cols'] = [
-      { wch: 6 },
+      { wch: 12 },
       { wch: 14 },
       { wch: 28 },
       { wch: 15 },
       { wch: 10 },
+      { wch: 22 },
       { wch: 20 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 22 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 24 },
       { wch: 40 },
     ];
+
+    // Format numbers in Master sheet
+    for (let r = 6; r <= masterSummaryRowIndex; r++) {
+      [5, 6, 7, 8, 9].forEach(cIdx => {
+        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
+        if (wsMaster[cellRef] && typeof wsMaster[cellRef].v === 'number') {
+          wsMaster[cellRef].z = '#,##0';
+        }
+      });
+    }
+
+    // Yellow background + Red text for Master summary row
+    for (let c = 0; c <= 10; c++) {
+      const cellRef = XLSX.utils.encode_cell({ r: masterSummaryRowIndex, c });
+      if (wsMaster[cellRef]) {
+        wsMaster[cellRef].s = {
+          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' },
+          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },
+          border: {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'double', color: { rgb: '000000' } }
+          }
+        };
+      }
+    }
+
     XLSX.utils.book_append_sheet(wb, wsMaster, 'TONG_HOP_DOANH_THU_LOI_NHUAN');
 
     // SHEET 2: DANH SÁCH CHI TIẾT TẤT CẢ ĐƠN HÀNG (THEO CẤU HÌNH CỘT)
@@ -304,8 +425,22 @@ export const ExcelService = {
     const masterHeaders = activeMasterCols.map((c: ExportColumnItem) => c.label);
     const detailsData: any[] = [masterHeaders];
 
+    let grandCod = 0;
+    let grandShopFee = 0;
+    let grandNvcFee = 0;
+    let grandProfit = 0;
+    let grandNetPayout = 0;
+    let grandWeight = 0;
+
     allOrders.forEach((order, idx) => {
       const row: any[] = [];
+      grandCod += order.codAmount || 0;
+      grandShopFee += (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
+      grandNvcFee += (order.nvcBaseFee || 0) + (order.nvcOtherFee || 0);
+      grandProfit += order.profitMargin || 0;
+      grandNetPayout += order.netShopPayout || 0;
+      grandWeight += order.weight || 0;
+
       activeMasterCols.forEach((col: ExportColumnItem) => {
         switch (col.id) {
           case 'stt':
@@ -363,13 +498,74 @@ export const ExcelService = {
       detailsData.push(row);
     });
 
+    // 🌟 Master Details Summary Row
+    const masterDetailsTotalRow: any[] = [];
+    activeMasterCols.forEach((col: ExportColumnItem) => {
+      switch (col.id) {
+        case 'stt':
+          masterDetailsTotalRow.push('TỔNG CỘNG');
+          break;
+        case 'waybill':
+          masterDetailsTotalRow.push(`${allOrders.length} đơn`);
+          break;
+        case 'weight':
+          masterDetailsTotalRow.push(Number(grandWeight.toFixed(2)));
+          break;
+        case 'codAmount':
+          masterDetailsTotalRow.push(grandCod);
+          break;
+        case 'shopFee':
+          masterDetailsTotalRow.push(grandShopFee);
+          break;
+        case 'nvcFee':
+          masterDetailsTotalRow.push(grandNvcFee);
+          break;
+        case 'profit':
+          masterDetailsTotalRow.push(grandProfit);
+          break;
+        case 'netPayout':
+          masterDetailsTotalRow.push(grandNetPayout);
+          break;
+        default:
+          masterDetailsTotalRow.push('');
+      }
+    });
+    detailsData.push(masterDetailsTotalRow);
+
     const wsDetails = XLSX.utils.aoa_to_sheet(detailsData);
     wsDetails['!cols'] = activeMasterCols.map((col: ExportColumnItem) => {
-      if (col.id === 'stt') return { wch: 6 };
+      if (col.id === 'stt') return { wch: 14 };
       if (col.id === 'waybill') return { wch: 20 };
       if (col.id === 'receiverAddress') return { wch: 36 };
       return { wch: 18 };
     });
+
+    // Format money numbers and style summary row
+    const masterDetailTotalIndex = detailsData.length - 1;
+    for (let r = 1; r <= masterDetailTotalIndex; r++) {
+      activeMasterCols.forEach((col, cIdx) => {
+        const isMoney = ['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id);
+        const cellRef = XLSX.utils.encode_cell({ r, c: cIdx });
+        if (wsDetails[cellRef] && isMoney && typeof wsDetails[cellRef].v === 'number') {
+          wsDetails[cellRef].z = '#,##0';
+        }
+      });
+    }
+
+    activeMasterCols.forEach((_, cIdx) => {
+      const cellRef = XLSX.utils.encode_cell({ r: masterDetailTotalIndex, c: cIdx });
+      if (wsDetails[cellRef]) {
+        wsDetails[cellRef].s = {
+          fill: { fgColor: { rgb: 'FFFF00' }, patternType: 'solid' },
+          font: { color: { rgb: 'FF0000' }, bold: true, sz: 11 },
+          border: {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'double', color: { rgb: '000000' } }
+          }
+        };
+      }
+    });
+
     XLSX.utils.book_append_sheet(wb, wsDetails, 'CHI_TIET_TOAN_BO_DON_HANG');
 
     return wb;
@@ -378,7 +574,7 @@ export const ExcelService = {
   downloadMasterProfitReport(session: ReconciliationSession): void {
     const wb = this.createMasterProfitWorkbook(session);
     const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, filename, { cellStyles: true });
   },
 
   async downloadAllStatementsZip(session: ReconciliationSession, onProgress?: (percent: number, currentShop: string) => void): Promise<void> {
@@ -386,7 +582,7 @@ export const ExcelService = {
     const rootFolder = zip.folder(`DOI_SOAT_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     const masterWb = this.createMasterProfitWorkbook(session);
-    const masterBinary = XLSX.write(masterWb, { bookType: 'xlsx', type: 'array' });
+    const masterBinary = XLSX.write(masterWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
     rootFolder?.file('00_BAO_CAO_TONG_HOP_LOI_NHUAN_NHA_GOM.xlsx', masterBinary);
 
     const total = session.statements.length;
@@ -400,7 +596,7 @@ export const ExcelService = {
       const shopSubFolder = rootFolder?.folder(cleanShopFolder);
       
       const shopWb = this.createShopStatementWorkbook(stmt);
-      const shopBinary = XLSX.write(shopWb, { bookType: 'xlsx', type: 'array' });
+      const shopBinary = XLSX.write(shopWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
       const filename = `Doi_soat_${cleanShopFolder}.xlsx`;
       
       shopSubFolder?.file(filename, shopBinary);

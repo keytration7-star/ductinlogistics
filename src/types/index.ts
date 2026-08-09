@@ -4,6 +4,14 @@ export interface BankAccount {
   accountHolder: string;
 }
 
+export interface CompanyInfo {
+  companyName: string;
+  address: string;
+  phone: string;
+  taxCode: string;
+  website?: string;
+}
+
 export interface WeightStepRule {
   minWeight: number; // e.g. 0 kg
   maxWeight: number; // e.g. 1 kg

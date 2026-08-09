@@ -8,6 +8,7 @@ import { HistoryAndAnalyticsView } from './components/HistoryAndAnalyticsView';
 import { UserManagementView } from './components/UserManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
+import { CompanySettingsModal } from './components/CompanySettingsModal';
 import { UIFeedbackProvider } from './components/UIFeedback';
 
 import type { 
@@ -32,6 +33,7 @@ export function App() {
 
   const [currentSession, setCurrentSession] = useState<ReconciliationSession | null>(null);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -121,9 +123,11 @@ export function App() {
         theme={theme}
         setTheme={setTheme}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
+
 
       {/* Main Right Content Panel */}
       <div style={{
@@ -222,6 +226,13 @@ export function App() {
         onClearSessionsOnly={handleClearSessionsOnly}
         currentUser={currentUser}
       />
+
+      {/* Company Info Settings Modal */}
+      <CompanySettingsModal
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+      />
+
     </div>
   </UIFeedbackProvider>
   );

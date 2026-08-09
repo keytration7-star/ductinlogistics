@@ -1,10 +1,18 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo } from '../types';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
 const SESSIONS_KEY = 'gomdon_sessions_v1';
 const EMAIL_SETTINGS_KEY = 'gomdon_email_settings_v1';
 const COLUMN_MAPPINGS_KEY = 'gomdon_column_mappings_v1';
+const COMPANY_INFO_KEY = 'gomdon_company_info_v1';
+
+export const DEFAULT_COMPANY_INFO: CompanyInfo = {
+  companyName: 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS TRUNG GIAN',
+  address: 'Số 123 Đường Nguyễn Trãi, Thanh Xuân, Hà Nội',
+  phone: '0988 123 456',
+  taxCode: '0101234567',
+};
 
 export const DEFAULT_CARRIER_TIERS: CarrierWholesaleTier[] = [
   {
@@ -323,6 +331,23 @@ export const StorageService = {
     this.saveExportColumnSettings(settings);
   },
 
+  getCompanyInfo(): CompanyInfo {
+    const data = localStorage.getItem(COMPANY_INFO_KEY);
+    if (!data) {
+      this.saveCompanyInfo(DEFAULT_COMPANY_INFO);
+      return DEFAULT_COMPANY_INFO;
+    }
+    try {
+      return { ...DEFAULT_COMPANY_INFO, ...JSON.parse(data) };
+    } catch {
+      return DEFAULT_COMPANY_INFO;
+    }
+  },
+
+  saveCompanyInfo(info: CompanyInfo): void {
+    localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(info));
+  },
+
   exportDatabaseBackup(): string {
     const backup = {
       version: '1.0',
@@ -332,6 +357,7 @@ export const StorageService = {
       sessions: this.getSessions(),
       emailSettings: this.getEmailSettings(),
       exportColumns: this.getExportColumnSettings(),
+      companyInfo: this.getCompanyInfo(),
     };
     return JSON.stringify(backup, null, 2);
   },
@@ -344,6 +370,7 @@ export const StorageService = {
       if (backup.sessions) localStorage.setItem(SESSIONS_KEY, JSON.stringify(backup.sessions));
       if (backup.emailSettings) this.saveEmailSettings(backup.emailSettings);
       if (backup.exportColumns) this.saveExportColumnSettings(backup.exportColumns);
+      if (backup.companyInfo) this.saveCompanyInfo(backup.companyInfo);
       return true;
     } catch (e) {
       console.error('Failed to import backup:', e);
@@ -351,3 +378,4 @@ export const StorageService = {
     }
   },
 };
+
