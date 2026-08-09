@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Check, X, MapPin, Phone, FileText, Globe } from 'lucide-react';
+import { Building2, Check, X, MapPin, Phone, FileText, Globe, Lock } from 'lucide-react';
 import type { CompanyInfo } from '../types';
 import { StorageService } from '../services/storage';
 import { useToast } from './UIFeedback';
@@ -8,13 +8,16 @@ interface CompanySettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  userRole?: string;
 }
 
 export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
   isOpen,
   onClose,
   onSaved,
+  userRole = 'ADMIN',
 }) => {
+  const isAdmin = userRole === 'ADMIN';
   const { showToast } = useToast();
   const [info, setInfo] = useState<CompanyInfo>(() => StorageService.getCompanyInfo());
   const [isSaved, setIsSaved] = useState(false);
@@ -94,6 +97,21 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         <form onSubmit={handleSubmit}>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             
+            {!isAdmin && (
+              <div className="badge badge-warning" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12.5,
+                lineHeight: 1.4,
+              }}>
+                <Lock size={16} style={{ flexShrink: 0 }} />
+                <span>🔒 Tài khoản Kế toán / Nhân viên chỉ có quyền xem. Chỉ Quản trị viên (Admin) mới có quyền chỉnh sửa cấu hình này.</span>
+              </div>
+            )}
+
             {/* Tên công ty */}
             <div className="input-group">
               <label className="input-label" style={{ fontWeight: 700 }}>
@@ -102,11 +120,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               <input
                 type="text"
                 required
+                disabled={!isAdmin}
                 placeholder="Ví dụ: CÔNG TY TNHH LOGISTICS DỰC TÍN..."
                 value={info.companyName}
                 onChange={(e) => setInfo({ ...info, companyName: e.target.value })}
                 className="input-field"
-                style={{ padding: '10px 12px', fontSize: 13.5, fontWeight: 700 }}
+                style={{ padding: '10px 12px', fontSize: 13.5, fontWeight: 700, opacity: !isAdmin ? 0.75 : 1 }}
               />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                 Xuất hiện ở dòng 1 của tiêu đề file Excel đối soát gửi cho Shop và Báo cáo tổng hợp.
@@ -121,10 +140,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               </label>
               <input
                 type="text"
+                disabled={!isAdmin}
                 placeholder="Ví dụ: 123 Nguyễn Trãi, Thanh Xuân, Hà Nội..."
                 value={info.address}
                 onChange={(e) => setInfo({ ...info, address: e.target.value })}
                 className="input-field"
+                style={{ opacity: !isAdmin ? 0.75 : 1 }}
               />
             </div>
 
@@ -137,10 +158,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  disabled={!isAdmin}
                   placeholder="Ví dụ: 0988 123 456"
                   value={info.phone}
                   onChange={(e) => setInfo({ ...info, phone: e.target.value })}
                   className="input-field"
+                  style={{ opacity: !isAdmin ? 0.75 : 1 }}
                 />
               </div>
 
@@ -152,10 +175,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  disabled={!isAdmin}
                   placeholder="Ví dụ: 0101234567"
                   value={info.taxCode}
                   onChange={(e) => setInfo({ ...info, taxCode: e.target.value })}
                   className="input-field"
+                  style={{ opacity: !isAdmin ? 0.75 : 1 }}
                 />
               </div>
             </div>
@@ -168,10 +193,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               </label>
               <input
                 type="text"
+                disabled={!isAdmin}
                 placeholder="Ví dụ: ductinlogistics.shop"
                 value={info.website || ''}
                 onChange={(e) => setInfo({ ...info, website: e.target.value })}
                 className="input-field"
+                style={{ opacity: !isAdmin ? 0.75 : 1 }}
               />
             </div>
 
@@ -187,12 +214,14 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             background: 'var(--bg-tertiary)',
           }}>
             <button type="button" onClick={onClose} className="btn btn-secondary">
-              Huỷ
+              Đóng
             </button>
-            <button type="submit" className="btn btn-primary">
-              <Check size={16} />
-              <span>{isSaved ? 'Đã Lưu Thông Tin!' : 'Lưu Thông Tin Công Ty'}</span>
-            </button>
+            {isAdmin && (
+              <button type="submit" className="btn btn-primary">
+                <Check size={16} />
+                <span>{isSaved ? 'Đã Lưu Thông Tin!' : 'Lưu Thông Tin Công Ty'}</span>
+              </button>
+            )}
           </div>
         </form>
 

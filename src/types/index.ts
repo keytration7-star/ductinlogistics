@@ -200,4 +200,21 @@ export interface UserAccount {
   active: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  // 🛡️ Device & Security Management
+  activeDeviceId?: string;
+  activeDeviceName?: string;
+  activeIp?: string;
+  lastActiveAt?: string;
+  singleDeviceOnly?: boolean; // Restrict account to single device
+  maskPhoneNumbers?: boolean;  // Mask sensitive customer phone numbers
+}
+
+export interface SecurityAuditLog {
+  id: string;
+  timestamp: string;
+  username: string;
+  action: string;
+  ip?: string;
+  deviceName?: string;
+  details?: string;
 }

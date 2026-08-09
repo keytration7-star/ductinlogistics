@@ -232,6 +232,7 @@ export function App() {
       <CompanySettingsModal
         isOpen={isCompanyModalOpen}
         onClose={() => setIsCompanyModalOpen(false)}
+        userRole={currentUser.role}
       />
 
     </div>

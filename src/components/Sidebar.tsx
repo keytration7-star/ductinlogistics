@@ -145,9 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             boxShadow: 'var(--shadow-sm)',
           }}>
             <div 
-              onClick={onOpenCompanyModal}
-              title="Bấm để cài đặt thông tin Công Ty / Nhà Gom Đơn"
-              style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, cursor: 'pointer', flex: 1 }}
+              onClick={() => {
+                if (currentUser.role === 'ADMIN') onOpenCompanyModal();
+              }}
+              title={currentUser.role === 'ADMIN' ? "Bấm để cài đặt thông tin Công Ty / Nhà Gom Đơn" : `Tài khoản ${currentUser.fullName}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, cursor: currentUser.role === 'ADMIN' ? 'pointer' : 'default', flex: 1 }}
             >
               <div style={{
                 width: 34,
