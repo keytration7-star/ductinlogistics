@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  gomdon-app:
+    build: .
+    container_name: gomdon_pro_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
