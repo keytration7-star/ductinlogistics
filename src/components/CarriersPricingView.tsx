@@ -280,45 +280,71 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                 </div>
               </div>
 
-              {/* Weight Rules List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                {carrier.weightRules.map((rule, rIdx) => (
-                  <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 95, fontSize: 12, color: 'var(--text-muted)' }}>
-                      {rIdx === 0 ? '0 đến' : `Từ ${rule.minWeight} đến`}
-                    </div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={rule.maxWeight}
-                      onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'maxWeight', parseFloat(e.target.value) || 1)}
-                      className="input-field"
-                      style={{ width: 70, padding: '5px 8px', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12 }}>kg:</span>
-                    <input
-                      type="number"
-                      step="500"
-                      value={rule.price}
-                      onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value) || 0)}
-                      className="input-field"
-                      style={{ flex: 1, padding: '5px 8px', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>đ</span>
+              {/* Weight Rules List - Full editable min & max weight */}
+              <div style={{ marginBottom: 16 }}>
+                {/* Header row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ width: 50, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Từ (kg)</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>→</div>
+                  <div style={{ width: 70, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Đến (kg)</div>
+                  <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Giá cước (đ)</div>
+                  <div style={{ width: 30 }} />
+                </div>
 
-                    {carrier.weightRules.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRule(cIdx, rIdx)}
-                        className="btn btn-danger btn-sm"
-                        style={{ padding: '4px 6px' }}
-                        title="Xóa nấc này"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {carrier.weightRules.map((rule, rIdx) => (
+                    <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {/* Min weight - fully editable */}
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={rule.minWeight}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'minWeight', parseFloat(e.target.value) ?? 0)}
+                        className="input-field"
+                        style={{ width: 50, padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
+                        title="Cân nặng bắt đầu (kg)"
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>→</span>
+                      {/* Max weight */}
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={rule.maxWeight}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'maxWeight', parseFloat(e.target.value) || 0.5)}
+                        className="input-field"
+                        style={{ width: 70, padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
+                        title="Cân nặng kết thúc (kg)"
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>kg :</span>
+                      {/* Price */}
+                      <input
+                        type="number"
+                        step="500"
+                        min="0"
+                        value={rule.price}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value) || 0)}
+                        className="input-field"
+                        style={{ flex: 1, padding: '5px 8px', fontSize: 13 }}
+                        title="Giá cước (đ)"
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>đ</span>
+
+                      {carrier.weightRules.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRule(cIdx, rIdx)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '4px 6px', flexShrink: 0 }}
+                          title="Xóa nấc này"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Dynamic Editable Extra Step & Return Fee Box */}
