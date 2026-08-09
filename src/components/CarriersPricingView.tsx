@@ -52,9 +52,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
     const updated = [...carrierList];
     const rules = updated[carrierIdx].weightRules;
     const lastRule = rules[rules.length - 1];
-    // Auto-suggest minWeight = previous maxWeight + 0.1 to avoid overlap
+    // Auto-suggest minWeight = previous maxWeight + 0.1, maxWeight = next round number
     const minWeight = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
-    const maxWeight = Math.round((minWeight + 1) * 10) / 10;
+    const maxWeight = lastRule ? Math.ceil(minWeight) : 1;
     const price = lastRule ? lastRule.price + 5000 : 20000;
 
     updated[carrierIdx].weightRules.push({ minWeight, maxWeight, price });

@@ -146,9 +146,9 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     if (!editingShop) return;
     const currentRules = editingShop.pricingPlan.weightRules;
     const lastRule = currentRules[currentRules.length - 1];
-    // Auto-suggest minWeight = previous maxWeight + 0.1 to avoid overlap
+    // Auto-suggest minWeight = previous maxWeight + 0.1, maxWeight = next round number
     const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
-    const newMax = Math.round((newMin + 1) * 10) / 10;
+    const newMax = lastRule ? Math.ceil(newMin) : 1;
     const newPrice = lastRule ? lastRule.price + 5000 : 25000;
 
     const newRules: WeightStepRule[] = [
