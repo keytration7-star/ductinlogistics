@@ -5,6 +5,7 @@ import { saveAs } from 'file-saver';
 import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
 import { normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
+import { extractRowField } from './reconciliationService';
 
 export const ExcelService = {
   // Intelligent parser supporting title banners, multi-line headers and multiple sheets
@@ -238,19 +239,19 @@ export const ExcelService = {
         switch (col.id) {
           case 'stt': rowData.push(idx + 1); break;
           case 'waybill': rowData.push(order.waybill); break;
-          case 'date': rowData.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || ''); break;
-          case 'refOrderCode': rowData.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || ''); break;
-          case 'receiverName': rowData.push(order.receiverName); break;
-          case 'receiverPhone': rowData.push(order.receiverPhone); break;
-          case 'receiverAddress': rowData.push(order.receiverAddress); break;
-          case 'productName': rowData.push(order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa'] || ''); break;
+          case 'date': rowData.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ngay'])); break;
+          case 'refOrderCode': rowData.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ma_don_phu', 'ref'])); break;
+          case 'receiverName': rowData.push(order.receiverName || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach'])); break;
+          case 'receiverPhone': rowData.push(order.receiverPhone || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['sdt_nguoi_nhan', 'so_dien_thoai', 'phone', 'mobile'])); break;
+          case 'receiverAddress': rowData.push(order.receiverAddress || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['dia_chi', 'address', 'dc_nhan', 'giao_hang', 'dc'])); break;
+          case 'productName': rowData.push(order.productName || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ten_san_pham', 'hang_hoa', 'ten_hang', 'san_pham', 'noi_dung', 'mo_ta'])); break;
           case 'weight': rowData.push(order.weight); break;
           case 'status': rowData.push(order.statusText || order.status); break;
           case 'codAmount': rowData.push(order.codAmount); break;
           case 'shopFee': rowData.push(order.shopCalculatedFee); break;
           case 'shopOtherFee': rowData.push(order.shopOtherFee); break;
           case 'netPayout': rowData.push(order.netShopPayout); break;
-          case 'orderNote': rowData.push(order.rawAppData?.['Ghi chú'] || ''); break;
+          case 'orderNote': rowData.push(order.rawAppData?.['Ghi chú'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ghi_chu', 'note'])); break;
           default: rowData.push('');
         }
       });
@@ -492,9 +493,9 @@ export const ExcelService = {
           case 'carrier': rowData.push(session.carrierName); break;
           case 'shopName': rowData.push(order.shopName); break;
           case 'shopPhone': rowData.push(order.shopPhone); break;
-          case 'receiverName': rowData.push(order.receiverName); break;
-          case 'receiverPhone': rowData.push(order.receiverPhone); break;
-          case 'receiverAddress': rowData.push(order.receiverAddress); break;
+          case 'receiverName': rowData.push(order.receiverName || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach'])); break;
+          case 'receiverPhone': rowData.push(order.receiverPhone || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['sdt_nguoi_nhan', 'so_dien_thoai', 'phone', 'mobile'])); break;
+          case 'receiverAddress': rowData.push(order.receiverAddress || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['dia_chi', 'address', 'dc_nhan', 'giao_hang', 'dc'])); break;
           case 'weight': rowData.push(order.weight); break;
           case 'status': rowData.push(order.statusText || order.status); break;
           case 'codAmount': rowData.push(order.codAmount); break;

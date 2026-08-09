@@ -115,6 +115,7 @@ export interface ReconciledOrder {
   receiverName: string;         // Tên Người Nhận
   receiverPhone: string;        // SĐT Người Nhận
   receiverAddress: string;      // Địa chỉ Người Nhận
+  productName?: string;         // Tên Sản Phẩm / Hàng Hóa
   weight: number;               // Khối lượng (kg)
   codAmount: number;            // Tiền COD thu hộ
   nvcBaseFee: number;           // Cước NVC tính cho nhà gom

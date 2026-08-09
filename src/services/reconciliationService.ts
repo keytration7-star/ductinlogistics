@@ -178,6 +178,50 @@ export function parseOrderStatus(statusStr: string): { status: OrderStatus; text
   return { status: 'delivered', text };
 }
 
+export function extractRowField(
+  appRow: Record<string, any> | undefined, 
+  nvcRow: Record<string, any> | undefined, 
+  mappingCol: string | undefined, 
+  keywords: string[]
+): string {
+  if (appRow && mappingCol && appRow[mappingCol]) {
+    const val = String(appRow[mappingCol]).trim();
+    if (val) return val;
+  }
+  if (nvcRow && mappingCol && nvcRow[mappingCol]) {
+    const val = String(nvcRow[mappingCol]).trim();
+    if (val) return val;
+  }
+
+  // Scan appRow keys
+  if (appRow) {
+    for (const key of Object.keys(appRow)) {
+      const normKey = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_');
+      if (keywords.some(kw => normKey.includes(kw))) {
+        const val = appRow[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          return String(val).trim();
+        }
+      }
+    }
+  }
+
+  // Scan nvcRow keys
+  if (nvcRow) {
+    for (const key of Object.keys(nvcRow)) {
+      const normKey = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_');
+      if (keywords.some(kw => normKey.includes(kw))) {
+        const val = nvcRow[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          return String(val).trim();
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
 export function performReconciliation(
   nvcRows: Record<string, any>[],
   nvcMapping: ColumnMappingConfig,
@@ -226,27 +270,18 @@ export function performReconciliation(
     let shopName = '';
     let shopPhone = '';
     let shopAddress = '';
-    let receiverName = '';
-    let receiverPhone = '';
-    let receiverAddress = '';
     let matchedShop: Shop | undefined = undefined;
 
     if (appRow) {
       shopName = (appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] : '') || 'Shop Không Tên';
       shopPhone = (appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] : '') || '';
       shopAddress = (appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] : '') || '';
-      
-      receiverName = (appMapping.receiverNameColumn ? appRow[appMapping.receiverNameColumn] : '') ||
-                     (nvcMapping.receiverNameColumn ? nvcRow[nvcMapping.receiverNameColumn] : '') ||
-                     appRow['Tên người nhận'] || appRow['Người nhận'] || nvcRow['Tên người nhận'] || nvcRow['Người nhận'] || '';
+    }
 
-      receiverPhone = (appMapping.receiverPhoneColumn ? appRow[appMapping.receiverPhoneColumn] : '') ||
-                      (nvcMapping.receiverPhoneColumn ? nvcRow[nvcMapping.receiverPhoneColumn] : '') ||
-                      appRow['SĐT người nhận'] || appRow['Số điện thoại'] || nvcRow['SĐT người nhận'] || nvcRow['SĐT nhận'] || '';
-
-      receiverAddress = (appMapping.receiverAddressColumn ? appRow[appMapping.receiverAddressColumn] : '') ||
-                        (nvcMapping.receiverAddressColumn ? nvcRow[nvcMapping.receiverAddressColumn] : '') ||
-                        appRow['Địa chỉ giao hàng'] || appRow['Địa chỉ'] || appRow['Địa chỉ nhận'] || nvcRow['Địa chỉ giao hàng'] || nvcRow['Địa chỉ nhận'] || '';
+    const receiverName = extractRowField(appRow, nvcRow, appMapping.receiverNameColumn || nvcMapping.receiverNameColumn, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach', 'khach_nhan', 'receiver']) || 'Khách Nhận';
+    const receiverPhone = extractRowField(appRow, nvcRow, appMapping.receiverPhoneColumn || nvcMapping.receiverPhoneColumn, ['sdt_nguoi_nhan', 'sdt_nhan', 'so_dien_thoai', 'phone', 'mobile', 'sdt']);
+    const receiverAddress = extractRowField(appRow, nvcRow, appMapping.receiverAddressColumn || nvcMapping.receiverAddressColumn, ['dia_chi', 'address', 'dc_nhan', 'giao_hang', 'dia_chi_nhan', 'dc']);
+    const productName = extractRowField(appRow, nvcRow, appMapping.productNameColumn || nvcMapping.productNameColumn, ['ten_san_pham', 'hang_hoa', 'ten_hang', 'san_pham', 'noi_dung', 'mo_ta', 'product', 'items']);
 
       const cleanShopName = shopName.toLowerCase().trim();
       const cleanShopPhone = shopPhone.replace(/[^0-9]/g, '');
@@ -262,7 +297,6 @@ export function performReconciliation(
           (cleanShopName && sCode && cleanShopName.includes(sCode))
         );
       });
-    }
 
     let pricingPlan: ShopPricingPlan;
     if (matchedShop) {
@@ -322,6 +356,7 @@ export function performReconciliation(
       receiverName,
       receiverPhone,
       receiverAddress,
+      productName,
       weight,
       codAmount: effectiveCod,
       nvcBaseFee: effectiveNvcFee,
