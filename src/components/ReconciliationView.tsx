@@ -140,6 +140,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const detectedMapping = autoDetectColumns(headers, 'nvc', saved.nvc);
       setNvcMapping(detectedMapping);
       StorageService.saveColumnMappings(detectedMapping, appMapping);
+      // 🔑 Lưu headers của hãng này để dùng khi mở cài đặt mà chưa có file
+      const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
+      StorageService.saveCarrierHeaders(selectedCarrierId, headers, savedHeaders.appHeaders);
     } catch (err) {
       alert('Không thể đọc file đối soát NVC. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)');
       console.error(err);
@@ -157,6 +160,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const detectedMapping = autoDetectColumns(headers, 'app', saved.app);
       setAppMapping(detectedMapping);
       StorageService.saveColumnMappings(nvcMapping, detectedMapping);
+      // 🔑 Lưu headers của hãng này để dùng khi mở cài đặt mà chưa có file
+      const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
+      StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
     } catch (err) {
       alert('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)');
       console.error(err);
@@ -1307,22 +1313,39 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       )}
 
       {/* Unified Carrier Profile Config Modal */}
-      {configCarrier && (
-        <CarrierProfileConfigModal
-          isOpen={!!configCarrier}
-          onClose={() => setConfigCarrier(null)}
-          carrierId={configCarrier.carrierId || configCarrier.id}
-          carrierName={configCarrier.carrierName}
-          nvcHeaders={nvcHeaders}
-          appHeaders={appHeaders}
-          nvcMapping={nvcMapping}
-          appMapping={appMapping}
-          onSaveMappings={(newNvc, newApp) => {
-            setNvcMapping(newNvc);
-            setAppMapping(newApp);
-          }}
-        />
-      )}
+      {configCarrier && (() => {
+        const configCid = configCarrier.carrierId || configCarrier.id;
+        // Merge: live headers (if file uploaded) + saved headers (from previous sessions)
+        const savedH = StorageService.getCarrierHeaders(configCid);
+        const mergedNvcHeaders = nvcHeaders.length > 0 ? nvcHeaders : savedH.nvcHeaders;
+        const mergedAppHeaders = appHeaders.length > 0 ? appHeaders : savedH.appHeaders;
+        // Use mapping for that carrier
+        const configMapping = StorageService.getCarrierMapping(configCid);
+        const configNvcMapping = configMapping.nvc || nvcMapping;
+        const configAppMapping = configMapping.app || appMapping;
+        return (
+          <CarrierProfileConfigModal
+            isOpen={!!configCarrier}
+            onClose={() => setConfigCarrier(null)}
+            carrierId={configCid}
+            carrierName={configCarrier.carrierName}
+            nvcHeaders={mergedNvcHeaders}
+            appHeaders={mergedAppHeaders}
+            nvcMapping={configNvcMapping}
+            appMapping={configAppMapping}
+            hasLiveNvcFile={nvcHeaders.length > 0}
+            hasLiveAppFile={appHeaders.length > 0}
+            hasSavedNvcHeaders={savedH.nvcHeaders.length > 0}
+            hasSavedAppHeaders={savedH.appHeaders.length > 0}
+            onSaveMappings={(newNvc, newApp) => {
+              if (configCid === selectedCarrierId) {
+                setNvcMapping(newNvc);
+                setAppMapping(newApp);
+              }
+            }}
+          />
+        );
+      })()}
 
       {/* Column Mapping Modal (Stand-alone fallback if triggered elsewhere) */}
       {showMappingModal && (

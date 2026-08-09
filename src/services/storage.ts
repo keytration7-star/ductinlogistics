@@ -261,6 +261,27 @@ export const StorageService = {
     this.saveColumnMappings(nvcMapping, appMapping);
   },
 
+  getCarrierHeaders(carrierId: string): { nvcHeaders: string[]; appHeaders: string[] } {
+    const key = `gomdon_carrier_headers_${carrierId}`;
+    const data = localStorage.getItem(key);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        return {
+          nvcHeaders: parsed.nvcHeaders || [],
+          appHeaders: parsed.appHeaders || [],
+        };
+      } catch { }
+    }
+    return { nvcHeaders: [], appHeaders: [] };
+  },
+
+  saveCarrierHeaders(carrierId: string, nvcHeaders: string[], appHeaders: string[]): void {
+    const key = `gomdon_carrier_headers_${carrierId}`;
+    const data = { nvcHeaders, appHeaders };
+    localStorage.setItem(key, JSON.stringify(data));
+  },
+
   getExportColumnSettings(): ExportColumnSettings {
     const data = localStorage.getItem(EXPORT_COLUMNS_KEY);
     if (!data) {
