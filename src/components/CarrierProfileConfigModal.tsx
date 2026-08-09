@@ -636,16 +636,15 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           style={{ padding: '5px 8px', fontSize: 12 }}
                           disabled={!hasHeaders}
                         />
-                        <select
-                          value={newCustomExcelCol}
-                          onChange={(e) => setNewCustomExcelCol(e.target.value)}
-                          className="select-field"
-                          style={{ padding: '5px 8px', fontSize: 12 }}
-                          disabled={!hasHeaders}
-                        >
-                          <option value="">{hasHeaders ? '-- Chọn cột trong file NVC --' : '⚠️ Cần tải file NVC trước'}</option>
-                          {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                        <div style={{ flex: 1 }}>
+                          <SearchableSelect
+                            options={nvcHeaders.map(h => ({ value: h, label: h, badge: 'File NVC', badgeType: 'nvc' }))}
+                            value={newCustomExcelCol}
+                            onChange={(val) => setNewCustomExcelCol(val)}
+                            placeholder={hasHeaders ? `🔍 Gõ từ khóa tìm cột NVC...` : '⚠️ Cần tải file NVC trước'}
+                            disabled={!hasHeaders}
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={handleAddCustomColumn}
@@ -798,16 +797,15 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           style={{ padding: '5px 8px', fontSize: 12 }}
                           disabled={!hasHeaders}
                         />
-                        <select
-                          value={newCustomExcelCol}
-                          onChange={(e) => setNewCustomExcelCol(e.target.value)}
-                          className="select-field"
-                          style={{ padding: '5px 8px', fontSize: 12 }}
-                          disabled={!hasHeaders}
-                        >
-                          <option value="">{hasHeaders ? '-- Chọn cột trong file App --' : '⚠️ Cần tải file App trước'}</option>
-                          {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                        <div style={{ flex: 1 }}>
+                          <SearchableSelect
+                            options={appHeaders.map(h => ({ value: h, label: h, badge: 'File App', badgeType: 'app' }))}
+                            value={newCustomExcelCol}
+                            onChange={(val) => setNewCustomExcelCol(val)}
+                            placeholder={hasHeaders ? `🔍 Gõ từ khóa tìm cột App...` : '⚠️ Cần tải file App trước'}
+                            disabled={!hasHeaders}
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={handleAddCustomColumn}
@@ -1031,14 +1029,14 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         )}
                       </div>
 
-                      {/* Trash button for custom export columns */}
-                      {isCustom && (
+                      {/* Trash button for any non-mandatory column */}
+                      {!isMandatory && (
                         <button
                           type="button"
                           onClick={() => handleRemoveExportColumn(col.id)}
                           className="btn btn-danger btn-sm"
                           style={{ padding: '2px 5px', flexShrink: 0 }}
-                          title="Xóa cột tùy chọn này khỏi danh sách xuất"
+                          title={`Xóa cột "${col.label}" khỏi mẫu xuất file này`}
                         >
                           <Trash2 size={12} />
                         </button>
