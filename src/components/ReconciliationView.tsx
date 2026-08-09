@@ -77,6 +77,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [appMapping, setAppMapping] = useState<ColumnMappingConfig>(savedMappings.app || { waybillColumn: '' });
 
   const [selectedCarrierId, setSelectedCarrierId] = useState<string>(carriers[0]?.carrierId || 'ghtk');
+  const selectedCarrierTier = carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0];
+
+  // Auto-sync column mapping when selected carrier changes
+  React.useEffect(() => {
+    if (selectedCarrierId) {
+      const carrierMapping = StorageService.getCarrierMapping(selectedCarrierId);
+      if (carrierMapping.nvc) setNvcMapping(carrierMapping.nvc);
+      if (carrierMapping.app) setAppMapping(carrierMapping.app);
+    }
+  }, [selectedCarrierId]);
+
   const [sessionPeriodName, setSessionPeriodName] = useState<string>(
     `Kỳ Đối Soát Tháng ${new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}`
   );
@@ -465,35 +476,90 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                Đơn vị vận chuyển (NVC)
-              </label>
-              <select
-                value={selectedCarrierId}
-                onChange={(e) => setSelectedCarrierId(e.target.value)}
-                className="select-field"
-                style={{ padding: '6px 12px', fontSize: 13 }}
-              >
-                {carriers.map(c => (
-                  <option key={c.carrierId} value={c.carrierId}>{c.carrierName}</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+              Tên kỳ đối soát
+            </label>
+            <input
+              type="text"
+              value={sessionPeriodName}
+              onChange={(e) => setSessionPeriodName(e.target.value)}
+              className="input-field"
+              style={{ padding: '6px 12px', fontSize: 13, width: 260 }}
+            />
+          </div>
+        </div>
 
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                Tên kỳ đối soát
-              </label>
-              <input
-                type="text"
-                value={sessionPeriodName}
-                onChange={(e) => setSessionPeriodName(e.target.value)}
-                className="input-field"
-                style={{ padding: '6px 12px', fontSize: 13, width: 220 }}
-              />
+        {/* CARRIER CARDS SELECTOR */}
+        <div style={{ marginBottom: 20, background: 'var(--bg-secondary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>📦 Chọn Thẻ Đơn Vị Vận Chuyển Đối Soát:</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+                (Cấu hình ánh xạ cột & mẫu xuất Excel sẽ tự động chuyển theo thẻ của từng Hãng)
+              </span>
             </div>
+            <div style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>
+              Đang áp dụng: <strong>{selectedCarrierTier?.carrierName}</strong>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+            gap: 10,
+          }}>
+            {carriers.map(c => {
+              const isSelected = c.carrierId === selectedCarrierId || c.id === selectedCarrierId;
+              return (
+                <div
+                  key={c.id || c.carrierId}
+                  onClick={() => setSelectedCarrierId(c.carrierId || c.id)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isSelected 
+                      ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.14) 0%, rgba(16, 185, 129, 0.10) 100%)' 
+                      : 'var(--bg-primary)',
+                    border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.15)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
+                      color: isSelected ? '#fff' : 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                    }}>
+                      {c.carrierId.toUpperCase()}
+                    </span>
+                    {isSelected && <CheckCircle2 size={16} color="var(--primary)" />}
+                  </div>
+
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: isSelected ? 700 : 600,
+                    color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                    lineHeight: 1.3,
+                  }}>
+                    {c.carrierName}
+                  </div>
+
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Cước từ: <strong style={{ color: 'var(--text-main)' }}>{new Intl.NumberFormat('vi-VN').format(c.weightRules[0]?.price || 0)}đ</strong>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -1229,6 +1295,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           appHeaders={appHeaders}
           nvcMapping={nvcMapping}
           appMapping={appMapping}
+          carrierId={selectedCarrierId}
+          carrierName={selectedCarrierTier?.carrierName}
           onSaveMappings={(newNvc, newApp) => {
             setNvcMapping(newNvc);
             setAppMapping(newApp);
@@ -1241,6 +1309,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         <ExportColumnConfigModal
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
+          carrierId={selectedCarrierId}
+          carrierName={selectedCarrierTier?.carrierName}
         />
       )}
 

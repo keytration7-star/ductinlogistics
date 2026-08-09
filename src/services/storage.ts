@@ -243,6 +243,24 @@ export const StorageService = {
     localStorage.setItem(COLUMN_MAPPINGS_KEY, JSON.stringify(data));
   },
 
+  getCarrierMapping(carrierId: string): { nvc?: any; app?: any } {
+    const key = `gomdon_carrier_mapping_${carrierId}`;
+    const data = localStorage.getItem(key);
+    if (data) {
+      try {
+        return JSON.parse(data);
+      } catch { }
+    }
+    return this.getColumnMappings();
+  },
+
+  saveCarrierMapping(carrierId: string, nvcMapping: any, appMapping: any): void {
+    const key = `gomdon_carrier_mapping_${carrierId}`;
+    const data = { nvc: nvcMapping, app: appMapping };
+    localStorage.setItem(key, JSON.stringify(data));
+    this.saveColumnMappings(nvcMapping, appMapping);
+  },
+
   getExportColumnSettings(): ExportColumnSettings {
     const data = localStorage.getItem(EXPORT_COLUMNS_KEY);
     if (!data) {
@@ -261,6 +279,27 @@ export const StorageService = {
 
   saveExportColumnSettings(settings: ExportColumnSettings): void {
     localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(settings));
+  },
+
+  getCarrierExportSettings(carrierId: string): ExportColumnSettings {
+    const key = `gomdon_carrier_export_${carrierId}`;
+    const data = localStorage.getItem(key);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        return {
+          shopColumns: parsed.shopColumns || DEFAULT_EXPORT_COLUMNS.shopColumns,
+          masterColumns: parsed.masterColumns || DEFAULT_EXPORT_COLUMNS.masterColumns,
+        };
+      } catch { }
+    }
+    return this.getExportColumnSettings();
+  },
+
+  saveCarrierExportSettings(carrierId: string, settings: ExportColumnSettings): void {
+    const key = `gomdon_carrier_export_${carrierId}`;
+    localStorage.setItem(key, JSON.stringify(settings));
+    this.saveExportColumnSettings(settings);
   },
 
   exportDatabaseBackup(): string {

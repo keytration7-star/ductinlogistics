@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Truck, Plus, Trash2, Check, X, CheckCircle2 } from 'lucide-react';
+import { Truck, Plus, Trash2, Check, X, CheckCircle2, Sliders, FileSpreadsheet } from 'lucide-react';
 import type { CarrierWholesaleTier, WeightStepRule } from '../types';
+import { ColumnMappingModal } from './ColumnMappingModal';
+import { ExportColumnConfigModal } from './ExportColumnConfigModal';
+import { StorageService } from '../services/storage';
 
 interface CarriersPricingViewProps {
   carriers: CarrierWholesaleTier[];
@@ -12,6 +15,10 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   const [showToast, setShowToast] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>('Vừa xong');
+
+  // Carrier Profile Mapping / Export Modals
+  const [mappingCarrier, setMappingCarrier] = useState<CarrierWholesaleTier | null>(null);
+  const [exportCarrier, setExportCarrier] = useState<CarrierWholesaleTier | null>(null);
 
   // New Carrier form state
   const [newCarrierName, setNewCarrierName] = useState('');
@@ -393,10 +400,73 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                     </button>
                   </div>
                 </div>
+
+                {/* Carrier Profile Mapping & Export Preset Buttons */}
+                <div style={{
+                  display: 'flex',
+                  gap: 8,
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTop: '1px dashed var(--border-color)',
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setMappingCarrier(carrier)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1, fontSize: 11, padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    title="Cài đặt mẫu ánh xạ cột Excel riêng cho hãng này"
+                  >
+                    <Sliders size={13} color="var(--primary)" />
+                    <span>Ánh Xạ Cột Của Hãng</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportCarrier(carrier)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1, fontSize: 11, padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                    title="Cài đặt mẫu cột khi xuất Excel cho hãng này"
+                  >
+                    <FileSpreadsheet size={13} color="var(--primary)" />
+                    <span>Mẫu Xuất Của Hãng</span>
+                  </button>
+                </div>
+
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Carrier Specific Column Mapping Modal */}
+      {mappingCarrier && (
+        <ColumnMappingModal
+          isOpen={!!mappingCarrier}
+          onClose={() => setMappingCarrier(null)}
+          nvcHeaders={[]}
+          appHeaders={[]}
+          nvcMapping={StorageService.getCarrierMapping(mappingCarrier.carrierId).nvc || { waybillColumn: '' }}
+          appMapping={StorageService.getCarrierMapping(mappingCarrier.carrierId).app || { waybillColumn: '' }}
+          carrierId={mappingCarrier.carrierId}
+          carrierName={mappingCarrier.carrierName}
+          onSaveMappings={(nvc, app) => {
+            StorageService.saveCarrierMapping(mappingCarrier.carrierId, nvc, app);
+            triggerSaveToast();
+          }}
+        />
+      )}
+
+      {/* Carrier Specific Export Columns Modal */}
+      {exportCarrier && (
+        <ExportColumnConfigModal
+          isOpen={!!exportCarrier}
+          onClose={() => setExportCarrier(null)}
+          carrierId={exportCarrier.carrierId}
+          carrierName={exportCarrier.carrierName}
+          onSave={() => {
+            triggerSaveToast();
+          }}
+        />
       )}
 
       {/* Modal Add New Carrier */}

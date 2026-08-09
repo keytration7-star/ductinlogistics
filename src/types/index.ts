@@ -45,6 +45,11 @@ export interface CarrierWholesaleTier {
   extraStepWeight: number;
   extraStepPrice: number;
   returnFeePercent: number;
+  columnMapping?: {
+    nvc?: ColumnMappingConfig;
+    app?: ColumnMappingConfig;
+  };
+  exportColumns?: ExportColumnSettings;
 }
 
 export interface CustomColumnMapping {

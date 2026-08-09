@@ -7,15 +7,22 @@ interface ExportColumnConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave?: (settings: ExportColumnSettings) => void;
+  carrierId?: string;
+  carrierName?: string;
 }
 
 export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  carrierId,
+  carrierName,
 }) => {
   const [activeTab, setActiveTab] = useState<'shop' | 'master'>('shop');
   const [settings, setSettings] = useState<ExportColumnSettings>(() => {
+    if (carrierId) {
+      return StorageService.getCarrierExportSettings(carrierId);
+    }
     return StorageService.getExportColumnSettings();
   });
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -58,12 +65,20 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     if (confirm('Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?')) {
       const defaultClone = JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
       setSettings(defaultClone);
-      StorageService.saveExportColumnSettings(defaultClone);
+      if (carrierId) {
+        StorageService.saveCarrierExportSettings(carrierId, defaultClone);
+      } else {
+        StorageService.saveExportColumnSettings(defaultClone);
+      }
     }
   };
 
   const handleSave = () => {
-    StorageService.saveExportColumnSettings(settings);
+    if (carrierId) {
+      StorageService.saveCarrierExportSettings(carrierId, settings);
+    } else {
+      StorageService.saveExportColumnSettings(settings);
+    }
     if (onSave) onSave(settings);
     setSavedSuccess(true);
     setTimeout(() => {
@@ -104,11 +119,20 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
               <Settings2 size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
-                Tùy Chọn Cột Khi Xuất File Excel
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
+                  Tùy Chọn Cột Khi Xuất File Excel
+                </h3>
+                {carrierName && (
+                  <span className="badge badge-primary" style={{ fontSize: 12, padding: '2px 8px' }}>
+                    📦 {carrierName}
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Tự do bật/tắt các cột dữ liệu theo nhu cầu quản lý hoặc bảo mật thông tin gửi khách hàng.
+                {carrierName
+                  ? `Cấu hình cột xuất này áp dụng riêng cho hồ sơ ${carrierName}!`
+                  : 'Tự do bật/tắt các cột dữ liệu theo nhu cầu quản lý hoặc bảo mật thông tin gửi khách hàng.'}
               </p>
             </div>
           </div>

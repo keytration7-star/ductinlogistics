@@ -12,6 +12,8 @@ interface ColumnMappingModalProps {
   nvcMapping: ColumnMappingConfig;
   appMapping: ColumnMappingConfig;
   onSaveMappings: (nvcMapping: ColumnMappingConfig, appMapping: ColumnMappingConfig) => void;
+  carrierId?: string;
+  carrierName?: string;
 }
 
 export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
@@ -22,6 +24,8 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
   nvcMapping,
   appMapping,
   onSaveMappings,
+  carrierId,
+  carrierName,
 }) => {
   const [activeTab, setActiveTab] = useState<'nvc' | 'app'>('nvc');
   const [localNvcMapping, setLocalNvcMapping] = useState<ColumnMappingConfig>(nvcMapping);
@@ -103,7 +107,11 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
       return;
     }
 
-    StorageService.saveColumnMappings(localNvcMapping, localAppMapping);
+    if (carrierId) {
+      StorageService.saveCarrierMapping(carrierId, localNvcMapping, localAppMapping);
+    } else {
+      StorageService.saveColumnMappings(localNvcMapping, localAppMapping);
+    }
     onSaveMappings(localNvcMapping, localAppMapping);
     onClose();
   };
@@ -141,11 +149,20 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = ({
               <SlidersHorizontal size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
-                Cấu Hình Ánh Xạ Cột Excel Linh Hoạt (Smart Column Mapping)
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
+                  Cấu Hình Ánh Xạ Cột Excel (Column Mapping)
+                </h3>
+                {carrierName && (
+                  <span className="badge badge-primary" style={{ fontSize: 12, padding: '2px 8px' }}>
+                    📦 {carrierName}
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Tùy chỉnh liên kết cột dữ liệu và thêm bất kỳ cột mở rộng nào từ file Excel của bạn.
+                {carrierName 
+                  ? `Mẫu ánh xạ cột này sẽ được lưu riêng cho hồ sơ ${carrierName}!`
+                  : 'Tùy chỉnh liên kết cột dữ liệu và thêm bất kỳ cột mở rộng nào từ file Excel của bạn.'}
               </p>
             </div>
           </div>
