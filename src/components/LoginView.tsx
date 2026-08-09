@@ -14,13 +14,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = AuthService.login(username, password);
+    try {
+      const res = await AuthService.login(username, password);
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -28,7 +28,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       } else {
         setErrorMsg(res.error || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
-    }, 300);
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('Lỗi kết nối tới hệ thống. Vui lòng thử lại.');
+    }
   };
 
   return (

@@ -45,6 +45,56 @@ export const AuthService = {
     }).catch(err => console.warn('[User Server Save Fail]:', err));
   },
 
+  async syncUsersFromServer(): Promise<UserAccount[]> {
+    try {
+      const res = await fetch('/api/db/all');
+      if (res.ok) {
+        const result = await res.json();
+        const serverUsers: UserAccount[] = (result.success && result.data && Array.isArray(result.data.users)) ? result.data.users : [];
+        const localUsers: UserAccount[] = this.getUsers();
+
+        // Merge local users and server users by username
+        const mergedMap = new Map<string, UserAccount>();
+        
+        // Add default admin
+        mergedMap.set(DEFAULT_ADMIN_USER.username.toLowerCase(), DEFAULT_ADMIN_USER);
+        
+        // Add server users
+        serverUsers.forEach(u => {
+          if (u && u.username) {
+            mergedMap.set(u.username.toLowerCase(), u);
+          }
+        });
+
+        // Add local users (if not present on server)
+        let hasNewLocal = false;
+        localUsers.forEach(u => {
+          if (u && u.username && !mergedMap.has(u.username.toLowerCase())) {
+            mergedMap.set(u.username.toLowerCase(), u);
+            hasNewLocal = true;
+          }
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mergedList));
+
+        // If local had new users that server didn't have, push merged list to server!
+        if (hasNewLocal || serverUsers.length < mergedList.length) {
+          fetch('/api/db/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ users: mergedList }),
+          }).catch(() => {});
+        }
+
+        return mergedList;
+      }
+    } catch (err) {
+      console.warn('[Sync Users Fail]:', err);
+    }
+    return this.getUsers();
+  },
+
   getCurrentUser(): UserAccount | null {
     const raw = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
     if (!raw) return null;
@@ -63,13 +113,16 @@ export const AuthService = {
     }
   },
 
-  login(usernameInput: string, passwordInput: string): { success: boolean; user?: UserAccount; error?: string } {
+  async login(usernameInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
     const uClean = (usernameInput || '').trim();
     const pClean = (passwordInput || '').trim();
 
     if (!uClean || !pClean) {
       return { success: false, error: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu.' };
     }
+
+    // Smart sync and merge with server before login check
+    await this.syncUsersFromServer();
 
     const users = this.getUsers();
     const found = users.find(u => u.username.toLowerCase() === uClean.toLowerCase());
