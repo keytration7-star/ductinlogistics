@@ -207,6 +207,10 @@ export function App() {
                 setCurrentSession(session);
                 setActiveTab('reconciliation');
               }}
+              onNavigateToEmail={(session) => {
+                setCurrentSession(session);
+                setActiveTab('emails');
+              }}
               onDeleteSession={handleDeleteSession}
               currentUser={currentUser}
             />

@@ -11,7 +11,8 @@ import {
   Search,
   Trash2,
   PieChart,
-  Layers
+  Layers,
+  Mail
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount } from '../types';
 import { ExcelService } from '../services/excelService';
@@ -20,6 +21,7 @@ interface HistoryAndAnalyticsViewProps {
   sessions: ReconciliationSession[];
   shops: Shop[];
   onSelectSession: (session: ReconciliationSession) => void;
+  onNavigateToEmail?: (session: ReconciliationSession) => void;
   onDeleteSession?: (sessionId: string) => void;
   currentUser?: UserAccount;
 }
@@ -28,6 +30,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   sessions,
   shops,
   onSelectSession,
+  onNavigateToEmail,
   onDeleteSession,
   currentUser,
 }) => {
@@ -370,6 +373,22 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                       >
                         <Eye size={13} />
                         <span>Mở lại</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (onNavigateToEmail) {
+                            onNavigateToEmail(session);
+                          } else {
+                            onSelectSession(session);
+                          }
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 9px', fontSize: 11, color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                        title="Mở tab Gửi Email đối soát cho kỳ này"
+                      >
+                        <Mail size={13} />
+                        <span>Gửi Mail</span>
                       </button>
 
                       <button
