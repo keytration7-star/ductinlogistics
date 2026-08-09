@@ -86,8 +86,9 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
     const updated = [...shopList];
     const rules = updated[activeShopIndex].weightRules;
     const lastRule = rules[rules.length - 1];
-    const newMin = lastRule ? lastRule.maxWeight : 0;
-    const newMax = newMin + 2;
+    // Auto-suggest minWeight = previous maxWeight + 0.1 to avoid overlap
+    const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
+    const newMax = Math.round((newMin + 1) * 10) / 10;
     const newPrice = lastRule ? lastRule.price + 5000 : 25000;
 
     updated[activeShopIndex].weightRules = [
@@ -416,7 +417,7 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                 </div>
               </div>
 
-              {/* Weight rules list */}
+              {/* Weight rules list - fully editable min & max */}
               <div style={{
                 background: 'var(--bg-primary)',
                 padding: '12px 16px',
@@ -426,29 +427,49 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                 flexDirection: 'column',
                 gap: 8,
               }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 6, borderBottom: '1px solid var(--border-color)', fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
+                  <div style={{ width: 50, textAlign: 'center' }}>Từ (kg)</div>
+                  <div style={{ fontSize: 10 }}>→</div>
+                  <div style={{ width: 65, textAlign: 'center' }}>Đến (kg)</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>Giá (đ)</div>
+                  <div style={{ width: 28 }} />
+                </div>
+
                 {currentShop.weightRules.map((rule, rIdx) => (
                   <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 100, fontSize: 12, color: 'var(--text-muted)' }}>
-                      {rIdx === 0 ? '0 đến' : `Từ ${rule.minWeight} đến`}
-                    </div>
                     <input
                       type="number"
                       step="0.1"
-                      value={rule.maxWeight}
-                      onChange={(e) => handleWeightRuleChange(rIdx, 'maxWeight', parseFloat(e.target.value) || 1)}
+                      min="0"
+                      value={rule.minWeight}
+                      onChange={(e) => handleWeightRuleChange(rIdx, 'minWeight', parseFloat(e.target.value) ?? 0)}
                       className="input-field"
-                      style={{ width: 65, padding: '5px 8px', fontSize: 12 }}
+                      style={{ width: 50, padding: '5px 6px', fontSize: 12, textAlign: 'center' }}
+                      title="Từ (kg)"
                     />
-                    <span style={{ fontSize: 12 }}>kg:</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>→</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={rule.maxWeight}
+                      onChange={(e) => handleWeightRuleChange(rIdx, 'maxWeight', parseFloat(e.target.value) || 0.5)}
+                      className="input-field"
+                      style={{ width: 65, padding: '5px 8px', fontSize: 12, textAlign: 'center' }}
+                      title="Đến (kg)"
+                    />
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>kg:</span>
                     <input
                       type="number"
                       step="500"
+                      min="0"
                       value={rule.price}
                       onChange={(e) => handleWeightRuleChange(rIdx, 'price', parseInt(e.target.value) || 0)}
                       className="input-field"
                       style={{ flex: 1, padding: '5px 8px', fontSize: 12 }}
                     />
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>đ</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>đ</span>
 
                     {currentShop.weightRules.length > 1 && (
                       <button
