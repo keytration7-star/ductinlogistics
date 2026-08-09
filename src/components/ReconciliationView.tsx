@@ -34,6 +34,8 @@ import { performReconciliation, calculateWeightFee } from '../services/reconcili
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { NewShopsOnboardingModal } from './NewShopsOnboardingModal';
+import { ColumnMappingModal } from './ColumnMappingModal';
+import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import confetti from 'canvas-confetti';
 
 import { StorageService } from '../services/storage';
@@ -81,6 +83,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Discovered New Shops from uploaded App file
   const [discoveredNewShops, setDiscoveredNewShops] = useState<{ name: string; phone: string; address: string; orderCount: number }[]>([]);
@@ -289,11 +292,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     onSaveShops(updatedAllShops);
     setIsNewShopsModalOpen(false);
     executeReconciliation(updatedAllShops);
-  };
-
-  const handleSaveMappingModal = () => {
-    StorageService.saveColumnMappings(nvcMapping, appMapping);
-    setShowMappingModal(false);
   };
 
   // Reset uploaded files and current session while preserving shops, pricing & column mapping
@@ -676,6 +674,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             >
               <Sliders size={15} />
               <span>Tùy Chỉnh Ánh Xạ Cột (Column Mapping)</span>
+            </button>
+
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="btn btn-secondary btn-sm"
+              title="Cấu hình các cột dữ liệu khi xuất file Excel"
+            >
+              <FileSpreadsheet size={15} />
+              <span>⚙️ Cấu Hình Cột Xuất Excel</span>
             </button>
 
             {(nvcFile || appFile || currentSession) && (
@@ -1215,175 +1222,26 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* Column Mapping Modal */}
       {showMappingModal && (
-        <div className="modal-overlay" onClick={() => setShowMappingModal(false)}>
-          <div 
-            className="modal-content" 
-            style={{ maxWidth: 750 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Sliders size={18} color="var(--primary)" />
-                Cấu Hình Ánh Xạ Cột Excel (Column Mapping)
-              </h3>
-              <button onClick={() => setShowMappingModal(false)} className="btn btn-secondary btn-sm">Đóng</button>
-            </div>
+        <ColumnMappingModal
+          isOpen={showMappingModal}
+          onClose={() => setShowMappingModal(false)}
+          nvcHeaders={nvcHeaders}
+          appHeaders={appHeaders}
+          nvcMapping={nvcMapping}
+          appMapping={appMapping}
+          onSaveMappings={(newNvc, newApp) => {
+            setNvcMapping(newNvc);
+            setAppMapping(newApp);
+          }}
+        />
+      )}
 
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              
-              {/* FILE 1: NVC */}
-              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
-                    1. FILE ĐỐI SOÁT TỪ NVC {nvcFile ? `(${nvcFile.name})` : '(Chưa tải file)'}
-                  </h4>
-                  {nvcFile && (
-                    <span className="badge badge-success" style={{ fontSize: 11 }}>
-                      Đã đọc {nvcHeaders.length} cột
-                    </span>
-                  )}
-                </div>
-
-                {nvcHeaders.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                    <p>💡 <em>Bạn chưa tải File NVC lên. Khi bạn kéo thả File NVC vào ô 1 ngoài màn hình chính, hệ thống sẽ tự động quét danh sách cột và hiển thị ở đây để bạn kiểm tra.</em></p>
-                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-dim)' }}>
-                      • Cột cần có: <strong>Mã vận đơn</strong> (bắt buộc), <strong>Tiền COD</strong>, <strong>Cước NVC</strong>, <strong>Cân nặng (kg)</strong>.
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                    <div className="input-group">
-                      <label className="input-label">Cột Mã Vận Đơn (*)</label>
-                      <select
-                        value={nvcMapping.waybillColumn}
-                        onChange={(e) => setNvcMapping({ ...nvcMapping, waybillColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Tiền COD Thu Hộ</label>
-                      <select
-                        value={nvcMapping.codColumn || ''}
-                        onChange={(e) => setNvcMapping({ ...nvcMapping, codColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Cước NVC</label>
-                      <select
-                        value={nvcMapping.feeColumn || ''}
-                        onChange={(e) => setNvcMapping({ ...nvcMapping, feeColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Cân Nặng (kg)</label>
-                      <select
-                        value={nvcMapping.weightColumn || ''}
-                        onChange={(e) => setNvcMapping({ ...nvcMapping, weightColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* FILE 2: APP */}
-              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
-                    2. FILE ĐƠN HÀNG XUẤT TỪ APP {appFile ? `(${appFile.name})` : '(Chưa tải file)'}
-                  </h4>
-                  {appFile && (
-                    <span className="badge badge-success" style={{ fontSize: 11 }}>
-                      Đã đọc {appHeaders.length} cột
-                    </span>
-                  )}
-                </div>
-
-                {appHeaders.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                    <p>💡 <em>Bạn chưa tải File App lên. Khi bạn kéo thả File App vào ô 2 ngoài màn hình chính, hệ thống sẽ tự động quét danh sách cột và hiển thị ở đây để bạn kiểm tra.</em></p>
-                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-dim)' }}>
-                      • Cột cần có: <strong>Mã vận đơn</strong> (bắt buộc), <strong>Tên Shop / Người gửi</strong>, <strong>Số ĐT Shop</strong>.
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                    <div className="input-group">
-                      <label className="input-label">Cột Mã Vận Đơn (*)</label>
-                      <select
-                        value={appMapping.waybillColumn}
-                        onChange={(e) => setAppMapping({ ...appMapping, waybillColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Tên Shop / Người Gửi (*)</label>
-                      <select
-                        value={appMapping.shopNameColumn || ''}
-                        onChange={(e) => setAppMapping({ ...appMapping, shopNameColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Số ĐT Shop</label>
-                      <select
-                        value={appMapping.shopPhoneColumn || ''}
-                        onChange={(e) => setAppMapping({ ...appMapping, shopPhoneColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Cột Tên Người Nhận</label>
-                      <select
-                        value={appMapping.receiverNameColumn || ''}
-                        onChange={(e) => setAppMapping({ ...appMapping, receiverNameColumn: e.target.value })}
-                        className="select-field"
-                      >
-                        <option value="">-- Không chọn --</option>
-                        {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-tertiary)' }}>
-              <button onClick={handleSaveMappingModal} className="btn btn-primary">
-                Lưu Cấu Hình Ánh Xạ
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Export Columns Config Modal */}
+      {showExportModal && (
+        <ExportColumnConfigModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+        />
       )}
 
       {/* Statement Preview Modal */}

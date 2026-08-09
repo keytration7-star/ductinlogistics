@@ -47,6 +47,13 @@ export interface CarrierWholesaleTier {
   returnFeePercent: number;
 }
 
+export interface CustomColumnMapping {
+  id: string;
+  label: string;
+  excelColumn: string;
+  fileType: 'nvc' | 'app';
+}
+
 export interface ColumnMappingConfig {
   waybillColumn: string;
   codColumn?: string;
@@ -54,12 +61,32 @@ export interface ColumnMappingConfig {
   weightColumn?: string;
   statusColumn?: string;
   otherFeeColumn?: string;
+  dateColumn?: string;
+  refOrderCodeColumn?: string;
   shopNameColumn?: string;
   shopPhoneColumn?: string;
   shopAddressColumn?: string;
+  shopCodeColumn?: string;
   receiverNameColumn?: string;
   receiverPhoneColumn?: string;
   receiverAddressColumn?: string;
+  receiverCityColumn?: string;
+  receiverDistrictColumn?: string;
+  productNameColumn?: string;
+  orderNoteColumn?: string;
+  customColumns?: CustomColumnMapping[];
+}
+
+export interface ExportColumnItem {
+  id: string;
+  label: string;
+  enabled: boolean;
+  category: 'basic' | 'receiver' | 'finance' | 'carrier' | 'system';
+}
+
+export interface ExportColumnSettings {
+  shopColumns: ExportColumnItem[];
+  masterColumns: ExportColumnItem[];
 }
 
 export type OrderStatus = 'delivered' | 'returning' | 'returned' | 'in_transit' | 'cancelled' | 'unknown';

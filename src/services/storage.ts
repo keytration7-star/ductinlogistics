@@ -1,4 +1,4 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings } from '../types';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
@@ -107,6 +107,46 @@ Phòng Kế Toán - Đối Soát Vận Chuyển`,
   autoAttachExcel: true,
 };
 
+export const DEFAULT_EXPORT_COLUMNS: ExportColumnSettings = {
+  shopColumns: [
+    { id: 'stt', label: 'STT', enabled: true, category: 'basic' },
+    { id: 'waybill', label: 'Mã Vận Đơn', enabled: true, category: 'basic' },
+    { id: 'date', label: 'Ngày Gửi / Đối Soát', enabled: false, category: 'basic' },
+    { id: 'refOrderCode', label: 'Mã Đơn Phụ / Ref', enabled: false, category: 'basic' },
+    { id: 'receiverName', label: 'Tên Người Nhận', enabled: true, category: 'receiver' },
+    { id: 'receiverPhone', label: 'SĐT Người Nhận', enabled: true, category: 'receiver' },
+    { id: 'receiverAddress', label: 'Địa Chỉ Giao Hàng', enabled: true, category: 'receiver' },
+    { id: 'productName', label: 'Tên Sản Phẩm / Hàng Hóa', enabled: false, category: 'basic' },
+    { id: 'weight', label: 'Khối Lượng (kg)', enabled: true, category: 'basic' },
+    { id: 'status', label: 'Trạng Thái Đơn Hàng', enabled: true, category: 'basic' },
+    { id: 'codAmount', label: 'Tiền Thu Hộ (COD)', enabled: true, category: 'finance' },
+    { id: 'shopFee', label: 'Cước Phí Vận Chuyển', enabled: true, category: 'finance' },
+    { id: 'shopOtherFee', label: 'Phí Khác / Phụ Thu / Hoàn', enabled: true, category: 'finance' },
+    { id: 'netPayout', label: 'SỐ TIỀN THỰC CHUYỂN SHOP', enabled: true, category: 'finance' },
+    { id: 'orderNote', label: 'Ghi Chú Đơn Hàng', enabled: false, category: 'basic' },
+  ],
+  masterColumns: [
+    { id: 'stt', label: 'STT', enabled: true, category: 'basic' },
+    { id: 'waybill', label: 'Mã Vận Đơn', enabled: true, category: 'basic' },
+    { id: 'carrier', label: 'Đơn Vị Vận Chuyển', enabled: true, category: 'carrier' },
+    { id: 'shopName', label: 'Tên Shop / Khách Hàng', enabled: true, category: 'basic' },
+    { id: 'shopPhone', label: 'Số ĐT Shop', enabled: true, category: 'basic' },
+    { id: 'receiverName', label: 'Người Nhận', enabled: true, category: 'receiver' },
+    { id: 'receiverPhone', label: 'SĐT Nhận', enabled: true, category: 'receiver' },
+    { id: 'receiverAddress', label: 'Địa Chỉ Nhận', enabled: true, category: 'receiver' },
+    { id: 'weight', label: 'Khối Lượng (kg)', enabled: true, category: 'basic' },
+    { id: 'status', label: 'Trạng Thái', enabled: true, category: 'basic' },
+    { id: 'codAmount', label: 'Tiền Thu Hộ (COD)', enabled: true, category: 'finance' },
+    { id: 'shopFee', label: 'Cước Thu Shop', enabled: true, category: 'finance' },
+    { id: 'nvcFee', label: 'Cước Gốc Trả NVC', enabled: true, category: 'carrier' },
+    { id: 'profit', label: 'LÃI RÒNG NHÀ GOM', enabled: true, category: 'finance' },
+    { id: 'netPayout', label: 'Thực Chuyển Cho Shop', enabled: true, category: 'finance' },
+    { id: 'matchStatus', label: 'Tình Trạng Khớp Shop', enabled: true, category: 'system' },
+  ],
+};
+
+const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
+
 export const StorageService = {
   getShops(): Shop[] {
     const data = localStorage.getItem(SHOPS_KEY);
@@ -203,6 +243,26 @@ export const StorageService = {
     localStorage.setItem(COLUMN_MAPPINGS_KEY, JSON.stringify(data));
   },
 
+  getExportColumnSettings(): ExportColumnSettings {
+    const data = localStorage.getItem(EXPORT_COLUMNS_KEY);
+    if (!data) {
+      return DEFAULT_EXPORT_COLUMNS;
+    }
+    try {
+      const parsed = JSON.parse(data);
+      return {
+        shopColumns: parsed.shopColumns || DEFAULT_EXPORT_COLUMNS.shopColumns,
+        masterColumns: parsed.masterColumns || DEFAULT_EXPORT_COLUMNS.masterColumns,
+      };
+    } catch {
+      return DEFAULT_EXPORT_COLUMNS;
+    }
+  },
+
+  saveExportColumnSettings(settings: ExportColumnSettings): void {
+    localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(settings));
+  },
+
   exportDatabaseBackup(): string {
     const backup = {
       version: '1.0',
@@ -211,6 +271,7 @@ export const StorageService = {
       carriers: this.getCarriers(),
       sessions: this.getSessions(),
       emailSettings: this.getEmailSettings(),
+      exportColumns: this.getExportColumnSettings(),
     };
     return JSON.stringify(backup, null, 2);
   },
@@ -222,6 +283,7 @@ export const StorageService = {
       if (backup.carriers) this.saveCarriers(backup.carriers);
       if (backup.sessions) localStorage.setItem(SESSIONS_KEY, JSON.stringify(backup.sessions));
       if (backup.emailSettings) this.saveEmailSettings(backup.emailSettings);
+      if (backup.exportColumns) this.saveExportColumnSettings(backup.exportColumns);
       return true;
     } catch (e) {
       console.error('Failed to import backup:', e);

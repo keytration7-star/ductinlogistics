@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import type { ShopSettlementStatement, ReconciliationSession } from '../types';
+import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
 import { normalizeHeader } from './smartColumnDetector';
+import { StorageService } from './storage';
 
 export const ExcelService = {
   // Intelligent parser supporting title banners, multi-line headers and multiple sheets
@@ -91,8 +92,10 @@ export const ExcelService = {
     return new Intl.NumberFormat('vi-VN').format(num);
   },
 
-  createShopStatementWorkbook(statement: ShopSettlementStatement): XLSX.WorkBook {
+  createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): XLSX.WorkBook {
     const wb = XLSX.utils.book_new();
+    const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
+    const activeCols: ExportColumnItem[] = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
 
     // ──────────────────────────────────────────
     // SHEET 1: TỔNG HỢP CÔNG NỢ
@@ -104,8 +107,8 @@ export const ExcelService = {
       ['', '', '', ''],
       ['I. THÔNG TIN KHÁCH HÀNG (SHOP)', '', '', ''],
       ['Tên Shop:', statement.shopName, 'Mã khách hàng:', statement.shopCode],
-      ['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail],
-      ['Địa chỉ gửi:', statement.shopAddress, '', ''],
+      ['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail || ''],
+      ['Địa chỉ gửi:', statement.shopAddress || '', '', ''],
       ['', '', '', ''],
       ['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD', '', '', ''],
       ['Ngân hàng:', statement.bankInfo.bankName, '', ''],
@@ -130,68 +133,86 @@ export const ExcelService = {
     ];
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    
     wsSummary['!cols'] = [
       { wch: 38 },
       { wch: 25 },
       { wch: 16 },
       { wch: 38 },
     ];
-
     XLSX.utils.book_append_sheet(wb, wsSummary, 'TONG_HOP_CONG_NO');
 
     // ──────────────────────────────────────────
-    // SHEET 2: CHI TIẾT ĐƠN HÀNG
+    // SHEET 2: CHI TIẾT ĐƠN HÀNG (DYNAMIC COLUMNS)
     // ──────────────────────────────────────────
-    const ordersData: any[] = [
-      [
-        'STT',
-        'Mã Vận Đơn',
-        'Người Nhận',
-        'SĐT Nhận',
-        'Địa Chỉ Nhận',
-        'Khối Lượng (kg)',
-        'Tiền COD (VNĐ)',
-        'Cước Vận Chuyển (VNĐ)',
-        'Phí Khác (VNĐ)',
-        'Thực Nhận (VNĐ)',
-        'Trạng Thái',
-      ]
-    ];
+    const headersRow = activeCols.map((c: ExportColumnItem) => c.label);
+    const ordersData: any[] = [headersRow];
 
     statement.orders.forEach((order, idx) => {
-      ordersData.push([
-        idx + 1,
-        order.waybill,
-        order.receiverName,
-        order.receiverPhone,
-        order.receiverAddress,
-        order.weight,
-        order.codAmount,
-        order.shopCalculatedFee,
-        order.shopOtherFee,
-        order.netShopPayout,
-        order.statusText || order.status,
-      ]);
+      const row: any[] = [];
+      activeCols.forEach((col: ExportColumnItem) => {
+        switch (col.id) {
+          case 'stt':
+            row.push(idx + 1);
+            break;
+          case 'waybill':
+            row.push(order.waybill);
+            break;
+          case 'date':
+            row.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || '');
+            break;
+          case 'refOrderCode':
+            row.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || '');
+            break;
+          case 'receiverName':
+            row.push(order.receiverName);
+            break;
+          case 'receiverPhone':
+            row.push(order.receiverPhone);
+            break;
+          case 'receiverAddress':
+            row.push(order.receiverAddress);
+            break;
+          case 'productName':
+            row.push(order.rawAppData?.['Tên sản phẩm'] || order.rawAppData?.['Hàng hóa'] || '');
+            break;
+          case 'weight':
+            row.push(order.weight);
+            break;
+          case 'status':
+            row.push(order.statusText || order.status);
+            break;
+          case 'codAmount':
+            row.push(order.codAmount);
+            break;
+          case 'shopFee':
+            row.push(order.shopCalculatedFee);
+            break;
+          case 'shopOtherFee':
+            row.push(order.shopOtherFee);
+            break;
+          case 'netPayout':
+            row.push(order.netShopPayout);
+            break;
+          case 'orderNote':
+            row.push(order.rawAppData?.['Ghi chú'] || '');
+            break;
+          default:
+            row.push('');
+        }
+      });
+      ordersData.push(row);
     });
 
     const wsOrders = XLSX.utils.aoa_to_sheet(ordersData);
-    wsOrders['!cols'] = [
-      { wch: 6 },
-      { wch: 20 },
-      { wch: 22 },
-      { wch: 15 },
-      { wch: 35 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 22 },
-    ];
+    wsOrders['!cols'] = activeCols.map((col: ExportColumnItem) => {
+      if (col.id === 'stt') return { wch: 6 };
+      if (col.id === 'waybill') return { wch: 20 };
+      if (col.id === 'receiverAddress') return { wch: 36 };
+      if (col.id === 'receiverName' || col.id === 'productName') return { wch: 24 };
+      return { wch: 18 };
+    });
 
     XLSX.utils.book_append_sheet(wb, wsOrders, 'CHI_TIET_VAN_DON');
-
     return wb;
   },
 
@@ -202,9 +223,12 @@ export const ExcelService = {
     XLSX.writeFile(wb, filename);
   },
 
-  createMasterProfitWorkbook(session: ReconciliationSession): XLSX.WorkBook {
+  createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): XLSX.WorkBook {
     const wb = XLSX.utils.book_new();
+    const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
+    const activeMasterCols: ExportColumnItem[] = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
 
+    // SHEET 1: TỔNG HỢP THEO SHOP
     const masterData: any[] = [
       ['BÁO CÁO TỔNG HỢP ĐỐI SOÁT & LỢI NHUẬN NHÀ GOM ĐƠN', '', '', '', '', '', '', '', '', ''],
       ['Kỳ đối soát:', session.sessionName, 'Hãng vận chuyển:', session.carrierName, 'Ngày tạo:', new Date(session.createdAt).toLocaleString('vi-VN')],
@@ -268,8 +292,86 @@ export const ExcelService = {
       { wch: 22 },
       { wch: 40 },
     ];
-
     XLSX.utils.book_append_sheet(wb, wsMaster, 'TONG_HOP_DOANH_THU_LOI_NHUAN');
+
+    // SHEET 2: DANH SÁCH CHI TIẾT TẤT CẢ ĐƠN HÀNG (THEO CẤU HÌNH CỘT)
+    const allOrders: any[] = [];
+    session.statements.forEach(stmt => {
+      stmt.orders.forEach(o => allOrders.push(o));
+    });
+    session.unmatchedOrders.forEach(o => allOrders.push(o));
+
+    const masterHeaders = activeMasterCols.map((c: ExportColumnItem) => c.label);
+    const detailsData: any[] = [masterHeaders];
+
+    allOrders.forEach((order, idx) => {
+      const row: any[] = [];
+      activeMasterCols.forEach((col: ExportColumnItem) => {
+        switch (col.id) {
+          case 'stt':
+            row.push(idx + 1);
+            break;
+          case 'waybill':
+            row.push(order.waybill);
+            break;
+          case 'carrier':
+            row.push(session.carrierName);
+            break;
+          case 'shopName':
+            row.push(order.shopName);
+            break;
+          case 'shopPhone':
+            row.push(order.shopPhone);
+            break;
+          case 'receiverName':
+            row.push(order.receiverName);
+            break;
+          case 'receiverPhone':
+            row.push(order.receiverPhone);
+            break;
+          case 'receiverAddress':
+            row.push(order.receiverAddress);
+            break;
+          case 'weight':
+            row.push(order.weight);
+            break;
+          case 'status':
+            row.push(order.statusText || order.status);
+            break;
+          case 'codAmount':
+            row.push(order.codAmount);
+            break;
+          case 'shopFee':
+            row.push(order.shopCalculatedFee + order.shopOtherFee);
+            break;
+          case 'nvcFee':
+            row.push(order.nvcBaseFee + order.nvcOtherFee);
+            break;
+          case 'profit':
+            row.push(order.profitMargin);
+            break;
+          case 'netPayout':
+            row.push(order.netShopPayout);
+            break;
+          case 'matchStatus':
+            row.push(order.matched ? 'Đã khớp Shop' : 'Chưa nhận diện Shop');
+            break;
+          default:
+            row.push('');
+        }
+      });
+      detailsData.push(row);
+    });
+
+    const wsDetails = XLSX.utils.aoa_to_sheet(detailsData);
+    wsDetails['!cols'] = activeMasterCols.map((col: ExportColumnItem) => {
+      if (col.id === 'stt') return { wch: 6 };
+      if (col.id === 'waybill') return { wch: 20 };
+      if (col.id === 'receiverAddress') return { wch: 36 };
+      return { wch: 18 };
+    });
+    XLSX.utils.book_append_sheet(wb, wsDetails, 'CHI_TIET_TOAN_BO_DON_HANG');
+
     return wb;
   },
 
