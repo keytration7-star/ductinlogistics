@@ -4,6 +4,7 @@ import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, 
 import type { ColumnMappingConfig, CustomColumnMapping, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
+import { SearchableSelect } from './SearchableSelect';
 
 interface CarrierProfileConfigModalProps {
   isOpen: boolean;
@@ -518,15 +519,12 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 3 }}>
                           Cột Mã Vận Đơn — Bắt Buộc (Khóa Ghép 2 File)
                         </div>
-                        <select
+                        <SearchableSelect
+                          options={nvcHeaders.map(h => ({ value: h, label: h, badge: 'File NVC', badgeType: 'nvc' }))}
                           value={localNvcMapping.waybillColumn || ''}
-                          onChange={(e) => updateNvcField('waybillColumn', e.target.value)}
-                          className="select-field"
-                          style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
-                        >
-                          <option value="">-- Chọn cột Mã Vận Đơn trong file NVC --</option>
-                          {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                          onChange={(val) => updateNvcField('waybillColumn', val)}
+                          placeholder={hasHeaders ? `🔍 Gõ từ khóa tìm cột Mã Vận Đơn NVC (${nvcHeaders.length} cột)...` : '⚠️ Chưa có cột NVC'}
+                        />
                       </div>
                     </div>
 
@@ -552,15 +550,14 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>{f.label}</div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.hint}</div>
                               </div>
-                              <select
-                                value={(localNvcMapping[f.key] as string) || ''}
-                                onChange={(e) => updateNvcField(f.key, e.target.value)}
-                                className="select-field"
-                                style={{ flex: 1, padding: '4px 8px', fontSize: 12 }}
-                              >
-                                <option value="">-- Không chọn --</option>
-                                {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                              </select>
+                              <div style={{ flex: 1 }}>
+                                <SearchableSelect
+                                  options={nvcHeaders.map(h => ({ value: h, label: h, badge: 'File NVC', badgeType: 'nvc' }))}
+                                  value={(localNvcMapping[f.key] as string) || ''}
+                                  onChange={(val) => updateNvcField(f.key, val)}
+                                  placeholder={`🔍 Tìm từ khóa cho ${f.label}...`}
+                                />
+                              </div>
                               {/* Nút xoá hàng này */}
                               <button
                                 type="button"
@@ -693,15 +690,12 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 3 }}>
                           Cột Mã Vận Đơn — Bắt Buộc (Khóa Ghép 2 File)
                         </div>
-                        <select
+                        <SearchableSelect
+                          options={appHeaders.map(h => ({ value: h, label: h, badge: 'File App', badgeType: 'app' }))}
                           value={localAppMapping.waybillColumn || ''}
-                          onChange={(e) => updateAppField('waybillColumn', e.target.value)}
-                          className="select-field"
-                          style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
-                        >
-                          <option value="">-- Chọn cột Mã Vận Đơn trong file App --</option>
-                          {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                          onChange={(val) => updateAppField('waybillColumn', val)}
+                          placeholder={hasHeaders ? `🔍 Gõ từ khóa tìm cột Mã Vận Đơn App (${appHeaders.length} cột)...` : '⚠️ Chưa có cột App'}
+                        />
                       </div>
                     </div>
 
@@ -722,15 +716,14 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>{f.label}</div>
                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.hint}</div>
                               </div>
-                              <select
-                                value={(localAppMapping[f.key] as string) || ''}
-                                onChange={(e) => updateAppField(f.key, e.target.value)}
-                                className="select-field"
-                                style={{ flex: 1, padding: '4px 8px', fontSize: 12 }}
-                              >
-                                <option value="">-- Không chọn --</option>
-                                {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                              </select>
+                              <div style={{ flex: 1 }}>
+                                <SearchableSelect
+                                  options={appHeaders.map(h => ({ value: h, label: h, badge: 'File App', badgeType: 'app' }))}
+                                  value={(localAppMapping[f.key] as string) || ''}
+                                  onChange={(val) => updateAppField(f.key, val)}
+                                  placeholder={`🔍 Tìm từ khóa cho ${f.label}...`}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => updateAppField(f.key, '')}
@@ -945,31 +938,25 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
-                  <select
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 8, alignItems: 'center' }}>
+                  <SearchableSelect
+                    options={allScannedHeaders.map(h => {
+                      const isBoth = nvcHeaders.includes(h) && appHeaders.includes(h);
+                      const isNvc = nvcHeaders.includes(h);
+                      return {
+                        value: h,
+                        label: h,
+                        badge: isBoth ? 'Cả 2 File' : isNvc ? 'File NVC' : 'File App',
+                        badgeType: isBoth ? 'both' : isNvc ? 'nvc' : 'app',
+                      };
+                    })}
                     value={selectedExportSourceHeader}
-                    onChange={(e) => {
-                      setSelectedExportSourceHeader(e.target.value);
-                      if (!customExportLabel) setCustomExportLabel(e.target.value);
+                    onChange={(val) => {
+                      setSelectedExportSourceHeader(val);
+                      if (!customExportLabel) setCustomExportLabel(val);
                     }}
-                    className="select-field"
-                    style={{ padding: '5px 10px', fontSize: 12 }}
-                  >
-                    <option value="">
-                      {allScannedHeaders.length > 0
-                        ? `-- Chọn cột thực tế từ File NVC hoặc App (${allScannedHeaders.length} cột) --`
-                        : '⚠️ Chưa quét thấy cột nào (Vui lòng tải file NVC hoặc App)'}
-                    </option>
-                    {allScannedHeaders.map(h => (
-                      <option key={h} value={h}>
-                        {nvcHeaders.includes(h) && appHeaders.includes(h)
-                          ? `[Cả 2 File] ${h}`
-                          : nvcHeaders.includes(h)
-                          ? `[File NVC] ${h}`
-                          : `[File App] ${h}`}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder={allScannedHeaders.length > 0 ? `🔍 Gõ tìm kiếm từ khóa cột (${allScannedHeaders.length} cột)...` : '⚠️ Chưa có cột quét'}
+                  />
 
                   <input
                     type="text"
