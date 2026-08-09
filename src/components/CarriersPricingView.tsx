@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Truck, Plus, Trash2, Check, X, CheckCircle2, Sliders, FileSpreadsheet } from 'lucide-react';
+import { Truck, Plus, Trash2, Check, X, CheckCircle2 } from 'lucide-react';
 import type { CarrierWholesaleTier, WeightStepRule } from '../types';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
@@ -410,36 +410,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                   </div>
                 </div>
 
-                {/* Carrier Profile Mapping & Export Preset Buttons */}
-                <div style={{
-                  display: 'flex',
-                  gap: 8,
-                  marginTop: 12,
-                  paddingTop: 12,
-                  borderTop: '1px dashed var(--border-color)',
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setMappingCarrier(carrier)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ flex: 1, fontSize: 11, padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-                    title="Cài đặt mẫu ánh xạ cột Excel riêng cho hãng này"
-                  >
-                    <Sliders size={13} color="var(--primary)" />
-                    <span>Ánh Xạ Cột Của Hãng</span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setExportCarrier(carrier)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ flex: 1, fontSize: 11, padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-                    title="Cài đặt mẫu cột khi xuất Excel cho hãng này"
-                  >
-                    <FileSpreadsheet size={13} color="var(--primary)" />
-                    <span>Mẫu Xuất Của Hãng</span>
-                  </button>
-                </div>
 
               </div>
             </div>
