@@ -176,7 +176,7 @@ export const StorageService = {
       const result = await res.json();
       if (!result.success || !result.data) return false;
 
-      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData } = result.data;
+      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users } = result.data;
 
       if (shops && Array.isArray(shops)) {
         localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
@@ -201,6 +201,9 @@ export const StorageService = {
           localStorage.setItem(key, JSON.stringify(carrierData[key]));
         });
       }
+      if (users && Array.isArray(users) && users.length > 0) {
+        localStorage.setItem('gomdon_users_v1', JSON.stringify(users));
+      }
 
       // First time sync: If server was empty but client had local data, push client data to server!
       if (!shops && this.getShops().length > 0) {
@@ -208,6 +211,10 @@ export const StorageService = {
       }
       if (!sessions && this.getSessions().length > 0) {
         postServerSync('/api/db/sessions', { sessions: this.getSessions() });
+      }
+      const localUsers = localStorage.getItem('gomdon_users_v1');
+      if (!users && localUsers) {
+        postServerSync('/api/db/users', { users: JSON.parse(localUsers) });
       }
 
       return true;

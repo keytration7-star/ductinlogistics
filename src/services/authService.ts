@@ -38,6 +38,11 @@ export const AuthService = {
 
   saveUsers(users: UserAccount[]): void {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    fetch('/api/db/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users }),
+    }).catch(err => console.warn('[User Server Save Fail]:', err));
   },
 
   getCurrentUser(): UserAccount | null {

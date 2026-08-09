@@ -58,6 +58,7 @@ app.get('/api/db/all', (req, res) => {
     const emailSettings = readJsonFile('email_settings.json', null);
     const exportColumns = readJsonFile('export_columns.json', null);
     const carrierData = readJsonFile('carrier_data.json', {});
+    const users = readJsonFile('users.json', null);
 
     res.json({
       success: true,
@@ -69,11 +70,18 @@ app.get('/api/db/all', (req, res) => {
         emailSettings,
         exportColumns,
         carrierData,
+        users,
       },
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// POST save users
+app.post('/api/db/users', (req, res) => {
+  const success = writeJsonFile('users.json', req.body.users || []);
+  res.json({ success });
 });
 
 // POST save shops
