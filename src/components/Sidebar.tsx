@@ -12,8 +12,7 @@ import {
   ShieldCheck,
   Users,
   LogOut,
-  UserCheck,
-  Building2
+  UserCheck
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -297,16 +296,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         gap: 10,
         background: 'var(--bg-tertiary)',
       }}>
-        {/* Company Settings Button */}
-        <button
-          onClick={onOpenCompanyModal}
-          className="btn btn-secondary btn-sm"
-          style={{ width: '100%', fontSize: 11.5, padding: '7px 10px', justifyContent: 'flex-start', background: 'var(--bg-primary)' }}
-          title="Cấu hình tên công ty, địa chỉ, MST xuất Excel"
-        >
-          <Building2 size={14} color="var(--primary)" />
-          <span style={{ fontWeight: 600 }}>Thông Tin Cty (In Excel)</span>
-        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           
@@ -319,12 +308,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="Sao lưu hoặc khôi phục cơ sở dữ liệu"
             >
               <Database size={13} />
-              <span>Sao Lưu</span>
+              <span>Sao Lưu Dữ Liệu</span>
             </button>
           ) : (
             <div style={{ flex: 1, fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
               <UserCheck size={13} color="var(--success)" />
-              <span>Bảo mật</span>
+              <span>Phiên làm việc bảo mật</span>
             </div>
           )}
 
