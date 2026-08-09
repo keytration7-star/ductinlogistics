@@ -93,7 +93,8 @@ app.post('/api/send-email', async (req, res) => {
 // Serve frontend static build
 app.use(express.static(path.join(__dirname, 'dist')));
 
-app.get('*', (req, res) => {
+// Fallback for SPA Routing (Express 5 compatible)
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
