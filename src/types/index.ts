@@ -213,6 +213,9 @@ export interface EmailSettings {
   subjectTemplate: string;
   bodyTemplate: string;
   autoAttachExcel: boolean;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  telegramEnabled?: boolean;
 }
 
 export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'STAFF' | 'VIEWER';

@@ -134,6 +134,12 @@ app.post('/api/db/export-columns', (req, res) => {
   res.json({ success });
 });
 
+// POST save audit logs
+app.post('/api/db/audit-logs', (req, res) => {
+  const success = writeJsonFile('audit_logs.json', req.body.logs || []);
+  res.json({ success });
+});
+
 // POST save carrier data (mappings, export settings, headers per carrier)
 app.post('/api/db/carrier-data', (req, res) => {
   const current = readJsonFile('carrier_data.json', {});
@@ -154,6 +160,41 @@ app.post('/api/db/backup/import', (req, res) => {
     if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
     if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────
+// 📲 TELEGRAM BOT API
+// ──────────────────────────────────────────
+app.post('/api/send-telegram', async (req, res) => {
+  try {
+    const { botToken, chatId, text } = req.body;
+    if (!botToken || !chatId || !text) {
+      return res.status(400).json({ success: false, error: 'Thiếu Telegram Bot Token, Chat ID hoặc nội dung tin nhắn.' });
+    }
+
+    const cleanToken = botToken.trim();
+    const cleanChatId = chatId.trim();
+    const telegramUrl = `https://api.telegram.org/bot${cleanToken}/sendMessage`;
+
+    const response = await fetch(telegramUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: cleanChatId,
+        text: text,
+        parse_mode: 'HTML',
+      }),
+    });
+
+    const data = await response.json();
+    if (data.ok) {
+      res.json({ success: true, message: 'Đã gửi thông báo Telegram thành công!' });
+    } else {
+      res.status(400).json({ success: false, error: data.description || 'Lỗi gửi tin nhắn Telegram.' });
+    }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

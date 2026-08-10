@@ -7,10 +7,12 @@ import {
   CheckCircle2, 
   Store, 
   CreditCard, 
-  Package 
+  Package,
+  Printer 
 } from 'lucide-react';
 import type { ShopSettlementStatement } from '../types';
 import { ExcelService } from '../services/excelService';
+import { PdfService } from '../services/pdfService';
 
 interface StatementPreviewModalProps {
   statement: ShopSettlementStatement | null;
@@ -272,6 +274,15 @@ export const StatementPreviewModal: React.FC<StatementPreviewModalProps> = ({
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => PdfService.printShopStatementPdf(statement)}
+              className="btn btn-secondary"
+              style={{ border: '1px solid var(--primary)', color: 'var(--primary)' }}
+            >
+              <Printer size={16} />
+              <span>In / Tải PDF Bảng Kê</span>
+            </button>
+
             <button
               onClick={() => onOpenEmail(statement)}
               className="btn btn-secondary"
