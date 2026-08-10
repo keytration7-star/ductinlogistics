@@ -297,10 +297,17 @@ export function performReconciliation(
       matchedShop = registeredShops.find(s => {
         const sName = s.name.toLowerCase().trim();
         const sCode = s.code.toLowerCase().trim();
-        const sPhone = s.phone.replace(/[^0-9]/g, '');
         
+        // Extract all individual phone numbers from shop phone string (supports comma, slash, space, etc.)
+        const sPhones = (s.phone || '')
+          .split(/[,/;\s]+/)
+          .map(p => p.replace(/[^0-9]/g, ''))
+          .filter(p => p.length >= 7);
+
+        const isPhoneMatched = !!(cleanShopPhone && sPhones.some(p => p === cleanShopPhone || cleanShopPhone.endsWith(p) || p.endsWith(cleanShopPhone)));
+
         return (
-          (cleanShopPhone && sPhone && cleanShopPhone === sPhone) ||
+          isPhoneMatched ||
           (cleanShopName && sName && (cleanShopName.includes(sName) || sName.includes(cleanShopName))) ||
           (cleanShopName && sCode && cleanShopName.includes(sCode))
         );

@@ -402,11 +402,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Số điện thoại gửi (*)</label>
+                    <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Số điện thoại gửi (*)</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>Có thể nhập nhiều SĐT cách nhau bằng dấu phẩy "," hoặc "/"</span>
+                    </label>
                     <input
                       type="text"
                       required
-                      placeholder="0912345678"
+                      placeholder="VD: 0912345678, 0987654321, 0909123456..."
                       value={editingShop.phone}
                       onChange={(e) => setEditingShop({ ...editingShop, phone: e.target.value })}
                       className="input-field"
