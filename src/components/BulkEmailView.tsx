@@ -14,12 +14,17 @@ import {
   Clock, 
   X, 
   Play, 
-  CheckCircle 
+  CheckCircle,
+  Edit2,
+  Save,
+  AlertCircle,
+  Info
 } from 'lucide-react';
-import type { ReconciliationSession, EmailSettings } from '../types';
+import type { ReconciliationSession, EmailSettings, ShopSettlementStatement } from '../types';
 import { EmailService } from '../services/emailService';
 import { ExcelService } from '../services/excelService';
 import { EmailConfigModal } from './EmailConfigModal';
+import { StorageService } from '../services/storage';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
@@ -50,8 +55,42 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const [customDateTimeInput, setCustomDateTimeInput] = useState<string>('');
   const [previewMode, setPreviewMode] = useState<'html' | 'text'>('html');
 
+  // Inline Shop Email Editing State
+  const [editingShopId, setEditingShopId] = useState<string | null>(null);
+  const [tempEmailMap, setTempEmailMap] = useState<Record<string, string>>({});
+
   const statements = currentSession?.statements || [];
   const selectedStatement = statements.find(s => s.shopId === selectedShopId) || statements[0];
+  const missingShopEmailsCount = statements.filter(s => !s.shopEmail || !s.shopEmail.includes('@')).length;
+
+  const handleSaveShopEmail = (stmt: ShopSettlementStatement, newEmailInput: string) => {
+    const cleanEmail = newEmailInput.trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      showToast('Vui lòng nhập địa chỉ email nhận hợp lệ (có chứa ký tự @).', 'warning');
+      return;
+    }
+
+    // 1. Update in-memory statement
+    stmt.shopEmail = cleanEmail;
+
+    // 2. Save to registeredShops in StorageService
+    const shops = StorageService.getShops();
+    const targetShop = shops.find(s => s.id === stmt.shopId || s.name.toLowerCase().trim() === stmt.shopName.toLowerCase().trim());
+    if (targetShop) {
+      targetShop.email = cleanEmail;
+      StorageService.saveShops(shops);
+    }
+
+    // 3. Save to current session in StorageService if active
+    if (currentSession) {
+      const targetStmt = currentSession.statements.find(s => s.shopId === stmt.shopId);
+      if (targetStmt) targetStmt.shopEmail = cleanEmail;
+      StorageService.saveSession(currentSession);
+    }
+
+    setEditingShopId(null);
+    showToast(`Đã lưu Email nhận cho Shop ${stmt.shopName}!`, 'success');
+  };
 
   // Schedule Countdown & Auto-Trigger Effect
   useEffect(() => {
@@ -232,6 +271,51 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* SENDER EMAIL MISSING ALERT BANNER */}
+      {(!settings.senderEmail || !settings.emailPassword) && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid var(--danger)',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)', fontSize: 13, fontWeight: 700 }}>
+            <AlertCircle size={20} />
+            <span>Chưa cài đặt Gmail người gửi! Hệ thống cần địa chỉ Gmail + Mật khẩu ứng dụng 16 ký tự để gửi email.</span>
+          </div>
+          <button className="btn btn-danger btn-sm" onClick={() => setIsConfigModalOpen(true)}>
+            <Settings size={14} /> Cài Đặt Gmail Người Gửi Ngay
+          </button>
+        </div>
+      )}
+
+      {/* MISSING SHOP RECEIVER EMAILS WARNING BANNER */}
+      {missingShopEmailsCount > 0 && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid var(--warning)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 12.5,
+          color: 'var(--text-main)',
+        }}>
+          <Info size={16} color="var(--warning)" style={{ flexShrink: 0 }} />
+          <span>
+            Có <strong style={{ color: 'var(--warning)' }}>{missingShopEmailsCount} Shop</strong> chưa có địa chỉ Email nhận. Bạn có thể gõ nhập trực tiếp Email cho từng Shop ngay tại bảng bên dưới.
+          </span>
+        </div>
+      )}
 
       {/* ACTIVE SCHEDULE COUNTDOWN BANNER */}
       {scheduledTargetTime && (
@@ -535,10 +619,46 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                       <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Mã: {stmt.shopCode}</div>
                     </td>
                     <td>
-                      {stmt.shopEmail ? (
-                        <span className="mono" style={{ fontSize: 13 }}>{stmt.shopEmail}</span>
+                      {editingShopId === stmt.shopId || (!stmt.shopEmail && !stmt.shopEmail.includes('@')) ? (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <input
+                            type="email"
+                            className="input-field"
+                            style={{ padding: '3px 8px', fontSize: 12, width: 210 }}
+                            placeholder="Gõ email Shop (VD: shop@gmail.com)..."
+                            value={tempEmailMap[stmt.shopId] ?? stmt.shopEmail ?? ''}
+                            onChange={e => setTempEmailMap({ ...tempEmailMap, [stmt.shopId]: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                handleSaveShopEmail(stmt, tempEmailMap[stmt.shopId] ?? stmt.shopEmail ?? '');
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: 11, whiteSpace: 'nowrap' }}
+                            onClick={() => handleSaveShopEmail(stmt, tempEmailMap[stmt.shopId] ?? stmt.shopEmail ?? '')}
+                            title="Lưu email này cho Shop"
+                          >
+                            <Save size={12} /> Lưu
+                          </button>
+                        </div>
                       ) : (
-                        <span style={{ color: 'var(--danger)', fontSize: 12 }}>Chưa có Email</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="mono" style={{ fontSize: 13 }}>{stmt.shopEmail}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempEmailMap({ ...tempEmailMap, [stmt.shopId]: stmt.shopEmail });
+                              setEditingShopId(stmt.shopId);
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', padding: 2 }}
+                            title="Chỉnh sửa email nhận của Shop này"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>
