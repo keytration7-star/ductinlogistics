@@ -15,10 +15,12 @@ export function formatAnyDateValue(val: any): string {
     return formatDateToString(val, true);
   }
 
-  const str = String(val).trim();
+  let str = String(val).trim();
   if (!str) return '';
 
-  const num = Number(str);
+  // Handle European/Vietnamese decimal comma (e.g. "46239,64141" -> "46239.64141")
+  const normalizedStr = str.replace(',', '.');
+  const num = Number(normalizedStr);
   if (!isNaN(num) && num > 25000 && num < 75000) {
     const jsTimestamp = Math.round((num - 25569) * 86400 * 1000);
     const dateObj = new Date(jsTimestamp);
@@ -252,10 +254,12 @@ export const ExcelService = {
 
     // Column Widths
     wsOrders.columns = activeCols.map((col: ExportColumnItem) => {
+      const lowerLabel = (col.label || col.id).toLowerCase();
       if (col.id === 'stt') return { width: 8 };
       if (col.id === 'waybill') return { width: 22 };
       if (col.id === 'receiverAddress') return { width: 38 };
       if (col.id === 'receiverName' || col.id === 'productName') return { width: 26 };
+      if (col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) return { width: 22 };
       return { width: 20 };
     });
 
@@ -311,7 +315,14 @@ export const ExcelService = {
                         (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
 
             const lowerLabel = (col.label || srcHeader).toLowerCase();
-            if (lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian')) {
+            const strVal = String(val).trim().replace(',', '.');
+            const numVal = Number(strVal);
+
+            // Auto format if label is date-like OR value is an Excel serial date number
+            if (
+              lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian') ||
+              (!isNaN(numVal) && numVal > 25000 && numVal < 75000)
+            ) {
               val = formatAnyDateValue(val);
             }
             rowData.push(val);
@@ -514,9 +525,12 @@ export const ExcelService = {
 
     const wsDetails = workbook.addWorksheet('CHI_TIET_TOAN_BO_DON_HANG');
     wsDetails.columns = activeMasterCols.map((col: ExportColumnItem) => {
+      const lowerLabel = (col.label || col.id).toLowerCase();
       if (col.id === 'stt') return { width: 8 };
       if (col.id === 'waybill') return { width: 22 };
       if (col.id === 'receiverAddress') return { width: 38 };
+      if (col.id === 'receiverName' || col.id === 'productName') return { width: 26 };
+      if (col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) return { width: 22 };
       return { width: 20 };
     });
 
@@ -581,7 +595,14 @@ export const ExcelService = {
                         (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
 
             const lowerLabel = (col.label || srcHeader).toLowerCase();
-            if (lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian')) {
+            const strVal = String(val).trim().replace(',', '.');
+            const numVal = Number(strVal);
+
+            // Auto format if label is date-like OR value is an Excel serial date number
+            if (
+              lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian') ||
+              (!isNaN(numVal) && numVal > 25000 && numVal < 75000)
+            ) {
               val = formatAnyDateValue(val);
             }
             rowData.push(val);
