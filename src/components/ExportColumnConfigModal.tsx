@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert } from 'lucide-react';
+import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ExportColumnSettings } from '../types';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
 
@@ -40,6 +40,23 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
       }
       return col;
     });
+
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setSettings(newSettings);
+  };
+
+  const handleMoveColumn = (colId: string, direction: 'up' | 'down') => {
+    const idx = currentColumns.findIndex(col => col.id === colId);
+    if (idx === -1) return;
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= currentColumns.length) return;
+
+    const updatedCols = [...currentColumns];
+    const [movedCol] = updatedCols.splice(idx, 1);
+    updatedCols.splice(newIdx, 0, movedCol);
 
     const newSettings: ExportColumnSettings = {
       ...settings,
@@ -260,16 +277,16 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
             </div>
           )}
 
-          {/* Grid Checkbox of Columns */}
+          {/* Grid of Checkboxes */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
             gap: 10,
           }}>
-            {currentColumns.map((col) => {
+            {currentColumns.map((col, idx) => {
               const isMandatory = col.id === 'stt' || col.id === 'waybill';
               return (
-                <label
+                <div
                   key={col.id}
                   style={{
                     display: 'flex',
@@ -279,7 +296,6 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                     borderRadius: 'var(--radius-md)',
                     background: col.enabled ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
                     border: col.enabled ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                    cursor: isMandatory ? 'not-allowed' : 'pointer',
                     transition: 'all 0.15s ease',
                     opacity: isMandatory ? 0.8 : 1,
                   }}
@@ -291,7 +307,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                     onChange={() => handleToggleColumn(col.id)}
                     style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: isMandatory ? 'not-allowed' : 'pointer' }}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, cursor: isMandatory ? 'not-allowed' : 'pointer' }} onClick={() => !isMandatory && handleToggleColumn(col.id)}>
                     <div style={{
                       fontSize: 13,
                       fontWeight: col.enabled ? 700 : 500,
@@ -300,13 +316,38 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>#{idx + 1}</span>
                       {col.label}
                     </div>
                     {isMandatory && (
                       <div style={{ fontSize: 10, color: 'var(--primary)' }}>Cột bắt buộc</div>
                     )}
                   </div>
-                </label>
+
+                  {/* Up & Down Reorder Buttons */}
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={(e) => { e.stopPropagation(); handleMoveColumn(col.id, 'up'); }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 5px', opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                      title="Di chuyển cột lên trước"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === currentColumns.length - 1}
+                      onClick={(e) => { e.stopPropagation(); handleMoveColumn(col.id, 'down'); }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 5px', opacity: idx === currentColumns.length - 1 ? 0.3 : 1, cursor: idx === currentColumns.length - 1 ? 'not-allowed' : 'pointer' }}
+                      title="Di chuyển cột xuống sau"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>

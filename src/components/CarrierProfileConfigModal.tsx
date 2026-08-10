@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
-import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert, Zap } from 'lucide-react';
+import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ColumnMappingConfig, CustomColumnMapping, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
@@ -244,6 +244,24 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   const handleToggleExportColumn = (colId: string) => {
     if (colId === 'stt' || colId === 'waybill') return;
     const updatedCols = currentExportColumns.map((col: ExportColumnItem) => col.id === colId ? { ...col, enabled: !col.enabled } : col);
+    const newSettings: ExportColumnSettings = {
+      ...exportSettings,
+      [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setExportSettings(newSettings);
+    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
+  };
+
+  const handleMoveExportColumn = (colId: string, direction: 'up' | 'down') => {
+    const idx = currentExportColumns.findIndex((col: ExportColumnItem) => col.id === colId);
+    if (idx === -1) return;
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= currentExportColumns.length) return;
+
+    const updatedCols = [...currentExportColumns];
+    const [movedCol] = updatedCols.splice(idx, 1);
+    updatedCols.splice(newIdx, 0, movedCol);
+
     const newSettings: ExportColumnSettings = {
       ...exportSettings,
       [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
@@ -981,10 +999,10 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               {/* Grid of Checkboxes */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
                 gap: 8,
               }}>
-                {currentExportColumns.map((col: ExportColumnItem) => {
+                {currentExportColumns.map((col: ExportColumnItem, idx: number) => {
                   const isMandatory = col.id === 'stt' || col.id === 'waybill';
                   const isCustom = col.category === 'custom';
 
@@ -1019,6 +1037,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                         }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>#{idx + 1}</span>
                           {col.label}
                         </div>
                         {isMandatory && <div style={{ fontSize: 10, color: 'var(--primary)' }}>Bắt buộc</div>}
@@ -1029,18 +1048,42 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         )}
                       </div>
 
-                      {/* Trash button for any non-mandatory column */}
-                      {!isMandatory && (
+                      {/* Up & Down Reorder Buttons */}
+                      <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
                         <button
                           type="button"
-                          onClick={() => handleRemoveExportColumn(col.id)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '2px 5px', flexShrink: 0 }}
-                          title={`Xóa cột "${col.label}" khỏi mẫu xuất file này`}
+                          disabled={idx === 0}
+                          onClick={(e) => { e.stopPropagation(); handleMoveExportColumn(col.id, 'up'); }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 4px', opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
+                          title="Di chuyển cột lên trước"
                         >
-                          <Trash2 size={12} />
+                          <ArrowUp size={12} />
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          disabled={idx === currentExportColumns.length - 1}
+                          onClick={(e) => { e.stopPropagation(); handleMoveExportColumn(col.id, 'down'); }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 4px', opacity: idx === currentExportColumns.length - 1 ? 0.3 : 1, cursor: idx === currentExportColumns.length - 1 ? 'not-allowed' : 'pointer' }}
+                          title="Di chuyển cột xuống sau"
+                        >
+                          <ArrowDown size={12} />
+                        </button>
+
+                        {/* Trash button for non-mandatory columns */}
+                        {!isMandatory && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveExportColumn(col.id); }}
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '2px 5px', flexShrink: 0 }}
+                            title={`Xóa cột "${col.label}" khỏi mẫu xuất file này`}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
