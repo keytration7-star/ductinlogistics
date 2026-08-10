@@ -1,5 +1,6 @@
 import React from 'react';
 import type { UserAccount } from '../types';
+import { StorageService } from '../services/storage';
 
 interface SecurityWatermarkProps {
   currentUser: UserAccount | null;
@@ -8,8 +9,11 @@ interface SecurityWatermarkProps {
 export const SecurityWatermark: React.FC<SecurityWatermarkProps> = ({ currentUser }) => {
   if (!currentUser) return null;
 
-  // Generate repeating watermark text
-  const watermarkText = `GOMDON SECURITY • ${currentUser.fullName} (${currentUser.username}) • ${currentUser.role} • ${new Date().toLocaleDateString('vi-VN')}`;
+  const company = StorageService.getCompanyInfo();
+  const brandName = (company?.companyName || 'LOGISTICS SYSTEM').toUpperCase();
+
+  // Generate repeating watermark text dynamically from company config
+  const watermarkText = `${brandName} SECURITY • ${currentUser.fullName} (${currentUser.username}) • ${currentUser.role} • ${new Date().toLocaleDateString('vi-VN')}`;
 
   // Create a grid of 12 repeating watermark lines
   const rows = Array.from({ length: 8 });
