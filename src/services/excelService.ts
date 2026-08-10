@@ -465,6 +465,14 @@ export const ExcelService = {
     const carrierId = session.carrierId;
     const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
     const enabledMasterCols = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
+    const enabledShopCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
+
+    // Auto merge custom columns enabled in shopColumns so Master report includes all custom columns
+    enabledShopCols.forEach((shopCol) => {
+      if (!enabledMasterCols.some(m => m.id === shopCol.id || m.label === shopCol.label)) {
+        enabledMasterCols.push(shopCol);
+      }
+    });
     const company = StorageService.getCompanyInfo();
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();

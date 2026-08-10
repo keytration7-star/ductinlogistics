@@ -40,6 +40,7 @@ export interface Shop {
   address: string;
   bankAccount: BankAccount;
   pricingPlan: ShopPricingPlan;
+  previousDebt?: number; // Công nợ cũ còn tồn (-/+)
   notes?: string;
   createdAt: string;
   active: boolean;

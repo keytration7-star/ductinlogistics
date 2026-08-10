@@ -192,6 +192,10 @@ export const StorageService = {
         localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
       }
       if (emailSettings && Object.keys(emailSettings).length > 0) {
+        const localSettings = this.getEmailSettings();
+        if (!emailSettings.emailPassword && localSettings.emailPassword) {
+          emailSettings.emailPassword = localSettings.emailPassword;
+        }
         localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(emailSettings));
       }
       if (exportColumns && Object.keys(exportColumns).length > 0) {

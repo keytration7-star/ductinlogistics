@@ -63,6 +63,32 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const selectedStatement = statements.find(s => s.shopId === selectedShopId) || statements[0];
   const missingShopEmailsCount = statements.filter(s => !s.shopEmail || !s.shopEmail.includes('@')).length;
 
+  // Auto-populate missing emails from StorageService registered shops
+  React.useEffect(() => {
+    if (!currentSession || !currentSession.statements.length) return;
+    const registeredShops = StorageService.getShops();
+    let hasChanges = false;
+
+    currentSession.statements.forEach(stmt => {
+      if (!stmt.shopEmail || !stmt.shopEmail.includes('@')) {
+        const normName = stmt.shopName.toLowerCase().trim();
+        const found = registeredShops.find(s =>
+          s.id === stmt.shopId ||
+          (s.code && s.code === stmt.shopCode) ||
+          s.name.toLowerCase().trim() === normName
+        );
+        if (found && found.email && found.email.includes('@')) {
+          stmt.shopEmail = found.email;
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
+      StorageService.saveSession(currentSession);
+    }
+  }, [currentSession]);
+
   const handleSaveShopEmail = (stmt: ShopSettlementStatement, newEmailInput: string) => {
     const cleanEmail = newEmailInput.trim();
     if (!cleanEmail || !cleanEmail.includes('@')) {

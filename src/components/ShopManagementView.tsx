@@ -428,15 +428,28 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                   </div>
                 </div>
 
-                <div className="input-group">
-                  <label className="input-label">Địa chỉ kho gửi hàng</label>
-                  <input
-                    type="text"
-                    placeholder="Số 123 đường ABC, Quận XYZ, Hà Nội"
-                    value={editingShop.address}
-                    onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
-                    className="input-field"
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                  <div className="input-group">
+                    <label className="input-label">Địa chỉ kho gửi hàng</label>
+                    <input
+                      type="text"
+                      placeholder="Số 123 đường ABC, Quận XYZ, Hà Nội"
+                      value={editingShop.address}
+                      onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
+                      className="input-field"
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Công nợ cũ còn tồn (-/+ VNĐ)</label>
+                    <input
+                      type="number"
+                      placeholder="0 (Ví dụ: -500000 nếu Shop nợ, +200000 nếu dư nợ)"
+                      value={editingShop.previousDebt ?? ''}
+                      onChange={(e) => setEditingShop({ ...editingShop, previousDebt: e.target.value === '' ? undefined : Number(e.target.value) })}
+                      className="input-field"
+                    />
+                  </div>
                 </div>
 
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>

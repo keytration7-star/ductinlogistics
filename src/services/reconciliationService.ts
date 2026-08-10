@@ -8,7 +8,7 @@ import type {
   ColumnMappingConfig,
   OrderStatus
 } from '../types';
-import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill } from './smartColumnDetector';
+import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill, normalizeHeader } from './smartColumnDetector';
 
 export interface DuplicateCheckResult {
   hasConflict: boolean;
@@ -401,7 +401,13 @@ export function performReconciliation(
     const key = order.shopId || order.shopName;
     
     if (!statementsMap.has(key)) {
-      const shopObj = registeredShops.find(s => s.id === order.shopId || s.name === order.shopName);
+      const normName = normalizeHeader(order.shopName || '');
+      const shopObj = registeredShops.find(s => 
+        s.id === order.shopId || 
+        s.code === order.shopId ||
+        normalizeHeader(s.name) === normName ||
+        (s.name && s.name.trim().toLowerCase() === (order.shopName || '').trim().toLowerCase())
+      );
       
       statementsMap.set(key, {
         shopId: shopObj?.id || key,
@@ -424,6 +430,7 @@ export function performReconciliation(
         totalShopFee: 0,
         totalShopOtherFee: 0,
         totalNetPayout: 0,
+        previousDebt: shopObj?.previousDebt || 0,
         totalNvcCost: 0,
         totalProfit: 0,
         orders: [],
