@@ -314,15 +314,16 @@ export const ExcelService = {
                         (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
                         (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
 
-            const lowerLabel = (col.label || srcHeader).toLowerCase();
+            const normLabel = normalizeHeader(col.label || '');
+            const normSrcHeader = normalizeHeader(srcHeader || '');
             const strVal = String(val).trim().replace(',', '.');
             const numVal = Number(strVal);
 
             // Auto format if label is date-like OR value is an Excel serial date number
-            if (
-              lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian') ||
-              (!isNaN(numVal) && numVal > 25000 && numVal < 75000)
-            ) {
+            const isDateCol = normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') || normLabel.includes('gui_hang') ||
+                              normSrcHeader.includes('ngay') || normSrcHeader.includes('date') || normSrcHeader.includes('thoi_gian') || normSrcHeader.includes('gui_hang');
+
+            if (isDateCol || (!isNaN(numVal) && numVal > 25000 && numVal < 75000)) {
               val = formatAnyDateValue(val);
             }
             rowData.push(val);
@@ -336,7 +337,7 @@ export const ExcelService = {
       // Formatting cell values
       activeCols.forEach((col, cIdx) => {
         const cell = addedOrderRow.getCell(cIdx + 1);
-        const lowerLabel = (col.label || col.id).toLowerCase();
+        const normLabel = normalizeHeader(col.label || col.id);
 
         if (['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id)) {
           cell.numFmt = '#,##0';
@@ -344,7 +345,10 @@ export const ExcelService = {
         } else if (col.id === 'weight') {
           cell.numFmt = '#,##0.00';
           cell.alignment = { horizontal: 'right' };
-        } else if (col.id === 'stt' || col.id === 'waybill' || col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) {
+        } else if (
+          col.id === 'stt' || col.id === 'waybill' || col.id === 'date' ||
+          normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') || normLabel.includes('gui_hang')
+        ) {
           cell.alignment = { horizontal: 'center' };
         }
       });
@@ -594,15 +598,16 @@ export const ExcelService = {
                         (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
                         (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
 
-            const lowerLabel = (col.label || srcHeader).toLowerCase();
+            const normLabel = normalizeHeader(col.label || '');
+            const normSrcHeader = normalizeHeader(srcHeader || '');
             const strVal = String(val).trim().replace(',', '.');
             const numVal = Number(strVal);
 
             // Auto format if label is date-like OR value is an Excel serial date number
-            if (
-              lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian') ||
-              (!isNaN(numVal) && numVal > 25000 && numVal < 75000)
-            ) {
+            const isDateCol = normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') || normLabel.includes('gui_hang') ||
+                              normSrcHeader.includes('ngay') || normSrcHeader.includes('date') || normSrcHeader.includes('thoi_gian') || normSrcHeader.includes('gui_hang');
+
+            if (isDateCol || (!isNaN(numVal) && numVal > 25000 && numVal < 75000)) {
               val = formatAnyDateValue(val);
             }
             rowData.push(val);
@@ -614,7 +619,7 @@ export const ExcelService = {
       const addedMdRow = wsDetails.addRow(rowData);
       activeMasterCols.forEach((col, cIdx) => {
         const cell = addedMdRow.getCell(cIdx + 1);
-        const lowerLabel = (col.label || col.id).toLowerCase();
+        const normLabel = normalizeHeader(col.label || col.id);
 
         if (['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id)) {
           cell.numFmt = '#,##0';
@@ -622,7 +627,10 @@ export const ExcelService = {
         } else if (col.id === 'weight') {
           cell.numFmt = '#,##0.00';
           cell.alignment = { horizontal: 'right' };
-        } else if (col.id === 'stt' || col.id === 'waybill' || col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) {
+        } else if (
+          col.id === 'stt' || col.id === 'waybill' || col.id === 'date' ||
+          normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') || normLabel.includes('gui_hang')
+        ) {
           cell.alignment = { horizontal: 'center' };
         }
       });
