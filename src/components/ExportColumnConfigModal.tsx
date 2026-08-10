@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert, ArrowUp, ArrowDown } from 'lucide-react';
+import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import type { ExportColumnSettings } from '../types';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
 
@@ -48,6 +48,10 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     setSettings(newSettings);
   };
 
+  // Drag & drop state for export column reordering
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   const handleMoveColumn = (colId: string, direction: 'up' | 'down') => {
     const idx = currentColumns.findIndex(col => col.id === colId);
     if (idx === -1) return;
@@ -63,6 +67,27 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
       [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
     };
     setSettings(newSettings);
+  };
+
+  const handleDropColumn = (targetIdx: number) => {
+    if (draggedIndex === null || draggedIndex === targetIdx) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const updatedCols = [...currentColumns];
+    const [movedCol] = updatedCols.splice(draggedIndex, 1);
+    updatedCols.splice(targetIdx, 0, movedCol);
+
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setSettings(newSettings);
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleSelectAll = (enabled: boolean) => {
@@ -288,18 +313,50 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
               return (
                 <div
                   key={col.id}
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', String(idx));
+                    setDraggedIndex(idx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragOverIndex !== idx) setDragOverIndex(idx);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropColumn(idx);
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
+                    gap: 8,
+                    padding: '10px 12px',
                     borderRadius: 'var(--radius-md)',
-                    background: col.enabled ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
-                    border: col.enabled ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                    background: draggedIndex === idx
+                      ? 'var(--bg-tertiary)'
+                      : dragOverIndex === idx
+                      ? 'rgba(79, 70, 229, 0.12)'
+                      : col.enabled ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
+                    border: dragOverIndex === idx
+                      ? '2px dashed var(--primary)'
+                      : col.enabled ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                    cursor: 'grab',
                     transition: 'all 0.15s ease',
-                    opacity: isMandatory ? 0.8 : 1,
+                    opacity: draggedIndex === idx ? 0.4 : isMandatory ? 0.85 : 1,
                   }}
                 >
+                  {/* Drag Handle Icon */}
+                  <div
+                    style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                    title="Giữ và kéo thả để đổi thứ tự vị trí cột"
+                  >
+                    <GripVertical size={15} />
+                  </div>
+
                   <input
                     type="checkbox"
                     checked={col.enabled}
