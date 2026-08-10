@@ -168,6 +168,7 @@ export interface ShopSettlementStatement {
   totalShopFee: number;
   totalShopOtherFee: number;
   totalNetPayout: number;       // SỐ TIỀN THỰC CHUYỂN CHO SHOP
+  previousDebt?: number;         // Công nợ cũ chưa thanh toán từ các kỳ trước (-/+)
   totalNvcCost: number;         // Tổng chi phí trả NVC cho các đơn của shop này
   totalProfit: number;          // Tổng tiền lãi của nhà gom từ shop này
   orders: ReconciledOrder[];

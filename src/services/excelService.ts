@@ -161,6 +161,8 @@ export const ExcelService = {
     // SHEET 1: TỔNG HỢP CÔNG NỢ
     // ──────────────────────────────────────────
     const wsSummary = workbook.addWorksheet('TONG_HOP_CONG_NO');
+    wsSummary.views = [{ showGridLines: false }]; // 🌟 Yêu cầu 3: Ẩn đường kẻ lưới dạng hóa đơn
+
     wsSummary.columns = [
       { width: 44 },
       { width: 30 },
@@ -168,41 +170,71 @@ export const ExcelService = {
       { width: 44 },
     ];
 
-    // Company Header Section
-    const row1 = wsSummary.addRow([companyTitle]);
-    row1.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FF1E3A8A' } }; // Dark Navy
+    const thinBorder = {
+      top: { style: 'thin' as const, color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin' as const, color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin' as const, color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin' as const, color: { argb: 'FFCBD5E1' } },
+    };
 
-    const row2 = wsSummary.addRow([companySubtitle]);
+    // 🌟 Yêu cầu 4: Tên công ty to trên cùng gộp ô A1:D1 và căn giữa
+    const row1 = wsSummary.addRow([companyTitle, '', '', '']);
+    wsSummary.mergeCells('A1:D1');
+    row1.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FF1E3A8A' } }; // Dark Navy
+    row1.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const row2 = wsSummary.addRow([companySubtitle, '', '', '']);
+    wsSummary.mergeCells('A2:D2');
     row2.font = { name: 'Arial', size: 10.5, italic: true, color: { argb: 'FF475569' } }; // Slate Gray
+    row2.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    const row3 = wsSummary.addRow(['BẢNG KÊ ĐỐI SOÁT TIỀN THU HỘ (COD) VÀ CƯỚC PHÍ VẬN CHUYỂN']);
+    const row3 = wsSummary.addRow(['BẢNG KÊ ĐỐI SOÁT TIỀN THU HỘ (COD) VÀ CƯỚC PHÍ VẬN CHUYỂN', '', '', '']);
+    wsSummary.mergeCells('A3:D3');
     row3.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF4F46E5' } }; // Indigo
+    row3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    const row4 = wsSummary.addRow([`Kỳ đối soát: ${statement.periodName}`, '', `Ngày xuất phiếu: ${new Date().toLocaleDateString('vi-VN')}`]);
+    const row4 = wsSummary.addRow([`Kỳ đối soát: ${statement.periodName}`, '', `Ngày xuất phiếu: ${new Date().toLocaleDateString('vi-VN')}`, '']);
     row4.font = { name: 'Arial', size: 11, color: { argb: 'FF334155' } };
 
     wsSummary.addRow([]); // Blank line
 
-    // Section I: Shop Info
-    const sec1 = wsSummary.addRow(['I. THÔNG TIN KHÁCH HÀNG (SHOP)']);
+    // Section I: Shop Info Box
+    const sec1 = wsSummary.addRow(['I. THÔNG TIN KHÁCH HÀNG (SHOP)', '', '', '']);
     sec1.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
 
-    wsSummary.addRow(['Tên Shop:', statement.shopName, 'Mã khách hàng:', statement.shopCode]);
-    wsSummary.addRow(['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail || '']);
-    wsSummary.addRow(['Địa chỉ gửi:', statement.shopAddress || '']);
+    const r7 = wsSummary.addRow(['Tên Shop:', statement.shopName, 'Mã khách hàng:', statement.shopCode]);
+    const r8 = wsSummary.addRow(['Số điện thoại:', statement.shopPhone, 'Email:', statement.shopEmail || '']);
+    const r9 = wsSummary.addRow(['Địa chỉ gửi:', statement.shopAddress || '', '', '']);
+
+    [r7, r8, r9].forEach(r => {
+      r.eachCell({ includeEmpty: true }, cell => {
+        cell.border = thinBorder;
+      });
+      r.getCell(1).font = { bold: true };
+      r.getCell(3).font = { bold: true };
+    });
+
     wsSummary.addRow([]);
 
-    // Section II: Bank Info
-    const sec2 = wsSummary.addRow(['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD']);
+    // Section II: Bank Info Box
+    const sec2 = wsSummary.addRow(['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD', '', '', '']);
     sec2.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
 
-    wsSummary.addRow(['Ngân hàng:', statement.bankInfo.bankName]);
-    wsSummary.addRow(['Số tài khoản:', statement.bankInfo.accountNumber]);
-    wsSummary.addRow(['Chủ tài khoản:', statement.bankInfo.accountHolder]);
+    const r12 = wsSummary.addRow(['Ngân hàng:', statement.bankInfo.bankName, '', '']);
+    const r13 = wsSummary.addRow(['Số tài khoản:', statement.bankInfo.accountNumber, '', '']);
+    const r14 = wsSummary.addRow(['Chủ tài khoản:', statement.bankInfo.accountHolder, '', '']);
+
+    [r12, r13, r14].forEach(r => {
+      r.eachCell({ includeEmpty: true }, cell => {
+        cell.border = thinBorder;
+      });
+      r.getCell(1).font = { bold: true };
+    });
+
     wsSummary.addRow([]);
 
     // Section III: Financial Summary Table
-    const sec3 = wsSummary.addRow(['III. BẢNG TỔNG HỢP DÒNG TIỀN ĐỐI SOÁT']);
+    const sec3 = wsSummary.addRow(['III. BẢNG TỔNG HỢP DÒNG TIỀN ĐỐI SOÁT', '', '', '']);
     sec3.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
 
     const tblHeader = wsSummary.addRow(['Hạng mục', 'Số lượng / Giá trị', 'Đơn vị tính', 'Ghi chú']);
@@ -210,7 +242,12 @@ export const ExcelService = {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
       cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = thinBorder;
     });
+
+    // 🌟 Yêu cầu 1: Thêm hàng 8. Công nợ cũ còn nợ
+    const previousDebtVal = statement.previousDebt || 0;
+    const finalPayout = statement.totalNetPayout + previousDebtVal;
 
     const rowsData = [
       ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', ''],
@@ -220,32 +257,50 @@ export const ExcelService = {
       ['5. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền NVC đã thu từ người nhận'],
       ['6. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Tính theo biểu giá riêng của Shop'],
       ['7. Phí phụ thu / Bảo hiểm / Hoàn (-)', statement.totalShopOtherFee, 'VNĐ', ''],
+      ['8. Công nợ cũ còn nợ (-/+)', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop còn nợ công ty (trừ bớt vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop từ kỳ trước (cộng thêm vào kỳ này)' : 'Không có công nợ cũ'],
     ];
 
     rowsData.forEach(r => {
       const addedRow = wsSummary.addRow(r);
+      addedRow.eachCell({ includeEmpty: true }, cell => {
+        cell.border = thinBorder;
+      });
+
       const valCell = addedRow.getCell(2);
-      if (typeof r[1] === 'number' && (r[0] as string).includes('TỔNG')) {
+      if (typeof r[1] === 'number' && (typeof r[0] === 'string' && (r[0].includes('TỔNG') || r[0].includes('Công nợ')))) {
         valCell.numFmt = '#,##0';
         valCell.font = { bold: true };
       }
+      addedRow.getCell(3).alignment = { horizontal: 'center' };
     });
 
     // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text
-    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', statement.totalNetPayout, 'VNĐ', 'Tiền công ty sẽ chuyển khoản cho Shop']);
+    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', 'Tiền công ty sẽ chuyển khoản cho Shop']);
     grandRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
       cell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFF0000' } }; // Red
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF000000' } },
-        bottom: { style: 'double', color: { argb: 'FF000000' } }
+        bottom: { style: 'double', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } },
       };
     });
     grandRow.getCell(2).numFmt = '#,##0';
+    grandRow.getCell(3).alignment = { horizontal: 'center' };
 
     wsSummary.addRow([]);
-    wsSummary.addRow(['ĐẠI DIỆN NHÀ GOM ĐƠN', '', 'ĐẠI DIỆN KHÁCH HÀNG (SHOP)']);
-    wsSummary.addRow(['(Ký & Ghi rõ họ tên)', '', '(Ký & Ghi rõ họ tên)']);
+
+    // 🌟 Yêu cầu 2: Thay "ĐẠI DIỆN NHÀ GOM ĐƠN" thành "ĐẠI DIỆN CÔNG TY KÝ"
+    const sigRow1 = wsSummary.addRow(['ĐẠI DIỆN CÔNG TY KÝ', '', 'ĐẠI DIỆN KHÁCH HÀNG (SHOP)']);
+    sigRow1.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+    sigRow1.getCell(1).alignment = { horizontal: 'center' };
+    sigRow1.getCell(3).alignment = { horizontal: 'center' };
+
+    const sigRow2 = wsSummary.addRow(['(Ký & Ghi rõ họ tên)', '', '(Ký & Ghi rõ họ tên)']);
+    sigRow2.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF64748B' } };
+    sigRow2.getCell(1).alignment = { horizontal: 'center' };
+    sigRow2.getCell(3).alignment = { horizontal: 'center' };
 
     // ──────────────────────────────────────────
     // SHEET 2: CHI TIẾT ĐƠN HÀNG (DYNAMIC NON-EMPTY COLUMNS)
