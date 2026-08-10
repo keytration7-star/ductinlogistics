@@ -7,6 +7,53 @@ import { normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
 import { extractRowField } from './reconciliationService';
 
+export function formatAnyDateValue(val: any): string {
+  if (val === undefined || val === null || val === '') return '';
+
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    return formatDateToString(val, true);
+  }
+
+  const str = String(val).trim();
+  if (!str) return '';
+
+  const num = Number(str);
+  if (!isNaN(num) && num > 25000 && num < 75000) {
+    const jsTimestamp = Math.round((num - 25569) * 86400 * 1000);
+    const dateObj = new Date(jsTimestamp);
+    if (!isNaN(dateObj.getTime())) {
+      const hasTime = num % 1 !== 0;
+      return formatDateToString(dateObj, hasTime);
+    }
+  }
+
+  if ((str.includes('-') || str.includes('/') || str.includes('T')) && !str.match(/^[a-zA-Z0-9\s]+$/)) {
+    const parsedDate = new Date(str);
+    if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1990 && parsedDate.getFullYear() < 2100) {
+      return formatDateToString(parsedDate, str.includes(':') || str.includes('T'));
+    }
+  }
+
+  return str;
+}
+
+function formatDateToString(d: Date, includeTime: boolean = false): string {
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  
+  if (includeTime) {
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    if (hours !== '00' || minutes !== '00') {
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
 export const ExcelService = {
   // Intelligent parser supporting title banners, multi-line headers and multiple sheets
   async parseExcelFile(file: File): Promise<{ headers: string[]; rows: Record<string, any>[] }> {
@@ -240,7 +287,11 @@ export const ExcelService = {
         switch (col.id) {
           case 'stt': rowData.push(idx + 1); break;
           case 'waybill': rowData.push(order.waybill); break;
-          case 'date': rowData.push(order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ngay'])); break;
+          case 'date': {
+            const rawDate = order.rawNvcData?.['Ngày'] || order.rawAppData?.['Ngày'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ngay', 'date', 'thoi_gian']);
+            rowData.push(formatAnyDateValue(rawDate));
+            break;
+          }
           case 'refOrderCode': rowData.push(order.rawAppData?.['Mã đơn phụ'] || order.rawAppData?.['Mã đơn hàng'] || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ma_don_phu', 'ref'])); break;
           case 'receiverName': rowData.push(order.receiverName || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach'])); break;
           case 'receiverPhone': rowData.push(order.receiverPhone || extractRowField(order.rawAppData, order.rawNvcData, undefined, ['sdt_nguoi_nhan', 'so_dien_thoai', 'phone', 'mobile'])); break;
@@ -254,10 +305,15 @@ export const ExcelService = {
           case 'netPayout': rowData.push(order.netShopPayout); break;
           default: {
             const srcHeader = col.sourceHeader || col.label || col.id;
-            const val = (order.rawNvcData && order.rawNvcData[srcHeader] !== undefined ? order.rawNvcData[srcHeader] : undefined) ??
+            let val = (order.rawNvcData && order.rawNvcData[srcHeader] !== undefined ? order.rawNvcData[srcHeader] : undefined) ??
                         (order.rawAppData && order.rawAppData[srcHeader] !== undefined ? order.rawAppData[srcHeader] : undefined) ??
                         (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
                         (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
+
+            const lowerLabel = (col.label || srcHeader).toLowerCase();
+            if (lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian')) {
+              val = formatAnyDateValue(val);
+            }
             rowData.push(val);
             break;
           }
@@ -269,13 +325,15 @@ export const ExcelService = {
       // Formatting cell values
       activeCols.forEach((col, cIdx) => {
         const cell = addedOrderRow.getCell(cIdx + 1);
+        const lowerLabel = (col.label || col.id).toLowerCase();
+
         if (['codAmount', 'shopFee', 'shopOtherFee', 'netPayout'].includes(col.id)) {
           cell.numFmt = '#,##0';
           cell.alignment = { horizontal: 'right' };
         } else if (col.id === 'weight') {
           cell.numFmt = '#,##0.00';
           cell.alignment = { horizontal: 'right' };
-        } else if (col.id === 'stt' || col.id === 'waybill') {
+        } else if (col.id === 'stt' || col.id === 'waybill' || col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) {
           cell.alignment = { horizontal: 'center' };
         }
       });
@@ -515,20 +573,35 @@ export const ExcelService = {
           case 'profit': rowData.push(order.profitMargin); break;
           case 'netPayout': rowData.push(order.netShopPayout); break;
           case 'matchStatus': rowData.push(order.matched ? 'Đã khớp Shop' : 'Chưa nhận diện Shop'); break;
-          default: rowData.push('');
+          default: {
+            const srcHeader = col.sourceHeader || col.label || col.id;
+            let val = (order.rawNvcData && order.rawNvcData[srcHeader] !== undefined ? order.rawNvcData[srcHeader] : undefined) ??
+                        (order.rawAppData && order.rawAppData[srcHeader] !== undefined ? order.rawAppData[srcHeader] : undefined) ??
+                        (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
+                        (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ?? '';
+
+            const lowerLabel = (col.label || srcHeader).toLowerCase();
+            if (lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian') || lowerLabel.includes('thời gian')) {
+              val = formatAnyDateValue(val);
+            }
+            rowData.push(val);
+            break;
+          }
         }
       });
 
       const addedMdRow = wsDetails.addRow(rowData);
       activeMasterCols.forEach((col, cIdx) => {
         const cell = addedMdRow.getCell(cIdx + 1);
+        const lowerLabel = (col.label || col.id).toLowerCase();
+
         if (['codAmount', 'shopFee', 'nvcFee', 'profit', 'netPayout'].includes(col.id)) {
           cell.numFmt = '#,##0';
           cell.alignment = { horizontal: 'right' };
         } else if (col.id === 'weight') {
           cell.numFmt = '#,##0.00';
           cell.alignment = { horizontal: 'right' };
-        } else if (col.id === 'stt' || col.id === 'waybill') {
+        } else if (col.id === 'stt' || col.id === 'waybill' || col.id === 'date' || lowerLabel.includes('ngay') || lowerLabel.includes('date') || lowerLabel.includes('thoi_gian')) {
           cell.alignment = { horizontal: 'center' };
         }
       });
