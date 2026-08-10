@@ -344,16 +344,18 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div 
             className="modal-content" 
-            style={{ maxWidth: 850 }}
+            style={{ maxWidth: 850, maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <form onSubmit={handleSaveModal}>
+            <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               <div style={{
-                padding: '20px 24px',
+                padding: '18px 24px',
                 borderBottom: '1px solid var(--border-color)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                background: 'var(--bg-tertiary)',
+                flexShrink: 0,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Store size={20} color="var(--primary)" />
@@ -371,7 +373,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 </button>
               </div>
 
-              <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
                 
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Store size={16} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
@@ -711,6 +713,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 justifyContent: 'flex-end',
                 gap: 12,
                 background: 'var(--bg-tertiary)',
+                flexShrink: 0,
               }}>
                 <button
                   type="button"
