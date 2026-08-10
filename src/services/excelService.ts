@@ -97,7 +97,8 @@ export const ExcelService = {
 
   async createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
-    const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
+    const carrierId = statement.orders[0]?.carrierId;
+    const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
     const enabledCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
     const company = StorageService.getCompanyInfo();
 
@@ -320,8 +321,10 @@ export const ExcelService = {
     return workbook;
   },
 
-  async downloadShopStatement(statement: ShopSettlementStatement): Promise<void> {
-    const workbook = await this.createShopStatementWorkbook(statement);
+  async downloadShopStatement(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<void> {
+    const carrierId = statement.orders[0]?.carrierId;
+    const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
+    const workbook = await this.createShopStatementWorkbook(statement, exportSettings);
     const buffer = await workbook.xlsx.writeBuffer();
     const cleanShopName = statement.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
     const filename = `Doi_Soat_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
@@ -331,7 +334,8 @@ export const ExcelService = {
 
   async createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
-    const exportSettings = customExportSettings || StorageService.getExportColumnSettings();
+    const carrierId = session.carrierId;
+    const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
     const enabledMasterCols = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
     const company = StorageService.getCompanyInfo();
 
@@ -569,7 +573,9 @@ export const ExcelService = {
   },
 
   async downloadMasterProfitReport(session: ReconciliationSession): Promise<void> {
-    const workbook = await this.createMasterProfitWorkbook(session);
+    const carrierId = session.carrierId;
+    const exportSettings = carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings();
+    const workbook = await this.createMasterProfitWorkbook(session, exportSettings);
     const buffer = await workbook.xlsx.writeBuffer();
     const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -580,7 +586,10 @@ export const ExcelService = {
     const zip = new JSZip();
     const rootFolder = zip.folder(`DOI_SOAT_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
-    const masterWb = await this.createMasterProfitWorkbook(session);
+    const carrierId = session.carrierId;
+    const exportSettings = carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings();
+
+    const masterWb = await this.createMasterProfitWorkbook(session, exportSettings);
     const masterBuffer = await masterWb.xlsx.writeBuffer();
     rootFolder?.file('00_BAO_CAO_TONG_HOP_LOI_NHUAN_NHA_GOM.xlsx', masterBuffer);
 
@@ -594,7 +603,7 @@ export const ExcelService = {
       const cleanShopFolder = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
       const shopSubFolder = rootFolder?.folder(cleanShopFolder);
       
-      const shopWb = await this.createShopStatementWorkbook(stmt);
+      const shopWb = await this.createShopStatementWorkbook(stmt, exportSettings);
       const shopBuffer = await shopWb.xlsx.writeBuffer();
       const filename = `Doi_soat_${cleanShopFolder}.xlsx`;
       
