@@ -19,25 +19,37 @@ export const DEFAULT_ADMIN_USER: UserAccount = {
 export const AuthService = {
   getUsers(): UserAccount[] {
     const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) {
-      this.saveUsers([DEFAULT_ADMIN_USER]);
-      return [DEFAULT_ADMIN_USER];
-    }
-    try {
-      const users: UserAccount[] = JSON.parse(raw);
-      // Ensure super admin always exists with username 'admin'
-      const adminIdx = users.findIndex(u => u.username.toLowerCase() === 'admin');
-      if (adminIdx >= 0) {
-        users[adminIdx] = { ...users[adminIdx], username: 'admin', password: users[adminIdx].password || 'admin@' };
-      } else {
-        users.unshift(DEFAULT_ADMIN_USER);
+    let users: UserAccount[] = [];
+    if (raw) {
+      try {
+        users = JSON.parse(raw);
+      } catch {
+        users = [];
       }
-      this.saveUsers(users);
-      return users;
-    } catch {
-      this.saveUsers([DEFAULT_ADMIN_USER]);
-      return [DEFAULT_ADMIN_USER];
     }
+
+    // Migrate any legacy super admin (e.g. 'Ductin-admin' or 'user_super_admin') to 'admin' / 'admin@'
+    let adminFound = false;
+    users = users.map(u => {
+      if (u.id === 'user_super_admin' || u.username?.toLowerCase() === 'ductin-admin' || u.username?.toLowerCase() === 'admin') {
+        adminFound = true;
+        return {
+          ...u,
+          id: 'user_super_admin',
+          username: 'admin',
+          password: (u.password === 'ductin@admin' || !u.password) ? 'admin@' : u.password,
+          fullName: (u.fullName && u.fullName.includes('Đức Tín')) ? 'Quản Trị Viên (Admin)' : (u.fullName || 'Quản Trị Viên (Admin)'),
+        };
+      }
+      return u;
+    });
+
+    if (!adminFound) {
+      users.unshift(DEFAULT_ADMIN_USER);
+    }
+
+    this.saveUsers(users);
+    return users;
   },
 
   saveUsers(users: UserAccount[]): void {
@@ -54,42 +66,45 @@ export const AuthService = {
       const res = await fetch('/api/db/all');
       if (res.ok) {
         const result = await res.json();
-        const serverUsers: UserAccount[] = (result.success && result.data && Array.isArray(result.data.users)) ? result.data.users : [];
+        let serverUsers: UserAccount[] = (result.success && result.data && Array.isArray(result.data.users)) ? result.data.users : [];
+
+        // Clean up serverUsers: convert legacy 'Ductin-admin' to 'admin'
+        serverUsers = serverUsers.map(u => {
+          if (u && (u.id === 'user_super_admin' || u.username?.toLowerCase() === 'ductin-admin' || u.username?.toLowerCase() === 'admin')) {
+            return {
+              ...u,
+              id: 'user_super_admin',
+              username: 'admin',
+              password: (u.password === 'ductin@admin' || !u.password) ? 'admin@' : u.password,
+            };
+          }
+          return u;
+        });
+
         const localUsers: UserAccount[] = this.getUsers();
 
-        // Merge local users and server users by username
         const mergedMap = new Map<string, UserAccount>();
-        
-        // Add default admin
-        mergedMap.set(DEFAULT_ADMIN_USER.username.toLowerCase(), DEFAULT_ADMIN_USER);
-        
-        // Add server users
+        mergedMap.set('admin', DEFAULT_ADMIN_USER);
+
         serverUsers.forEach(u => {
           if (u && u.username) {
             mergedMap.set(u.username.toLowerCase(), u);
           }
         });
 
-        // Add local users (if not present on server)
-        let hasNewLocal = false;
         localUsers.forEach(u => {
           if (u && u.username && !mergedMap.has(u.username.toLowerCase())) {
             mergedMap.set(u.username.toLowerCase(), u);
-            hasNewLocal = true;
           }
         });
 
         const mergedList = Array.from(mergedMap.values());
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mergedList));
-
-        // If local had new users that server didn't have, push merged list to server!
-        if (hasNewLocal || serverUsers.length < mergedList.length) {
-          fetch('/api/db/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ users: mergedList }),
-          }).catch(() => {});
-        }
+        fetch('/api/db/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: mergedList }),
+        }).catch(() => {});
 
         return mergedList;
       }
