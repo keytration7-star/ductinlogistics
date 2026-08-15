@@ -6,12 +6,12 @@ const CURRENT_USER_STORAGE_KEY = 'gomdon_current_user_v1';
 
 export const DEFAULT_ADMIN_USER: UserAccount = {
   id: 'user_super_admin',
-  username: 'Ductin-admin',
-  password: 'ductin@admin',
-  fullName: 'Đức Tín (Tổng Quản Trị)',
+  username: 'admin',
+  password: 'admin@',
+  fullName: 'Tổng Quản Trị Viên',
   role: 'ADMIN',
   phone: '0988888888',
-  email: 'admin.ductin@gmail.com',
+  email: 'admin@autopro.io.vn',
   active: true,
   createdAt: '2026-08-01T00:00:00.000Z',
 };
@@ -25,11 +25,14 @@ export const AuthService = {
     }
     try {
       const users: UserAccount[] = JSON.parse(raw);
-      // Ensure super admin always exists
-      if (!users.some(u => u.username.toLowerCase() === DEFAULT_ADMIN_USER.username.toLowerCase())) {
+      // Ensure super admin always exists with username 'admin'
+      const adminIdx = users.findIndex(u => u.username.toLowerCase() === 'admin');
+      if (adminIdx >= 0) {
+        users[adminIdx] = { ...users[adminIdx], username: 'admin', password: users[adminIdx].password || 'admin@' };
+      } else {
         users.unshift(DEFAULT_ADMIN_USER);
-        this.saveUsers(users);
       }
+      this.saveUsers(users);
       return users;
     } catch {
       this.saveUsers([DEFAULT_ADMIN_USER]);
