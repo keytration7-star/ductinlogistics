@@ -10,10 +10,10 @@ const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
 const PAYMENTS_KEY = 'gomdon_payments_v1';
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  companyName: 'ĐỨC TÍN LOGISTICS',
+  companyName: 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN',
   address: 'Địa chỉ trụ sở công ty',
-  phone: '0988 123 456',
-  taxCode: '0101234567',
+  phone: '0988 000 000',
+  taxCode: '0100000000',
 };
 
 export const DEFAULT_CARRIER_TIERS: CarrierWholesaleTier[] = [

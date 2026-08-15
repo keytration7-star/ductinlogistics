@@ -4,7 +4,7 @@ import { StorageService } from './storage';
 export const PdfService = {
   printShopStatementPdf(statement: ShopSettlementStatement): void {
     const company = StorageService.getCompanyInfo();
-    const companyTitle = (company.companyName || 'CÔNG TY TNHH ĐỨC TÍN LOGISTICS').toUpperCase();
+    const companyTitle = (company.companyName || 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
     const previousDebtVal = statement.previousDebt || 0;
