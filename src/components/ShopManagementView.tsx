@@ -1,22 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
 import { 
   Plus, 
   Search, 
-  Edit, 
   Trash2, 
   Store, 
   CreditCard, 
   Calculator, 
   Check, 
-  X,
-  Sliders,
-  Eye,
-  Zap,
-  Phone,
-  Mail,
-  MapPin,
-  UserCheck
+  Sliders, 
+  Zap, 
+  Phone, 
+  Save,
+  X
 } from 'lucide-react';
 import type { Shop, WeightStepRule, UserAccount } from '../types';
 import { calculateWeightFee, detectUnregisteredShopsFromOrders } from '../services/reconciliationService';
@@ -53,17 +49,148 @@ const VIETNAM_BANKS = [
 export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops, currentUser }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [editingShop, setEditingShop] = useState<Shop | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [viewingShop, setViewingShop] = useState<Shop | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [editingShop, setEditingShop] = useState<Shop | null>(null);
+
+  // New Shop Auto-Detector from Excel
   const [detectedNewShops, setDetectedNewShops] = useState<DetectedNewShop[]>([]);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Weight calculator test
   const [testWeight, setTestWeight] = useState<number>(1.5);
+
+  // Auto select first shop on initial render
+  useEffect(() => {
+    if (shops.length > 0 && !selectedShopId) {
+      setSelectedShopId(shops[0].id);
+      setEditingShop(JSON.parse(JSON.stringify(shops[0])));
+    }
+  }, [shops, selectedShopId]);
+
+  // When selected shop changes from left list
+  const handleSelectShop = (shop: Shop) => {
+    setSelectedShopId(shop.id);
+    setEditingShop(JSON.parse(JSON.stringify(shop)));
+  };
+
+  const filteredShops = shops.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.phone.includes(searchTerm) ||
+    (s.email && s.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // Add new shop
+  const handleCreateNewShop = () => {
+    const defaultPricingPlan = {
+      id: `plan_${Date.now()}`,
+      name: 'Bảng giá tùy chỉnh',
+      weightRules: [
+        { minWeight: 0, maxWeight: 1, price: 25000 },
+        { minWeight: 1, maxWeight: 3, price: 30000 },
+        { minWeight: 3, maxWeight: 5, price: 35000 },
+      ],
+      extraStepWeight: 1,
+      extraStepPrice: 5000,
+      returnFeePercent: 50,
+      insuranceFeePercent: 0,
+      fixedSurcharge: 0,
+    };
+
+    const newShop: Shop = {
+      id: `shop_${Date.now()}`,
+      code: `SHOP_${shops.length + 1}`,
+      name: `Shop Mới ${shops.length + 1}`,
+      phone: '',
+      email: '',
+      address: '',
+      bankAccount: {
+        bankName: 'MB Bank',
+        accountNumber: '',
+        accountHolder: '',
+      },
+      pricingPlan: defaultPricingPlan,
+      notes: '',
+      createdAt: new Date().toISOString(),
+      active: true,
+    };
+
+    const updated = [newShop, ...shops];
+    onSaveShops(updated);
+    setSelectedShopId(newShop.id);
+    setEditingShop(JSON.parse(JSON.stringify(newShop)));
+    showToast(`Đã tạo ${newShop.name}. Bạn có thể chỉnh sửa chi tiết ở bảng bên phải.`, 'success');
+  };
+
+  // Save changes to current shop directly from Right Panel
+  const handleSaveCurrentShop = () => {
+    if (!editingShop) return;
+
+    if (!editingShop.name.trim()) {
+      showToast('Vui lòng nhập Tên Shop', 'warning');
+      return;
+    }
+
+    // Parse multi-phone numbers
+    const rawPhones = editingShop.phone || '';
+    const parsedPhones = rawPhones
+      .split(/[,/;\s]+/)
+      .map(p => p.trim())
+      .filter(p => p.length >= 7);
+
+    const shopToSave: Shop = {
+      ...editingShop,
+      phone: rawPhones,
+      phoneList: parsedPhones.length > 0 ? parsedPhones : [rawPhones],
+    };
+
+    const index = shops.findIndex(s => s.id === shopToSave.id);
+    let updatedShops: Shop[];
+
+    if (index >= 0) {
+      updatedShops = [...shops];
+      updatedShops[index] = shopToSave;
+    } else {
+      updatedShops = [shopToSave, ...shops];
+    }
+
+    onSaveShops(updatedShops);
+    showToast(`Đã lưu thay đổi cho Shop "${shopToSave.name}"!`, 'success');
+  };
+
+  // Delete Shop
+  const handleDeleteShop = async (shopId: string, shopName: string) => {
+    if (currentUser?.role !== 'ADMIN') {
+      await showConfirm({
+        title: '🔒 Quyền Quản Trị Viên',
+        message: 'Tài khoản Kế toán / Nhân viên không có quyền xóa Shop khỏi hệ thống. Chỉ Admin mới có quyền thực hiện thao tác này.',
+        confirmText: 'Đã hiểu',
+      });
+      return;
+    }
+    const ok = await showConfirm({
+      title: 'Xoá Shop',
+      message: `Bạn có chắc chắn muốn xóa shop "${shopName}" khỏi hệ thống?`,
+      confirmText: 'Xoá',
+      danger: true,
+    });
+    if (ok) {
+      const updated = shops.filter(s => s.id !== shopId);
+      onSaveShops(updated);
+      showToast(`Đã xóa shop "${shopName}".`, 'info');
+      if (updated.length > 0) {
+        setSelectedShopId(updated[0].id);
+        setEditingShop(JSON.parse(JSON.stringify(updated[0])));
+      } else {
+        setSelectedShopId(null);
+        setEditingShop(null);
+      }
+    }
+  };
 
   // File Scanning Handler for New Shop Auto-Detection
   const handleScanExcelFileForNewShops = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +214,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       if (detected.length === 0) {
         showToast('Tất cả Shop trong file Excel đã có sẵn trong hệ thống!', 'info');
       } else {
-        showToast(`Nhận diện thành công ${detected.length} Shop mới chưa có trong hệ thống!`, 'success');
+        showToast(`Nhận diện thành công ${detected.length} Shop mới!`, 'success');
       }
     } catch (err: any) {
       showToast('Lỗi khi đọc file Excel: ' + (err.message || err), 'warning');
@@ -140,118 +267,17 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     showToast(`Đã tự động thêm ${newShopsList.length} Shop mới vào hệ thống!`, 'success');
     setIsScanModalOpen(false);
     setDetectedNewShops([]);
-  };
-
-  const filteredShops = shops.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.phone.includes(searchTerm) ||
-    s.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleOpenAddModal = () => {
-    const newShop: Shop = {
-      id: `shop_${Date.now()}`,
-      code: `SHOP_${shops.length + 1}`,
-      name: '',
-      phone: '',
-      email: '',
-      address: '',
-      bankAccount: {
-        bankName: 'MB Bank',
-        accountNumber: '',
-        accountHolder: '',
-      },
-      pricingPlan: {
-        id: `plan_${Date.now()}`,
-        name: 'Bảng giá tùy chỉnh',
-        weightRules: [
-          { minWeight: 0, maxWeight: 1, price: 25000 },
-          { minWeight: 1, maxWeight: 3, price: 30000 },
-          { minWeight: 3, maxWeight: 5, price: 35000 },
-        ],
-        extraStepWeight: 1,
-        extraStepPrice: 5000,
-        returnFeePercent: 50,
-        insuranceFeePercent: 0,
-        fixedSurcharge: 0,
-      },
-      notes: '',
-      createdAt: new Date().toISOString(),
-      active: true,
-    };
-    setEditingShop(newShop);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEditModal = (shop: Shop) => {
-    setEditingShop(JSON.parse(JSON.stringify(shop)));
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteShop = async (shopId: string, shopName: string) => {
-    if (currentUser?.role !== 'ADMIN') {
-      await showConfirm({
-        title: '🔒 Quyền Quản Trị Viên',
-        message: 'Tài khoản Kế toán / Nhân viên không có quyền xóa Shop khỏi hệ thống. Chỉ Admin mới có quyền thực hiện thao tác này.',
-        confirmText: 'Đã hiểu',
-      });
-      return;
-    }
-    const ok = await showConfirm({
-      title: 'Xoá Shop',
-      message: `Bạn có chắc chắn muốn xóa shop "${shopName}" khỏi hệ thống?`,
-      confirmText: 'Xoá',
-      danger: true,
-    });
-    if (ok) {
-      const updated = shops.filter(s => s.id !== shopId);
-      onSaveShops(updated);
+    if (newShopsList.length > 0) {
+      setSelectedShopId(newShopsList[0].id);
+      setEditingShop(JSON.parse(JSON.stringify(newShopsList[0])));
     }
   };
 
-  const handleSaveModal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingShop) return;
-
-    if (!editingShop.name.trim()) {
-      showToast('Vui lòng nhập Tên Shop', 'warning');
-      return;
-    }
-
-    // Parse multi-phone string into phone and phoneList
-    const rawPhones = editingShop.phone || '';
-    const parsedPhones = rawPhones
-      .split(/[,/;\s]+/)
-      .map(p => p.trim())
-      .filter(p => p.length >= 7);
-
-    const shopToSave: Shop = {
-      ...editingShop,
-      phone: rawPhones,
-      phoneList: parsedPhones.length > 0 ? parsedPhones : [rawPhones],
-    };
-
-    const index = shops.findIndex(s => s.id === shopToSave.id);
-    let updatedShops: Shop[];
-
-    if (index >= 0) {
-      updatedShops = [...shops];
-      updatedShops[index] = shopToSave;
-    } else {
-      updatedShops = [shopToSave, ...shops];
-    }
-
-    onSaveShops(updatedShops);
-    setIsModalOpen(false);
-    setEditingShop(null);
-  };
-
+  // Weight step rules helper
   const handleAddWeightRule = () => {
     if (!editingShop) return;
     const currentRules = editingShop.pricingPlan.weightRules;
     const lastRule = currentRules[currentRules.length - 1];
-    // Auto-suggest minWeight = previous maxWeight + 0.1, maxWeight = next round number
     const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
     const newMax = lastRule ? Math.ceil(newMin) : 1;
     const newPrice = lastRule ? lastRule.price + 5000 : 25000;
@@ -296,327 +322,345 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 16,
-      }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800 }}>Quản Lý Danh Sách Shop & Biểu Giá Riêng</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Store size={24} color="var(--primary)" />
+            Quản Lý Danh Sách Shop & Biểu Giá Riêng
+          </h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Mỗi Shop có một biểu giá cước bậc thang riêng theo cân nặng và thông tin tài khoản nhận tiền COD
+            Giao diện 2 bảng trực quan: Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết live ở bảng bên phải.
           </p>
         </div>
+      </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative', width: 280 }}>
-            <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-dim)' }} />
-            <input
-              type="text"
-              placeholder="Tìm kiếm shop, SĐT, mã..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field"
-              style={{ paddingLeft: 36 }}
-            />
+      {/* Hidden File Input for New Shop Auto-Detection */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleScanExcelFileForNewShops}
+        accept=".xlsx,.xls,.csv"
+        style={{ display: 'none' }}
+      />
+
+      {/* 🌟 2-COLUMN MASTER-DETAIL WORKSPACE */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '360px 1fr',
+        gap: 16,
+        alignItems: 'start',
+      }}>
+        
+        {/* 👈 LEFT PANEL: DANH SÁCH KHÁCH HÀNG (MASTER LIST) */}
+        <div className="glass-panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          
+          {/* Action Header */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={handleCreateNewShop}
+                className="btn btn-primary btn-sm"
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <Plus size={14} />
+                <span>+ Thêm Shop Mới</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="btn btn-secondary btn-sm"
+                disabled={isScanning}
+                style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid rgba(245, 158, 11, 0.3)' }}
+                title="Bóc tách tự động tên, SĐT, địa chỉ Shop mới từ file Excel"
+              >
+                <Zap size={14} color="var(--warning)" />
+                <span>{isScanning ? 'Đang quét...' : '⚡ Quét File'}</span>
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
+              <input
+                type="text"
+                placeholder="Tìm tên, mã shop, SĐT..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input-field"
+                style={{ padding: '6px 10px 6px 30px', fontSize: 12 }}
+              />
+            </div>
           </div>
 
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleScanExcelFileForNewShops}
-            accept=".xlsx,.xls,.csv"
-            style={{ display: 'none' }}
-          />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+            Danh Sách Shop ({filteredShops.length})
+          </div>
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn btn-secondary"
-            disabled={isScanning}
-            style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#b45309', border: '1px solid rgba(245, 158, 11, 0.3)' }}
-          >
-            <Zap size={16} color="var(--warning)" />
-            <span>{isScanning ? 'Đang Quét File...' : '⚡ Quét Shop Mới Từ File'}</span>
-          </button>
-
-          <button onClick={handleOpenAddModal} className="btn btn-primary">
-            <Plus size={16} />
-            <span>Thêm Shop Mới</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="table-container glass-panel">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Mã / Tên Shop</th>
-              <th>Liên Hệ</th>
-              <th>Biểu Giá Cước Từng Mốc</th>
-              <th>Tài Khoản Nhận COD</th>
-              <th>Ghi Chú</th>
-              <th style={{ textAlign: 'right' }}>Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody>
+          {/* Scrollable Shop List */}
+          <div style={{
+            maxHeight: 'calc(100vh - 240px)',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            paddingRight: 2,
+          }}>
             {filteredShops.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                  Không tìm thấy Shop nào phù hợp. Bấm "Thêm Shop Mới" để tạo mới.
-                </td>
-              </tr>
+              <div style={{ textAlign: 'center', padding: '30px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                Không tìm thấy Shop nào. Bấm <strong>+ Thêm Shop Mới</strong> hoặc <strong>⚡ Quét File</strong>.
+              </div>
             ) : (
-              filteredShops.map((shop) => (
-                <tr key={shop.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(99, 102, 241, 0.12)',
-                        color: 'var(--primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: 13,
-                      }}>
-                        {shop.code.slice(0, 4)}
+              filteredShops.map((shop) => {
+                const isSelected = selectedShopId === shop.id;
+                return (
+                  <div
+                    key={shop.id}
+                    onClick={() => handleSelectShop(shop)}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                      background: isSelected ? 'rgba(79, 70, 229, 0.08)' : 'var(--bg-primary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease-in-out',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 'var(--radius-sm)',
+                      background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
+                      color: isSelected ? '#fff' : 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      flexShrink: 0,
+                    }}>
+                      {shop.code.slice(0, 4)}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                        <strong style={{ fontSize: 13, color: isSelected ? 'var(--primary)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {shop.name}
+                        </strong>
+                        <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', flexShrink: 0 }}>
+                          {shop.code}
+                        </span>
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{shop.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                          Mã: <strong className="mono">{shop.code}</strong>
-                        </div>
+
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Phone size={10} />
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {shop.phone || 'Chưa có SĐT'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        📍 {shop.address || 'Toàn quốc'}
                       </div>
                     </div>
-                  </td>
-
-                  <td>
-                    <div style={{ fontSize: 13 }}>
-                      <strong>{shop.phone}</strong>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{shop.email || 'Chưa có email'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {shop.address || 'Toàn quốc'}
-                    </div>
-                  </td>
-
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {shop.pricingPlan.weightRules.map((rule, rIdx) => (
-                          <span key={rIdx} className="badge badge-neutral" style={{ fontSize: 11 }}>
-                            {rule.minWeight}-{rule.maxWeight}kg: <strong style={{ color: 'var(--primary)', marginLeft: 3 }}>{new Intl.NumberFormat('vi-VN').format(rule.price)}đ</strong>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                        Vượt cân: +{new Intl.NumberFormat('vi-VN').format(shop.pricingPlan.extraStepPrice)}đ / {shop.pricingPlan.extraStepWeight}kg • Hoàn {shop.pricingPlan.returnFeePercent}%
-                      </div>
-                    </div>
-                  </td>
-
-                  <td>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{shop.bankAccount.bankName}</div>
-                    <div className="mono" style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 700 }}>
-                      {shop.bankAccount.accountNumber}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                      {shop.bankAccount.accountHolder}
-                    </div>
-                  </td>
-
-                  <td>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {shop.notes || '—'}
-                    </span>
-                  </td>
-
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <button
-                        onClick={() => setViewingShop(shop)}
-                        className="btn btn-secondary btn-sm"
-                        title="Xem chi tiết thông tin shop & mã VietQR"
-                      >
-                        <Eye size={14} color="var(--primary)" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditModal(shop)}
-                        className="btn btn-secondary btn-sm"
-                        title="Chỉnh sửa thông tin & biểu giá"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteShop(shop.id, shop.name)}
-                        className="btn btn-danger btn-sm"
-                        title="Xóa shop"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                  </div>
+                );
+              })
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
 
-      {isModalOpen && editingShop && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div 
-            className="modal-content" 
-            style={{ maxWidth: 850, maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <div style={{
-                padding: '18px 24px',
-                borderBottom: '1px solid var(--border-color)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--bg-tertiary)',
-                flexShrink: 0,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Store size={20} color="var(--primary)" />
-                  <h3 style={{ fontSize: 17, fontWeight: 700 }}>
-                    {editingShop.name ? `Cấu hình: ${editingShop.name}` : 'Thêm Khách Hàng (Shop) Mới'}
-                  </h3>
+        {/* 👉 RIGHT PANEL: BẢNG CHI TIẾT & SỬA TRỰC TIẾP (LIVE REVIEW & EDITOR) */}
+        {editingShop ? (
+          <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            
+            {/* Top Toolbar Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingBottom: 14,
+              borderBottom: '1px solid var(--border-color)',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 16,
+                }}>
+                  {editingShop.code.slice(0, 4)}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '4px 6px' }}
-                >
-                  <X size={16} />
-                </button>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Mã Shop: <strong className="mono" style={{ color: 'var(--primary)' }}>{editingShop.code}</strong>
+                  </div>
+                </div>
               </div>
 
-              <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
-                
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Store size={16} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteShop(editingShop.id, editingShop.name)}
+                  className="btn btn-danger btn-sm"
+                  style={{ padding: '6px 12px' }}
+                >
+                  <Trash2 size={14} />
+                  <span>Xóa Shop</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCurrentShop}
+                  className="btn btn-primary"
+                  style={{ padding: '6px 16px' }}
+                >
+                  <Save size={16} />
+                  <span>Lưu Thay Đổi</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 1: Thông tin cơ bản */}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Store size={15} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                <div className="input-group">
+                  <label className="input-label">Tên Shop / Thương hiệu (*)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Shop Thời Trang Mina"
+                    value={editingShop.name}
+                    onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
+                    className="input-field"
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                  <div className="input-group">
-                    <label className="input-label">Tên Shop / Thương hiệu (*)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ví dụ: Shop Thời Trang Mina"
-                      value={editingShop.name}
-                      onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Mã Shop (Duy nhất)</label>
-                    <input
-                      type="text"
-                      placeholder="SHOP_A, MINA..."
-                      value={editingShop.code}
-                      onChange={(e) => setEditingShop({ ...editingShop, code: e.target.value.toUpperCase() })}
-                      className="input-field"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Số điện thoại gửi (*)</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400 }}>Có thể nhập nhiều SĐT cách nhau bằng dấu phẩy "," hoặc "/"</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="VD: 0912345678, 0987654321, 0909123456..."
-                      value={editingShop.phone}
-                      onChange={(e) => setEditingShop({ ...editingShop, phone: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Email nhận đối soát (*)</label>
-                    <input
-                      type="email"
-                      placeholder="shop@gmail.com"
-                      value={editingShop.email}
-                      onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Cộng Tác Viên (CTV) Quản Lý</label>
-                    <select
-                      value={editingShop.ctvId || ''}
-                      onChange={(e) => {
-                        const selectedCtvId = e.target.value;
-                        const ctvs = StorageService.getCtvs();
-                        const foundCtv = ctvs.find(c => c.id === selectedCtvId);
-                        setEditingShop({
-                          ...editingShop,
-                          ctvId: selectedCtvId,
-                          ctvName: foundCtv ? foundCtv.name : '',
-                        });
-                      }}
-                      className="input-field"
-                    >
-                      <option value="">-- Không phân công CTV --</option>
-                      {StorageService.getCtvs().map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} - {c.name} ({c.phone})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="input-group">
+                  <label className="input-label">Mã Shop (Duy nhất)</label>
+                  <input
+                    type="text"
+                    placeholder="SHOP_A, MINA..."
+                    value={editingShop.code}
+                    onChange={(e) => setEditingShop({ ...editingShop, code: e.target.value.toUpperCase() })}
+                    className="input-field"
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                  <div className="input-group">
-                    <label className="input-label">Địa chỉ kho gửi hàng</label>
-                    <input
-                      type="text"
-                      placeholder="Số 123 đường ABC, Quận XYZ, Hà Nội"
-                      value={editingShop.address}
-                      onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Công nợ cũ còn tồn (-/+ VNĐ)</label>
-                    <input
-                      type="number"
-                      placeholder="0 (Ví dụ: -500000 nếu Shop nợ, +200000 nếu dư nợ)"
-                      value={editingShop.previousDebt ?? ''}
-                      onChange={(e) => setEditingShop({ ...editingShop, previousDebt: e.target.value === '' ? undefined : Number(e.target.value) })}
-                      className="input-field"
-                    />
-                  </div>
+                <div className="input-group">
+                  <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Số điện thoại gửi (*)</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Nhập nhiều SĐT cách dấu phẩy ","</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: 0912345678, 0987654321..."
+                    value={editingShop.phone}
+                    onChange={(e) => setEditingShop({ ...editingShop, phone: e.target.value })}
+                    className="input-field"
+                  />
                 </div>
 
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                  <CreditCard size={16} /> 2. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD
+                <div className="input-group">
+                  <label className="input-label">Email nhận đối soát (*)</label>
+                  <input
+                    type="email"
+                    placeholder="shop@gmail.com"
+                    value={editingShop.email}
+                    onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
+                    className="input-field"
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <div className="input-group">
+                  <label className="input-label">Cộng Tác Viên (CTV) Quản Lý</label>
+                  <select
+                    value={editingShop.ctvId || ''}
+                    onChange={(e) => {
+                      const selectedCtvId = e.target.value;
+                      const ctvs = StorageService.getCtvs();
+                      const foundCtv = ctvs.find(c => c.id === selectedCtvId);
+                      setEditingShop({
+                        ...editingShop,
+                        ctvId: selectedCtvId,
+                        ctvName: foundCtv ? foundCtv.name : '',
+                      });
+                    }}
+                    className="input-field"
+                  >
+                    <option value="">-- Không phân công CTV --</option>
+                    {StorageService.getCtvs().map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} - {c.name} ({c.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Công nợ cũ còn tồn (-/+ VNĐ)</label>
+                  <input
+                    type="number"
+                    placeholder="0 (-500000 nếu Shop nợ)"
+                    value={editingShop.previousDebt ?? ''}
+                    onChange={(e) => setEditingShop({ ...editingShop, previousDebt: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group" style={{ marginTop: 10 }}>
+                <label className="input-label">Địa chỉ kho gửi hàng</label>
+                <input
+                  type="text"
+                  placeholder="Số 123 đường ABC, Quận XYZ, Hà Nội"
+                  value={editingShop.address}
+                  onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+            </div>
+
+            {/* Section 2: Tài khoản ngân hàng & VietQR Code Preview */}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <CreditCard size={15} /> 2. THÔNG TIN TÀI KHOẢN NGÂN HÀNG NHẬN COD & MÃ VIETQR LIVE
+              </div>
+
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(79, 70, 229, 0.05) 100%)',
+                padding: 16,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                display: 'grid',
+                gridTemplateColumns: '1fr 140px',
+                gap: 16,
+                alignItems: 'center',
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                   <div className="input-group">
-                    <label className="input-label">Ngân hàng</label>
+                    <label className="input-label">Tên Ngân hàng</label>
                     <select
                       value={editingShop.bankAccount.bankName}
                       onChange={(e) => setEditingShop({
@@ -641,7 +685,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         ...editingShop,
                         bankAccount: { ...editingShop.bankAccount, accountNumber: e.target.value }
                       })}
-                      className="input-field"
+                      className="input-field mono"
                     />
                   </div>
 
@@ -660,392 +704,257 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                   </div>
                 </div>
 
-                <div style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: 10,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sliders size={16} /> 3. BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddWeightRule}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    <Plus size={14} />
-                    <span>Thêm Nấc Cân Nặng</span>
-                  </button>
-                </div>
-
-                <div style={{
-                  background: 'var(--bg-primary)',
-                  padding: 16,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-color)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}>
-                  {editingShop.pricingPlan.weightRules.map((rule, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 140, fontSize: 13, fontWeight: 600 }}>
-                        {idx === 0 ? `Từ 0 đến` : `Từ ${rule.minWeight} đến`}
-                      </div>
-                      <div style={{ width: 110 }}>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.1"
-                          value={rule.maxWeight}
-                          onChange={(e) => handleWeightRuleChange(idx, 'maxWeight', parseFloat(e.target.value) || 1)}
-                          className="input-field"
-                          style={{ padding: '6px 10px' }}
-                        />
-                      </div>
-                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>kg:</span>
-                      
-                      <div style={{ flex: 1 }}>
-                        <input
-                          type="number"
-                          step="500"
-                          value={rule.price}
-                          onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value) || 0)}
-                          className="input-field"
-                          style={{ padding: '6px 10px' }}
-                        />
-                      </div>
-                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>VNĐ</span>
-
-                      {editingShop.pricingPlan.weightRules.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveWeightRule(idx)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '6px 8px' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                {/* Live VietQR Preview */}
+                <div style={{ textAlign: 'center' }}>
+                  {editingShop.bankAccount?.accountNumber ? (
+                    <>
+                      <img
+                        src={`https://img.vietqr.io/image/${editingShop.bankAccount.bankName.replace(/\s+/g, '')}-${editingShop.bankAccount.accountNumber}-compact.png?addInfo=Doi%20soat%20shop%20${editingShop.code}&accountName=${encodeURIComponent(editingShop.bankAccount.accountHolder || editingShop.name)}`}
+                        alt="VietQR Code"
+                        style={{ width: 110, height: 110, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: '#fff', padding: 4 }}
+                      />
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Mã VietQR Chuyển Khoản</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                      Gõ STK để xem VietQR Live
                     </div>
-                  ))}
-
-                  <div style={{
-                    marginTop: 10,
-                    paddingTop: 10,
-                    borderTop: '1px solid var(--border-color)',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: 12,
-                  }}>
-                    <div>
-                      <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Vượt cân: Mỗi thêm</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={editingShop.pricingPlan.extraStepWeight}
-                          onChange={(e) => setEditingShop({
-                            ...editingShop,
-                            pricingPlan: { ...editingShop.pricingPlan, extraStepWeight: parseFloat(e.target.value) || 1 }
-                          })}
-                          className="input-field"
-                          style={{ padding: '6px 10px' }}
-                        />
-                        <span style={{ fontSize: 12 }}>kg</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước cộng thêm</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <input
-                          type="number"
-                          step="500"
-                          value={editingShop.pricingPlan.extraStepPrice}
-                          onChange={(e) => setEditingShop({
-                            ...editingShop,
-                            pricingPlan: { ...editingShop.pricingPlan, extraStepPrice: parseInt(e.target.value) || 0 }
-                          })}
-                          className="input-field"
-                          style={{ padding: '6px 10px' }}
-                        />
-                        <span style={{ fontSize: 12 }}>đ</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={editingShop.pricingPlan.returnFeePercent}
-                          onChange={(e) => setEditingShop({
-                            ...editingShop,
-                            pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value) || 0 }
-                          })}
-                          className="input-field"
-                          style={{ padding: '6px 10px', width: 70 }}
-                        />
-                        <span style={{ fontSize: 12 }}>%</span>
-                        
-                        {/* Quick Presets */}
-                        <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-                          <button
-                            type="button"
-                            onClick={() => setEditingShop({
-                              ...editingShop,
-                              pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 0 }
-                            })}
-                            className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 0 ? 'btn-success' : 'btn-secondary'}`}
-                            style={{ padding: '3px 6px', fontSize: 11 }}
-                          >
-                            Miễn hoàn (0%)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingShop({
-                              ...editingShop,
-                              pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 50 }
-                            })}
-                            className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 50 ? 'btn-primary' : 'btn-secondary'}`}
-                            style={{ padding: '3px 6px', fontSize: 11 }}
-                          >
-                            50%
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{
-                  background: 'rgba(99, 102, 241, 0.08)',
-                  padding: 14,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px dashed var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calculator size={18} color="var(--primary)" />
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>Thử tính cước với cân nặng:</span>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      value={testWeight}
-                      onChange={(e) => setTestWeight(parseFloat(e.target.value) || 0.1)}
-                      className="input-field"
-                      style={{ width: 80, padding: '4px 8px', fontSize: 13 }}
-                    />
-                    <span style={{ fontSize: 13 }}>kg</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Cước tính ra:</span>
-                    <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>
-                      {new Intl.NumberFormat('vi-VN').format(calculateWeightFee(testWeight, editingShop.pricingPlan))} đ
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-
-              <div style={{
-                padding: '16px 24px',
-                borderTop: '1px solid var(--border-color)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                gap: 12,
-                background: 'var(--bg-tertiary)',
-                flexShrink: 0,
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn btn-secondary"
-                >
-                  Hủy Bỏ
-                </button>
-
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} />
-                  <span>Lưu Cấu Hình Shop</span>
-                </button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 MODAL 1: XEM CHI TIẾT SHOP */}
-      {viewingShop && (
-        <div className="modal-overlay" onClick={() => setViewingShop(null)}>
-          <div
-            className="modal-content"
-            style={{ maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{
-              padding: '18px 24px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 16,
-                }}>
-                  {viewingShop.code.slice(0, 4)}
-                </div>
-                <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>{viewingShop.name}</h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Mã Shop: <strong className="mono" style={{ color: 'var(--primary)' }}>{viewingShop.code}</strong> • Ngày tạo: {new Date(viewingShop.createdAt).toLocaleDateString('vi-VN')}
-                  </div>
+                  )}
                 </div>
               </div>
-
-              <button type="button" onClick={() => setViewingShop(null)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
-                <X size={16} />
-              </button>
             </div>
 
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Section 1: Contact & Branch Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Phone size={13} /> Số Điện Thoại
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>{viewingShop.phone}</div>
-                </div>
-
-                <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Mail size={13} /> Email Đối Soát
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>{viewingShop.email || 'Chưa cập nhật'}</div>
-                </div>
-
-                <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <UserCheck size={13} /> CTV Quản Lý
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>{viewingShop.ctvName || 'Chưa phân công'}</div>
-                </div>
-              </div>
-
-              {/* Address */}
-              <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <MapPin size={13} /> Địa Chỉ Kho Hàng
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--text-main)' }}>{viewingShop.address || 'Toàn quốc'}</div>
-              </div>
-
-              {/* Bank Account & VietQR Code Preview */}
+            {/* Section 3: Biểu giá cước bậc thang */}
+            <div>
               <div style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(79, 70, 229, 0.06) 100%)',
-                padding: 16,
-                borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--success)',
+                fontSize: 13,
+                fontWeight: 800,
+                color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 16,
+                marginBottom: 10,
               }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <CreditCard size={15} /> Tài Khoản Ngân Hàng Nhận COD (VietQR Ready)
-                  </div>
-                  {viewingShop.bankAccount?.bankName ? (
-                    <>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>
-                        {viewingShop.bankAccount.bankName} • <span className="mono">{viewingShop.bankAccount.accountNumber}</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Chủ tài khoản: <strong>{viewingShop.bankAccount.accountHolder}</strong>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 13, color: 'var(--danger)' }}>⚠️ Chưa cập nhật tài khoản ngân hàng</div>
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Sliders size={15} /> 3. BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG
                 </div>
-
-                {viewingShop.bankAccount?.accountNumber && (
-                  <div style={{ textAlign: 'center' }}>
-                    <img
-                      src={`https://img.vietqr.io/image/${viewingShop.bankAccount.bankName.replace(/\s+/g, '')}-${viewingShop.bankAccount.accountNumber}-compact.png?addInfo=Doi%20soat%20shop%20${viewingShop.code}&accountName=${encodeURIComponent(viewingShop.bankAccount.accountHolder)}`}
-                      alt="VietQR Code"
-                      style={{ width: 110, height: 110, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: '#fff', padding: 4 }}
-                    />
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Quét chuyển khoản nhanh</div>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={handleAddWeightRule}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '3px 8px' }}
+                >
+                  <Plus size={13} />
+                  <span>Thêm Nấc Cân Nặng</span>
+                </button>
               </div>
 
-              {/* Pricing Plan */}
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Sliders size={15} /> Biểu Giá Cước Bậc Thang
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {viewingShop.pricingPlan.weightRules.map((rule, idx) => (
-                    <div key={idx} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12 }}>
-                      Nấc {idx + 1} ({rule.minWeight}-{rule.maxWeight}kg): <strong style={{ color: 'var(--primary)', marginLeft: 4 }}>{new Intl.NumberFormat('vi-VN').format(rule.price)} đ</strong>
+              <div style={{
+                background: 'var(--bg-primary)',
+                padding: 14,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                {editingShop.pricingPlan.weightRules.map((rule, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 120, fontSize: 12, fontWeight: 600 }}>
+                      {idx === 0 ? `Từ 0 đến` : `Từ ${rule.minWeight} đến`}
                     </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Vượt cân: <strong>+{new Intl.NumberFormat('vi-VN').format(viewingShop.pricingPlan.extraStepPrice)}đ</strong> / {viewingShop.pricingPlan.extraStepWeight}kg • Tỷ lệ phí hoàn: <strong>{viewingShop.pricingPlan.returnFeePercent}%</strong>
+                    <div style={{ width: 90 }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        value={rule.maxWeight}
+                        onChange={(e) => handleWeightRuleChange(idx, 'maxWeight', parseFloat(e.target.value) || 1)}
+                        className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
+                    
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="number"
+                        step="500"
+                        value={rule.price}
+                        onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value) || 0)}
+                        className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
+
+                    {editingShop.pricingPlan.weightRules.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWeightRule(idx)}
+                        className="btn btn-danger btn-sm"
+                        style={{ padding: '4px 6px' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                <div style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px solid var(--border-color)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 10,
+                }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vượt cân: Mỗi thêm</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editingShop.pricingPlan.extraStepWeight}
+                        onChange={(e) => setEditingShop({
+                          ...editingShop,
+                          pricingPlan: { ...editingShop.pricingPlan, extraStepWeight: parseFloat(e.target.value) || 1 }
+                        })}
+                        className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
+                      />
+                      <span style={{ fontSize: 11 }}>kg</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước cộng thêm</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <input
+                        type="number"
+                        step="500"
+                        value={editingShop.pricingPlan.extraStepPrice}
+                        onChange={(e) => setEditingShop({
+                          ...editingShop,
+                          pricingPlan: { ...editingShop.pricingPlan, extraStepPrice: parseInt(e.target.value) || 0 }
+                        })}
+                        className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
+                      />
+                      <span style={{ fontSize: 11 }}>đ</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editingShop.pricingPlan.returnFeePercent}
+                        onChange={(e) => setEditingShop({
+                          ...editingShop,
+                          pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value) || 0 }
+                        })}
+                        className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12, width: 60 }}
+                      />
+                      <span style={{ fontSize: 11 }}>%</span>
+                      
+                      <div style={{ display: 'flex', gap: 2, marginLeft: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingShop({
+                            ...editingShop,
+                            pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 0 }
+                          })}
+                          className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 0 ? 'btn-success' : 'btn-secondary'}`}
+                          style={{ padding: '2px 5px', fontSize: 10 }}
+                        >
+                          0%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingShop({
+                            ...editingShop,
+                            pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 50 }
+                          })}
+                          className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 50 ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ padding: '2px 5px', fontSize: 10 }}
+                        >
+                          50%
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div style={{ padding: '12px 24px', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" onClick={() => { const shop = viewingShop; setViewingShop(null); handleOpenEditModal(shop); }} className="btn btn-primary btn-sm">
-                <Edit size={14} /> Chỉnh Sửa Shop
-              </button>
-              <button type="button" onClick={() => setViewingShop(null)} className="btn btn-secondary btn-sm">
-                Đóng
+            {/* Section 4: Live Weight Calculator */}
+            <div style={{
+              background: 'rgba(79, 70, 229, 0.06)',
+              padding: 12,
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Calculator size={16} color="var(--primary)" />
+                <span style={{ fontSize: 12, fontWeight: 600 }}>Thử tính cước với cân nặng:</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={testWeight}
+                  onChange={(e) => setTestWeight(parseFloat(e.target.value) || 0.1)}
+                  className="input-field"
+                  style={{ width: 70, padding: '3px 6px', fontSize: 12 }}
+                />
+                <span style={{ fontSize: 12 }}>kg</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước tính ra:</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
+                  {new Intl.NumberFormat('vi-VN').format(calculateWeightFee(testWeight, editingShop.pricingPlan))} đ
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom Floating Save Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 10, borderTop: '1px solid var(--border-color)' }}>
+              <button
+                type="button"
+                onClick={handleSaveCurrentShop}
+                className="btn btn-primary"
+                style={{ padding: '8px 24px', fontSize: 13 }}
+              >
+                <Save size={16} />
+                <span>Lưu Tất Cả Thay Đổi</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* 🌟 MODAL 2: QUÉT & ĐĂNG KÝ SHOP MỚI TỰ ĐỘNG TỪ FILE EXCEL */}
+          </div>
+        ) : (
+          <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+            Vui lòng chọn 1 Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết.
+          </div>
+        )}
+
+      </div>
+
+      {/* 🌟 MODAL: QUÉT & ĐĂNG KÝ SHOP MỚI TỰ ĐỘNG TỪ FILE EXCEL */}
       {isScanModalOpen && (
         <div className="modal-overlay" onClick={() => setIsScanModalOpen(false)}>
           <div
             className="modal-content"
-            style={{ maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}
+            style={{ maxWidth: 780, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{
@@ -1059,13 +968,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Zap size={22} color="var(--warning)" />
                 <div>
-                  <h3 style={{ fontSize: 17, fontWeight: 800 }}>Kết Quả Nhận Diện Shop Mới Từ File</h3>
+                  <h3 style={{ fontSize: 17, fontWeight: 800 }}>Kết Quả Nhận Diện Shop Mới</h3>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Phát hiện <strong style={{ color: 'var(--primary)' }}>{detectedNewShops.length} Shop mới</strong> chưa có trong hệ thống
+                    Phát hiện <strong style={{ color: 'var(--primary)' }}>{detectedNewShops.length} Shop mới</strong>
                   </div>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsScanModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
+              <button type="button" onClick={() => setIsScanModalOpen(false)} className="btn btn-secondary btn-sm">
                 <X size={16} />
               </button>
             </div>
@@ -1077,8 +986,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-main)', background: 'rgba(245, 158, 11, 0.08)', border: '1px dashed var(--warning)', padding: '8px 12px', borderRadius: 'var(--radius-md)' }}>
-                    ⚡ <strong>Thông tin từ File Excel:</strong> Hệ thống tự động bóc tách <strong>Tên người gửi, SĐT người gửi, Địa chỉ kho gửi</strong>. Bạn có thể nhập bổ sung Email và STK Ngân hàng trực tiếp bên dưới (hoặc bấm Đăng Ký ngay và bổ sung sau trong Quản Lý Shop).
+                  <div style={{ fontSize: 12, color: 'var(--text-main)', background: 'rgba(245, 158, 11, 0.08)', border: '1px dashed var(--warning)', padding: '8px 12px', borderRadius: 'var(--radius-md)' }}>
+                    ⚡ <strong>Thông tin từ File Excel:</strong> Hệ thống tự động bóc tách <strong>Tên người gửi, SĐT người gửi, Địa chỉ kho gửi</strong>. Bạn có thể nhập bổ sung Email và STK Ngân hàng trực tiếp bên dưới.
                   </div>
 
                   <table className="data-table">
@@ -1087,9 +996,9 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         <th>STT</th>
                         <th>Tên & SĐT Người Gửi (Quét File)</th>
                         <th>Địa Chỉ Gửi</th>
-                        <th>Email Nhận Đối Soát (Gõ bổ sung)</th>
-                        <th>Ngân Hàng & Số Tài Khoản (Gõ bổ sung)</th>
-                        <th>Số Đơn File</th>
+                        <th>Email Đối Soát</th>
+                        <th>Ngân Hàng & STK</th>
+                        <th>Số Đơn</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1097,11 +1006,11 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         <tr key={idx}>
                           <td>{idx + 1}</td>
                           <td>
-                            <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{item.name}</strong>
+                            <strong style={{ color: 'var(--text-main)', fontSize: 12 }}>{item.name}</strong>
                             <div style={{ fontSize: 11, color: 'var(--primary)' }}>SĐT: <strong>{item.phone || 'Chưa có'}</strong></div>
                             <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>Mã: <span className="mono">{item.code}</span></div>
                           </td>
-                          <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.address || 'Toàn quốc'}
                           </td>
                           <td>
@@ -1115,7 +1024,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                                 setDetectedNewShops(updated);
                               }}
                               className="input-field"
-                              style={{ padding: '3px 6px', fontSize: 11, width: 140 }}
+                              style={{ padding: '3px 6px', fontSize: 11, width: 130 }}
                             />
                           </td>
                           <td>
@@ -1136,7 +1045,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                               </select>
                               <input
                                 type="text"
-                                placeholder="Số tài khoản..."
+                                placeholder="STK..."
                                 value={item.accountNumber || ''}
                                 onChange={(e) => {
                                   const updated = [...detectedNewShops];
@@ -1148,7 +1057,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                               />
                             </div>
                           </td>
-                          <td className="mono" style={{ fontWeight: 700, fontSize: 12 }}>
+                          <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>
                             {item.orderCount} đơn
                             <div style={{ fontSize: 10, color: 'var(--success)' }}>
                               {new Intl.NumberFormat('vi-VN').format(item.totalCod)} đ
