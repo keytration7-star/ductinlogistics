@@ -73,18 +73,49 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   // Helper format currency
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
-  // Helper carrier detector
-  const detectCarrierName = (filename: string, waybill: string): string => {
-    const f = filename.toUpperCase();
-    const w = waybill.toUpperCase();
+  // Helper carrier detector using Real Historical Session Data & Row Metadata (No hardcoded rules)
+  const detectCarrierFromHistoryOrMetadata = (
+    trackingCode: string, 
+    fileName: string, 
+    row: Record<string, any>
+  ): string => {
+    const cleanCode = (trackingCode || '').trim().toUpperCase();
 
-    if (f.includes('GHN') || w.startsWith('GHN') || w.startsWith('LKB')) return 'GHN';
-    if (f.includes('J&T') || f.includes('JT') || w.startsWith('88') || w.startsWith('84')) return 'J&T Express';
-    if (f.includes('SPX') || f.includes('SHOPEE') || w.startsWith('SPX')) return 'SPX (Shopee Express)';
-    if (f.includes('VTP') || f.includes('VIETTEL') || w.startsWith('VTP')) return 'ViettelPost';
-    if (f.includes('GHTK') || w.startsWith('GHTK')) return 'GHTK';
-    if (f.includes('BEST') || w.startsWith('BEST')) return 'Best Express';
-    return 'Hãng Khác';
+    // 1. Check Real Historical Saved Sessions Data in System
+    if (cleanCode && sessions && sessions.length > 0) {
+      for (const sess of sessions) {
+        if (sess.statements) {
+          for (const stmt of sess.statements) {
+            if (stmt.orders) {
+              const matchedOrd = stmt.orders.find(o => o.waybill && o.waybill.trim().toUpperCase() === cleanCode);
+              if (matchedOrd && (matchedOrd.carrierId || sess.carrierName)) {
+                return sess.carrierName || matchedOrd.carrierId;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Check Row Metadata column (Cột Hãng Vận Chuyển trong file)
+    const rowCarrier = String(
+      row['Hãng vận chuyển'] || row['NVC'] || row['Đơn vị vận chuyển'] || row['Carrier'] || row['Nha_Van_Chuyen'] || ''
+    ).trim();
+
+    if (rowCarrier && rowCarrier.length > 1) {
+      return rowCarrier;
+    }
+
+    // 3. Extract from filename if filename specifies carrier
+    const fUpper = fileName.toUpperCase();
+    if (fUpper.includes('GHN')) return 'GHN';
+    if (fUpper.includes('J&T') || fUpper.includes('JT')) return 'J&T Express';
+    if (fUpper.includes('SPX') || fUpper.includes('SHOPEE')) return 'SPX (Shopee Express)';
+    if (fUpper.includes('VTP') || fUpper.includes('VIETTEL')) return 'ViettelPost';
+    if (fUpper.includes('GHTK')) return 'GHTK';
+    if (fUpper.includes('BEST')) return 'Best Express';
+
+    return 'Hãng Vận Chuyển';
   };
 
   // Handle NVC Files Upload
@@ -252,7 +283,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
             extractedOrders.push({
               id: `audit_${i}_${idx}_${Date.now()}`,
               trackingCode,
-              carrierName: detectCarrierName(file.name, trackingCode),
+              carrierName: detectCarrierFromHistoryOrMetadata(trackingCode, file.name, row),
               fileName: file.name,
               periodName: customPeriod,
               shopCode: matchedShop ? matchedShop.code : (shopCodeRaw || 'SHOP_NEW'),
