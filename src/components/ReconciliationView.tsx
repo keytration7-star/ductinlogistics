@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { generateSmartSessionName } from '../utils/periodUtils';
 import { 
-  UploadCloud, 
   FileSpreadsheet, 
   CheckCircle2, 
   AlertTriangle, 
@@ -587,50 +586,56 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* 2-File Upload Dropzones */}
       <div className="glass-panel" style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-              <UploadCloud size={22} color="var(--primary)" />
-              Bộ Xử Lý & Khớp Nối File Excel Đối Soát
-            </h2>
+        {/* Compact Mode Selector & Period Name Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+          background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(241, 245, 249, 0.7) 100%)',
+          padding: '10px 16px',
+          borderRadius: 12,
+          border: '1.5px solid rgba(226, 232, 240, 0.9)',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          {/* Mode Selector Toggle Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              ⚙️ CHẾ ĐỘ NHẬP FILE:
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setReconcileMode('2files')}
+                className={`btn btn-sm ${reconcileMode === '2files' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: 12, padding: '5px 12px', fontWeight: reconcileMode === '2files' ? 700 : 500 }}
+              >
+                📄📄 2 File (NVC + App - Vd: J&T)
+              </button>
+              <button
+                type="button"
+                onClick={() => setReconcileMode('1file')}
+                className={`btn btn-sm ${reconcileMode === '1file' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: 12, padding: '5px 12px', fontWeight: reconcileMode === '1file' ? 700 : 500 }}
+              >
+                📄 1 File Duy Nhất (Vd: GHN / GHTK)
+              </button>
+            </div>
           </div>
 
+          {/* Period Name Input */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>Tên Kỳ Đối Soát:</label>
+            <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>Tên Kỳ Đối Soát:</label>
             <input
               type="text"
               value={sessionPeriodName}
               onChange={(e) => setSessionPeriodName(e.target.value)}
               className="input-field"
-              style={{ padding: '6px 12px', fontSize: 13, width: 260 }}
+              placeholder="Nhập tên kỳ đối soát..."
+              style={{ padding: '5px 12px', fontSize: 12, width: 280, fontWeight: 700, color: 'var(--primary)' }}
             />
           </div>
-        </div>
-
-        {/* Mode Selector Toggle: 1-File Mode (GHN/GHTK) vs 2-Files Mode (J&T) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, background: 'var(--bg-tertiary)', padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>⚙️ CHẾ ĐỘ NHẬP FILE:</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => setReconcileMode('2files')}
-              className={`btn btn-sm ${reconcileMode === '2files' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontWeight: reconcileMode === '2files' ? 700 : 400 }}
-            >
-              📄📄 Chế Độ 2 File (NVC + App - Vd: J&T)
-            </button>
-            <button
-              type="button"
-              onClick={() => setReconcileMode('1file')}
-              className={`btn btn-sm ${reconcileMode === '1file' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontWeight: reconcileMode === '1file' ? 700 : 400 }}
-            >
-              📄 Chế Độ 1 File Duy Nhất (Vd: GHN / GHTK)
-            </button>
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto' }}>
-            {reconcileMode === '1file' ? 'Chế độ 1 File: Tự phân tách shop theo Tên cửa hàng / SĐT có sẵn trong file' : 'Chế độ 2 File: Ghép file NVC và file App theo Mã vận đơn'}
-          </span>
         </div>
 
         {/* CARRIER CARDS SELECTOR */}
