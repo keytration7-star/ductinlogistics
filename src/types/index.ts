@@ -18,6 +18,38 @@ export interface WeightStepRule {
   price: number;     // e.g. 25000 VND
 }
 
+export interface CtvCommissionRule {
+  minWeight: number;
+  maxWeight: number;
+  commissionPrice: number;
+}
+
+export interface CtvProfile {
+  id: string;
+  code: string;
+  name: string;
+  phone: string;
+  email?: string;
+  notes?: string;
+  commissionRules: CtvCommissionRule[];
+  extraWeightStep: number;  // kg
+  extraWeightPrice: number; // VND
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CtvReportItem {
+  ctvId: string;
+  ctvCode: string;
+  ctvName: string;
+  totalOrders: number;
+  totalDelivered: number;
+  totalReturned: number;
+  totalWeight: number;
+  totalCommission: number;
+  orders: ReconciledOrder[];
+}
+
 export interface ShopPricingPlan {
   id: string;
   name: string;
@@ -28,6 +60,8 @@ export interface ShopPricingPlan {
   extraStepPrice: number;  // e.g. +5000 VND
   returnFeePercent: number; // e.g. 50% of shipping fee or 0%
   insuranceFeePercent: number; // e.g. 0.5% of COD
+  declaredFeePercent?: number; // e.g. 0.5% of declared value
+  partialDeliveryFee?: number; // e.g. 15000 VND per partial order (GH1P)
   fixedSurcharge: number;  // e.g. 0 VND or 3000 VND
 }
 
@@ -36,11 +70,14 @@ export interface Shop {
   code: string; // e.g. "SHOP_A", "SHOP_MINA"
   name: string; // e.g. "Shop Thời Trang Mina"
   phone: string;
+  phoneList?: string[]; // Multiple SĐT for exact matching
   email: string;
   address: string;
   bankAccount: BankAccount;
   pricingPlan: ShopPricingPlan;
   previousDebt?: number; // Công nợ cũ còn tồn (-/+)
+  ctvId?: string;        // ID Cộng tác viên phụ trách shop
+  ctvName?: string;      // Tên Cộng tác viên phụ trách shop
   notes?: string;
   createdAt: string;
   active: boolean;
@@ -88,6 +125,7 @@ export interface ColumnMappingConfig {
   receiverDistrictColumn?: string;
   productNameColumn?: string;
   orderNoteColumn?: string;
+  declaredValueColumn?: string; // Giá trị khai giá
   customColumns?: CustomColumnMapping[];
 }
 
@@ -130,6 +168,12 @@ export interface ReconciledOrder {
   statusText: string;           // Text gốc từ file NVC
   matched: boolean;             // Khớp được với shop hay chưa
   matchError?: string;          // Lý do không khớp
+  isPartialDelivery?: boolean;  // Đơn GH1P (Giao hàng 1 phần)
+  declaredValue?: number;       // Giá trị khai giá
+  declaredFee?: number;         // Phí khai giá tính cho shop
+  ctvId?: string;               // ID CTV phụ trách
+  ctvName?: string;             // Tên CTV
+  ctvCommission?: number;       // Tiền hoa hồng CTV được hưởng trên đơn này
   rawNvcData?: Record<string, any>;
   rawAppData?: Record<string, any>;
 }
@@ -165,6 +209,7 @@ export interface ShopSettlementStatement {
   deliveredOrders: number;
   returnedOrders: number;
   inTransitOrders: number;
+  partialOrders?: number;       // Số đơn GH1P (Giao 1 phần)
   totalCod: number;
   totalShopFee: number;
   totalShopOtherFee: number;
@@ -172,6 +217,11 @@ export interface ShopSettlementStatement {
   previousDebt?: number;         // Công nợ cũ chưa thanh toán từ các kỳ trước (-/+)
   totalNvcCost: number;         // Tổng chi phí trả NVC cho các đơn của shop này
   totalProfit: number;          // Tổng tiền lãi của nhà gom từ shop này
+  totalDeliveredCod?: number;   // Tổng COD đơn giao thành công
+  totalDeliveredFee?: number;   // Tổng cước đơn giao thành công
+  totalReturnedFee?: number;    // Tổng phí đơn hoàn
+  totalPartialCod?: number;     // Tổng COD đơn GH1P
+  totalPartialFee?: number;     // Tổng phí đơn GH1P
   orders: ReconciledOrder[];
   emailStatus: 'idle' | 'queued' | 'sending' | 'sent' | 'failed';
   emailSentAt?: string;
@@ -187,8 +237,9 @@ export interface ReconciliationSession {
   createdAt: string;
   carrierId: string;
   carrierName: string;
+  mode?: '1file' | '2files';    // Chế độ 1 File (GHN/GHTK) hoặc 2 File (J&T)
   nvcFileName: string;
-  appFileName: string;
+  appFileName?: string;
   totalOrders: number;
   matchedOrdersCount: number;
   unmatchedOrdersCount: number;
@@ -197,11 +248,20 @@ export interface ReconciliationSession {
   totalShopRevenue: number;
   totalNetPayout: number;       // Tổng tiền cần chuyển khoản trả tất cả các shop
   totalProfit: number;          // Tổng lợi nhuận ròng của Nhà Gom Đơn
+  totalCtvCommission?: number;  // Tổng hoa hồng chi trả CTV trong kỳ
   statements: ShopSettlementStatement[];
   unmatchedOrders: ReconciledOrder[];
   payoutStatus?: PayoutStatus;
   totalPaidAmount?: number;
   totalRemainingDebt?: number;
+}
+
+export interface CarrierEmailTemplateConfig {
+  senderName: string;
+  senderEmail: string;
+  emailPassword?: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
 }
 
 export interface EmailSettings {
@@ -216,6 +276,7 @@ export interface EmailSettings {
   telegramBotToken?: string;
   telegramChatId?: string;
   telegramEnabled?: boolean;
+  carrierTemplates?: Record<string, CarrierEmailTemplateConfig>; // Per carrier template & sender!
 }
 
 export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'STAFF' | 'VIEWER';

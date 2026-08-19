@@ -14,7 +14,8 @@ import {
   LogOut,
   UserCheck,
   CreditCard,
-  Settings
+  Settings,
+  Award
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -66,6 +67,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Truck,
       badge: null,
       roles: ['ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER']
+    },
+    { 
+      id: 'ctv', 
+      label: 'Cộng Tác Viên (CTV)', 
+      desc: 'Cấu hình hoa hồng & chia thưởng',
+      icon: Award,
+      badge: 'NEW',
+      roles: ['ADMIN', 'ACCOUNTANT']
     },
     { 
       id: 'emails', 

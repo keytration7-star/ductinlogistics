@@ -60,6 +60,7 @@ app.get('/api/db/all', (req, res) => {
     const carrierData = readJsonFile('carrier_data.json', {});
     const users = readJsonFile('users.json', null);
     const payments = readJsonFile('payments.json', []);
+    const ctvs = readJsonFile('ctvs.json', []);
 
     res.json({
       success: true,
@@ -73,6 +74,7 @@ app.get('/api/db/all', (req, res) => {
         carrierData,
         users,
         payments,
+        ctvs,
       },
     });
   } catch (err) {
@@ -89,6 +91,12 @@ app.get('/api/db/payments', (req, res) => {
 // POST save payments
 app.post('/api/db/payments', (req, res) => {
   const success = writeJsonFile('payments.json', req.body.payments || []);
+  res.json({ success });
+});
+
+// POST save ctvs
+app.post('/api/db/ctvs', (req, res) => {
+  const success = writeJsonFile('ctvs.json', req.body.ctvs || []);
   res.json({ success });
 });
 

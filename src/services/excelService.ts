@@ -245,19 +245,20 @@ export const ExcelService = {
       cell.border = thinBorder;
     });
 
-    // 🌟 Yêu cầu 1: Thêm hàng 8. Công nợ cũ còn nợ
+    // 🌟 Yêu cầu 3: Thống kê chi tiết Đơn Giao (BN đơn, BN tiền), Đơn Hoàn, Đơn GH1P, Công nợ cũ
     const previousDebtVal = statement.previousDebt || 0;
     const finalPayout = statement.totalNetPayout + previousDebtVal;
 
     const rowsData = [
-      ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', ''],
-      ['2. Số đơn giao thành công', statement.deliveredOrders, 'Đơn', 'Thu đủ tiền COD'],
-      ['3. Số đơn chuyển hoàn', statement.returnedOrders, 'Đơn', 'Tính phí hoàn theo hợp đồng'],
-      ['4. Số đơn đang giao/khác', statement.inTransitOrders, 'Đơn', ''],
-      ['5. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền NVC đã thu từ người nhận'],
-      ['6. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Tính theo biểu giá riêng của Shop'],
-      ['7. Phí phụ thu / Bảo hiểm / Hoàn (-)', statement.totalShopOtherFee, 'VNĐ', ''],
-      ['8. Công nợ cũ còn nợ (-/+)', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop còn nợ công ty (trừ bớt vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop từ kỳ trước (cộng thêm vào kỳ này)' : 'Không có công nợ cũ'],
+      ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
+      ['2. Số đơn giao thành công', statement.deliveredOrders, 'Đơn', `COD thu: ${(statement.totalDeliveredCod || 0).toLocaleString('vi-VN')} VNĐ | Cước: ${(statement.totalDeliveredFee || 0).toLocaleString('vi-VN')} VNĐ`],
+      ['3. Số đơn chuyển hoàn', statement.returnedOrders, 'Đơn', `Phí hoàn: ${(statement.totalReturnedFee || 0).toLocaleString('vi-VN')} VNĐ`],
+      ['4. Số đơn giao 1 phần (GH1P)', statement.partialOrders || 0, 'Đơn', `COD thu: ${(statement.totalPartialCod || 0).toLocaleString('vi-VN')} VNĐ | Cước/Phí: ${(statement.totalPartialFee || 0).toLocaleString('vi-VN')} VNĐ`],
+      ['5. Số đơn đang giao/khác', statement.inTransitOrders, 'Đơn', 'Đang cập nhật trạng thái từ NVC'],
+      ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],
+      ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
+      ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
+      ['9. Công nợ cũ còn nợ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop còn nợ công ty (trừ bớt vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop từ kỳ trước (cộng thêm vào kỳ này)' : 'Không có công nợ cũ'],
     ];
 
     rowsData.forEach(r => {
@@ -777,5 +778,62 @@ export const ExcelService = {
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     saveAs(zipBlob, `Bo_Ho_So_Doi_Soat_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+  },
+
+  async downloadCtvCommissionReport(session: ReconciliationSession): Promise<void> {
+    const ctvMap = new Map<string, { ctvCode: string; ctvName: string; orders: any[] }>();
+
+    for (const stmt of session.statements) {
+      for (const order of stmt.orders) {
+        if (order.ctvId) {
+          if (!ctvMap.has(order.ctvId)) {
+            ctvMap.set(order.ctvId, {
+              ctvCode: order.ctvId,
+              ctvName: order.ctvName || 'Cộng tác viên',
+              orders: [],
+            });
+          }
+          ctvMap.get(order.ctvId)!.orders.push(order);
+        }
+      }
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const wsSummary = workbook.addWorksheet('Tổng Hợp CTV');
+
+    wsSummary.addRow(['BÁO CÁO HOA HỒNG CỘNG TÁC VIÊN (CTV)']);
+    wsSummary.addRow([`Kỳ đối soát: ${session.sessionName}`]);
+    wsSummary.addRow([]);
+
+    const header = wsSummary.addRow(['STT', 'Mã CTV', 'Tên CTV', 'Số đơn', 'Tổng cân nặng (kg)', 'Hoa hồng được hưởng (VNĐ)']);
+    header.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    });
+
+    let idx = 1;
+    let grandTotalOrders = 0;
+    let grandTotalCommission = 0;
+
+    ctvMap.forEach((data) => {
+      const totalOrders = data.orders.length;
+      const totalWeight = data.orders.reduce((s, o) => s + (o.weight || 0), 0);
+      const totalCommission = data.orders.reduce((s, o) => s + (o.ctvCommission || 0), 0);
+
+      grandTotalOrders += totalOrders;
+      grandTotalCommission += totalCommission;
+
+      const r = wsSummary.addRow([idx++, data.ctvCode, data.ctvName, totalOrders, totalWeight, totalCommission]);
+      r.getCell(6).numFmt = '#,##0';
+    });
+
+    const totalRow = wsSummary.addRow(['TỔNG CỘNG', '', '', grandTotalOrders, '', grandTotalCommission]);
+    totalRow.font = { bold: true };
+    totalRow.getCell(6).numFmt = '#,##0';
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `Bao_Cao_Hoa_Hong_CTV_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
   },
 };

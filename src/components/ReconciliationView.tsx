@@ -97,6 +97,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     `Kỳ Đối Soát Tháng ${new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}`
   );
 
+  const [reconcileMode, setReconcileMode] = useState<'1file' | '2files'>('2files');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -228,13 +229,14 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const session = performReconciliation(
         rowsToUse,
         nvcMapping,
-        appRows,
+        reconcileMode === '1file' ? [] : appRows,
         appMapping,
         effectiveShops,
         carrierTier,
         sessionPeriodName,
         nvcFile?.name || 'File_NVC.xlsx',
-        appFile?.name || 'File_App.xlsx'
+        reconcileMode === '1file' ? undefined : appFile?.name,
+        reconcileMode
       );
 
       setCurrentSession(session);
@@ -288,12 +290,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   // Run reconciliation with auto new shops detection
   const handleRunReconciliation = async () => {
-    if (nvcRows.length === 0 || appRows.length === 0) {
-      showToast('Vui lòng tải lên cả 2 file: File Đối Soát NVC và File Đơn Hàng từ App.', 'warning');
+    if (nvcRows.length === 0 || (reconcileMode === '2files' && appRows.length === 0)) {
+      showToast(reconcileMode === '1file' ? 'Vui lòng tải lên File Excel Đối Soát.' : 'Vui lòng tải lên cả 2 file: File Đối Soát NVC và File Đơn Hàng từ App.', 'warning');
       return;
     }
 
-    if (!nvcMapping.waybillColumn || !appMapping.waybillColumn) {
+    if (!nvcMapping.waybillColumn) {
       showToast('Không tìm thấy cột Mã vận đơn. Vui lòng bấm ⚙️ Cài đặt thẻ hãng để chọn cột.', 'warning');
       setShowMappingModal(true);
       return;
@@ -549,6 +551,32 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               style={{ padding: '6px 12px', fontSize: 13, width: 260 }}
             />
           </div>
+        </div>
+
+        {/* Mode Selector Toggle: 1-File Mode (GHN/GHTK) vs 2-Files Mode (J&T) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, background: 'var(--bg-tertiary)', padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>⚙️ CHẾ ĐỘ NHẬP FILE:</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setReconcileMode('2files')}
+              className={`btn btn-sm ${reconcileMode === '2files' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontWeight: reconcileMode === '2files' ? 700 : 400 }}
+            >
+              📄📄 Chế Độ 2 File (NVC + App - Vd: J&T)
+            </button>
+            <button
+              type="button"
+              onClick={() => setReconcileMode('1file')}
+              className={`btn btn-sm ${reconcileMode === '1file' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontWeight: reconcileMode === '1file' ? 700 : 400 }}
+            >
+              📄 Chế Độ 1 File Duy Nhất (Vd: GHN / GHTK)
+            </button>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+            {reconcileMode === '1file' ? 'Chế độ 1 File: Tự phân tách shop theo Tên cửa hàng / SĐT có sẵn trong file' : 'Chế độ 2 File: Ghép file NVC và file App theo Mã vận đơn'}
+          </span>
         </div>
 
         {/* CARRIER CARDS SELECTOR */}
@@ -845,7 +873,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           <button
             onClick={handleRunReconciliation}
             className="btn btn-primary btn-lg"
-            disabled={isProcessing || nvcRows.length === 0 || appRows.length === 0}
+            disabled={isProcessing || nvcRows.length === 0 || (reconcileMode === '2files' && appRows.length === 0)}
             style={{ minWidth: 260 }}
           >
             {isProcessing ? (

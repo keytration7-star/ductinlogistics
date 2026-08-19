@@ -6,9 +6,11 @@ import type {
   ShopSettlementStatement,
   ReconciliationSession,
   ColumnMappingConfig,
-  OrderStatus
+  OrderStatus,
+  CtvProfile
 } from '../types';
 import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill, normalizeHeader } from './smartColumnDetector';
+import { StorageService } from './storage';
 
 export interface DuplicateCheckResult {
   hasConflict: boolean;
@@ -239,17 +241,21 @@ export function performReconciliation(
   carrierTier: CarrierWholesaleTier,
   sessionName: string,
   nvcFileName: string,
-  appFileName: string
+  appFileName?: string,
+  mode: '1file' | '2files' = '2files'
 ): ReconciliationSession {
+  const ctvs = StorageService.getCtvs();
   const appMap = new Map<string, Record<string, any>>();
   
-  for (const row of appRows) {
-    const waybillRaw = row[appMapping.waybillColumn];
-    if (isSummaryOrInvalidWaybill(waybillRaw)) {
-      continue;
+  if (mode === '2files' && appRows.length > 0) {
+    for (const row of appRows) {
+      const waybillRaw = row[appMapping.waybillColumn];
+      if (isSummaryOrInvalidWaybill(waybillRaw)) {
+        continue;
+      }
+      const waybillKey = waybillRaw.toString().trim().toUpperCase();
+      appMap.set(waybillKey, row);
     }
-    const waybillKey = waybillRaw.toString().trim().toUpperCase();
-    appMap.set(waybillKey, row);
   }
 
   const reconciledOrders: ReconciledOrder[] = [];
@@ -262,7 +268,7 @@ export function performReconciliation(
     }
 
     const waybill = waybillRaw.toString().trim().toUpperCase();
-    const appRow = appMap.get(waybill);
+    const appRow = mode === '1file' ? nvcRow : appMap.get(waybill);
 
     const nvcCod = parseNumber(nvcMapping.codColumn ? nvcRow[nvcMapping.codColumn] : 0);
     const nvcFee = parseNumber(nvcMapping.feeColumn ? nvcRow[nvcMapping.feeColumn] : 0);
@@ -275,43 +281,59 @@ export function performReconciliation(
     const statusRaw = nvcMapping.statusColumn ? nvcRow[nvcMapping.statusColumn] : '';
     const { status, text: statusText } = parseOrderStatus(statusRaw);
 
+    // Detect GH1P (Giao Hàng 1 Phần)
+    const lowerStatusText = (statusText || '').toLowerCase();
+    const isPartialDelivery = lowerStatusText.includes('giao 1 phần') || lowerStatusText.includes('giao 1 phan') || lowerStatusText.includes('gh1p') || lowerStatusText.includes('giao mot phan');
+
     let shopName = '';
     let shopPhone = '';
     let shopAddress = '';
+    let shopCode = '';
     let matchedShop: Shop | undefined = undefined;
 
-    if (appRow) {
+    if (mode === '1file') {
+      shopName = extractRowField(undefined, nvcRow, nvcMapping.shopNameColumn, ['ten_shop', 'ten_cua_hang', 'ten_kho', 'shop', 'store_name', 'cua_hang']) || 'Shop GHN';
+      shopPhone = extractRowField(undefined, nvcRow, nvcMapping.shopPhoneColumn, ['sdt_shop', 'phone_shop', 'sdt_gui', 'so_dien_thoai_gui']);
+      shopAddress = extractRowField(undefined, nvcRow, nvcMapping.shopAddressColumn, ['dia_chi_gui', 'dc_gui', 'kho_gui']);
+      shopCode = extractRowField(undefined, nvcRow, nvcMapping.shopCodeColumn, ['ma_shop', 'ma_cua_hang', 'store_id']);
+    } else if (appRow) {
       shopName = (appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] : '') || 'Shop Không Tên';
       shopPhone = (appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] : '') || '';
       shopAddress = (appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] : '') || '';
+      shopCode = (appMapping.shopCodeColumn ? appRow[appMapping.shopCodeColumn] : '') || '';
     }
 
     const receiverName = extractRowField(appRow, nvcRow, appMapping.receiverNameColumn || nvcMapping.receiverNameColumn, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach', 'khach_nhan', 'receiver']) || 'Khách Nhận';
     const receiverPhone = extractRowField(appRow, nvcRow, appMapping.receiverPhoneColumn || nvcMapping.receiverPhoneColumn, ['sdt_nguoi_nhan', 'sdt_nhan', 'so_dien_thoai', 'phone', 'mobile', 'sdt']);
     const receiverAddress = extractRowField(appRow, nvcRow, appMapping.receiverAddressColumn || nvcMapping.receiverAddressColumn, ['dia_chi', 'address', 'dc_nhan', 'giao_hang', 'dia_chi_nhan', 'dc']);
     const productName = extractRowField(appRow, nvcRow, appMapping.productNameColumn || nvcMapping.productNameColumn, ['ten_san_pham', 'hang_hoa', 'ten_hang', 'san_pham', 'noi_dung', 'mo_ta', 'product', 'items']);
+    const declaredValue = parseNumber(extractRowField(appRow, nvcRow, appMapping.declaredValueColumn || nvcMapping.declaredValueColumn, ['khai_gia', 'gia_tri_khai_gia', 'bao_hiem', 'declared_value']));
 
-      const cleanShopName = shopName.toLowerCase().trim();
-      const cleanShopPhone = shopPhone.replace(/[^0-9]/g, '');
+    const cleanShopName = normalizeHeader(shopName);
+    const cleanShopCode = normalizeHeader(shopCode);
+    const cleanShopPhone = shopPhone.replace(/[^0-9]/g, '');
 
-      matchedShop = registeredShops.find(s => {
-        const sName = s.name.toLowerCase().trim();
-        const sCode = s.code.toLowerCase().trim();
-        
-        // Extract all individual phone numbers from shop phone string (supports comma, slash, space, etc.)
-        const sPhones = (s.phone || '')
-          .split(/[,/;\s]+/)
-          .map(p => p.replace(/[^0-9]/g, ''))
-          .filter(p => p.length >= 7);
+    matchedShop = registeredShops.find(s => {
+      const sName = normalizeHeader(s.name);
+      const sCode = normalizeHeader(s.code);
+      
+      const sPhones = [
+        s.phone,
+        ...(s.phoneList || []),
+      ]
+        .flatMap(pStr => (pStr || '').split(/[,/;\s]+/))
+        .map(p => p.replace(/[^0-9]/g, ''))
+        .filter(p => p.length >= 7);
 
-        const isPhoneMatched = !!(cleanShopPhone && sPhones.some(p => p === cleanShopPhone || cleanShopPhone.endsWith(p) || p.endsWith(cleanShopPhone)));
+      const isPhoneMatched = !!(cleanShopPhone && sPhones.some(p => p === cleanShopPhone || cleanShopPhone.endsWith(p) || p.endsWith(cleanShopPhone)));
 
-        return (
-          isPhoneMatched ||
-          (cleanShopName && sName && (cleanShopName.includes(sName) || sName.includes(cleanShopName))) ||
-          (cleanShopName && sCode && cleanShopName.includes(sCode))
-        );
-      });
+      return (
+        isPhoneMatched ||
+        (cleanShopCode && sCode && cleanShopCode === sCode) ||
+        (cleanShopName && sName && (cleanShopName.includes(sName) || sName.includes(cleanShopName))) ||
+        (cleanShopName && sCode && cleanShopName.includes(sCode))
+      );
+    });
 
     let pricingPlan: ShopPricingPlan;
     if (matchedShop) {
@@ -333,11 +355,9 @@ export function performReconciliation(
       };
     }
 
-    // Kiểm tra xem đơn hàng này trong File đối soát NVC có phát sinh cước hay không
-    // Nếu trong file NVC đơn này cước > 0 -> mới tính cước Shop theo cân nặng
-    // Nếu trong file NVC đơn này cước = 0 (chưa trừ cước kỳ này / miễn cước) -> Cước Shop = 0
     let shopCalculatedFee = 0;
     let shopOtherFee = 0;
+    let declaredFee = 0;
 
     if (nvcFee > 0) {
       shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
@@ -348,8 +368,29 @@ export function performReconciliation(
         shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
       }
 
+      if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
+        shopOtherFee += pricingPlan.partialDeliveryFee;
+      }
+
       if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
         shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
+      }
+
+      if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
+        declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
+        shopOtherFee += declaredFee;
+      }
+    }
+
+    // CTV Commission calculation
+    let ctvCommission = 0;
+    let ctvId = matchedShop?.ctvId;
+    let ctvName = matchedShop?.ctvName;
+
+    if (ctvId) {
+      const ctvObj = ctvs.find((c: CtvProfile) => c.id === ctvId);
+      if (ctvObj) {
+        ctvCommission = StorageService.calculateCtvCommission(ctvObj, weight);
       }
     }
 
@@ -358,7 +399,7 @@ export function performReconciliation(
     const netShopPayout = effectiveCod - shopCalculatedFee - shopOtherFee;
     const profitMargin = (shopCalculatedFee + shopOtherFee) - (effectiveNvcFee + nvcOtherFee);
 
-    const isMatched = !!appRow;
+    const isMatched = (mode === '1file') ? !!matchedShop : !!appRow;
 
     const order: ReconciledOrder = {
       id: `order_${index}_${waybill}`,
@@ -383,7 +424,13 @@ export function performReconciliation(
       status,
       statusText,
       matched: isMatched,
-      matchError: !isMatched ? 'Không tìm thấy mã vận đơn trong file danh sách đơn xuất từ App' : undefined,
+      matchError: !isMatched ? 'Không nhận diện được Shop hoặc chưa có trong danh mục' : undefined,
+      isPartialDelivery,
+      declaredValue,
+      declaredFee,
+      ctvId,
+      ctvName,
+      ctvCommission,
       rawNvcData: nvcRow,
       rawAppData: appRow,
     };
@@ -426,6 +473,7 @@ export function performReconciliation(
         deliveredOrders: 0,
         returnedOrders: 0,
         inTransitOrders: 0,
+        partialOrders: 0,
         totalCod: 0,
         totalShopFee: 0,
         totalShopOtherFee: 0,
@@ -433,6 +481,11 @@ export function performReconciliation(
         previousDebt: shopObj?.previousDebt || 0,
         totalNvcCost: 0,
         totalProfit: 0,
+        totalDeliveredCod: 0,
+        totalDeliveredFee: 0,
+        totalReturnedFee: 0,
+        totalPartialCod: 0,
+        totalPartialFee: 0,
         orders: [],
         emailStatus: 'idle',
       });
@@ -441,9 +494,22 @@ export function performReconciliation(
     const stmt = statementsMap.get(key)!;
     stmt.orders.push(order);
     stmt.totalOrders += 1;
-    if (order.status === 'delivered') stmt.deliveredOrders += 1;
-    else if (order.status === 'returned' || order.status === 'returning') stmt.returnedOrders += 1;
-    else stmt.inTransitOrders += 1;
+    if (order.status === 'delivered') {
+      stmt.deliveredOrders += 1;
+      stmt.totalDeliveredCod = (stmt.totalDeliveredCod || 0) + order.codAmount;
+      stmt.totalDeliveredFee = (stmt.totalDeliveredFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
+    } else if (order.status === 'returned' || order.status === 'returning') {
+      stmt.returnedOrders += 1;
+      stmt.totalReturnedFee = (stmt.totalReturnedFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
+    } else {
+      stmt.inTransitOrders += 1;
+    }
+
+    if (order.isPartialDelivery) {
+      stmt.partialOrders = (stmt.partialOrders || 0) + 1;
+      stmt.totalPartialCod = (stmt.totalPartialCod || 0) + order.codAmount;
+      stmt.totalPartialFee = (stmt.totalPartialFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
+    }
 
     stmt.totalCod += order.codAmount;
     stmt.totalShopFee += order.shopCalculatedFee;
@@ -461,6 +527,7 @@ export function performReconciliation(
   const totalShopRevenue = reconciledOrders.reduce((sum, o) => sum + o.shopCalculatedFee + o.shopOtherFee, 0);
   const totalNetPayout = reconciledOrders.reduce((sum, o) => sum + o.netShopPayout, 0);
   const totalProfit = totalShopRevenue - totalNvcCost;
+  const totalCtvCommission = reconciledOrders.reduce((sum, o) => sum + (o.ctvCommission || 0), 0);
 
   return {
     id: `session_${Date.now()}`,
@@ -468,6 +535,7 @@ export function performReconciliation(
     createdAt: new Date().toISOString(),
     carrierId: carrierTier.carrierId,
     carrierName: carrierTier.carrierName,
+    mode,
     nvcFileName,
     appFileName,
     totalOrders,
@@ -478,6 +546,7 @@ export function performReconciliation(
     totalShopRevenue,
     totalNetPayout,
     totalProfit,
+    totalCtvCommission,
     statements,
     unmatchedOrders,
   };

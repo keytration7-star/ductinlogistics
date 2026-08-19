@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Shop, WeightStepRule, UserAccount } from '../types';
 import { calculateWeightFee } from '../services/reconciliationService';
+import { StorageService } from '../services/storage';
 
 interface ShopManagementViewProps {
   shops: Shop[];
@@ -427,6 +428,31 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
                       className="input-field"
                     />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Cộng Tác Viên (CTV) Quản Lý</label>
+                    <select
+                      value={editingShop.ctvId || ''}
+                      onChange={(e) => {
+                        const selectedCtvId = e.target.value;
+                        const ctvs = StorageService.getCtvs();
+                        const foundCtv = ctvs.find(c => c.id === selectedCtvId);
+                        setEditingShop({
+                          ...editingShop,
+                          ctvId: selectedCtvId,
+                          ctvName: foundCtv ? foundCtv.name : '',
+                        });
+                      }}
+                      className="input-field"
+                    >
+                      <option value="">-- Không phân công CTV --</option>
+                      {StorageService.getCtvs().map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} - {c.name} ({c.phone})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

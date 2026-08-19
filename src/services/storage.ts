@@ -1,4 +1,4 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile } from '../types';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
@@ -515,5 +515,67 @@ export const StorageService = {
     localStorage.setItem(PAYMENTS_KEY, JSON.stringify(filtered));
     postServerSync('/api/db/payments', { payments: filtered });
     return true;
+  },
+
+  getCtvs(): CtvProfile[] {
+    const raw = localStorage.getItem('gomdon_ctvs_v1');
+    if (!raw) {
+      const defaultCtv: CtvProfile = {
+        id: 'ctv_default_1',
+        code: 'CTV_01',
+        name: 'Nguyễn Văn Minh (CTV Mẫu)',
+        phone: '0912345678',
+        email: 'ctv.minh@gmail.com',
+        notes: 'Cộng tác viên mẫu phụ trách phát triển miền Bắc',
+        commissionRules: [
+          { minWeight: 0, maxWeight: 1, commissionPrice: 500 },
+          { minWeight: 1, maxWeight: 3, commissionPrice: 2000 },
+          { minWeight: 3, maxWeight: 5, commissionPrice: 5000 },
+        ],
+        extraWeightStep: 1,
+        extraWeightPrice: 500,
+        active: true,
+        createdAt: new Date().toISOString(),
+      };
+      this.saveCtvs([defaultCtv]);
+      return [defaultCtv];
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  },
+
+  saveCtvs(ctvs: CtvProfile[]): void {
+    localStorage.setItem('gomdon_ctvs_v1', JSON.stringify(ctvs));
+    postServerSync('/api/db/ctvs', { ctvs });
+  },
+
+  calculateCtvCommission(ctv: CtvProfile, weightKg: number): number {
+    if (!ctv || !ctv.active || !ctv.commissionRules || ctv.commissionRules.length === 0) {
+      return 0;
+    }
+    const weight = Math.max(0, weightKg || 0);
+
+    // Sorted rules by max weight
+    const sorted = [...ctv.commissionRules].sort((a, b) => a.maxWeight - b.maxWeight);
+    for (const rule of sorted) {
+      if (weight >= rule.minWeight && weight <= rule.maxWeight) {
+        return rule.commissionPrice;
+      }
+    }
+
+    // Exceeds maximum defined rule -> calculate extra steps
+    const maxRule = sorted[sorted.length - 1];
+    if (weight > maxRule.maxWeight) {
+      const basePrice = maxRule.commissionPrice;
+      const extraWeight = weight - maxRule.maxWeight;
+      const step = ctv.extraWeightStep > 0 ? ctv.extraWeightStep : 1;
+      const stepsCount = Math.ceil(extraWeight / step);
+      return basePrice + (stepsCount * (ctv.extraWeightPrice || 0));
+    }
+
+    return 0;
   },
 };
