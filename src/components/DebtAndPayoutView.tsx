@@ -14,7 +14,9 @@ import {
   CheckCircle,
   Layers,
   FileSpreadsheet,
-  Zap
+  Zap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
@@ -40,6 +42,16 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID' | 'HOLD'>('ALL');
+
+  // Session collapse state
+  const [collapsedSessions, setCollapsedSessions] = useState<Record<string, boolean>>({});
+
+  const toggleSessionCollapse = (sessionId: string) => {
+    setCollapsedSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }));
+  };
 
   // Modal State for Payout Form
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -402,18 +414,19 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     sessionStatus = 'PARTIAL';
                   }
 
+                  const isCollapsed = collapsedSessions[session.id] === true;
+
                   return (
-                    <div key={session.id} style={{
+                    <div key={session.id} className="glass-panel" style={{
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
-                      background: 'var(--bg-primary)',
                       overflow: 'hidden',
+                      boxShadow: 'var(--shadow-sm)',
                     }}>
                       {/* Session Header Bar */}
                       <div style={{
                         padding: '12px 18px',
                         background: 'var(--bg-secondary)',
-                        borderBottom: '1px solid var(--border-color)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -421,28 +434,28 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                         gap: 12,
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <strong style={{ fontSize: 15, color: 'var(--primary)' }}>{session.sessionName}</strong>
-                          <span className="badge badge-neutral">{session.carrierName}</span>
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)' }}>{session.sessionName}</strong>
+                          <span className="badge badge-primary" style={{ fontSize: 10 }}>{session.carrierName}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
                             ({session.statements.length} Shop • {session.totalOrders} đơn)
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                           <div style={{ fontSize: 12 }}>
-                            Cần trả: <strong className="mono" style={{ color: 'var(--text-main)' }}>{formatVND(sessionNetPayout)}</strong>
+                            Cần trả: <strong className="mono" style={{ color: 'var(--text-main)', fontSize: 13 }}>{formatVND(sessionNetPayout)}</strong>
                           </div>
                           <div style={{ fontSize: 12 }}>
-                            Đã đi: <strong className="mono" style={{ color: 'var(--success)' }}>{formatVND(sessionPaid)}</strong>
+                            Đã đi: <strong className="mono" style={{ color: 'var(--success)', fontSize: 13 }}>{formatVND(sessionPaid)}</strong>
                           </div>
                           <div style={{ fontSize: 12 }}>
-                            Còn nợ: <strong className="mono" style={{ color: sessionDebt > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatVND(sessionDebt)}</strong>
+                            Còn nợ: <strong className="mono" style={{ color: sessionDebt > 0 ? 'var(--danger)' : 'var(--success)', fontSize: 13, fontWeight: 800 }}>{formatVND(sessionDebt)}</strong>
                           </div>
 
                           <div>
-                            {sessionStatus === 'PAID' && <span className="badge badge-success">🟢 Đã đi tiền đủ</span>}
-                            {sessionStatus === 'PARTIAL' && <span className="badge badge-info">🔵 Chuyển 1 phần</span>}
-                            {sessionStatus === 'UNPAID' && <span className="badge badge-warning">🔴 Chưa đi tiền</span>}
+                            {sessionStatus === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10, padding: '3px 8px' }}>🟢 Đã đi đủ</span>}
+                            {sessionStatus === 'PARTIAL' && <span className="badge badge-info" style={{ fontSize: 10, padding: '3px 8px' }}>🔵 Chuyển 1 phần</span>}
+                            {sessionStatus === 'UNPAID' && <span className="badge badge-danger" style={{ fontSize: 10, padding: '3px 8px' }}>🔴 Chưa đi tiền</span>}
                           </div>
 
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -454,7 +467,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                               title="Xuất file Excel chứa danh sách STK Ngân Hàng và Số Tiền để nộp/tải lên iBanking"
                             >
                               <FileSpreadsheet size={13} color="var(--success)" />
-                              <span>Xuất Excel iBanking</span>
+                              <span>Xuất iBanking</span>
                             </button>
 
                             {sessionDebt > 0 && (
@@ -469,85 +482,106 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                                 <span>Đi Tiền Hàng Loạt</span>
                               </button>
                             )}
+
+                            {/* Collapse Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={() => toggleSessionCollapse(session.id)}
+                              className="btn btn-outline btn-sm"
+                              style={{ fontSize: 11, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+                              title={isCollapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
+                            >
+                              {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                              <span>{isCollapsed ? "Chi Tiết" : "Thu Gọn"}</span>
+                            </button>
                           </div>
                         </div>
                       </div>
 
-                      {/* Shop Table inside Session */}
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Mã Shop</th>
-                            <th>Tên Shop</th>
-                            <th>Thông Tin Ngân Hàng</th>
-                            <th>Tiền COD</th>
-                            <th>Cước Shop</th>
-                            <th>Thực Chuyển</th>
-                            <th>Đã Chuyển</th>
-                            <th>Còn Nợ</th>
-                            <th>Trạng Thái</th>
-                            <th style={{ textAlign: 'right' }}>Thao Tác</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {session.statements.map(stmt => {
-                            const { paidAmount, remainingDebt, status } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
-
-                            if (statusFilter !== 'ALL' && status !== statusFilter) return null;
-
-                            return (
-                              <tr key={stmt.shopId}>
-                                <td><strong className="mono" style={{ color: 'var(--primary)' }}>{stmt.shopCode}</strong></td>
-                                <td>
-                                  <strong style={{ fontSize: 13 }}>{stmt.shopName}</strong>
-                                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
-                                </td>
-                                <td>
-                                  {stmt.bankInfo?.bankName ? (
-                                    <div style={{ fontSize: 12 }}>
-                                      <div><strong>{stmt.bankInfo.bankName}</strong> • <span className="mono">{stmt.bankInfo.accountNumber}</span></div>
-                                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo.accountHolder}</div>
-                                    </div>
-                                  ) : (
-                                    <span style={{ fontSize: 11, color: 'var(--danger)' }}>⚠️ Chưa có STK</span>
-                                  )}
-                                </td>
-                                <td className="mono" style={{ color: 'var(--info)' }}>{formatVND(stmt.totalCod)}</td>
-                                <td className="mono" style={{ color: '#92400e' }}>-{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}</td>
-                                <td className="mono" style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatVND(stmt.totalNetPayout)}</td>
-                                <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>{formatVND(paidAmount)}</td>
-                                <td className="mono" style={{ fontWeight: 700, color: remainingDebt > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                                  {formatVND(remainingDebt)}
-                                </td>
-                                <td>
-                                  {stmt.totalNetPayout < 0 ? (
-                                    <span className="badge badge-warning" style={{ fontSize: 10 }} title="Shop chưa có tiền COD để trừ cước, số nợ sẽ được tự động cấn trừ vào kỳ sau">
-                                      🔴 Shop nợ cước {formatVND(Math.abs(stmt.totalNetPayout))}
-                                    </span>
-                                  ) : (
-                                    <>
-                                      {status === 'PAID' && <span className="badge badge-success">🟢 Đủ</span>}
-                                      {status === 'PARTIAL' && <span className="badge badge-info">🔵 1 phần</span>}
-                                      {status === 'UNPAID' && <span className="badge badge-danger">🔴 Chưa đi</span>}
-                                    </>
-                                  )}
-                                </td>
-                                <td style={{ textAlign: 'right' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenPayModal(session, stmt)}
-                                    className={`btn btn-sm ${remainingDebt > 0 ? 'btn-primary' : 'btn-secondary'}`}
-                                    style={{ padding: '4px 10px', fontSize: 11 }}
-                                  >
-                                    <DollarSign size={13} />
-                                    <span>{remainingDebt > 0 ? 'Đi Tiền' : 'Xem / Thêm'}</span>
-                                  </button>
-                                </td>
+                      {/* 📦 Bounded Scrollable Table Container */}
+                      {!isCollapsed && (
+                        <div style={{
+                          maxHeight: 360,
+                          overflowY: 'auto',
+                          borderTop: '1px solid var(--border-color)',
+                          position: 'relative',
+                        }}>
+                          <table className="data-table" style={{ margin: 0 }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                              <tr>
+                                <th>Mã Shop</th>
+                                <th>Tên Shop</th>
+                                <th>Thông Tin Ngân Hàng</th>
+                                <th style={{ textAlign: 'right' }}>Tiền COD</th>
+                                <th style={{ textAlign: 'right' }}>Cước Shop</th>
+                                <th style={{ textAlign: 'right' }}>Thực Chuyển</th>
+                                <th style={{ textAlign: 'right' }}>Đã Chuyển</th>
+                                <th style={{ textAlign: 'right' }}>Còn Nợ</th>
+                                <th style={{ textAlign: 'center' }}>Trạng Thái</th>
+                                <th style={{ textAlign: 'right' }}>Thao Tác</th>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                            </thead>
+                            <tbody>
+                              {session.statements.map(stmt => {
+                                const { paidAmount, remainingDebt, status } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
+
+                                if (statusFilter !== 'ALL' && status !== statusFilter) return null;
+
+                                return (
+                                  <tr key={stmt.shopId}>
+                                    <td><strong className="mono" style={{ color: 'var(--primary)', fontSize: 12 }}>{stmt.shopCode}</strong></td>
+                                    <td>
+                                      <strong style={{ fontSize: 13 }}>{stmt.shopName}</strong>
+                                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
+                                    </td>
+                                    <td>
+                                      {stmt.bankInfo?.bankName ? (
+                                        <div style={{ fontSize: 12 }}>
+                                          <div><strong>{stmt.bankInfo.bankName}</strong> • <span className="mono">{stmt.bankInfo.accountNumber}</span></div>
+                                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo.accountHolder}</div>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Chưa có STK</span>
+                                      )}
+                                    </td>
+                                    <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(stmt.totalCod)}</td>
+                                    <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}</td>
+                                    <td className="mono" style={{ fontWeight: 700, color: 'var(--primary)', textAlign: 'right' }}>{formatVND(stmt.totalNetPayout)}</td>
+                                    <td className="mono" style={{ fontWeight: 700, color: 'var(--success)', textAlign: 'right' }}>{formatVND(paidAmount)}</td>
+                                    <td className="mono" style={{ fontWeight: 800, color: remainingDebt > 0 ? 'var(--danger)' : 'var(--success)', textAlign: 'right' }}>
+                                      {formatVND(remainingDebt)}
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      {stmt.totalNetPayout < 0 ? (
+                                        <span className="badge badge-warning" style={{ fontSize: 10 }} title="Shop chưa có tiền COD để trừ cước, số nợ sẽ được tự động cấn trừ vào kỳ sau">
+                                          🔴 Shop nợ {formatVND(Math.abs(stmt.totalNetPayout))}
+                                        </span>
+                                      ) : (
+                                        <>
+                                          {status === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10 }}>🟢 Đủ</span>}
+                                          {status === 'PARTIAL' && <span className="badge badge-info" style={{ fontSize: 10 }}>🔵 1 phần</span>}
+                                          {status === 'UNPAID' && <span className="badge badge-danger" style={{ fontSize: 10 }}>🔴 Chưa đi</span>}
+                                        </>
+                                      )}
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenPayModal(session, stmt)}
+                                        className={`btn btn-sm ${remainingDebt > 0 ? 'btn-primary' : 'btn-secondary'}`}
+                                        style={{ padding: '4px 10px', fontSize: 11 }}
+                                      >
+                                        <DollarSign size={13} />
+                                        <span>{remainingDebt > 0 ? 'Đi Tiền' : 'Chi Tiết'}</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -566,82 +600,90 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             </h3>
           </div>
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>STT</th>
-                <th>Mã Shop</th>
-                <th>Tên Khách Hàng / Shop</th>
-                <th>Thông Tin Ngân Hàng</th>
-                <th>Tổng Tiền COD Accum</th>
-                <th>Tổng Cước Shop</th>
-                <th>Tổng Thực Trả</th>
-                <th>Tổng Đã Chuyển Khoản</th>
-                <th>Dư Nợ Hiện Tại</th>
-                <th>Trạng Thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shops.map((shop, idx) => {
-                let shopTotalCod = 0;
-                let shopTotalFee = 0;
-                let shopTotalNetPayout = 0;
+          <div style={{
+            maxHeight: 480,
+            overflowY: 'auto',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+          }}>
+            <table className="data-table" style={{ margin: 0 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <tr>
+                  <th>STT</th>
+                  <th>Mã Shop</th>
+                  <th>Tên Khách Hàng / Shop</th>
+                  <th>Thông Tin Ngân Hàng</th>
+                  <th style={{ textAlign: 'right' }}>Tổng Tiền COD</th>
+                  <th style={{ textAlign: 'right' }}>Tổng Cước Shop</th>
+                  <th style={{ textAlign: 'right' }}>Tổng Thực Trả</th>
+                  <th style={{ textAlign: 'right' }}>Đã Chuyển Khoản</th>
+                  <th style={{ textAlign: 'right' }}>Dư Nợ Hiện Tại</th>
+                  <th style={{ textAlign: 'center' }}>Trạng Thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shops.map((shop, idx) => {
+                  let shopTotalCod = 0;
+                  let shopTotalFee = 0;
+                  let shopTotalNetPayout = 0;
 
-                sessions.forEach(sess => {
-                  const stmt = sess.statements.find(s => s.shopId === shop.id || s.shopCode === shop.code);
-                  if (stmt) {
-                    shopTotalCod += stmt.totalCod;
-                    shopTotalFee += (stmt.totalShopFee + stmt.totalShopOtherFee);
-                    shopTotalNetPayout += stmt.totalNetPayout;
-                  }
-                });
+                  sessions.forEach(sess => {
+                    const stmt = sess.statements.find(s => s.shopId === shop.id || s.shopCode === shop.code);
+                    if (stmt) {
+                      shopTotalCod += stmt.totalCod;
+                      shopTotalFee += (stmt.totalShopFee + stmt.totalShopOtherFee);
+                      shopTotalNetPayout += stmt.totalNetPayout;
+                    }
+                  });
 
-                const shopPayments = payments.filter(p => p.shopId === shop.id || p.shopCode === shop.code);
-                const shopPaidTotal = shopPayments.reduce((sum, p) => sum + p.amount, 0);
-                const shopDebt = Math.max(0, shopTotalNetPayout - shopPaidTotal);
-                const isShopOwingGomdon = shopTotalNetPayout < 0;
+                  const shopPayments = payments.filter(p => p.shopId === shop.id || p.shopCode === shop.code);
+                  const shopPaidTotal = shopPayments.reduce((sum, p) => sum + p.amount, 0);
+                  const shopDebt = Math.max(0, shopTotalNetPayout - shopPaidTotal);
+                  const isShopOwingGomdon = shopTotalNetPayout < 0;
 
-                return (
-                  <tr key={shop.id}>
-                    <td>{idx + 1}</td>
-                    <td><strong className="mono" style={{ color: 'var(--primary)' }}>{shop.code}</strong></td>
-                    <td>
-                      <strong>{shop.name}</strong>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {shop.phone || 'N/A'}</div>
-                    </td>
-                    <td>
-                      {shop.bankAccount?.bankName ? (
-                        <div style={{ fontSize: 12 }}>
-                          <div><strong>{shop.bankAccount.bankName}</strong> • <span className="mono">{shop.bankAccount.accountNumber}</span></div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{shop.bankAccount.accountHolder}</div>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Chưa cập nhật</span>
-                      )}
-                    </td>
-                    <td className="mono" style={{ color: 'var(--info)' }}>{formatVND(shopTotalCod)}</td>
-                    <td className="mono" style={{ color: '#92400e' }}>-{formatVND(shopTotalFee)}</td>
-                    <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : 'var(--primary)' }}>{formatVND(shopTotalNetPayout)}</td>
-                    <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>{formatVND(shopPaidTotal)}</td>
-                    <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : shopDebt > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                      {isShopOwingGomdon ? `-${formatVND(Math.abs(shopTotalNetPayout))}` : formatVND(shopDebt)}
-                    </td>
-                    <td>
-                      {isShopOwingGomdon ? (
-                        <span className="badge badge-warning" title="Shop đang nợ tiền cước nhà gom, số tiền này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo">
-                          🔴 Shop nợ Nhà Gom {formatVND(Math.abs(shopTotalNetPayout))}
-                        </span>
-                      ) : shopDebt > 0 ? (
-                        <span className="badge badge-danger">Cần trả Shop {formatVND(shopDebt)}</span>
-                      ) : (
-                        <span className="badge badge-success">🟢 Đã thanh toán hết</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={shop.id}>
+                      <td>{idx + 1}</td>
+                      <td><strong className="mono" style={{ color: 'var(--primary)' }}>{shop.code}</strong></td>
+                      <td>
+                        <strong>{shop.name}</strong>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {shop.phone || 'N/A'}</div>
+                      </td>
+                      <td>
+                        {shop.bankAccount?.bankName ? (
+                          <div style={{ fontSize: 12 }}>
+                            <div><strong>{shop.bankAccount.bankName}</strong> • <span className="mono">{shop.bankAccount.accountNumber}</span></div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{shop.bankAccount.accountHolder}</div>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Chưa cập nhật</span>
+                        )}
+                      </td>
+                      <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(shopTotalCod)}</td>
+                      <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(shopTotalFee)}</td>
+                      <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : 'var(--primary)', textAlign: 'right' }}>{formatVND(shopTotalNetPayout)}</td>
+                      <td className="mono" style={{ fontWeight: 700, color: 'var(--success)', textAlign: 'right' }}>{formatVND(shopPaidTotal)}</td>
+                      <td className="mono" style={{ fontWeight: 800, color: isShopOwingGomdon ? 'var(--danger)' : shopDebt > 0 ? 'var(--danger)' : 'var(--success)', textAlign: 'right' }}>
+                        {isShopOwingGomdon ? `-${formatVND(Math.abs(shopTotalNetPayout))}` : formatVND(shopDebt)}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {isShopOwingGomdon ? (
+                          <span className="badge badge-warning" style={{ fontSize: 10 }} title="Shop đang nợ tiền cước nhà gom, số tiền này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo">
+                            🔴 Nợ Nhà Gom {formatVND(Math.abs(shopTotalNetPayout))}
+                          </span>
+                        ) : shopDebt > 0 ? (
+                          <span className="badge badge-danger" style={{ fontSize: 10 }}>Cần trả {formatVND(shopDebt)}</span>
+                        ) : (
+                          <span className="badge badge-success" style={{ fontSize: 10 }}>🟢 Đã hết nợ</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -655,66 +697,74 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             </h3>
           </div>
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Thời Gian Đi Tiền</th>
-                <th>Kỳ Đối Soát</th>
-                <th>Shop Nhận Tiền</th>
-                <th>Số Tiền Chuyển</th>
-                <th>Ngân Hàng</th>
-                <th>Mã Giao Dịch (Ref)</th>
-                <th>Ghi Chú</th>
-                <th>Kế Toán Thực Hiện</th>
-                {currentUser.role === 'ADMIN' && <th style={{ textAlign: 'right' }}>Thao Tác</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {payments.length === 0 ? (
+          <div style={{
+            maxHeight: 480,
+            overflowY: 'auto',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+          }}>
+            <table className="data-table" style={{ margin: 0 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                    Chưa có lịch sử chuyển khoản ngân hàng nào được ghi nhận.
-                  </td>
+                  <th>Thời Gian Đi Tiền</th>
+                  <th>Kỳ Đối Soát</th>
+                  <th>Shop Nhận Tiền</th>
+                  <th style={{ textAlign: 'right' }}>Số Tiền Chuyển</th>
+                  <th>Ngân Hàng</th>
+                  <th>Mã Giao Dịch (Ref)</th>
+                  <th>Ghi Chú</th>
+                  <th>Kế Toán Thực Hiện</th>
+                  {currentUser.role === 'ADMIN' && <th style={{ textAlign: 'right' }}>Thao Tác</th>}
                 </tr>
-              ) : (
-                payments.map(pay => (
-                  <tr key={pay.id}>
-                    <td style={{ fontSize: 12 }}>
-                      {new Date(pay.paidAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </thead>
+              <tbody>
+                {payments.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                      Chưa có lịch sử chuyển khoản ngân hàng nào được ghi nhận.
                     </td>
-                    <td><strong style={{ fontSize: 12, color: 'var(--primary)' }}>{pay.sessionName || pay.sessionId}</strong></td>
-                    <td>
-                      <strong>{pay.shopName}</strong>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{pay.shopCode}</div>
-                    </td>
-                    <td className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)' }}>
-                      {formatVND(pay.amount)}
-                    </td>
-                    <td><span className="badge badge-neutral">{pay.bankName || 'N/A'}</span></td>
-                    <td className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{pay.transactionRef || '---'}</td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pay.note || 'Không có ghi chú'}</td>
-                    <td style={{ fontSize: 12 }}>
-                      <strong>{pay.paidByFullName}</strong>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>@{pay.paidByUsername}</div>
-                    </td>
-                    {currentUser.role === 'ADMIN' && (
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePayment(pay.id)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '3px 6px' }}
-                          title="Xóa bản ghi thanh toán này"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </td>
-                    )}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  payments.map(pay => (
+                    <tr key={pay.id}>
+                      <td style={{ fontSize: 12 }}>
+                        {new Date(pay.paidAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </td>
+                      <td><strong style={{ fontSize: 12, color: 'var(--primary)' }}>{pay.sessionName || pay.sessionId}</strong></td>
+                      <td>
+                        <strong>{pay.shopName}</strong>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{pay.shopCode}</div>
+                      </td>
+                      <td className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)', textAlign: 'right' }}>
+                        {formatVND(pay.amount)}
+                      </td>
+                      <td><span className="badge badge-neutral" style={{ fontSize: 10 }}>{pay.bankName || 'N/A'}</span></td>
+                      <td className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{pay.transactionRef || '---'}</td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pay.note || 'Không có ghi chú'}</td>
+                      <td style={{ fontSize: 12 }}>
+                        <strong>{pay.paidByFullName}</strong>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>@{pay.paidByUsername}</div>
+                      </td>
+                      {currentUser.role === 'ADMIN' && (
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePayment(pay.id)}
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '3px 6px' }}
+                            title="Xóa bản ghi thanh toán này"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
