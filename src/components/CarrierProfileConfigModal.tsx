@@ -33,16 +33,13 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   nvcMapping,
   appMapping,
   onSaveMappings,
-  hasLiveNvcFile = false,
-  hasLiveAppFile = false,
-  hasSavedNvcHeaders = false,
-  hasSavedAppHeaders = false,
+  hasLiveNvcFile: _hasLiveNvcFile = false,
+  hasLiveAppFile: _hasLiveAppFile = false,
+  hasSavedNvcHeaders: _hasSavedNvcHeaders = false,
+  hasSavedAppHeaders: _hasSavedAppHeaders = false,
 }) => {
   // Main Tab: 'mapping' (Ánh xạ cột) or 'export' (Mẫu xuất file)
   const [mainTab, setMainTab] = useState<'mapping' | 'export'>('mapping');
-
-  // Sub-Tab for Mapping: 'nvc' or 'app'
-  const [mappingSubTab, setMappingSubTab] = useState<'nvc' | 'app'>('nvc');
 
   // Sub-Tab for Export: 'shop' or 'master'
   const [exportSubTab, setExportSubTab] = useState<'shop' | 'master'>('shop');
@@ -389,103 +386,8 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
         <div style={{ padding: 22, maxHeight: 480, overflowY: 'auto' }}>
           
           {/* ═══════════════════════════════════════════ */}
-          {/* TAB 1: ÁNH XẠ CỘT (COLUMN MAPPING) */}
+          {/* TAB 1: ÁNH XẠ CỘT (UNIFIED 2-FILES SIDE-BY-SIDE MAPPING TABLE) */}
           {/* ═══════════════════════════════════════════ */}
-          {mainTab === 'mapping' && (
-            <div>
-              {/* Sub-tabs: File NVC vs File App */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setMappingSubTab('nvc')}
-                  className={`btn btn-sm ${mappingSubTab === 'nvc' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '6px 14px', fontSize: 12 }}
-                >
-                  📄 Cột File Đối Soát NVC {nvcHeaders.length > 0 ? `(${nvcHeaders.length} cột)` : ''}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMappingSubTab('app')}
-                  className={`btn btn-sm ${mappingSubTab === 'app' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '6px 14px', fontSize: 12 }}
-                >
-                  📱 Cột File Đơn Hàng Từ App {appHeaders.length > 0 ? `(${appHeaders.length} cột)` : ''}
-                </button>
-
-                <div style={{ marginLeft: 'auto' }}>
-                  <button
-                    type="button"
-                    onClick={handleAutoRedetect}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '4px 10px' }}
-                    title="Quét lại tiêu đề tự động"
-                  >
-                    <RotateCcw size={12} />
-                    <span>Tự Động Quét Lại</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Header source status banner */}
-              {mappingSubTab === 'nvc' && (
-                <div style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: 12,
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  ...(hasLiveNvcFile
-                    ? { background: 'rgba(16, 185, 129, 0.10)', border: '1px solid var(--success)', color: 'var(--success)' }
-                    : hasSavedNvcHeaders && nvcHeaders.length > 0
-                    ? { background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)' }
-                    : { background: 'rgba(245, 158, 11, 0.10)', border: '1px solid #f59e0b', color: '#92400e' }
-                  )
-                }}>
-                  <span style={{ fontSize: 14 }}>
-                    {hasLiveNvcFile ? '🟢' : hasSavedNvcHeaders && nvcHeaders.length > 0 ? '🔵' : '🟡'}
-                  </span>
-                  <span>
-                    {hasLiveNvcFile
-                      ? <><strong>File NVC đang mở ({nvcHeaders.length} cột):</strong> Dữ liệu cột thực tế từ file vừa tải lên.</>  
-                      : hasSavedNvcHeaders && nvcHeaders.length > 0
-                      ? <><strong>Dùng cột đã lưu ({nvcHeaders.length} cột):</strong> Lấy từ file NVC lần trước của hãng {carrierName}. <em>Tải lên file NVC mới để cập nhật.</em></>
-                      : <><strong>Chưa có dữ liệu cột NVC.</strong> Vui lòng tải file NVC lên trang chính trước, hoặc nhập tay bên dưới.</> 
-                    }
-                  </span>
-                </div>
-              )}
-
-              {mappingSubTab === 'app' && (
-                <div style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: 12,
-                  fontSize: 11,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  ...(hasLiveAppFile
-                    ? { background: 'rgba(16, 185, 129, 0.10)', border: '1px solid var(--success)', color: 'var(--success)' }
-                    : hasSavedAppHeaders && appHeaders.length > 0
-                    ? { background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)' }
-                    : { background: 'rgba(245, 158, 11, 0.10)', border: '1px solid #f59e0b', color: '#92400e' }
-                  )
-                }}>
-                  <span style={{ fontSize: 14 }}>
-                    {hasLiveAppFile ? '🟢' : hasSavedAppHeaders && appHeaders.length > 0 ? '🔵' : '🟡'}
-                  </span>
-                  <span>
-                    {hasLiveAppFile
-                      ? <><strong>File App đang mở ({appHeaders.length} cột):</strong> Dữ liệu cột thực tế từ file vừa tải lên.</>
-                      : hasSavedAppHeaders && appHeaders.length > 0
-                      ? <><strong>Dùng cột đã lưu ({appHeaders.length} cột):</strong> Lấy từ file App lần trước của hãng {carrierName}. <em>Tải lên file App mới để cập nhật.</em></>
-                      : <><strong>Chưa có dữ liệu cột App.</strong> Vui lòng tải file App lên trang chính trước, hoặc nhập tay bên dưới.</>
-                    }
-                  </span>
-                </div>
-              )}
 
           {/* ═══════════════════════════════════════════ */}
           {/* TAB 1: ÁNH XẠ CỘT (UNIFIED 2-FILES SIDE-BY-SIDE MAPPING TABLE) */}
@@ -674,9 +576,6 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               </div>
             );
           })()}
-
-            </div>
-          )}
 
 
           {/* ═══════════════════════════════════════════ */}
