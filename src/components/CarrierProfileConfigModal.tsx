@@ -238,7 +238,6 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               { keyNvc: 'otherFeeColumn',  keyApp: 'otherFeeColumn',  label: 'Phụ Phí / Hoàn / Bảo Hiểm', emoji: '➕', hint: 'Phụ phí phát sinh' },
               { keyNvc: 'weightColumn',    keyApp: 'weightColumn',    label: 'Trọng Lượng (kg/g)',   emoji: '⚖️', hint: 'Cân nặng NVC vs App' },
               { keyNvc: 'statusColumn',    keyApp: 'statusColumn',    label: 'Trạng Thái Đơn Hàng',   emoji: '📋', hint: 'Phân loại đơn giao / hoàn' },
-              { keyNvc: 'shopNameColumn',  keyApp: 'shopNameColumn',  label: 'Tên Shop / Cửa Hàng',  emoji: '🏬', hint: 'Khớp danh mục shop hệ thống', isRequired: true },
               { keyNvc: 'shopPhoneColumn', keyApp: 'shopPhoneColumn', label: 'Số Điện Thoại Shop',    emoji: '📞', hint: 'Khớp shop theo SĐT phụ' },
               { keyNvc: 'receiverNameColumn',    keyApp: 'receiverNameColumn',    label: 'Tên Người Nhận',       emoji: '👤', hint: 'Dữ liệu xuất bảng kê' },
               { keyNvc: 'receiverPhoneColumn',   keyApp: 'receiverPhoneColumn',   label: 'SĐT Người Nhận',       emoji: '📱', hint: 'Dữ liệu xuất bảng kê' },
@@ -263,7 +262,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>📄 File NVC: <strong>{nvcHeaders.length} cột</strong></span>
                     <span>•</span>
-                    <span>📱 File App: <strong>{appHeaders.length} cột</strong></span>
+                    <span>📱 File App: <strong>{appHeaders.length > 0 ? `${appHeaders.length} cột` : 'Chế độ 1 File (Không cần App)'}</strong></span>
                   </div>
 
                   <button
@@ -277,6 +276,26 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                     <span>🤖 Tự Động Khớp Lại (AI Auto-Match)</span>
                   </button>
                 </div>
+
+                {appHeaders.length === 0 && (
+                  <div style={{
+                    marginBottom: 14,
+                    background: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 12,
+                    color: 'var(--text-main)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <Zap size={16} color="var(--primary)" />
+                    <span>
+                      💡 <strong>Hệ thống đang chạy ở Chế Độ 1-File</strong>: Bạn chỉ cần chọn các cột trong <strong>File NVC (Hãng Gốc)</strong>. Hệ thống sẽ tự động bóc tách thông tin Shop (Tên kho/SĐT gửi) trực tiếp từ file này!
+                    </span>
+                  </div>
+                )}
 
                 {/* 🌟 UNIFIED SIDE-BY-SIDE MAPPING TABLE */}
                 <div style={{
@@ -315,7 +334,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                       const isNvcMatched = hasNvc && !!nvcVal;
                       const isAppMatched = hasApp && !!appVal;
 
-                      const isFullyMatched = (hasNvc && hasApp) ? (isNvcMatched && isAppMatched) : (hasNvc ? isNvcMatched : isAppMatched);
+                      const isFullyMatched = appHeaders.length > 0 
+                        ? (isNvcMatched && isAppMatched) 
+                        : isNvcMatched;
 
                       return (
                         <div key={f.label} style={{
@@ -354,12 +375,16 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           {/* Column 3: Searchable Dropdown for File App */}
                           <div>
                             {hasApp ? (
-                              <SearchableSelect
-                                options={appHeaders.map(h => ({ value: h, label: h, badge: 'App', badgeType: 'app' }))}
-                                value={appVal}
-                                onChange={(val) => updateAppField(f.keyApp!, val)}
-                                placeholder={appHeaders.length > 0 ? `🔍 Cột File App...` : '⚠️ Vui lòng tải file App'}
-                              />
+                              appHeaders.length > 0 ? (
+                                <SearchableSelect
+                                  options={appHeaders.map(h => ({ value: h, label: h, badge: 'App', badgeType: 'app' }))}
+                                  value={appVal}
+                                  onChange={(val) => updateAppField(f.keyApp!, val)}
+                                  placeholder="🔍 Cột File App..."
+                                />
+                              ) : (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>⚡ Tự động đọc từ File NVC (Chế độ 1 File)</span>
+                              )
                             ) : (
                               <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>-- Không dùng App --</span>
                             )}
@@ -380,7 +405,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                 alignItems: 'center',
                                 gap: 4
                               }}>
-                                🟢 ✓ {(hasNvc && hasApp) ? 'Khớp 2 file' : 'Đã chọn cột'}
+                                🟢 ✓ {appHeaders.length > 0 ? 'Khớp 2 file' : 'Đã chọn cột NVC'}
                               </span>
                             ) : (
                               <span style={{
@@ -395,7 +420,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                 alignItems: 'center',
                                 gap: 4
                               }}>
-                                🟡 ⚠️ Cần chọn cột
+                                ⚠️ Cần chọn cột
                               </span>
                             )}
                           </div>
