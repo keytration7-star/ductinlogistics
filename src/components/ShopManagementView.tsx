@@ -122,12 +122,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       name: d.name,
       phone: d.phone,
       phoneList: d.phoneList || (d.phone ? [d.phone] : []),
-      email: '',
+      email: d.email || '',
       address: d.address,
       bankAccount: {
-        bankName: 'MB Bank',
-        accountNumber: '',
-        accountHolder: d.name,
+        bankName: d.bankName || 'MB Bank',
+        accountNumber: d.accountNumber || '',
+        accountHolder: d.accountHolder || d.name,
       },
       pricingPlan: JSON.parse(JSON.stringify(defaultPricingPlan)),
       notes: `Đã tự động nhận diện từ file Excel (${d.orderCount} đơn)`,
@@ -1078,34 +1078,81 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ fontSize: 13, color: 'var(--text-main)', background: 'rgba(245, 158, 11, 0.08)', border: '1px dashed var(--warning)', padding: '8px 12px', borderRadius: 'var(--radius-md)' }}>
-                    ⚡ <strong>Cơ chế tự động:</strong> Bấm nút bên dưới để đăng ký nhanh toàn bộ {detectedNewShops.length} Shop này vào danh sách quản lý với biểu giá cước mặc định. Bạn có thể chỉnh sửa lại biểu giá riêng cho từng Shop bất cứ lúc nào.
+                    ⚡ <strong>Thông tin từ File Excel:</strong> Hệ thống tự động bóc tách <strong>Tên người gửi, SĐT người gửi, Địa chỉ kho gửi</strong>. Bạn có thể nhập bổ sung Email và STK Ngân hàng trực tiếp bên dưới (hoặc bấm Đăng Ký ngay và bổ sung sau trong Quản Lý Shop).
                   </div>
 
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th>STT</th>
-                        <th>Mã Tạo Tự Động</th>
-                        <th>Tên Shop Trong File</th>
-                        <th>Số Điện Thoại</th>
-                        <th>Địa Chỉ</th>
+                        <th>Tên & SĐT Người Gửi (Quét File)</th>
+                        <th>Địa Chỉ Gửi</th>
+                        <th>Email Nhận Đối Soát (Gõ bổ sung)</th>
+                        <th>Ngân Hàng & Số Tài Khoản (Gõ bổ sung)</th>
                         <th>Số Đơn File</th>
-                        <th>Tổng COD File</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detectedNewShops.map((item, idx) => (
                         <tr key={idx}>
                           <td>{idx + 1}</td>
-                          <td><strong className="mono" style={{ color: 'var(--primary)' }}>{item.code}</strong></td>
-                          <td><strong style={{ color: 'var(--text-main)' }}>{item.name}</strong></td>
-                          <td style={{ fontSize: 12 }}>{item.phone || 'N/A'}</td>
-                          <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.address || 'N/A'}
+                          <td>
+                            <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{item.name}</strong>
+                            <div style={{ fontSize: 11, color: 'var(--primary)' }}>SĐT: <strong>{item.phone || 'Chưa có'}</strong></div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>Mã: <span className="mono">{item.code}</span></div>
                           </td>
-                          <td className="mono" style={{ fontWeight: 700 }}>{item.orderCount} đơn</td>
-                          <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>
-                            {new Intl.NumberFormat('vi-VN').format(item.totalCod)} đ
+                          <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.address || 'Toàn quốc'}
+                          </td>
+                          <td>
+                            <input
+                              type="email"
+                              placeholder="Nhập email..."
+                              value={item.email || ''}
+                              onChange={(e) => {
+                                const updated = [...detectedNewShops];
+                                updated[idx] = { ...updated[idx], email: e.target.value };
+                                setDetectedNewShops(updated);
+                              }}
+                              className="input-field"
+                              style={{ padding: '3px 6px', fontSize: 11, width: 140 }}
+                            />
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <select
+                                value={item.bankName || 'MB Bank'}
+                                onChange={(e) => {
+                                  const updated = [...detectedNewShops];
+                                  updated[idx] = { ...updated[idx], bankName: e.target.value };
+                                  setDetectedNewShops(updated);
+                                }}
+                                className="select-field"
+                                style={{ padding: '2px 4px', fontSize: 10, width: 95 }}
+                              >
+                                {VIETNAM_BANKS.map(b => (
+                                  <option key={b} value={b}>{b}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Số tài khoản..."
+                                value={item.accountNumber || ''}
+                                onChange={(e) => {
+                                  const updated = [...detectedNewShops];
+                                  updated[idx] = { ...updated[idx], accountNumber: e.target.value };
+                                  setDetectedNewShops(updated);
+                                }}
+                                className="input-field mono"
+                                style={{ padding: '3px 6px', fontSize: 11, width: 110 }}
+                              />
+                            </div>
+                          </td>
+                          <td className="mono" style={{ fontWeight: 700, fontSize: 12 }}>
+                            {item.orderCount} đơn
+                            <div style={{ fontSize: 10, color: 'var(--success)' }}>
+                              {new Intl.NumberFormat('vi-VN').format(item.totalCod)} đ
+                            </div>
                           </td>
                         </tr>
                       ))}

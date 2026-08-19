@@ -558,6 +558,10 @@ export interface DetectedNewShop {
   phone: string;
   phoneList: string[];
   address: string;
+  email?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountHolder?: string;
   orderCount: number;
   totalCod: number;
 }
