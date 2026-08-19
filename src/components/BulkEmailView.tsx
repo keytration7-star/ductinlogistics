@@ -23,19 +23,20 @@ import {
 import type { ReconciliationSession, EmailSettings, ShopSettlementStatement } from '../types';
 import { EmailService } from '../services/emailService';
 import { ExcelService } from '../services/excelService';
-import { EmailConfigModal } from './EmailConfigModal';
 import { StorageService } from '../services/storage';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
   emailSettings: EmailSettings;
   onSaveEmailSettings: (settings: EmailSettings) => void;
+  onOpenSettings?: () => void;
 }
 
 export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   currentSession,
   emailSettings,
   onSaveEmailSettings,
+  onOpenSettings,
 }) => {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
@@ -46,7 +47,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const [sendProgress, setSendProgress] = useState<{ sent: number; total: number }>({ sent: 0, total: 0 });
   const [shopStatuses, setShopStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string }>>({});
   const [copiedBody, setCopiedBody] = useState(false);
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   // Scheduling State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -58,6 +58,51 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   // Inline Shop Email Editing State
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [tempEmailMap, setTempEmailMap] = useState<Record<string, string>>({});
+  const [selectedCarrierTab, setSelectedCarrierTab] = useState<string>('default');
+
+  const CARRIER_TABS = [
+    { id: 'default', label: '🌐 Mặc Định (Tất Cả)' },
+    { id: 'jnt', label: '📦 J&T Express' },
+    { id: 'spx', label: '⚡ Shopee Express (SPX)' },
+    { id: 'ghn', label: '🚀 Giao Hàng Nhanh (GHN)' },
+    { id: 'ghtk', label: '🛵 GHTK' },
+    { id: 'vtp', label: '📮 Viettel Post' },
+  ];
+
+  // Helper to get active subject and body template for selected carrier tab
+  const activeSubject = selectedCarrierTab === 'default'
+    ? settings.subjectTemplate
+    : (settings.carrierTemplates?.[selectedCarrierTab]?.subjectTemplate || settings.subjectTemplate);
+
+  const activeBody = selectedCarrierTab === 'default'
+    ? settings.bodyTemplate
+    : (settings.carrierTemplates?.[selectedCarrierTab]?.bodyTemplate || settings.bodyTemplate);
+
+  const handleUpdateActiveSubject = (val: string) => {
+    if (selectedCarrierTab === 'default') {
+      setSettings({ ...settings, subjectTemplate: val });
+    } else {
+      const cTemplates = { ...(settings.carrierTemplates || {}) };
+      cTemplates[selectedCarrierTab] = {
+        ...(cTemplates[selectedCarrierTab] || { subjectTemplate: settings.subjectTemplate, bodyTemplate: settings.bodyTemplate }),
+        subjectTemplate: val,
+      };
+      setSettings({ ...settings, carrierTemplates: cTemplates });
+    }
+  };
+
+  const handleUpdateActiveBody = (val: string) => {
+    if (selectedCarrierTab === 'default') {
+      setSettings({ ...settings, bodyTemplate: val });
+    } else {
+      const cTemplates = { ...(settings.carrierTemplates || {}) };
+      cTemplates[selectedCarrierTab] = {
+        ...(cTemplates[selectedCarrierTab] || { subjectTemplate: settings.subjectTemplate, bodyTemplate: settings.bodyTemplate }),
+        bodyTemplate: val,
+      };
+      setSettings({ ...settings, carrierTemplates: cTemplates });
+    }
+  };
 
   const statements = currentSession?.statements || [];
   const selectedStatement = statements.find(s => s.shopId === selectedShopId) || statements[0];
@@ -155,10 +200,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   const handleInsertVariable = (varName: string) => {
-    setSettings({
-      ...settings,
-      bodyTemplate: settings.bodyTemplate + varName,
-    });
+    handleUpdateActiveBody(activeBody + varName);
   };
 
   const handleStartBatchSend = async () => {
@@ -174,7 +216,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
     const newStatuses: Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string }> = {};
 
-    await EmailService.sendBatchEmails(statements, settings, (shopId, status, message) => {
+    await EmailService.sendBatchEmails(statements, settings, currentSession?.carrierId, (shopId: string, status: 'sending' | 'sent' | 'failed', message?: string) => {
       newStatuses[shopId] = { status, message };
       setShopStatuses({ ...newStatuses });
       if (status === 'sent' || status === 'failed') {
@@ -221,8 +263,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
+  const activeCarrierId = selectedCarrierTab !== 'default' ? selectedCarrierTab : currentSession?.carrierId;
+
   const previewRendered = selectedStatement 
-    ? EmailService.renderEmail(selectedStatement, settings)
+    ? EmailService.renderEmail(selectedStatement, settings, activeCarrierId)
     : { subject: '', body: '' };
 
   const handleCopyBody = () => {
@@ -251,10 +295,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           {/* Gear icon button for Email & Password Configuration */}
           <button
             type="button"
-            onClick={() => setIsConfigModalOpen(true)}
+            onClick={() => onOpenSettings?.()}
             className="btn btn-secondary btn-lg"
             style={{ display: 'flex', alignItems: 'center', gap: 8, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-            title="Cài đặt tài khoản Gmail, Mật khẩu ứng dụng và máy chủ SMTP"
+            title="Mở Cài đặt hệ thống để cấu hình tài khoản Gmail, Mật khẩu ứng dụng và máy chủ SMTP"
           >
             <Settings size={18} />
             <span>Cài Đặt Mail & Mật Khẩu</span>
@@ -316,7 +360,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             <AlertCircle size={20} />
             <span>Chưa cài đặt Gmail người gửi! Hệ thống cần địa chỉ Gmail + Mật khẩu ứng dụng 16 ký tự để gửi email.</span>
           </div>
-          <button className="btn btn-danger btn-sm" onClick={() => setIsConfigModalOpen(true)}>
+          <button className="btn btn-danger btn-sm" onClick={() => onOpenSettings?.()}>
             <Settings size={14} /> Cài Đặt Gmail Người Gửi Ngay
           </button>
         </div>
@@ -421,19 +465,38 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
         gap: 20,
       }}>
-        
         {/* 1. Template Config */}
         <div className="glass-panel" style={{ padding: 22 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>
-            1. Cấu Hình Mẫu Email Đối Soát
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>
+              1. Cấu Hình Mẫu Email Đối Soát
+            </h3>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              Đang chỉnh: <strong style={{ color: 'var(--primary)' }}>{CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label}</strong>
+            </span>
+          </div>
+
+          {/* Carrier Template Tabs */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 14, background: 'var(--bg-secondary)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            {CARRIER_TABS.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedCarrierTab(tab.id)}
+                className={`btn btn-sm ${selectedCarrierTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '4px 9px', fontSize: 11, fontWeight: selectedCarrierTab === tab.id ? 700 : 400 }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
           <div className="input-group">
-            <label className="input-label">Tiêu đề Email</label>
+            <label className="input-label">Tiêu đề Email ({CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})</label>
             <input
               type="text"
-              value={settings.subjectTemplate}
-              onChange={(e) => setSettings({ ...settings, subjectTemplate: e.target.value })}
+              value={activeSubject}
+              onChange={(e) => handleUpdateActiveSubject(e.target.value)}
               className="input-field"
             />
           </div>
@@ -468,11 +531,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           </div>
 
           <div className="input-group">
-            <label className="input-label">Nội dung Email</label>
+            <label className="input-label">Nội dung Email ({CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})</label>
             <textarea
-              rows={12}
-              value={settings.bodyTemplate}
-              onChange={(e) => setSettings({ ...settings, bodyTemplate: e.target.value })}
+              rows={11}
+              value={activeBody}
+              onChange={(e) => handleUpdateActiveBody(e.target.value)}
               className="textarea-field"
               style={{ fontSize: 13, lineHeight: 1.6 }}
             />
@@ -480,7 +543,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
             <button onClick={handleSaveSettings} className="btn btn-secondary btn-sm">
-              Lưu Mẫu Email Này
+              💾 Lưu Mẫu Email Này
             </button>
           </div>
         </div>
@@ -536,8 +599,19 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               overflow: 'hidden',
             }}>
               <div style={{ fontSize: 13, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', background: 'var(--bg-secondary)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Gửi tới: <strong style={{ color: 'var(--text-main)' }}>{selectedStatement.shopEmail || 'Chưa có email'}</strong> ({selectedStatement.shopName})</div>
-                <div style={{ fontWeight: 700, marginTop: 4, color: 'var(--primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Gửi tới Shop <strong>{selectedStatement.shopName}</strong>:</span>
+                  {EmailService.getEmailsForStatement(selectedStatement).length === 0 ? (
+                    <span className="badge badge-warning" style={{ fontSize: 11 }}>Chưa có email</span>
+                  ) : (
+                    EmailService.getEmailsForStatement(selectedStatement).map(em => (
+                      <span key={em} className="badge badge-primary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                        ✉️ {em}
+                      </span>
+                    ))
+                  )}
+                </div>
+                <div style={{ fontWeight: 700, marginTop: 6, color: 'var(--primary)' }}>
                   {previewRendered.subject}
                 </div>
               </div>
@@ -546,7 +620,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 <div style={{ padding: 10, background: '#f1f5f9', maxHeight: 420, overflowY: 'auto' }}>
                   <iframe
                     title="Email HTML Preview"
-                    srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings)}
+                    srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings, activeCarrierId)}
                     style={{
                       width: '100%',
                       height: 520,
@@ -671,16 +745,24 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className="mono" style={{ fontSize: 13 }}>{stmt.shopEmail}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {EmailService.getEmailsForStatement(stmt).length === 0 ? (
+                            <span style={{ fontSize: 12, color: 'var(--danger)', fontStyle: 'italic' }}>Chưa có email</span>
+                          ) : (
+                            EmailService.getEmailsForStatement(stmt).map(em => (
+                              <span key={em} className="badge badge-neutral mono" style={{ fontSize: 11 }}>
+                                ✉️ {em}
+                              </span>
+                            ))
+                          )}
                           <button
                             type="button"
                             onClick={() => {
-                              setTempEmailMap({ ...tempEmailMap, [stmt.shopId]: stmt.shopEmail });
+                              setTempEmailMap({ ...tempEmailMap, [stmt.shopId]: EmailService.getEmailsForStatement(stmt).join(', ') || stmt.shopEmail });
                               setEditingShopId(stmt.shopId);
                             }}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', padding: 2 }}
-                            title="Chỉnh sửa email nhận của Shop này"
+                            title="Chỉnh sửa hoặc thêm email nhận cho Shop này (cách phẩy)"
                           >
                             <Edit2 size={12} />
                           </button>
@@ -712,28 +794,34 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={async () => {
-                            if (!stmt.shopEmail) {
+                            const recipientEmails = EmailService.getEmailsForStatement(stmt);
+                            if (recipientEmails.length === 0) {
                               showToast('Shop chưa có địa chỉ email nhận.', 'warning');
                               return;
                             }
                             setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sending' } }));
                             const excelBase64 = EmailService.generateExcelBase64(stmt);
+                            const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId);
+                            const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId);
+                            const toHeader = recipientEmails.join(', ');
+
                             const res = await EmailService.sendRealEmail({
                               senderName: settings.senderName,
                               senderEmail: settings.senderEmail,
                               emailPassword: settings.emailPassword,
                               smtpHost: settings.smtpHost,
                               smtpPort: settings.smtpPort,
-                              to: stmt.shopEmail,
-                              subject: EmailService.renderEmail(stmt, settings).subject,
-                              text: EmailService.renderEmail(stmt, settings).body,
+                              to: toHeader,
+                              subject,
+                              text: body,
+                              html: htmlBody,
                               attachments: excelBase64 ? [{
-                                filename: `Bang_ke_doi_soat_${stmt.shopCode}.xlsx`,
+                                filename: `Bang_ke_doi_soat_${stmt.shopCode || stmt.shopName}.xlsx`,
                                 content: excelBase64,
                               }] : undefined,
                             });
                             if (res.success) {
-                              setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sent', message: 'Đã gửi thành công' } }));
+                              setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sent', message: `Đã gửi thành công tới ${recipientEmails.length} mail` } }));
                             } else {
                               setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'failed', message: res.error } }));
                             }
@@ -902,17 +990,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* Email SMTP & Password Configuration Modal */}
-      <EmailConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        emailSettings={settings}
-        onSave={(newSettings) => {
-          setSettings(newSettings);
-          onSaveEmailSettings(newSettings);
-        }}
-      />
 
     </div>
   );

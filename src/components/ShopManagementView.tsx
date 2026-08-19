@@ -142,10 +142,18 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       .map(p => p.trim())
       .filter(p => p.length >= 7);
 
+    const rawEmails = editingShop.email || '';
+    const parsedEmails = rawEmails
+      .split(/[,;\s]+/)
+      .map(e => e.trim())
+      .filter(e => e.includes('@'));
+
     const shopToSave: Shop = {
       ...editingShop,
       phone: rawPhones,
       phoneList: parsedPhones.length > 0 ? parsedPhones : [rawPhones],
+      email: rawEmails,
+      emailList: parsedEmails.length > 0 ? parsedEmails : (rawEmails ? [rawEmails] : []),
     };
 
     const index = shops.findIndex(s => s.id === shopToSave.id);
@@ -583,10 +591,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Email nhận đối soát (*)</label>
+                  <label className="input-label">Email nhận đối soát (có thể gõ nhiều mail cách phẩy)</label>
                   <input
-                    type="email"
-                    placeholder="shop@gmail.com"
+                    type="text"
+                    placeholder="shop@gmail.com, ketoan@gmail.com..."
                     value={editingShop.email}
                     onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
                     className="input-field"

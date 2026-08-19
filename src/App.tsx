@@ -213,6 +213,7 @@ export function App() {
               currentSession={currentSession}
               emailSettings={emailSettings}
               onSaveEmailSettings={handleSaveEmailSettings}
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
             />
           )}
 

@@ -7,9 +7,57 @@ export const EmailService = {
     return new Intl.NumberFormat('vi-VN').format(amount);
   },
 
-  renderEmail(statement: ShopSettlementStatement, settings: EmailSettings): { subject: string; body: string } {
+  getEmailsForStatement(statement: ShopSettlementStatement): string[] {
+    const emailSet = new Set<string>();
+
+    // 1. Extract from statement.shopEmail
+    if (statement.shopEmail) {
+      statement.shopEmail.split(/[,;\s]+/).forEach(e => {
+        const clean = e.trim();
+        if (clean && clean.includes('@')) emailSet.add(clean);
+      });
+    }
+
+    // 2. Lookup in StorageService registered Shops for email & emailList
+    const registeredShops = StorageService.getShops();
+    const shopObj = registeredShops.find(s =>
+      s.id === statement.shopId ||
+      (s.code && s.code === statement.shopCode) ||
+      s.name.toLowerCase().trim() === statement.shopName.toLowerCase().trim()
+    );
+
+    if (shopObj) {
+      if (shopObj.email) {
+        shopObj.email.split(/[,;\s]+/).forEach(e => {
+          const clean = e.trim();
+          if (clean && clean.includes('@')) emailSet.add(clean);
+        });
+      }
+      if (shopObj.emailList && Array.isArray(shopObj.emailList)) {
+        shopObj.emailList.forEach((e: string) => {
+          if (typeof e === 'string') {
+            e.split(/[,;\s]+/).forEach((sub: string) => {
+              const clean = sub.trim();
+              if (clean && clean.includes('@')) emailSet.add(clean);
+            });
+          }
+        });
+      }
+    }
+
+    return Array.from(emailSet);
+  },
+
+  renderEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string): { subject: string; body: string } {
     let subject = settings.subjectTemplate;
     let body = settings.bodyTemplate;
+
+    // Check Carrier Specific Template
+    if (carrierId && settings.carrierTemplates && settings.carrierTemplates[carrierId]) {
+      const cTemplate = settings.carrierTemplates[carrierId];
+      if (cTemplate.subjectTemplate) subject = cTemplate.subjectTemplate;
+      if (cTemplate.bodyTemplate) body = cTemplate.bodyTemplate;
+    }
 
     const replacements: Record<string, string> = {
       '{TEN_SHOP}': statement.shopName,
@@ -37,15 +85,15 @@ export const EmailService = {
     return { subject, body };
   },
 
-  renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings): string {
+  renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string): string {
     const companyInfo = StorageService.getCompanyInfo();
     const companyName = companyInfo?.companyName || settings.senderName || 'CÔNG TY LOGISTICS & GOM ĐƠN';
     const companyAddress = companyInfo?.address || '';
     const companyPhone = companyInfo?.phone || '';
     const companyTax = companyInfo?.taxCode || '';
 
-    // Dynamically render custom text body from user settings template
-    const { body: customTextBody } = this.renderEmail(statement, settings);
+    // Dynamically render custom text body from user settings template (carrier specific or general)
+    const { body: customTextBody } = this.renderEmail(statement, settings, carrierId);
 
     const totalCodStr = this.formatMoney(statement.totalCod);
     const totalFeeStr = this.formatMoney(statement.totalShopFee + statement.totalShopOtherFee);
@@ -290,28 +338,30 @@ export const EmailService = {
   async sendBatchEmails(
     statements: ShopSettlementStatement[],
     settings: EmailSettings,
-    onProgress: (shopId: string, status: 'sending' | 'sent' | 'failed', message?: string) => void
+    carrierId?: string,
+    onProgress?: (shopId: string, status: 'sending' | 'sent' | 'failed', message?: string) => void
   ): Promise<{ sentCount: number; failedCount: number }> {
     let sentCount = 0;
     let failedCount = 0;
 
     for (const stmt of statements) {
-      onProgress(stmt.shopId, 'sending');
+      if (onProgress) onProgress(stmt.shopId, 'sending');
 
-      if (!stmt.shopEmail || !stmt.shopEmail.includes('@')) {
-        onProgress(stmt.shopId, 'failed', 'Shop chưa có địa chỉ Email nhận');
+      const recipientEmails = this.getEmailsForStatement(stmt);
+      if (recipientEmails.length === 0) {
+        if (onProgress) onProgress(stmt.shopId, 'failed', 'Shop chưa có địa chỉ Email nhận hợp lệ');
         failedCount++;
         continue;
       }
 
       if (!settings.senderEmail || !settings.emailPassword) {
-        onProgress(stmt.shopId, 'failed', 'Chưa cài đặt Email gửi hoặc Mật khẩu ứng dụng trong bánh răng ⚙️');
+        if (onProgress) onProgress(stmt.shopId, 'failed', 'Chưa cài đặt Email gửi hoặc Mật khẩu ứng dụng trong bánh răng ⚙️');
         failedCount++;
         continue;
       }
 
-      const { subject, body } = this.renderEmail(stmt, settings);
-      const htmlBody = this.renderHtmlEmail(stmt, settings);
+      const { subject, body } = this.renderEmail(stmt, settings, carrierId);
+      const htmlBody = this.renderHtmlEmail(stmt, settings, carrierId);
       const attachments = [];
 
       if (settings.autoAttachExcel) {
@@ -324,13 +374,15 @@ export const EmailService = {
         }
       }
 
+      const toHeader = recipientEmails.join(', ');
+
       const res = await this.sendRealEmail({
         senderName: settings.senderName,
         senderEmail: settings.senderEmail,
         emailPassword: settings.emailPassword,
         smtpHost: settings.smtpHost,
         smtpPort: settings.smtpPort,
-        to: stmt.shopEmail,
+        to: toHeader,
         subject,
         text: body,
         html: htmlBody,
@@ -338,10 +390,10 @@ export const EmailService = {
       });
 
       if (res.success) {
-        onProgress(stmt.shopId, 'sent', `Đã gửi thành công tới ${stmt.shopEmail}`);
+        if (onProgress) onProgress(stmt.shopId, 'sent', `Đã gửi thành công tới ${recipientEmails.length} mail (${toHeader})`);
         sentCount++;
       } else {
-        onProgress(stmt.shopId, 'failed', res.error || 'Lỗi gửi mail qua SMTP');
+        if (onProgress) onProgress(stmt.shopId, 'failed', res.error || 'Lỗi gửi mail qua SMTP');
         failedCount++;
       }
 

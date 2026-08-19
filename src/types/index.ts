@@ -74,6 +74,7 @@ export interface Shop {
   phone: string;
   phoneList?: string[]; // Multiple SĐT for exact matching
   email: string;
+  emailList?: string[]; // Multiple emails for receiving statements
   address: string;
   bankAccount: BankAccount;
   pricingPlan: ShopPricingPlan;
