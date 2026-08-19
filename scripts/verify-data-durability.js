@@ -45,6 +45,7 @@ const dbFiles = [
   'carrier_data.json',
   'payments.json',
   'ctvs.json',
+  'audit_logs.json',
 ];
 
 dbFiles.forEach(file => {

@@ -85,6 +85,7 @@ function createSnapshot(reason = 'auto') {
       users: readJsonFile('users.json', []),
       payments: readJsonFile('payments.json', []),
       ctvs: readJsonFile('ctvs.json', []),
+      auditLogs: readJsonFile('audit_logs.json', []),
     };
 
     fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2), 'utf8');
@@ -137,6 +138,7 @@ app.get('/api/db/all', (req, res) => {
     const users = readJsonFile('users.json', null);
     const payments = readJsonFile('payments.json', []);
     const ctvs = readJsonFile('ctvs.json', []);
+    const auditLogs = readJsonFile('audit_logs.json', []);
 
     res.json({
       success: true,
@@ -151,6 +153,7 @@ app.get('/api/db/all', (req, res) => {
         users,
         payments,
         ctvs,
+        auditLogs,
       },
     });
   } catch (err) {
@@ -326,6 +329,7 @@ app.post('/api/db/snapshots/restore', (req, res) => {
     if (backup.users) writeJsonFile('users.json', backup.users);
     if (backup.payments) writeJsonFile('payments.json', backup.payments);
     if (backup.ctvs) writeJsonFile('ctvs.json', backup.ctvs);
+    if (backup.auditLogs) writeJsonFile('audit_logs.json', backup.auditLogs);
 
     res.json({ success: true, message: `Đã khôi phục toàn bộ dữ liệu từ snapshot ${filename} thành công!` });
   } catch (err) {
@@ -345,6 +349,10 @@ app.post('/api/db/backup/import', (req, res) => {
     if (backup.emailSettings) writeJsonFile('email_settings.json', backup.emailSettings);
     if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
     if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
+    if (backup.users) writeJsonFile('users.json', backup.users);
+    if (backup.payments) writeJsonFile('payments.json', backup.payments);
+    if (backup.ctvs) writeJsonFile('ctvs.json', backup.ctvs);
+    if (backup.auditLogs) writeJsonFile('audit_logs.json', backup.auditLogs);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

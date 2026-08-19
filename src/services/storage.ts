@@ -177,7 +177,7 @@ export const StorageService = {
       const result = await res.json();
       if (!result.success || !result.data) return false;
 
-      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users, payments } = result.data;
+      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users, payments, ctvs, auditLogs } = result.data;
 
       if (shops && Array.isArray(shops)) {
         localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
@@ -212,6 +212,12 @@ export const StorageService = {
       if (payments && Array.isArray(payments)) {
         localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
       }
+      if (ctvs && Array.isArray(ctvs)) {
+        localStorage.setItem('gomdon_ctvs_v1', JSON.stringify(ctvs));
+      }
+      if (auditLogs && Array.isArray(auditLogs)) {
+        localStorage.setItem('gomdon_audit_logs_v1', JSON.stringify(auditLogs));
+      }
 
       // First time sync: If server was empty but client had local data, push client data to server!
       if (!shops && this.getShops().length > 0) {
@@ -223,6 +229,18 @@ export const StorageService = {
       const localUsers = localStorage.getItem('gomdon_users_v1');
       if (!users && localUsers) {
         postServerSync('/api/db/users', { users: JSON.parse(localUsers) });
+      }
+      const localPayments = localStorage.getItem(PAYMENTS_KEY);
+      if (!payments && localPayments) {
+        postServerSync('/api/db/payments', { payments: JSON.parse(localPayments) });
+      }
+      const localCtvs = localStorage.getItem('gomdon_ctvs_v1');
+      if (!ctvs && localCtvs) {
+        postServerSync('/api/db/ctvs', { ctvs: JSON.parse(localCtvs) });
+      }
+      const localLogs = localStorage.getItem('gomdon_audit_logs_v1');
+      if (!auditLogs && localLogs) {
+        postServerSync('/api/db/audit-logs', { logs: JSON.parse(localLogs) });
       }
 
       return true;
@@ -535,7 +553,7 @@ export const StorageService = {
 
   exportDatabaseBackup(): string {
     const backup = {
-      version: '1.0',
+      version: '2.0',
       exportedAt: new Date().toISOString(),
       shops: this.getShops(),
       carriers: this.getCarriers(),
@@ -543,6 +561,20 @@ export const StorageService = {
       emailSettings: this.getEmailSettings(),
       exportColumns: this.getExportColumnSettings(),
       companyInfo: this.getCompanyInfo(),
+      payments: this.getPaymentRecords(),
+      ctvs: this.getCtvs(),
+      users: (() => {
+        try {
+          const raw = localStorage.getItem('gomdon_users_v1');
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
+      auditLogs: (() => {
+        try {
+          const raw = localStorage.getItem('gomdon_audit_logs_v1');
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
     };
     return JSON.stringify(backup, null, 2);
   },
@@ -559,6 +591,19 @@ export const StorageService = {
       if (backup.emailSettings) this.saveEmailSettings(backup.emailSettings);
       if (backup.exportColumns) this.saveExportColumnSettings(backup.exportColumns);
       if (backup.companyInfo) this.saveCompanyInfo(backup.companyInfo);
+      if (backup.payments) {
+        localStorage.setItem(PAYMENTS_KEY, JSON.stringify(backup.payments));
+        postServerSync('/api/db/payments', { payments: backup.payments });
+      }
+      if (backup.ctvs) this.saveCtvs(backup.ctvs);
+      if (backup.users) {
+        localStorage.setItem('gomdon_users_v1', JSON.stringify(backup.users));
+        postServerSync('/api/db/users', { users: backup.users });
+      }
+      if (backup.auditLogs) {
+        localStorage.setItem('gomdon_audit_logs_v1', JSON.stringify(backup.auditLogs));
+        postServerSync('/api/db/audit-logs', { logs: backup.auditLogs });
+      }
 
       postServerSync('/api/db/backup/import', backup);
       return true;
