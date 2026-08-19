@@ -273,11 +273,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <div key={group.title}>
                 <div style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: 'var(--text-dim)',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: 'var(--text-muted)',
                   letterSpacing: '0.06em',
-                  padding: '0 8px 6px',
+                  padding: '4px 8px 6px',
                 }}>
                   {group.title}
                 </div>
@@ -291,8 +291,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => setActiveTab(item.id)}
                         className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                          <Icon size={16} className="sidebar-icon" style={{ flexShrink: 0 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <div className="sidebar-icon-box" style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 'var(--radius-sm)',
+                            background: isActive ? '#2563eb' : 'var(--bg-tertiary)',
+                            color: isActive ? '#ffffff' : 'var(--text-muted)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            transition: 'all 0.2s ease',
+                          }}>
+                            <Icon size={15} />
+                          </div>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.label}
                           </span>
