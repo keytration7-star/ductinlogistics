@@ -430,12 +430,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                     key={shop.id}
                     onClick={() => handleSelectShop(shop)}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                      background: isSelected ? 'rgba(79, 70, 229, 0.08)' : 'var(--bg-primary)',
+                      padding: '11px 14px',
+                      borderRadius: 12,
+                      border: isSelected ? '1.5px solid var(--primary)' : '1.5px solid rgba(226, 232, 240, 0.9)',
+                      borderLeft: isSelected ? '5px solid var(--primary)' : '1.5px solid rgba(226, 232, 240, 0.9)',
+                      background: isSelected ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)' : '#ffffff',
+                      boxShadow: isSelected ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)',
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease-in-out',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
@@ -546,8 +548,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             </div>
 
             {/* Section 1: Thông tin cơ bản */}
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <div style={{
+              background: '#ffffff',
+              border: '1.5px solid rgba(226, 232, 240, 0.95)',
+              borderRadius: 16,
+              padding: 20,
+              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
                 <Store size={15} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
               </div>
 
@@ -651,8 +659,14 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             </div>
 
             {/* Section 2: Tài khoản ngân hàng & VietQR Code Preview */}
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <div style={{
+              background: '#ffffff',
+              border: '1.5px solid rgba(226, 232, 240, 0.95)',
+              borderRadius: 16,
+              padding: 20,
+              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
                 <CreditCard size={15} /> 2. THÔNG TIN TÀI KHOẢN NGÂN HÀNG NHẬN COD & MÃ VIETQR LIVE
               </div>
 
@@ -733,7 +747,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             </div>
 
             {/* Section 3: Biểu giá cước bậc thang */}
-            <div>
+            <div style={{
+              background: '#ffffff',
+              border: '1.5px solid rgba(226, 232, 240, 0.95)',
+              borderRadius: 16,
+              padding: 20,
+              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+            }}>
               <div style={{
                 fontSize: 13,
                 fontWeight: 800,
@@ -741,7 +761,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: 10,
+                marginBottom: 14,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Sliders size={15} /> 3. BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG
