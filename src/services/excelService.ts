@@ -836,4 +836,80 @@ export const ExcelService = {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, filename);
   },
+
+  async exportBankPayoutExcel(items: {
+    shopCode: string;
+    shopName: string;
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    amount: number;
+    sessionName: string;
+    statusText: string;
+  }[], sessionName: string): Promise<void> {
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Danh Sách Đi Tiền Ngân Hàng');
+
+    ws.addRow(['DANH SÁCH CHUYỂN KHOẢN NGÂN HÀNG (IBANKING BATCH PAYOUT)']);
+    ws.addRow([`Kỳ đối soát: ${sessionName} | Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`]);
+    ws.addRow([]);
+
+    const headers = ws.addRow([
+      'STT',
+      'Mã Shop',
+      'Tên Khách Hàng / Shop',
+      'Tên Ngân Hàng',
+      'Số Tài Khoản',
+      'Chủ Tài Khoản Ngân Hàng',
+      'Số Tiền Chuyển Khoản (VNĐ)',
+      'Nội Dung Chuyển Khoản',
+      'Trạng Thái'
+    ]);
+
+    headers.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    let grandTotal = 0;
+
+    items.forEach((item, idx) => {
+      grandTotal += item.amount;
+      const row = ws.addRow([
+        idx + 1,
+        item.shopCode,
+        item.shopName,
+        item.bankName || 'Chưa có',
+        item.accountNumber || 'Chưa có',
+        item.accountHolder || item.shopName,
+        item.amount,
+        `Thanh toan doi soat ${sessionName} shop ${item.shopCode}`,
+        item.statusText,
+      ]);
+
+      row.getCell(7).numFmt = '#,##0';
+    });
+
+    const totalRow = ws.addRow(['TỔNG CỘNG CHUYỂN KHOẢN', '', '', '', '', '', grandTotal, '', '']);
+    totalRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+    totalRow.getCell(7).numFmt = '#,##0';
+
+    ws.columns = [
+      { width: 8 },
+      { width: 15 },
+      { width: 28 },
+      { width: 20 },
+      { width: 22 },
+      { width: 25 },
+      { width: 24 },
+      { width: 40 },
+      { width: 16 },
+    ];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `Danh_Sach_Di_Tien_Ngan_Hang_${sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
+  },
 };

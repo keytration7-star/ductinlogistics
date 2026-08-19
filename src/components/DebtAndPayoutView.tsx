@@ -12,10 +12,13 @@ import {
   Building2, 
   X, 
   CheckCircle,
-  Layers
+  Layers,
+  FileSpreadsheet,
+  Zap
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
+import { ExcelService } from '../services/excelService';
 
 interface DebtAndPayoutViewProps {
   sessions: ReconciliationSession[];
@@ -142,6 +145,78 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       StorageService.deletePaymentRecord(payId);
       showToast('Đã xóa lịch sử chuyển khoản.', 'info');
       reloadPayments();
+    }
+  };
+  // Export Session Payout Excel
+  const handleExportSessionPayoutExcel = async (session: ReconciliationSession) => {
+    const exportItems = session.statements.map(stmt => {
+      const { remainingDebt, status } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
+      let statusText = 'Đã đi tiền đủ';
+      if (status === 'UNPAID') statusText = 'Chưa đi tiền';
+      if (status === 'PARTIAL') statusText = 'Đã đi 1 phần';
+
+      return {
+        shopCode: stmt.shopCode,
+        shopName: stmt.shopName,
+        bankName: stmt.bankInfo?.bankName || '',
+        accountNumber: stmt.bankInfo?.accountNumber || '',
+        accountHolder: stmt.bankInfo?.accountHolder || stmt.shopName,
+        amount: remainingDebt > 0 ? remainingDebt : stmt.totalNetPayout,
+        sessionName: session.sessionName,
+        statusText,
+      };
+    });
+
+    await ExcelService.exportBankPayoutExcel(exportItems, session.sessionName);
+    showToast(`Đã xuất file Excel chuyển khoản ngân hàng kỳ ${session.sessionName}!`, 'success');
+  };
+
+  // Batch Mark Session Paid
+  const handleBatchMarkPaid = async (session: ReconciliationSession) => {
+    const unpaidStmts = session.statements.filter(stmt => {
+      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
+      return remainingDebt > 0;
+    });
+
+    if (unpaidStmts.length === 0) {
+      showToast('Tất cả Shop trong kỳ này đã được đi tiền đủ!', 'info');
+      return;
+    }
+
+    const totalUnpaidDebt = unpaidStmts.reduce((sum, stmt) => {
+      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
+      return sum + remainingDebt;
+    }, 0);
+
+    const ok = await showConfirm({
+      title: `Đi Tiền Hàng Loạt (${unpaidStmts.length} Shop)`,
+      message: `Bạn có chắc muốn đánh dấu ĐÃ ĐI TIỀN HÀNG LOẠT cho ${unpaidStmts.length} Shop với tổng số tiền ${formatVND(totalUnpaidDebt)}?`,
+      confirmText: 'Xác Nhận Đã Chuyển',
+    });
+
+    if (ok) {
+      unpaidStmts.forEach(stmt => {
+        const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
+        if (remainingDebt > 0) {
+          StorageService.savePaymentRecord({
+            sessionId: session.id,
+            sessionName: session.sessionName,
+            shopId: stmt.shopId,
+            shopCode: stmt.shopCode,
+            shopName: stmt.shopName,
+            amount: remainingDebt,
+            paidByUsername: currentUser.username,
+            paidByFullName: currentUser.fullName,
+            bankName: stmt.bankInfo?.bankName || 'Chuyển khoản hàng loạt',
+            transactionRef: `BATCH_${Date.now()}`,
+            note: `Thanh toán hàng loạt kỳ đối soát ${session.sessionName}`,
+          });
+        }
+      });
+
+      showToast(`Đã ghi nhận đi tiền hàng loạt ${formatVND(totalUnpaidDebt)} cho ${unpaidStmts.length} Shop!`, 'success');
+      reloadPayments();
+      if (onRefreshSessions) onRefreshSessions();
     }
   };
 
@@ -368,6 +443,32 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             {sessionStatus === 'PAID' && <span className="badge badge-success">🟢 Đã đi tiền đủ</span>}
                             {sessionStatus === 'PARTIAL' && <span className="badge badge-info">🔵 Chuyển 1 phần</span>}
                             {sessionStatus === 'UNPAID' && <span className="badge badge-warning">🔴 Chưa đi tiền</span>}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleExportSessionPayoutExcel(session)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 11, padding: '4px 8px' }}
+                              title="Xuất file Excel chứa danh sách STK Ngân Hàng và Số Tiền để nộp/tải lên iBanking"
+                            >
+                              <FileSpreadsheet size={13} color="var(--success)" />
+                              <span>Xuất Excel iBanking</span>
+                            </button>
+
+                            {sessionDebt > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleBatchMarkPaid(session)}
+                                className="btn btn-primary btn-sm"
+                                style={{ fontSize: 11, padding: '4px 8px' }}
+                                title="Đánh dấu tất cả Shop trong kỳ này đã chuyển khoản xong"
+                              >
+                                <Zap size={13} color="var(--warning)" />
+                                <span>Đi Tiền Hàng Loạt</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
