@@ -177,19 +177,52 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
 
   const totalMissingNetPayout = missingOrders.reduce((sum, o) => sum + o.netPayout, 0);
 
+  // Compute missing shops summary
+  const missingShopsMap = new Map<string, {
+    shopCode: string;
+    shopName: string;
+    missingCount: number;
+    totalCod: number;
+    totalShopFee: number;
+    totalNetPayout: number;
+    files: Set<string>;
+  }>();
+
+  missingOrders.forEach(ord => {
+    const existing = missingShopsMap.get(ord.shopCode) || {
+      shopCode: ord.shopCode,
+      shopName: ord.shopName,
+      missingCount: 0,
+      totalCod: 0,
+      totalShopFee: 0,
+      totalNetPayout: 0,
+      files: new Set<string>(),
+    };
+
+    existing.missingCount += 1;
+    existing.totalCod += ord.cod;
+    existing.totalShopFee += ord.shopFee;
+    existing.totalNetPayout += ord.netPayout;
+    existing.files.add(ord.fileName);
+
+    missingShopsMap.set(ord.shopCode, existing);
+  });
+
+  const missingShopsSummary = Array.from(missingShopsMap.values());
+
   // Auto Create Supplementary Session for Missing Orders
   const handleCreateSupplementarySession = async () => {
     if (missingOrders.length === 0) {
-      showToast('Không có đơn hàng bị sót nào để lập Kỳ Đối Soát Bù.', 'info');
+      showToast('Không có đơn hàng/Khách hàng bị sót nào để lập Kỳ Đối Soát Bù.', 'info');
       return;
     }
 
-    const sessionNameDefault = `Kỳ Đối Soát Bù (${new Date().toLocaleDateString('vi-VN')}) - ${missingOrders.length} đơn sót`;
+    const sessionNameDefault = `Kỳ Đối Soát Bù Dữ Liệu (${new Date().toLocaleDateString('vi-VN')}) - ${missingShopsSummary.length} Khách Bù (${missingOrders.length} Đơn)`;
 
     const ok = await showConfirm({
-      title: `Tạo Kỳ Đối Soát Bù (${missingOrders.length} Đơn Sót)`,
-      message: `Hệ thống sẽ gom ${missingOrders.length} đơn bị sót thành 1 Kỳ Đối Soát Bù mới với tổng tiền thực trả ${formatVND(totalMissingNetPayout)}. Bạn có muốn tiếp tục?`,
-      confirmText: 'Tạo Kỳ Đối Soát Bù',
+      title: `Tạo Kỳ Đối Soát Bù (${missingShopsSummary.length} Khách Hàng - ${missingOrders.length} Đơn)`,
+      message: `Hệ thống sẽ gom ${missingOrders.length} đơn bị thiếu từ ${missingShopsSummary.length} Khách Hàng thành 1 Kỳ Đối Soát Bù với nhãn [DỮ LIỆU BÙ KỲ SÓT] và tổng thực chuyển ${formatVND(totalMissingNetPayout)}. Bạn có muốn tiếp tục?`,
+      confirmText: 'Lập Kỳ Đối Soát Bù ngay',
     });
 
     if (!ok) return;
@@ -202,22 +235,33 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
         shopId: ord.shopCode,
         shopCode: ord.shopCode,
         shopName: ord.shopName,
+        shopPhone: '',
+        shopEmail: '',
+        shopAddress: '',
+        bankInfo: { bankName: '', accountNumber: '', accountHolder: '' },
+        periodName: `Bù Kỳ ${ord.periodName}`,
+        totalOrders: 0,
+        deliveredOrders: 0,
+        returnedOrders: 0,
+        inTransitOrders: 0,
         totalCod: 0,
         totalShopFee: 0,
         totalShopOtherFee: 0,
         totalNetPayout: 0,
-        ordersCount: 0,
+        totalNvcCost: 0,
+        totalProfit: 0,
         orders: [],
+        emailStatus: 'idle',
+        isSupplementary: true,
+        supplementaryNotes: `Bù dữ liệu đối soát khách bị thiếu (${ord.fileName})`,
       };
 
       existing.totalCod += ord.cod;
       existing.totalShopFee += ord.shopFee;
       existing.totalNetPayout += ord.netPayout;
-      existing.ordersCount += 1;
+      existing.totalOrders += 1;
 
-      shopStatementsMap.get(ord.shopCode)
-        ? null
-        : shopStatementsMap.set(ord.shopCode, existing);
+      shopStatementsMap.set(ord.shopCode, existing);
     });
 
     const statements = Array.from(shopStatementsMap.values());
@@ -240,6 +284,8 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
       statements,
       unmatchedOrders: [],
       payoutStatus: 'UNPAID',
+      isSupplementary: true,
+      supplementaryNotes: `Kỳ đối soát bù dữ liệu cho ${missingShopsSummary.length} Khách hàng bị thiếu`,
     };
 
     StorageService.saveSession(newSession);
@@ -404,6 +450,67 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--info)', textTransform: 'uppercase' }}>Shop Chưa Đăng Ký</div>
               <div className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)' }}>{newShopOrders.length} đơn</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏬 MISSING SHOPS AUDIT BREAKDOWN PANEL */}
+      {missingShopsSummary.length > 0 && (
+        <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid var(--danger)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Building2 size={20} />
+              Danh Sách Khách Hàng (Shop) Bị Thiếu / Sót Kỳ Đối Soát ({missingShopsSummary.length} Shop)
+            </h3>
+            <button
+              onClick={handleCreateSupplementarySession}
+              className="btn btn-danger btn-sm"
+              style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px' }}
+            >
+              <Zap size={14} />
+              <span>Tạo Kỳ Đối Soát Bù Đã Đánh Dấu</span>
+            </button>
+          </div>
+
+          <div style={{ maxHeight: 260, overflowY: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            <table className="data-table" style={{ margin: 0 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary)' }}>
+                <tr>
+                  <th>Mã Shop</th>
+                  <th>Tên Khách Hàng (Shop)</th>
+                  <th>File / Kỳ Nguồn Bị Sót</th>
+                  <th style={{ textAlign: 'right' }}>Số Đơn Khuyết</th>
+                  <th style={{ textAlign: 'right' }}>Tổng COD</th>
+                  <th style={{ textAlign: 'right' }}>Cước Shop</th>
+                  <th style={{ textAlign: 'right' }}>Thực Chuyển Bù</th>
+                  <th style={{ textAlign: 'center' }}>Đánh Dấu Dữ Liệu Bù</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingShopsSummary.map(shopSum => (
+                  <tr key={shopSum.shopCode}>
+                    <td><strong className="mono" style={{ color: 'var(--primary)', fontSize: 13 }}>{shopSum.shopCode}</strong></td>
+                    <td><strong style={{ fontSize: 13 }}>{shopSum.shopName}</strong></td>
+                    <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {Array.from(shopSum.files).join(', ')}
+                    </td>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--danger)' }}>
+                      {shopSum.missingCount} đơn
+                    </td>
+                    <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(shopSum.totalCod)}</td>
+                    <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(shopSum.totalShopFee)}</td>
+                    <td className="mono" style={{ fontWeight: 800, color: 'var(--primary)', textAlign: 'right' }}>
+                      {formatVND(shopSum.totalNetPayout)}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="badge badge-warning" style={{ fontSize: 10, fontWeight: 700 }}>
+                        🏷️ Dữ Liệu Bù Kỳ Sót
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

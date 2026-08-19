@@ -427,6 +427,11 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>{session.sessionName}</strong>
                           <span className="badge badge-primary" style={{ fontSize: 10, padding: '2px 7px' }}>{session.carrierName}</span>
+                          {session.isSupplementary && (
+                            <span className="badge badge-warning" style={{ fontSize: 10, padding: '2px 8px', background: '#8b5cf6', color: '#ffffff', fontWeight: 700 }}>
+                              🏷️ KỲ BÙ DỮ LIỆU SÓT
+                            </span>
+                          )}
                           <div>
                             {sessionStatus === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 8px' }}>🟢 Đã đi đủ</span>}
                             {sessionStatus === 'PARTIAL' && <span className="badge badge-info" style={{ fontSize: 10, padding: '2px 8px' }}>🔵 Chuyển 1 phần</span>}

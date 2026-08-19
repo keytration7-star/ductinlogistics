@@ -232,6 +232,8 @@ export interface ShopSettlementStatement {
   paidAmount?: number;
   remainingDebt?: number;
   paymentHistory?: PaymentRecord[];
+  isSupplementary?: boolean;    // Đơn/Shop bù dữ liệu
+  supplementaryNotes?: string;  // Ghi chú bù (e.g. "Bù dữ liệu thiếu kỳ 01/08/2026")
 }
 
 export interface ReconciliationSession {
@@ -257,6 +259,8 @@ export interface ReconciliationSession {
   payoutStatus?: PayoutStatus;
   totalPaidAmount?: number;
   totalRemainingDebt?: number;
+  isSupplementary?: boolean;    // Kỳ đối soát bù dữ liệu
+  supplementaryNotes?: string;  // Ghi chú kỳ bù
 }
 
 export interface CarrierEmailTemplateConfig {
