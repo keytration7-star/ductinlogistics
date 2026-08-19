@@ -14,25 +14,9 @@ const AVAILABLE_CARRIERS = [
   { id: 'nlj', name: '🦁 Ninjavan' },
 ];
 
-const VIETNAM_BANKS = [
-  'MB Bank',
-  'Vietcombank',
-  'Techcombank',
-  'ACB',
-  'VPBank',
-  'BIDV',
-  'Vietinbank',
-  'Sacombank',
-  'TPBank',
-  'HDBank',
-  'VIB',
-  'SHB',
-  'MSB',
-  'SeABank',
-  'OCB',
-  'LienVietPostBank',
-  'Khác',
-];
+import { VIETNAM_BANKS as FULL_VIETNAM_BANKS } from '../constants/banks';
+
+const VIETNAM_BANKS = FULL_VIETNAM_BANKS.map(b => b.shortName);
 
 export const CtvManagementView: React.FC = () => {
   const [ctvs, setCtvs] = useState<CtvProfile[]>(() => StorageService.getCtvs());

@@ -7,23 +7,7 @@ interface VietQRModalProps {
   onClose: () => void;
 }
 
-const BANK_CODES: Record<string, string> = {
-  'MB Bank': 'MB',
-  'MB': 'MB',
-  'Vietcombank': 'VCB',
-  'VCB': 'VCB',
-  'Techcombank': 'TCB',
-  'TCB': 'TCB',
-  'ACB': 'ACB',
-  'VPBank': 'VPB',
-  'BIDV': 'BIDV',
-  'Vietinbank': 'CTG',
-  'Sacombank': 'STB',
-  'TPBank': 'TPB',
-  'HDBank': 'HDB',
-  'VIB': 'VIB',
-  'SHB': 'SHB',
-};
+import { BANK_CODES } from '../constants/banks';
 
 export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) => {
   const [copied, setCopied] = useState(false);
