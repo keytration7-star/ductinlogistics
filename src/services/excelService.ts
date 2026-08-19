@@ -77,44 +77,108 @@ export const ExcelService = {
             return;
           }
 
-          // Search top 10 rows to find the actual header row containing key logistics terms
-          let headerRowIndex = 0;
+          // Search top 10 rows to find the actual header row(s) containing key logistics terms
+          let headerRowIndex = -1;
+          let bestScore = 0;
+
           for (let r = 0; r < Math.min(10, rawSheetData.length); r++) {
             const row = rawSheetData[r];
             if (!Array.isArray(row)) continue;
             
             const rowStr = row.map(c => normalizeHeader(String(c))).join(' ');
-            if (
-              rowStr.includes('ma_van_don') ||
-              rowStr.includes('tracking') ||
-              rowStr.includes('mvd') ||
-              rowStr.includes('ma_don') ||
-              rowStr.includes('thu_ho') ||
-              rowStr.includes('cod') ||
-              rowStr.includes('ten_shop') ||
-              rowStr.includes('nguoi_gui')
-            ) {
+            let score = 0;
+            if (rowStr.includes('ma_van_don') || rowStr.includes('tracking') || rowStr.includes('mvd') || rowStr.includes('ma_don')) score += 5;
+            if (rowStr.includes('thu_ho') || rowStr.includes('cod')) score += 3;
+            if (rowStr.includes('ten_shop') || rowStr.includes('nguoi_gui') || rowStr.includes('kho_gui') || rowStr.includes('cua_hang')) score += 3;
+            if (rowStr.includes('cuoc') || rowStr.includes('phi')) score += 2;
+            if (rowStr.includes('trong_luong') || rowStr.includes('can_nang') || rowStr.includes('khoi_luong')) score += 2;
+            if (rowStr.includes('trang_thai') || rowStr.includes('status')) score += 2;
+
+            if (score > bestScore) {
+              bestScore = score;
               headerRowIndex = r;
-              break;
             }
           }
 
-          // Extract headers from detected header row
-          const rawHeaders = rawSheetData[headerRowIndex] || [];
-          const headers: string[] = [];
-          
-          rawHeaders.forEach((h, colIdx) => {
-            const hStr = String(h || '').trim();
-            if (hStr) {
-              headers.push(hStr);
-            } else {
-              headers.push(`Cột_${colIdx + 1}`);
+          if (headerRowIndex === -1) {
+            headerRowIndex = 0;
+          }
+
+          // Check if headerRowIndex + 1 is ALSO a header row (2-header Excel layout like GHN)
+          let hasSecondHeaderRow = false;
+          if (headerRowIndex + 1 < rawSheetData.length) {
+            const nextRow = rawSheetData[headerRowIndex + 1];
+            if (Array.isArray(nextRow)) {
+              const nextRowStr = nextRow.map(c => normalizeHeader(String(c))).join(' ');
+              const isNextRowHeader = (
+                nextRowStr.includes('ma_van_don') ||
+                nextRowStr.includes('tracking') ||
+                nextRowStr.includes('mvd') ||
+                nextRowStr.includes('ma_don') ||
+                nextRowStr.includes('ten_shop') ||
+                nextRowStr.includes('nguoi_gui') ||
+                nextRowStr.includes('thu_ho') ||
+                nextRowStr.includes('cod') ||
+                nextRowStr.includes('cuoc') ||
+                nextRowStr.includes('phi') ||
+                nextRowStr.includes('trong_luong') ||
+                nextRowStr.includes('can_nang') ||
+                nextRowStr.includes('sdt') ||
+                nextRowStr.includes('dien_thoai') ||
+                nextRowStr.includes('trang_thai') ||
+                nextRowStr.includes('dia_chi')
+              );
+
+              // Ensure nextRow is not a real data row containing numeric values > 100 or dates
+              const hasRealNumericData = nextRow.some(val => typeof val === 'number' && val > 100);
+              if (isNextRowHeader && !hasRealNumericData) {
+                hasSecondHeaderRow = true;
+              }
             }
-          });
+          }
+
+          // Extract and merge headers
+          const topHeadersRow = rawSheetData[headerRowIndex] || [];
+          const subHeadersRow = hasSecondHeaderRow ? (rawSheetData[headerRowIndex + 1] || []) : [];
+          
+          const maxCols = Math.max(topHeadersRow.length, subHeadersRow.length);
+          const headers: string[] = [];
+
+          // Forward-fill merged parent headers (Excel merged cells e.g. "Thông tin người gửi" spanning cols)
+          let currentParentHeader = '';
+          const resolvedTopHeaders: string[] = [];
+          for (let cIdx = 0; cIdx < maxCols; cIdx++) {
+            const topVal = String(topHeadersRow[cIdx] || '').trim();
+            if (topVal) {
+              currentParentHeader = topVal;
+            }
+            resolvedTopHeaders.push(topVal || currentParentHeader);
+          }
+
+          for (let cIdx = 0; cIdx < maxCols; cIdx++) {
+            const topH = (resolvedTopHeaders[cIdx] || '').trim();
+            const subH = String(subHeadersRow[cIdx] || '').trim();
+
+            let finalHeaderName = '';
+            if (topH && subH && topH !== subH && !topH.toLowerCase().startsWith('stt')) {
+              finalHeaderName = `${topH} - ${subH}`;
+            } else if (subH) {
+              finalHeaderName = subH;
+            } else if (topH) {
+              finalHeaderName = topH;
+            } else {
+              finalHeaderName = `Cột_${cIdx + 1}`;
+            }
+
+            headers.push(finalHeaderName);
+          }
+
+          // Data starts at headerRowIndex + 2 if 2 headers, otherwise headerRowIndex + 1
+          const dataStartRowIndex = hasSecondHeaderRow ? headerRowIndex + 2 : headerRowIndex + 1;
 
           // Build object rows from subsequent data rows
           const rows: Record<string, any>[] = [];
-          for (let r = headerRowIndex + 1; r < rawSheetData.length; r++) {
+          for (let r = dataStartRowIndex; r < rawSheetData.length; r++) {
             const rowData = rawSheetData[r];
             if (!Array.isArray(rowData)) continue;
 
