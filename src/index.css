@@ -142,21 +142,29 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-mono);
 }
 
-/* Enterprise Clean Card Containers */
-.glass-panel {
+/* Enterprise Clean & 3D Elevated Card Containers */
+.glass-panel, .card-3d {
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: 1.5px solid rgba(226, 232, 240, 0.95);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.07), 0 6px 14px -4px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-panel:hover {
-  border-color: #cbd5e1;
+.glass-panel:hover, .card-3d:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 18px 36px -8px rgba(79, 70, 229, 0.12), 0 10px 20px -6px rgba(15, 23, 42, 0.07);
 }
 
-[data-theme='dark'] .glass-panel:hover {
-  border-color: #374151;
+[data-theme='dark'] .glass-panel, [data-theme='dark'] .card-3d {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .glass-panel:hover, [data-theme='dark'] .card-3d:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 18px 36px -8px rgba(99, 102, 241, 0.25);
 }
 
 /* Buttons */

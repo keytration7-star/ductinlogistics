@@ -222,14 +222,12 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
           {carrierList.map((carrier, cIdx) => (
             <div 
               key={carrier.id} 
-              className="glass-panel" 
+              className="card-3d" 
               style={{ 
-                padding: 20, 
+                padding: 24, 
                 position: 'relative',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: 16,
                 maxWidth: 540,
-                transition: 'all 0.2s ease',
               }}
             >
               {/* Top Carrier Header */}
