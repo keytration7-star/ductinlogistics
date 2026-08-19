@@ -45,6 +45,11 @@ export interface AuditOrderItem {
   existingSessionName?: string;
 }
 
+export interface NvcFileItem {
+  file: File;
+  periodName: string;
+}
+
 export const DataAuditView: React.FC<DataAuditViewProps> = ({
   sessions,
   shops,
@@ -55,7 +60,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
 
-  const [nvcFiles, setNvcFiles] = useState<File[]>([]);
+  const [nvcFiles, setNvcFiles] = useState<NvcFileItem[]>([]);
   const [appFiles, setAppFiles] = useState<File[]>([]);
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -70,10 +75,17 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   // Handle NVC Files Upload
   const handleNvcFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
-      const selected = Array.from(event.target.files);
+      const selected = Array.from(event.target.files).map(f => ({
+        file: f,
+        periodName: f.name.replace(/\.[^/.]+$/, ''),
+      }));
       setNvcFiles(prev => [...prev, ...selected]);
-      showToast(`Đã thêm ${selected.length} file Đối Soát NVC.`, 'info');
+      showToast(`Đã thêm ${selected.length} file Đối Soát NVC kèm tên kỳ tự động.`, 'info');
     }
+  };
+
+  const updateNvcPeriodName = (index: number, newPeriodName: string) => {
+    setNvcFiles(prev => prev.map((item, i) => i === index ? { ...item, periodName: newPeriodName } : item));
   };
 
   // Handle App Files Upload
@@ -176,76 +188,77 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
       });
 
       // 3. Process Carrier NVC Files
-      const targetFiles = nvcFiles.length > 0 ? nvcFiles : appFiles;
+      if (nvcFiles.length > 0) {
+        for (let i = 0; i < nvcFiles.length; i++) {
+          const item = nvcFiles[i];
+          const file = item.file;
+          const customPeriod = item.periodName || file.name.replace(/\.[^/.]+$/, '');
+          const { rows } = await ExcelService.parseExcelFile(file);
 
-      for (let i = 0; i < targetFiles.length; i++) {
-        const file = targetFiles[i];
-        const isAppSource = nvcFiles.length === 0;
-        const { rows } = await ExcelService.parseExcelFile(file);
+          let fileOrderCount = 0;
 
-        let fileOrderCount = 0;
+          rows.forEach((row: Record<string, any>, idx: number) => {
+            const trackingCode = String(
+              row['Mã vận đơn'] || row['MÃ VẬN ĐƠN'] || row['Ma_Van_Don'] || row['tracking_code'] || row['MaBD'] || row['Mã Đơn'] || ''
+            ).trim().toUpperCase();
 
-        rows.forEach((row: Record<string, any>, idx: number) => {
-          const trackingCode = String(
-            row['Mã vận đơn'] || row['MÃ VẬN ĐƠN'] || row['Ma_Van_Don'] || row['tracking_code'] || row['MaBD'] || row['Mã Đơn'] || ''
-          ).trim().toUpperCase();
+            if (!trackingCode || trackingCode.length < 5) return;
 
-          if (!trackingCode || trackingCode.length < 5) return;
+            fileOrderCount++;
 
-          fileOrderCount++;
+            const appMatch = appOrdersMap.get(trackingCode);
 
-          const appMatch = appOrdersMap.get(trackingCode);
+            let shopCodeRaw = appMatch?.shopCode || String(row['Mã Shop'] || row['Mã shop'] || row['MA_SHOP'] || row['Shop'] || '').trim();
+            let shopNameRaw = appMatch?.shopName || String(row['Tên Shop'] || row['Tên shop'] || row['TEN_SHOP'] || row['Shop Name'] || 'Shop ' + shopCodeRaw).trim();
+            
+            const codRaw = parseFloat(String(row['Tiền COD'] || row['COD'] || row['Thu hộ'] || appMatch?.cod || 0).replace(/[^0-9.]/g, '')) || 0;
+            const feeRaw = parseFloat(String(row['Cước'] || row['Tổng Cước'] || row['Cước Shop'] || 0).replace(/[^0-9.]/g, '')) || 0;
+            const netPayout = codRaw - feeRaw;
 
-          let shopCodeRaw = appMatch?.shopCode || String(row['Mã Shop'] || row['Mã shop'] || row['MA_SHOP'] || row['Shop'] || '').trim();
-          let shopNameRaw = appMatch?.shopName || String(row['Tên Shop'] || row['Tên shop'] || row['TEN_SHOP'] || row['Shop Name'] || 'Shop ' + shopCodeRaw).trim();
-          
-          const codRaw = parseFloat(String(row['Tiền COD'] || row['COD'] || row['Thu hộ'] || appMatch?.cod || 0).replace(/[^0-9.]/g, '')) || 0;
-          const feeRaw = parseFloat(String(row['Cước'] || row['Tổng Cước'] || row['Cước Shop'] || 0).replace(/[^0-9.]/g, '')) || 0;
-          const netPayout = codRaw - feeRaw;
+            const matchedShop = shopCodeMap.get(shopCodeRaw.toUpperCase()) || shopCodeMap.get(shopNameRaw.toLowerCase());
+            const existingSession = savedOrdersMap.get(trackingCode);
 
-          const matchedShop = shopCodeMap.get(shopCodeRaw.toUpperCase()) || shopCodeMap.get(shopNameRaw.toLowerCase());
-          const existingSession = savedOrdersMap.get(trackingCode);
+            let bucket: 'VALID' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' = 'MISSING';
+            let reason = appMatch ? `Khớp thông tin từ File Đơn Xuất App - Đơn bị sót thuộc ${customPeriod}` : `Đơn bị sót thuộc ${customPeriod} chưa đối soát & chưa đi tiền`;
 
-          let bucket: 'VALID' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' = 'MISSING';
-          let reason = appMatch ? `Khớp thông tin từ File Đơn Xuất App - Đơn bị sót chưa đối soát` : `Đơn bị sót chưa từng đối soát & chưa đi tiền`;
+            if (seenTrackingCodes.has(trackingCode)) {
+              bucket = 'DUPLICATE';
+              reason = `Đơn trùng lặp xuất hiện nhiều lần trong các file vừa tải`;
+            } else if (existingSession) {
+              bucket = 'VALID';
+              reason = `Đã đối soát hợp lệ ở kỳ "${existingSession}"`;
+            } else if (!matchedShop) {
+              bucket = 'NEW_SHOP';
+              reason = `Shop "${shopNameRaw}" chưa có trong danh sách Quản lý Shop`;
+            }
 
-          if (seenTrackingCodes.has(trackingCode)) {
-            bucket = 'DUPLICATE';
-            reason = `Đơn trùng lặp xuất hiện nhiều lần trong các file vừa tải`;
-          } else if (existingSession) {
-            bucket = 'VALID';
-            reason = `Đã đối soát hợp lệ ở kỳ "${existingSession}"`;
-          } else if (!matchedShop) {
-            bucket = 'NEW_SHOP';
-            reason = `Shop "${shopNameRaw}" chưa có trong danh sách Quản lý Shop`;
-          }
+            seenTrackingCodes.add(trackingCode);
 
-          seenTrackingCodes.add(trackingCode);
-
-          extractedOrders.push({
-            id: `audit_${i}_${idx}_${Date.now()}`,
-            trackingCode,
-            carrierName: file.name.toUpperCase().includes('GHN') ? 'GHN' : file.name.toUpperCase().includes('J&T') ? 'J&T Express' : 'NVC',
-            fileName: file.name,
-            periodName: file.name.replace(/\.[^/.]+$/, ''),
-            shopCode: matchedShop ? matchedShop.code : (shopCodeRaw || 'SHOP_NEW'),
-            shopName: matchedShop ? matchedShop.name : shopNameRaw,
-            cod: codRaw,
-            nvcFee: feeRaw,
-            shopFee: feeRaw,
-            netPayout,
-            statusBucket: bucket,
-            statusReason: reason,
-            existingSessionName: existingSession,
+            extractedOrders.push({
+              id: `audit_${i}_${idx}_${Date.now()}`,
+              trackingCode,
+              carrierName: file.name.toUpperCase().includes('GHN') ? 'GHN' : file.name.toUpperCase().includes('J&T') ? 'J&T Express' : 'NVC',
+              fileName: file.name,
+              periodName: customPeriod,
+              shopCode: matchedShop ? matchedShop.code : (shopCodeRaw || 'SHOP_NEW'),
+              shopName: matchedShop ? matchedShop.name : shopNameRaw,
+              cod: codRaw,
+              nvcFee: feeRaw,
+              shopFee: feeRaw,
+              netPayout,
+              statusBucket: bucket,
+              statusReason: reason,
+              existingSessionName: existingSession,
+            });
           });
-        });
 
-        fileSummaryList.push({
-          name: file.name,
-          type: isAppSource ? 'app' : 'nvc',
-          size: file.size,
-          orderCount: fileOrderCount,
-        });
+          fileSummaryList.push({
+            name: `${file.name} (${customPeriod})`,
+            type: 'nvc',
+            size: file.size,
+            orderCount: fileOrderCount,
+          });
+        }
       }
 
       setAuditFiles(fileSummaryList);
@@ -480,17 +493,43 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>GHN, J&T Express, ViettelPost, SPX...</span>
           </label>
 
-          {/* List of uploaded NVC files */}
+          {/* List of uploaded NVC files with editable Period Name */}
           {nvcFiles.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
-              {nvcFiles.map((f, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', background: 'var(--bg-card)', borderRadius: 6, fontSize: 12, border: '1px solid var(--border-color)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-                    <FileSpreadsheet size={14} color="var(--primary)" />
-                    {f.name}
-                  </span>
-                  <button onClick={() => removeNvcFile(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}>
-                    <Trash2 size={13} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+              {nvcFiles.map((item, idx) => (
+                <div key={idx} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '8px 12px', 
+                  background: 'var(--bg-card)', 
+                  borderRadius: 8, 
+                  fontSize: 12, 
+                  border: '1px solid var(--border-color)',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, minWidth: 140, flex: 1 }}>
+                    <FileSpreadsheet size={16} color="var(--primary)" />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }} title={item.file.name}>
+                      {item.file.name}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Tên Kỳ:</span>
+                    <input
+                      type="text"
+                      value={item.periodName}
+                      onChange={(e) => updateNvcPeriodName(idx, e.target.value)}
+                      placeholder="Nhập tên kỳ đối soát..."
+                      className="input-field"
+                      style={{ padding: '3px 8px', fontSize: 11, width: 150, fontWeight: 700, color: 'var(--primary)' }}
+                    />
+                  </div>
+
+                  <button onClick={() => removeNvcFile(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Xóa file này">
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
