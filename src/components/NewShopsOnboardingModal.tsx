@@ -487,7 +487,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       type="number"
                       step="500"
                       min="0"
-                      value={rule.price}
+                      placeholder="0"
+                      value={rule.price === 0 ? '' : rule.price}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleWeightRuleChange(rIdx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
@@ -525,7 +526,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                     <input
                       type="number"
                       step="500"
-                      value={currentShop.extraStepPrice}
+                      placeholder="0"
+                      value={currentShop.extraStepPrice === 0 ? '' : currentShop.extraStepPrice}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleUpdateCurrentShop('extraStepPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"

@@ -44,8 +44,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
       [field]: val,
     };
     setCarrierList(updated);
-    // Auto-save silently to localStorage
+    // Auto-save silently to localStorage & server
     onSaveCarriers(updated);
+    triggerSaveToast();
   };
 
   const handleAddRule = (carrierIdx: number) => {
@@ -84,8 +85,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
       [field]: val,
     };
     setCarrierList(updated);
-    // Auto-save silently to localStorage
+    // Auto-save silently to localStorage & server
     onSaveCarriers(updated);
+    triggerSaveToast();
   };
 
   // Trigger Save Toast
@@ -327,7 +329,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         type="number"
                         step="500"
                         min="0"
-                        value={rule.price}
+                        placeholder="0"
+                        value={rule.price === 0 ? '' : rule.price}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                         className="input-field"
@@ -384,7 +387,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                       type="number"
                       step="500"
                       min="0"
-                      value={carrier.extraStepPrice}
+                      placeholder="0"
+                      value={carrier.extraStepPrice === 0 ? '' : carrier.extraStepPrice}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"

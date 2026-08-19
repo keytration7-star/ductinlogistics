@@ -546,7 +546,8 @@ export const CtvManagementView: React.FC = () => {
                             type="number"
                             step="0.1"
                             value={rule.minWeight}
-                            onChange={(e) => handleRuleChange(idx, 'minWeight', parseFloat(e.target.value) || 0)}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleRuleChange(idx, 'minWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                             className="input-field"
                             style={{ padding: '6px 10px', fontSize: 13 }}
                           />
@@ -558,7 +559,8 @@ export const CtvManagementView: React.FC = () => {
                             type="number"
                             step="0.1"
                             value={rule.maxWeight}
-                            onChange={(e) => handleRuleChange(idx, 'maxWeight', parseFloat(e.target.value) || 0)}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleRuleChange(idx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                             className="input-field"
                             style={{ padding: '6px 10px', fontSize: 13 }}
                           />
@@ -569,8 +571,10 @@ export const CtvManagementView: React.FC = () => {
                           <input
                             type="number"
                             step="500"
-                            value={rule.commissionPrice}
-                            onChange={(e) => handleRuleChange(idx, 'commissionPrice', parseInt(e.target.value) || 0)}
+                            placeholder="0"
+                            value={rule.commissionPrice === 0 ? '' : rule.commissionPrice}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleRuleChange(idx, 'commissionPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                             className="input-field"
                             style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--success)' }}
                           />
@@ -592,7 +596,8 @@ export const CtvManagementView: React.FC = () => {
                         type="number"
                         step="0.5"
                         value={editingCtv.extraWeightStep}
-                        onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightStep: parseFloat(e.target.value) || 1 })}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightStep: parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1 })}
                         className="input-field"
                       />
                     </div>
@@ -602,8 +607,10 @@ export const CtvManagementView: React.FC = () => {
                       <input
                         type="number"
                         step="500"
-                        value={editingCtv.extraWeightPrice}
-                        onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightPrice: parseInt(e.target.value) || 0 })}
+                        placeholder="0"
+                        value={editingCtv.extraWeightPrice === 0 ? '' : editingCtv.extraWeightPrice}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightPrice: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 })}
                         className="input-field"
                       />
                     </div>

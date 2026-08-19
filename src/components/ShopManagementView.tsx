@@ -809,7 +809,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       <input
                         type="number"
                         step="500"
-                        value={rule.price}
+                        placeholder="0"
+                        value={rule.price === 0 ? '' : rule.price}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                         className="input-field"
@@ -864,7 +865,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       <input
                         type="number"
                         step="500"
-                        value={editingShop.pricingPlan.extraStepPrice}
+                        placeholder="0"
+                        value={editingShop.pricingPlan.extraStepPrice === 0 ? '' : editingShop.pricingPlan.extraStepPrice}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingShop({
                           ...editingShop,
