@@ -359,26 +359,35 @@ export function performReconciliation(
     let shopOtherFee = 0;
     let declaredFee = 0;
 
-    // Always calculate shop freight fee based on weight & pricing plan
-    shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
-    shopOtherFee = pricingPlan.fixedSurcharge || 0;
+    // 🔑 RULE: Only charge Shop shipping fee if the NVC Carrier original file actually charged a fee for this order (nvcFee > 0 or nvcOtherFee > 0)
+    const feeColumnMapped = !!nvcMapping.feeColumn;
+    const nvcHasFee = !feeColumnMapped || (nvcFee > 0 || nvcOtherFee > 0);
 
-    if (status === 'returned' || status === 'returning') {
-      const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-      shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
-    }
+    if (nvcHasFee) {
+      shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
+      shopOtherFee = pricingPlan.fixedSurcharge || 0;
 
-    if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
-      shopOtherFee += pricingPlan.partialDeliveryFee;
-    }
+      if (status === 'returned' || status === 'returning') {
+        const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+        shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+      }
 
-    if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
-      shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
-    }
+      if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
+        shopOtherFee += pricingPlan.partialDeliveryFee;
+      }
 
-    if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
-      declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
-      shopOtherFee += declaredFee;
+      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
+        shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
+      }
+
+      if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
+        declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
+        shopOtherFee += declaredFee;
+      }
+    } else {
+      // If NVC charged 0 fee for this order, Shop fee is 0đ (No fee deducted)
+      shopCalculatedFee = 0;
+      shopOtherFee = 0;
     }
 
     // CTV Commission calculation
