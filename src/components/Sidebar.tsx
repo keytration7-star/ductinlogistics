@@ -149,20 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside style={{
-      width: 270,
-      minWidth: 270,
-      background: 'var(--bg-secondary)',
-      borderRight: '1px solid var(--border-color)',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      height: '100vh',
-      position: 'sticky',
-      top: 0,
-      zIndex: 50,
-      boxShadow: 'var(--shadow-sm)',
-    }}>
+    <aside className="sidebar-aside">
       {/* Top Branding & User Header */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{
@@ -214,13 +201,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* 2. USER PROFILE BLOCK */}
           <div style={{
-            background: 'var(--bg-primary)',
+            background: 'var(--bg-secondary)',
             padding: '8px 10px',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)',
           }}>
             <div 
               onClick={() => {
