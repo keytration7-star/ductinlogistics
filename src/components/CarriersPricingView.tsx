@@ -215,17 +215,20 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 520px))',
           gap: 20,
+          alignItems: 'start',
         }}>
           {carrierList.map((carrier, cIdx) => (
             <div 
               key={carrier.id} 
               className="glass-panel" 
               style={{ 
-                padding: 22, 
+                padding: 20, 
                 position: 'relative',
                 border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                maxWidth: 540,
                 transition: 'all 0.2s ease',
               }}
             >
@@ -284,18 +287,20 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
               {/* Weight Rules List - Full editable min & max weight */}
               <div style={{ marginBottom: 16 }}>
                 {/* Header row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid var(--border-color)' }}>
-                  <div style={{ width: 50, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Từ (kg)</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>→</div>
-                  <div style={{ width: 70, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Đến (kg)</div>
-                  <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textAlign: 'center' }}>Giá cước (đ)</div>
-                  <div style={{ width: 30 }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '60px 16px 70px 30px 1fr 20px 32px', gap: 6, alignItems: 'center', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textAlign: 'center' }}>Từ (kg)</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>→</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textAlign: 'center' }}>Đến (kg)</div>
+                  <div />
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)' }}>Giá cước NVC (VNĐ)</div>
+                  <div />
+                  <div />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {carrier.weightRules.map((rule, rIdx) => (
-                    <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {/* Min weight - fully editable */}
+                    <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: '60px 16px 70px 30px 1fr 20px 32px', gap: 6, alignItems: 'center' }}>
+                      {/* Min weight */}
                       <input
                         type="number"
                         step="0.1"
@@ -303,10 +308,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         value={rule.minWeight}
                         onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'minWeight', parseFloat(e.target.value) ?? 0)}
                         className="input-field"
-                        style={{ width: 50, padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
-                        title="Cân nặng bắt đầu (kg)"
+                        style={{ padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
                       />
-                      <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>→</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center' }}>→</span>
                       {/* Max weight */}
                       <input
                         type="number"
@@ -315,10 +319,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         value={rule.maxWeight}
                         onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'maxWeight', parseFloat(e.target.value) || 0.5)}
                         className="input-field"
-                        style={{ width: 70, padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
-                        title="Cân nặng kết thúc (kg)"
+                        style={{ padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
                       />
-                      <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>kg :</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>kg:</span>
                       {/* Price */}
                       <input
                         type="number"
@@ -327,22 +330,21 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         value={rule.price}
                         onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value) || 0)}
                         className="input-field"
-                        style={{ flex: 1, padding: '5px 8px', fontSize: 13 }}
-                        title="Giá cước (đ)"
+                        style={{ padding: '5px 8px', fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}
                       />
-                      <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>đ</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>đ</span>
 
-                      {carrier.weightRules.length > 1 && (
+                      {carrier.weightRules.length > 1 ? (
                         <button
                           type="button"
                           onClick={() => handleRemoveRule(cIdx, rIdx)}
                           className="btn btn-danger btn-sm"
-                          style={{ padding: '4px 6px', flexShrink: 0 }}
+                          style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           title="Xóa nấc này"
                         >
                           <Trash2 size={13} />
                         </button>
-                      )}
+                      ) : <div />}
                     </div>
                   ))}
                 </div>
