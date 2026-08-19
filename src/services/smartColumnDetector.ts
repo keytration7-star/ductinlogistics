@@ -67,6 +67,112 @@ const ALIASES = {
   ],
 };
 
+export interface ColumnMatchConfidence {
+  columnKey: keyof ColumnMappingConfig;
+  fieldLabel: string;
+  matchedHeader: string;
+  confidencePercent: number; // 100 = exact/saved, 75 = substring/alias match, 0 = not matched
+  isConfident: boolean;
+}
+
+export function autoDetectColumnsWithConfidence(
+  headers: string[],
+  type: 'nvc' | 'app',
+  savedMapping?: ColumnMappingConfig
+): { mapping: ColumnMappingConfig; confidences: Record<string, ColumnMatchConfidence> } {
+  const mapping: ColumnMappingConfig = { waybillColumn: '' };
+  const confidences: Record<string, ColumnMatchConfidence> = {};
+
+  const findBestMatchWithScore = (
+    key: keyof ColumnMappingConfig,
+    fieldLabel: string,
+    aliases: string[],
+    savedCol?: string,
+    mustNotInclude: string[] = []
+  ): string => {
+    // 1. Saved choice by user
+    if (savedCol && headers.includes(savedCol)) {
+      confidences[key] = {
+        columnKey: key,
+        fieldLabel,
+        matchedHeader: savedCol,
+        confidencePercent: 100,
+        isConfident: true
+      };
+      return savedCol;
+    }
+
+    // 2. Exact match
+    for (const header of headers) {
+      const normalized = normalizeHeader(header);
+      if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) continue;
+      for (const alias of aliases) {
+        if (normalized === alias) {
+          confidences[key] = {
+            columnKey: key,
+            fieldLabel,
+            matchedHeader: header,
+            confidencePercent: 100,
+            isConfident: true
+          };
+          return header;
+        }
+      }
+    }
+
+    // 3. Substring match
+    for (const header of headers) {
+      const normalized = normalizeHeader(header);
+      if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) continue;
+      for (const alias of aliases) {
+        if (normalized.startsWith(alias + '_') || normalized.endsWith('_' + alias) || normalized.includes(alias)) {
+          confidences[key] = {
+            columnKey: key,
+            fieldLabel,
+            matchedHeader: header,
+            confidencePercent: 75,
+            isConfident: false
+          };
+          return header;
+        }
+      }
+    }
+
+    // 4. Not found
+    confidences[key] = {
+      columnKey: key,
+      fieldLabel,
+      matchedHeader: '',
+      confidencePercent: 0,
+      isConfident: false
+    };
+    return '';
+  };
+
+  mapping.waybillColumn = findBestMatchWithScore('waybillColumn', 'Mã vận đơn', ALIASES.waybill, savedMapping?.waybillColumn) || headers[0] || '';
+
+  if (type === 'nvc') {
+    mapping.codColumn = findBestMatchWithScore('codColumn', 'Tiền COD Thu Hộ', ALIASES.cod, savedMapping?.codColumn);
+    mapping.feeColumn = findBestMatchWithScore('feeColumn', 'Cước Vận Chuyển', ALIASES.fee, savedMapping?.feeColumn);
+    mapping.otherFeeColumn = findBestMatchWithScore('otherFeeColumn', 'Phụ Phí / Hoàn / Bảo Hiểm', ALIASES.otherFee, savedMapping?.otherFeeColumn);
+    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn);
+    mapping.statusColumn = findBestMatchWithScore('statusColumn', 'Trạng Thái Đơn Hàng', ALIASES.status, savedMapping?.statusColumn);
+    mapping.shopNameColumn = findBestMatchWithScore('shopNameColumn', 'Tên Shop / Cửa Hàng', ALIASES.shopName, savedMapping?.shopNameColumn, ['dia_chi', 'address', 'sdt', 'phone']);
+    mapping.shopPhoneColumn = findBestMatchWithScore('shopPhoneColumn', 'SĐT Shop', ALIASES.shopPhone, savedMapping?.shopPhoneColumn, ['dia_chi', 'address', 'ten']);
+  } else {
+    mapping.shopNameColumn = findBestMatchWithScore('shopNameColumn', 'Tên Shop / Cửa Hàng', ALIASES.shopName, savedMapping?.shopNameColumn, ['dia_chi', 'address', 'kho', 'sdt', 'phone', 'dien_thoai', 'ngan_hang', 'stk', 'so_tai_khoan']);
+    mapping.shopPhoneColumn = findBestMatchWithScore('shopPhoneColumn', 'SĐT Shop', ALIASES.shopPhone, savedMapping?.shopPhoneColumn, ['dia_chi', 'address', 'ten', 'name']);
+    mapping.shopAddressColumn = findBestMatchWithScore('shopAddressColumn', 'Địa Chỉ Shop', ALIASES.shopAddress, savedMapping?.shopAddressColumn);
+    mapping.receiverNameColumn = findBestMatchWithScore('receiverNameColumn', 'Tên Người Nhận', ALIASES.receiverName, savedMapping?.receiverNameColumn, ['dia_chi', 'address', 'sdt', 'phone', 'dien_thoai']);
+    mapping.receiverPhoneColumn = findBestMatchWithScore('receiverPhoneColumn', 'SĐT Người Nhận', ALIASES.receiverPhone, savedMapping?.receiverPhoneColumn, ['dia_chi', 'address', 'ten', 'name']);
+    mapping.receiverAddressColumn = findBestMatchWithScore('receiverAddressColumn', 'Địa Chỉ Người Nhận', ALIASES.receiverAddress, savedMapping?.receiverAddressColumn);
+    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn);
+    mapping.codColumn = findBestMatchWithScore('codColumn', 'Tiền COD Thu Hộ', ALIASES.cod, savedMapping?.codColumn);
+  }
+
+  return { mapping, confidences };
+}
+
 export function autoDetectColumns(
   headers: string[], 
   type: 'nvc' | 'app', 
