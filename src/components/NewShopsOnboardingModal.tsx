@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Store, Plus, Trash2, Check, AlertCircle, Sparkles, CreditCard, Sliders, X } from 'lucide-react';
+import { Store, Plus, Trash2, Check, AlertCircle, Sparkles, CreditCard, Sliders, X, Mail } from 'lucide-react';
 import type { Shop, WeightStepRule } from '../types';
 
 import { useToast } from './UIFeedback';
@@ -8,6 +8,7 @@ interface DiscoveredNewShop {
   tempId: string;
   name: string;
   phone: string;
+  email: string;
   address: string;
   orderCount: number;
   bankName: string;
@@ -46,6 +47,7 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
       tempId: `new_shop_${idx}_${Date.now()}`,
       name: d.name || `Shop Mới ${idx + 1}`,
       phone: d.phone || '',
+      email: (d as any).email || '',
       address: d.address || '',
       orderCount: d.orderCount,
       bankName: 'MB Bank',
@@ -89,7 +91,6 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
     const updated = [...shopList];
     const rules = updated[activeShopIndex].weightRules;
     const lastRule = rules[rules.length - 1];
-    // Auto-suggest minWeight = previous maxWeight + 0.1, maxWeight = next round number
     const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
     const newMax = lastRule ? Math.ceil(newMin) : 1;
     const newPrice = lastRule ? lastRule.price + 5000 : 25000;
@@ -103,12 +104,15 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
 
   const handleRemoveWeightRule = (ruleIdx: number) => {
     const updated = [...shopList];
-    if (updated[activeShopIndex].weightRules.length <= 1) return;
-    updated[activeShopIndex].weightRules = updated[activeShopIndex].weightRules.filter((_, idx) => idx !== ruleIdx);
+    const rules = updated[activeShopIndex].weightRules;
+    if (rules.length <= 1) {
+      showToast('Cần giữ lại ít nhất 1 bậc cước!', 'warning');
+      return;
+    }
+    updated[activeShopIndex].weightRules = rules.filter((_, idx) => idx !== ruleIdx);
     setShopList(updated);
   };
 
-  // Quick Presets
   const applyPresetPrice = (presetType: 'standard' | 'vip' | 'super_vip') => {
     const updated = [...shopList];
     if (presetType === 'standard') {
@@ -299,7 +303,7 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                 <Store size={16} /> 1. THÔNG TIN SHOP
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Tên Shop (*)</label>
                   <input
@@ -320,6 +324,20 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                     className="input-field"
                     style={{ padding: '8px 12px' }}
                     placeholder="0912..."
+                  />
+                </div>
+
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Mail size={13} /> Email Nhận Bảng Kê
+                  </label>
+                  <input
+                    type="email"
+                    value={currentShop.email || ''}
+                    onChange={(e) => handleUpdateCurrentShop('email', e.target.value)}
+                    className="input-field"
+                    style={{ padding: '8px 12px' }}
+                    placeholder="shop@gmail.com"
                   />
                 </div>
               </div>

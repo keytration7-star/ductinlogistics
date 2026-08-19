@@ -79,8 +79,14 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [appHeaders, setAppHeaders] = useState<string[]>([]);
   const [appRows, setAppRows] = useState<Record<string, any>[]>([]);
   const [appMapping, setAppMapping] = useState<ColumnMappingConfig>(savedMappings.app || { waybillColumn: '' });
-  const selectedCarrierIdState = carriers[0]?.carrierId || 'ghtk';
-  const [selectedCarrierId, setSelectedCarrierId] = useState<string>(selectedCarrierIdState);
+  const savedCarrierIdState = localStorage.getItem('gomdon_last_selected_carrier') || carriers[0]?.carrierId || 'ghtk';
+  const [selectedCarrierId, setSelectedCarrierIdState] = useState<string>(savedCarrierIdState);
+
+  const setSelectedCarrierId = (id: string) => {
+    setSelectedCarrierIdState(id);
+    localStorage.setItem('gomdon_last_selected_carrier', id);
+  };
+
   const selectedCarrierTier = carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0];
 
   // Auto-sync column mapping when selected carrier changes
@@ -162,20 +168,54 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }
   };
 
-  // Process App File
-  const handleAppFileChange = async (file: File) => {
+  // Process App File(s) - Supports multi-file selection & auto-header-stripping merge
+  const handleAppFilesChange = async (filesInput: FileList | File[]) => {
     try {
-      setAppFile(file);
-      const { headers, rows } = await ExcelService.parseExcelFile(file);
-      setAppHeaders(headers);
-      setAppRows(rows);
-      const saved = StorageService.getColumnMappings();
-      const detectedMapping = autoDetectColumns(headers, 'app', saved.app);
-      setAppMapping(detectedMapping);
-      StorageService.saveColumnMappings(nvcMapping, detectedMapping);
-      // 🔑 Lưu headers của hãng này để dùng khi mở cài đặt mà chưa có file
-      const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
-      StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
+      const filesArray = Array.from(filesInput);
+      if (filesArray.length === 0) return;
+
+      if (filesArray.length === 1) {
+        const file = filesArray[0];
+        setAppFile(file);
+        const { headers, rows } = await ExcelService.parseExcelFile(file);
+        setAppHeaders(headers);
+        setAppRows(rows);
+        const saved = StorageService.getColumnMappings();
+        const detectedMapping = autoDetectColumns(headers, 'app', saved.app);
+        setAppMapping(detectedMapping);
+        StorageService.saveColumnMappings(nvcMapping, detectedMapping);
+        const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
+        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
+      } else {
+        // Multi-file upload & merge
+        let firstHeaders: string[] = [];
+        let combinedRows: Record<string, any>[] = [];
+
+        for (let i = 0; i < filesArray.length; i++) {
+          const file = filesArray[i];
+          const { headers, rows } = await ExcelService.parseExcelFile(file);
+          if (i === 0) {
+            firstHeaders = headers;
+            combinedRows = [...rows];
+          } else {
+            combinedRows.push(...rows);
+          }
+        }
+
+        const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${combinedRows.length} dòng)`);
+        setAppFile(mergedFile);
+        setAppHeaders(firstHeaders);
+        setAppRows(combinedRows);
+
+        const saved = StorageService.getColumnMappings();
+        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app);
+        setAppMapping(detectedMapping);
+        StorageService.saveColumnMappings(nvcMapping, detectedMapping);
+        const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
+        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, firstHeaders);
+
+        showToast(`Đã tự động gộp ${filesArray.length} file Excel đơn hàng App (${combinedRows.length.toLocaleString('vi-VN')} dòng dữ liệu)!`, 'success');
+      }
     } catch (err) {
       showToast('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
@@ -217,8 +257,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingApp(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleAppFileChange(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleAppFilesChange(e.dataTransfer.files);
     }
   };
 
@@ -936,8 +976,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 type="file"
                 ref={appFileInputRef}
                 accept=".xlsx, .xls, .csv"
+                multiple
                 style={{ display: 'none' }}
-                onChange={(e) => e.target.files?.[0] && handleAppFileChange(e.target.files[0])}
+                onChange={(e) => e.target.files && handleAppFilesChange(e.target.files)}
               />
 
               {appFile && (
