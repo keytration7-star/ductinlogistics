@@ -67,10 +67,25 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const [_auditFiles, setAuditFiles] = useState<{ name: string; type: 'nvc' | 'app'; size: number; orderCount: number }[]>([]);
   const [auditOrders, setAuditOrders] = useState<AuditOrderItem[]>([]);
   const [activeBucketFilter, setActiveBucketFilter] = useState<'ALL' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' | 'VALID'>('ALL');
+  const [selectedCarrierFilter, setSelectedCarrierFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Helper format currency
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
+
+  // Helper carrier detector
+  const detectCarrierName = (filename: string, waybill: string): string => {
+    const f = filename.toUpperCase();
+    const w = waybill.toUpperCase();
+
+    if (f.includes('GHN') || w.startsWith('GHN') || w.startsWith('LKB')) return 'GHN';
+    if (f.includes('J&T') || f.includes('JT') || w.startsWith('88') || w.startsWith('84')) return 'J&T Express';
+    if (f.includes('SPX') || f.includes('SHOPEE') || w.startsWith('SPX')) return 'SPX (Shopee Express)';
+    if (f.includes('VTP') || f.includes('VIETTEL') || w.startsWith('VTP')) return 'ViettelPost';
+    if (f.includes('GHTK') || w.startsWith('GHTK')) return 'GHTK';
+    if (f.includes('BEST') || w.startsWith('BEST')) return 'Best Express';
+    return 'Hãng Khác';
+  };
 
   // Handle NVC Files Upload
   const handleNvcFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,7 +252,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
             extractedOrders.push({
               id: `audit_${i}_${idx}_${Date.now()}`,
               trackingCode,
-              carrierName: file.name.toUpperCase().includes('GHN') ? 'GHN' : file.name.toUpperCase().includes('J&T') ? 'J&T Express' : 'NVC',
+              carrierName: detectCarrierName(file.name, trackingCode),
               fileName: file.name,
               periodName: customPeriod,
               shopCode: matchedShop ? matchedShop.code : (shopCodeRaw || 'SHOP_NEW'),
@@ -319,94 +334,114 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
       return;
     }
 
-    const sessionNameDefault = `Kỳ Đối Soát Bù Dữ Liệu (${new Date().toLocaleDateString('vi-VN')}) - ${missingShopsSummary.length} Khách Bù (${missingOrders.length} Đơn)`;
-
     const ok = await showConfirm({
       title: `Tạo Kỳ Đối Soát Bù (${missingShopsSummary.length} Khách Hàng - ${missingOrders.length} Đơn)`,
-      message: `Hệ thống sẽ gom ${missingOrders.length} đơn bị thiếu từ ${missingShopsSummary.length} Khách Hàng thành 1 Kỳ Đối Soát Bù với nhãn [DỮ LIỆU BÙ KỲ SÓT] và tổng thực chuyển ${formatVND(totalMissingNetPayout)}. Bạn có muốn tiếp tục?`,
+      message: `Hệ thống sẽ gom ${missingOrders.length} đơn bị thiếu từ ${missingShopsSummary.length} Khách Hàng thành các Kỳ Đối Soát Bù (phân loại theo từng Hãng vận chuyển) với nhãn [DỮ LIỆU BÙ KỲ SÓT] và tổng thực chuyển ${formatVND(totalMissingNetPayout)}. Bạn có muốn tiếp tục?`,
       confirmText: 'Lập Kỳ Đối Soát Bù ngay',
     });
 
     if (!ok) return;
 
-    // Group missing orders by shop
-    const shopStatementsMap = new Map<string, any>();
-
+    // Group missing orders by Carrier & Shop
+    const carrierGroups = new Map<string, AuditOrderItem[]>();
     missingOrders.forEach(ord => {
-      const existing = shopStatementsMap.get(ord.shopCode) || {
-        shopId: ord.shopCode,
-        shopCode: ord.shopCode,
-        shopName: ord.shopName,
-        shopPhone: '',
-        shopEmail: '',
-        shopAddress: '',
-        bankInfo: { bankName: '', accountNumber: '', accountHolder: '' },
-        periodName: `Bù Kỳ ${ord.periodName}`,
-        totalOrders: 0,
-        deliveredOrders: 0,
-        returnedOrders: 0,
-        inTransitOrders: 0,
-        totalCod: 0,
-        totalShopFee: 0,
-        totalShopOtherFee: 0,
-        totalNetPayout: 0,
-        totalNvcCost: 0,
-        totalProfit: 0,
-        orders: [],
-        emailStatus: 'idle',
-        isSupplementary: true,
-        supplementaryNotes: `Bù dữ liệu đối soát khách bị thiếu (${ord.fileName})`,
-      };
-
-      existing.totalCod += ord.cod;
-      existing.totalShopFee += ord.shopFee;
-      existing.totalNetPayout += ord.netPayout;
-      existing.totalOrders += 1;
-
-      shopStatementsMap.set(ord.shopCode, existing);
+      const cName = ord.carrierName || 'Hãng Vận Chuyển';
+      const list = carrierGroups.get(cName) || [];
+      list.push(ord);
+      carrierGroups.set(cName, list);
     });
 
-    const statements = Array.from(shopStatementsMap.values());
+    let createdCount = 0;
 
-    const newSession: ReconciliationSession = {
-      id: `sess_bu_${Date.now()}`,
-      sessionName: sessionNameDefault,
-      carrierId: 'ALL',
-      carrierName: missingOrders[0]?.carrierName || 'Tất Cả Hãng',
-      createdAt: new Date().toISOString(),
-      nvcFileName: 'Multi-Period Dual Audit',
-      totalOrders: missingOrders.length,
-      matchedOrdersCount: missingOrders.length,
-      unmatchedOrdersCount: 0,
-      totalCod: missingOrders.reduce((sum, o) => sum + o.cod, 0),
-      totalNvcCost: missingOrders.reduce((sum, o) => sum + o.nvcFee, 0),
-      totalShopRevenue: missingOrders.reduce((sum, o) => sum + o.shopFee, 0),
-      totalNetPayout: totalMissingNetPayout,
-      totalProfit: 0,
-      statements,
-      unmatchedOrders: [],
-      payoutStatus: 'UNPAID',
-      isSupplementary: true,
-      supplementaryNotes: `Kỳ đối soát bù dữ liệu cho ${missingShopsSummary.length} Khách hàng bị thiếu`,
-    };
+    carrierGroups.forEach((cOrders, carrierName) => {
+      const shopStatementsMap = new Map<string, any>();
 
-    StorageService.saveSession(newSession);
-    showToast(`Đã tạo thành công ${sessionNameDefault}!`, 'success');
+      cOrders.forEach(ord => {
+        const existing = shopStatementsMap.get(ord.shopCode) || {
+          shopId: ord.shopCode,
+          shopCode: ord.shopCode,
+          shopName: ord.shopName,
+          shopPhone: '',
+          shopEmail: '',
+          shopAddress: '',
+          bankInfo: { bankName: '', accountNumber: '', accountHolder: '' },
+          periodName: `Bù Kỳ ${ord.periodName}`,
+          totalOrders: 0,
+          deliveredOrders: 0,
+          returnedOrders: 0,
+          inTransitOrders: 0,
+          totalCod: 0,
+          totalShopFee: 0,
+          totalShopOtherFee: 0,
+          totalNetPayout: 0,
+          totalNvcCost: 0,
+          totalProfit: 0,
+          orders: [],
+          emailStatus: 'idle',
+          isSupplementary: true,
+          supplementaryNotes: `Bù dữ liệu đối soát ${carrierName} (${ord.fileName})`,
+        };
+
+        existing.totalCod += ord.cod;
+        existing.totalShopFee += ord.shopFee;
+        existing.totalNetPayout += ord.netPayout;
+        existing.totalOrders += 1;
+
+        shopStatementsMap.set(ord.shopCode, existing);
+      });
+
+      const statements = Array.from(shopStatementsMap.values());
+      const cNetPayout = cOrders.reduce((sum, o) => sum + o.netPayout, 0);
+
+      const sessName = `Kỳ Đối Soát Bù - ${carrierName} (${new Date().toLocaleDateString('vi-VN')}) - ${statements.length} Khách (${cOrders.length} Đơn)`;
+
+      const newSession: ReconciliationSession = {
+        id: `sess_bu_${carrierName.replace(/\s+/g, '_')}_${Date.now()}`,
+        sessionName: sessName,
+        carrierId: carrierName,
+        carrierName: carrierName,
+        createdAt: new Date().toISOString(),
+        nvcFileName: `Multi-Period Audit (${carrierName})`,
+        totalOrders: cOrders.length,
+        matchedOrdersCount: cOrders.length,
+        unmatchedOrdersCount: 0,
+        totalCod: cOrders.reduce((sum, o) => sum + o.cod, 0),
+        totalNvcCost: cOrders.reduce((sum, o) => sum + o.nvcFee, 0),
+        totalShopRevenue: cOrders.reduce((sum, o) => sum + o.shopFee, 0),
+        totalNetPayout: cNetPayout,
+        totalProfit: 0,
+        statements,
+        unmatchedOrders: [],
+        payoutStatus: 'UNPAID',
+        isSupplementary: true,
+        supplementaryNotes: `Kỳ đối soát bù dữ liệu ${carrierName} cho ${statements.length} Khách hàng`,
+      };
+
+      StorageService.saveSession(newSession);
+      createdCount++;
+    });
+
+    showToast(`Đã tạo thành công ${createdCount} Kỳ Đối Soát Bù phân loại theo từng Hãng Vận Chuyển!`, 'success');
 
     if (onRefreshSessions) onRefreshSessions();
     if (onNavigateToPayout) onNavigateToPayout();
   };
 
-  // Filter orders by active bucket & search query
+  // Unique Carriers in audit results
+  const availableCarriers = Array.from(new Set(auditOrders.map(o => o.carrierName)));
+
+  // Filter orders by active bucket, carrier & search query
   const filteredOrders = auditOrders.filter(ord => {
     if (activeBucketFilter !== 'ALL' && ord.statusBucket !== activeBucketFilter) return false;
+    if (selectedCarrierFilter !== 'ALL' && ord.carrierName !== selectedCarrierFilter) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
       ord.trackingCode.toLowerCase().includes(q) ||
       ord.shopName.toLowerCase().includes(q) ||
       ord.shopCode.toLowerCase().includes(q) ||
-      ord.fileName.toLowerCase().includes(q)
+      ord.fileName.toLowerCase().includes(q) ||
+      ord.carrierName.toLowerCase().includes(q)
     );
   });
 
@@ -794,17 +829,36 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               </button>
             </div>
 
-            {/* Search Box */}
-            <div style={{ position: 'relative', width: 240 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
-              <input
-                type="text"
-                placeholder="Tìm mã vận đơn, shop, file..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-field"
-                style={{ padding: '6px 10px 6px 30px', fontSize: 12 }}
-              />
+            {/* Carrier Filter & Search Box */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {availableCarriers.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Truck size={14} color="var(--primary)" />
+                  <select
+                    value={selectedCarrierFilter}
+                    onChange={(e) => setSelectedCarrierFilter(e.target.value)}
+                    className="input-field"
+                    style={{ padding: '5px 10px', fontSize: 12, fontWeight: 700 }}
+                  >
+                    <option value="ALL">🚚 Tất Cả Hãng ({availableCarriers.length})</option>
+                    {availableCarriers.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ position: 'relative', width: 220 }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
+                <input
+                  type="text"
+                  placeholder="Tìm mã vận đơn, shop..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '6px 10px 6px 30px', fontSize: 12 }}
+                />
+              </div>
             </div>
           </div>
 
