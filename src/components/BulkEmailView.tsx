@@ -447,9 +447,15 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         gap: 20,
       }}>
         {/* 1. Template Config */}
-        <div className="glass-panel" style={{ padding: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700 }}>
+        <div className="glass-panel" style={{
+          padding: 24,
+          background: 'linear-gradient(180deg, rgba(79, 70, 229, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
+          border: '1.5px solid rgba(79, 70, 229, 0.25)',
+          borderRadius: 16,
+          boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>
               1. Cấu Hình Mẫu Email Đối Soát
             </h3>
             <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
@@ -458,18 +464,30 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           </div>
 
           {/* Carrier Template Tabs */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 14, background: 'var(--bg-secondary)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-            {CARRIER_TABS.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setSelectedCarrierTab(tab.id)}
-                className={`btn btn-sm ${selectedCarrierTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '4px 9px', fontSize: 11, fontWeight: selectedCarrierTab === tab.id ? 700 : 400 }}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, background: '#f8fafc', padding: 6, borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
+            {CARRIER_TABS.map(tab => {
+              const isSelected = selectedCarrierTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedCarrierTab(tab.id)}
+                  className="btn btn-sm"
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: 11,
+                    fontWeight: isSelected ? 800 : 600,
+                    background: isSelected ? 'var(--primary)' : '#ffffff',
+                    color: isSelected ? '#ffffff' : '#334155',
+                    border: isSelected ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
+                    boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="input-group">
@@ -482,28 +500,38 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             />
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
+          <div style={{ marginBottom: 14 }}>
+            <label className="input-label" style={{ marginBottom: 8, display: 'block', fontWeight: 700, color: '#1e293b' }}>
               Chèn biến động nhanh:
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {[
-                { tag: '{TEN_SHOP}', label: 'Tên Shop' },
-                { tag: '{KY_DOI_SOAT}', label: 'Kỳ Đối Soát' },
-                { tag: '{TONG_DON}', label: 'Tổng Đơn' },
-                { tag: '{TONG_COD}', label: 'Tổng COD' },
-                { tag: '{TONG_CUOC}', label: 'Tổng Cước' },
-                { tag: '{THUC_TRA}', label: 'Tiền Thực Trả' },
-                { tag: '{NGAN_HANG}', label: 'Tên Ngân Hàng' },
-                { tag: '{SO_TAI_KHOAN}', label: 'Số Tài Khoản' },
-                { tag: '{CHU_TAI_KHOAN}', label: 'Chủ Tài Khoản' },
+                { tag: '{TEN_SHOP}', label: 'Tên Shop', bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' },
+                { tag: '{KY_DOI_SOAT}', label: 'Kỳ Đối Soát', bg: '#f3e8ff', color: '#7e22ce', border: '#e9d5ff' },
+                { tag: '{TONG_DON}', label: 'Tổng Đơn', bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
+                { tag: '{TONG_COD}', label: 'Tổng COD', bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
+                { tag: '{TONG_CUOC}', label: 'Tổng Cước', bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+                { tag: '{THUC_TRA}', label: 'Tiền Thực Trả', bg: '#ffe4e6', color: '#be123c', border: '#fecdd3' },
+                { tag: '{NGAN_HANG}', label: 'Tên Ngân Hàng', bg: '#e0f2fe', color: '#0284c7', border: '#bae6fd' },
+                { tag: '{SO_TAI_KHOAN}', label: 'Số Tài Khoản', bg: '#cff4fc', color: '#055160', border: '#9eeaf9' },
+                { tag: '{CHU_TAI_KHOAN}', label: 'Chủ Tài Khoản', bg: '#cff4fc', color: '#055160', border: '#9eeaf9' },
               ].map((item) => (
                 <button
                   key={item.tag}
                   type="button"
                   onClick={() => handleInsertVariable(item.tag)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 11, padding: '3px 8px' }}
+                  className="btn btn-sm"
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 9px',
+                    fontWeight: 700,
+                    background: item.bg,
+                    color: item.color,
+                    border: `1px solid ${item.border}`,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease-in-out',
+                  }}
                 >
                   +{item.label}
                 </button>
@@ -523,17 +551,23 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button onClick={handleSaveSettings} className="btn btn-secondary btn-sm">
+            <button onClick={handleSaveSettings} className="btn btn-primary btn-sm" style={{ padding: '7px 14px', fontWeight: 700 }}>
               💾 Lưu Mẫu Email Này
             </button>
           </div>
         </div>
 
         {/* 2. Preview Panel */}
-        <div className="glass-panel" style={{ padding: 22 }}>
+        <div className="glass-panel" style={{
+          padding: 24,
+          background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
+          border: '1.5px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: 16,
+          boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
                 2. Xem Trước Email (Bản Shop Nhận)
               </h3>
               <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
