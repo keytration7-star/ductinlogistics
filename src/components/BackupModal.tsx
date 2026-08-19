@@ -46,6 +46,18 @@ export const BackupModal: React.FC<BackupModalProps> = ({
 
   const [importJson, setImportJson] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [serverSnapshots, setServerSnapshots] = useState<{ filename: string; sizeBytes: number; createdAt: string; modifiedAt: string }[]>([]);
+
+  const loadSnapshots = async () => {
+    const list = await StorageService.getServerSnapshots();
+    setServerSnapshots(list);
+  };
+
+  React.useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      loadSnapshots();
+    }
+  }, [isOpen, isAuthenticated]);
 
   if (!isOpen) return null;
 
@@ -61,6 +73,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
       setIsAuthenticated(true);
       setAdminPasswordInput('');
       setAuthError(null);
+      loadSnapshots();
     } else {
       setAuthError('Mật khẩu Admin không chính xác. Vui lòng thử lại.');
     }
@@ -349,7 +362,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
                   {/* 2. Import section */}
                   <div style={{ background: 'var(--bg-primary)', padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                     <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', marginBottom: 6 }}>
-                      2. Khôi Phục Dữ Liệu Từ JSON
+                      2. Khôi Phục Dữ Liệu Từ File JSON
                     </h4>
                     <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
                       Dán nội dung file JSON đã sao lưu trước đó để phục hồi lại nguyên trạng hệ thống:
@@ -364,10 +377,95 @@ export const BackupModal: React.FC<BackupModalProps> = ({
                     />
                     <button onClick={handleImport} className="btn btn-secondary btn-sm">
                       <Upload size={14} />
-                      <span>Khôi Phục Dữ Liệu</span>
+                      <span>Khôi Phục Dữ Liệu từ JSON</span>
                     </button>
                   </div>
 
+                  {/* 3. Server Snapshots (VPS Automated Snapshots) */}
+                  <div style={{ background: 'var(--bg-primary)', padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
+                        3. Danh Sách Bản Sao Lưu Snapshot Tự Động Trực Tiếp Trên VPS
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await StorageService.createManualServerSnapshot();
+                          if (ok) {
+                            setStatusMsg({ type: 'success', text: 'Đã tạo bản sao lưu snapshot tức thì trên VPS server!' });
+                            loadSnapshots();
+                          }
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: 11, padding: '4px 8px' }}
+                      >
+                        <Database size={13} />
+                        <span>Tạo Snapshot Ngay</span>
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      Hệ thống tự động chụp ảnh dữ liệu định kỳ mỗi 6 giờ và trước mọi thao tác quan trọng. Bạn có thể 1-click khôi phục về bất kỳ điểm thời gian nào:
+                    </p>
+
+                    {serverSnapshots.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', padding: 8 }}>
+                        Chưa tìm thấy bản sao lưu snapshot nào trên server.
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {serverSnapshots.map(snp => (
+                          <div
+                            key={snp.filename}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: 'var(--bg-secondary)',
+                              padding: '8px 12px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--border-color)',
+                              fontSize: 12,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                                📸 {snp.filename}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                                {new Date(snp.modifiedAt).toLocaleString('vi-VN')} • {Math.round(snp.sizeBytes / 1024)} KB
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const ok = await showConfirm({
+                                  title: 'Khôi Phục Snapshot Server',
+                                  message: `Bạn có chắc chắn muốn khôi phục lại toàn bộ dữ liệu hệ thống theo bản sao lưu "${snp.filename}"?`,
+                                  confirmText: 'Khôi Phục',
+                                  warning: true,
+                                });
+                                if (ok) {
+                                  const restored = await StorageService.restoreServerSnapshot(snp.filename);
+                                  if (restored) {
+                                    setStatusMsg({ type: 'success', text: `Đã khôi phục thành công toàn bộ dữ liệu từ snapshot ${snp.filename}!` });
+                                    onDataReloaded();
+                                  } else {
+                                    setStatusMsg({ type: 'error', text: 'Không thể khôi phục bản sao lưu.' });
+                                  }
+                                }
+                              }}
+                              className="btn btn-outline btn-sm"
+                              style={{ fontSize: 11, padding: '3px 8px' }}
+                            >
+                              <RefreshCcw size={13} />
+                              <span>Khôi Phục Bản Này</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

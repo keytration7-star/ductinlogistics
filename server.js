@@ -17,8 +17,13 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 // 📁 SERVER-SIDE PERSISTENT STORAGE (JSON DATABASE)
 // ──────────────────────────────────────────
 const DATA_DIR = path.join(__dirname, 'data');
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(BACKUPS_DIR)) {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
 function readJsonFile(filename, defaultValue) {
@@ -33,16 +38,87 @@ function readJsonFile(filename, defaultValue) {
   }
 }
 
+// 🛡️ ATOMIC FILE WRITE PATTERN (Temp Swap + fsync)
+// Guarantees zero data loss, rỗng file or JSON corruption on VPS crash/power loss
 function writeJsonFile(filename, data) {
+  const filePath = path.join(DATA_DIR, filename);
+  const tempPath = path.join(DATA_DIR, `${filename}.tmp.${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
   try {
-    const filePath = path.join(DATA_DIR, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    const jsonStr = JSON.stringify(data, null, 2);
+    // 1. Write to temporary file
+    fs.writeFileSync(tempPath, jsonStr, 'utf8');
+    
+    // 2. Physical flush to disk
+    const fd = fs.openSync(tempPath, 'r+');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+
+    // 3. OS Atomic rename replacement
+    fs.renameSync(tempPath, filePath);
     return true;
   } catch (err) {
-    console.error(`[DB Write Error] ${filename}:`, err);
+    console.error(`[Atomic Write Fail] ${filename}:`, err);
+    if (fs.existsSync(tempPath)) {
+      try { fs.unlinkSync(tempPath); } catch {}
+    }
     return false;
   }
 }
+
+// 📸 AUTOMATED SERVER SNAPSHOT BACKUP ENGINE
+function createSnapshot(reason = 'auto') {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const snapshotName = `snapshot_${timestamp}_${reason}.json`;
+    const snapshotPath = path.join(BACKUPS_DIR, snapshotName);
+
+    const snapshotData = {
+      timestamp: new Date().toISOString(),
+      reason,
+      shops: readJsonFile('shops.json', []),
+      carriers: readJsonFile('carriers.json', []),
+      sessions: readJsonFile('sessions.json', []),
+      companyInfo: readJsonFile('company_info.json', {}),
+      emailSettings: readJsonFile('email_settings.json', {}),
+      exportColumns: readJsonFile('export_columns.json', {}),
+      carrierData: readJsonFile('carrier_data.json', {}),
+      users: readJsonFile('users.json', []),
+      payments: readJsonFile('payments.json', []),
+      ctvs: readJsonFile('ctvs.json', []),
+    };
+
+    fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2), 'utf8');
+    console.log(`[Snapshot Created] ${snapshotName}`);
+
+    // Housekeeping: Keep snapshots for max 30 days
+    const files = fs.readdirSync(BACKUPS_DIR);
+    const now = Date.now();
+    const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+    for (const file of files) {
+      if (file.startsWith('snapshot_') && file.endsWith('.json')) {
+        const filePath = path.join(BACKUPS_DIR, file);
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > MAX_AGE_MS) {
+          fs.unlinkSync(filePath);
+          console.log(`[Housekeeping] Pruned old backup: ${file}`);
+        }
+      }
+    }
+    return snapshotName;
+  } catch (err) {
+    console.error('[Snapshot Fail]:', err);
+    return null;
+  }
+}
+
+// Auto snapshot on server startup
+createSnapshot('boot');
+
+// Periodic snapshot every 6 hours
+setInterval(() => {
+  createSnapshot('cron_6h');
+}, 6 * 60 * 60 * 1000);
 
 // ──────────────────────────────────────────
 // 🌐 DB API ENDPOINTS
@@ -118,10 +194,45 @@ app.post('/api/db/carriers', (req, res) => {
   res.json({ success });
 });
 
-// POST save sessions
+// POST save sessions (bulk)
 app.post('/api/db/sessions', (req, res) => {
   const success = writeJsonFile('sessions.json', req.body.sessions || []);
   res.json({ success });
+});
+
+// POST upsert single session (granually without array trimming)
+app.post('/api/db/sessions/upsert', (req, res) => {
+  try {
+    const { session } = req.body;
+    if (!session || !session.id) {
+      return res.status(400).json({ success: false, error: 'Thiếu session.id' });
+    }
+    const currentSessions = readJsonFile('sessions.json', []);
+    const idx = currentSessions.findIndex(s => s.id === session.id);
+    if (idx >= 0) {
+      currentSessions[idx] = session;
+    } else {
+      currentSessions.unshift(session);
+    }
+    const success = writeJsonFile('sessions.json', currentSessions);
+    res.json({ success, count: currentSessions.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST delete single session
+app.post('/api/db/sessions/delete', (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ success: false, error: 'Thiếu id session' });
+    const currentSessions = readJsonFile('sessions.json', []);
+    const filtered = currentSessions.filter(s => s.id !== id);
+    const success = writeJsonFile('sessions.json', filtered);
+    res.json({ success, count: filtered.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // POST save company info
@@ -148,7 +259,7 @@ app.post('/api/db/audit-logs', (req, res) => {
   res.json({ success });
 });
 
-// POST save carrier data (mappings, export settings, headers per carrier)
+// POST save carrier data
 app.post('/api/db/carrier-data', (req, res) => {
   const current = readJsonFile('carrier_data.json', {});
   const updated = { ...current, ...req.body.carrierData };
@@ -156,9 +267,76 @@ app.post('/api/db/carrier-data', (req, res) => {
   res.json({ success });
 });
 
+// GET snapshots list
+app.get('/api/db/snapshots', (req, res) => {
+  try {
+    if (!fs.existsSync(BACKUPS_DIR)) return res.json({ success: true, snapshots: [] });
+    const files = fs.readdirSync(BACKUPS_DIR)
+      .filter(f => f.startsWith('snapshot_') && f.endsWith('.json'))
+      .map(filename => {
+        const filePath = path.join(BACKUPS_DIR, filename);
+        const stat = fs.statSync(filePath);
+        return {
+          filename,
+          sizeBytes: stat.size,
+          createdAt: stat.birthtime.toISOString(),
+          modifiedAt: stat.mtime.toISOString(),
+        };
+      })
+      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+    res.json({ success: true, snapshots: files });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST create manual snapshot
+app.post('/api/db/snapshots/create', (req, res) => {
+  const snapshotName = createSnapshot('manual_admin');
+  if (snapshotName) {
+    res.json({ success: true, snapshotName, message: 'Đã tạo bản sao lưu snapshot thành công!' });
+  } else {
+    res.status(500).json({ success: false, error: 'Không thể tạo snapshot' });
+  }
+});
+
+// POST restore snapshot
+app.post('/api/db/snapshots/restore', (req, res) => {
+  try {
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ success: false, error: 'Thiếu tên file snapshot' });
+    const snapshotPath = path.join(BACKUPS_DIR, filename);
+    if (!fs.existsSync(snapshotPath)) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy bản sao lưu' });
+    }
+
+    // Safety snapshot before restoring
+    createSnapshot('pre_restore_safety');
+
+    const content = fs.readFileSync(snapshotPath, 'utf8');
+    const backup = JSON.parse(content);
+
+    if (backup.shops) writeJsonFile('shops.json', backup.shops);
+    if (backup.carriers) writeJsonFile('carriers.json', backup.carriers);
+    if (backup.sessions) writeJsonFile('sessions.json', backup.sessions);
+    if (backup.companyInfo) writeJsonFile('company_info.json', backup.companyInfo);
+    if (backup.emailSettings) writeJsonFile('email_settings.json', backup.emailSettings);
+    if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
+    if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
+    if (backup.users) writeJsonFile('users.json', backup.users);
+    if (backup.payments) writeJsonFile('payments.json', backup.payments);
+    if (backup.ctvs) writeJsonFile('ctvs.json', backup.ctvs);
+
+    res.json({ success: true, message: `Đã khôi phục toàn bộ dữ liệu từ snapshot ${filename} thành công!` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST import full backup to server
 app.post('/api/db/backup/import', (req, res) => {
   try {
+    createSnapshot('pre_import_safety');
     const backup = req.body;
     if (backup.shops) writeJsonFile('shops.json', backup.shops);
     if (backup.carriers) writeJsonFile('carriers.json', backup.carriers);

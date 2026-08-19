@@ -365,13 +365,14 @@ export const StorageService = {
       }
     }
 
-    postServerSync('/api/db/sessions', { sessions });
+    // 🛡️ Granular Server Upsert: Always push individual session to server disk so server retains complete session history without trimming
+    postServerSync('/api/db/sessions/upsert', { session: cleanSession });
   },
 
   deleteSession(sessionId: string): void {
     const sessions = this.getSessions().filter(s => s.id !== sessionId);
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-    postServerSync('/api/db/sessions', { sessions });
+    postServerSync('/api/db/sessions/delete', { id: sessionId });
   },
 
   clearAllData(): void {
@@ -671,5 +672,47 @@ export const StorageService = {
     }
 
     return 0;
+  },
+
+  // 📸 SERVER SNAPSHOT BACKUP & RECOVERY APIs
+  async getServerSnapshots(): Promise<{ filename: string; sizeBytes: number; createdAt: string; modifiedAt: string }[]> {
+    try {
+      const res = await fetch('/api/db/snapshots');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.snapshots || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async restoreServerSnapshot(filename: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/db/snapshots/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data.success) {
+        await this.syncWithServer();
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+
+  async createManualServerSnapshot(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/db/snapshots/create', { method: 'POST' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data.success;
+    } catch {
+      return false;
+    }
   },
 };
