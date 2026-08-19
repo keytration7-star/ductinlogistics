@@ -448,3 +448,59 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
   color: var(--text-dim);
 }
+
+/* Sidebar Navigation Buttons - Refined Blue Active State & Hover Effect */
+.sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8.5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+}
+
+.sidebar-nav-btn:hover {
+  background: #f0f4f9;
+  color: #1e293b;
+  transform: translateX(3px);
+}
+
+[data-theme='dark'] .sidebar-nav-btn:hover {
+  background: #1e293b;
+  color: #f8fafc;
+  transform: translateX(3px);
+}
+
+.sidebar-nav-btn.active {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
+  transform: translateX(2px);
+}
+
+.sidebar-nav-btn.active .sidebar-icon {
+  color: #2563eb !important;
+}
+
+[data-theme='dark'] .sidebar-nav-btn.active {
+  background: rgba(37, 99, 235, 0.16);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='dark'] .sidebar-nav-btn.active .sidebar-icon {
+  color: #60a5fa !important;
+}
+

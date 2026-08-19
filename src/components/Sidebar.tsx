@@ -281,7 +281,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}>
                   {group.title}
                 </div>
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {allowedItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -289,32 +289,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          width: '100%',
-                          padding: '8px 10px',
-                          borderRadius: 'var(--radius-md)',
-                          border: 'none',
-                          background: isActive ? 'var(--primary)' : 'transparent',
-                          color: isActive ? '#ffffff' : 'var(--text-main)',
-                          fontSize: 13,
-                          fontWeight: isActive ? 700 : 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          textAlign: 'left',
-                        }}
+                        className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                          <Icon size={16} color={isActive ? '#ffffff' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                          <Icon size={16} className="sidebar-icon" style={{ flexShrink: 0 }} />
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.label}
                           </span>
                         </div>
 
                         {item.badge && (
-                          <span className={`badge ${isActive ? 'badge-neutral' : 'badge-primary'}`} style={{ fontSize: 9, padding: '1px 5px', flexShrink: 0 }}>
+                          <span className={`badge ${isActive ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: 9, padding: '1px 5px', flexShrink: 0 }}>
                             {item.badge}
                           </span>
                         )}
