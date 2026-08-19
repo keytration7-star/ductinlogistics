@@ -104,3 +104,27 @@ export function generateSmartSessionName(
 
   return `Đối Soát ${carrierClean} (${startDay}/${startMonth} - ${endDay}/${endMonth}/${endYear})`;
 }
+
+/**
+ * Automatically cleans and formats old session titles (e.g. removes "Tháng tháng")
+ */
+export function cleanSessionName(sessionName: string, createdAt?: string, carrierName?: string): string {
+  if (!sessionName) return 'Kỳ Đối Soát';
+  
+  let cleaned = sessionName
+    .replace(/Tháng tháng/gi, 'Tháng')
+    .replace(/Kỳ Đối Soát Tháng tháng/gi, 'Đối Soát');
+
+  // Fix generic "Kỳ Đối Soát Tháng 08, 2026" or "Kỳ Đối Soát Tháng 08/2026"
+  if (cleaned.startsWith('Kỳ Đối Soát Tháng ') || cleaned.startsWith('Kỳ Đối Soát tháng ')) {
+    const d = createdAt ? new Date(createdAt) : new Date();
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+    const yearStr = d.getFullYear();
+    const cName = carrierName ? carrierName.trim() : '';
+
+    cleaned = `Đối Soát ${cName} (${dayStr}/${monthStr}/${yearStr})`.replace(/\s+/g, ' ').trim();
+  }
+
+  return cleaned;
+}

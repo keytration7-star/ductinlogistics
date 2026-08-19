@@ -20,6 +20,7 @@ import {
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
+import { cleanSessionName } from '../utils/periodUtils';
 
 interface DebtAndPayoutViewProps {
   sessions: ReconciliationSession[];
@@ -425,7 +426,9 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       {/* Session Info & Badges */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>{session.sessionName}</strong>
+                          <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>
+                            {cleanSessionName(session.sessionName, session.createdAt, session.carrierName)}
+                          </strong>
                           <span className="badge badge-primary" style={{ fontSize: 10, padding: '2px 7px' }}>{session.carrierName}</span>
                           {session.isSupplementary && (
                             <span className="badge badge-warning" style={{ fontSize: 10, padding: '2px 8px', background: '#8b5cf6', color: '#ffffff', fontWeight: 700 }}>
@@ -743,7 +746,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>
-                    {activeDetailSession.sessionName}
+                    {cleanSessionName(activeDetailSession.sessionName, activeDetailSession.createdAt, activeDetailSession.carrierName)}
                   </h3>
                   <span className="badge badge-primary">{activeDetailSession.carrierName}</span>
                 </div>
