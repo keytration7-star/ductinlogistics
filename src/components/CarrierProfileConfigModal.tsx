@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
-import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Plus, Trash2, RotateCcw, AlertCircle, Eye, ShieldAlert, Zap, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Trash2, RotateCcw, AlertCircle, ShieldAlert, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ColumnMappingConfig, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
-import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
+import { StorageService } from '../services/storage';
 import { SearchableSelect } from './SearchableSelect';
 
 interface CarrierProfileConfigModalProps {
@@ -41,9 +41,6 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   // Main Tab: 'mapping' (Ánh xạ cột) or 'export' (Mẫu xuất file)
   const [mainTab, setMainTab] = useState<'mapping' | 'export'>('mapping');
 
-  // Sub-Tab for Export: 'shop' or 'master'
-  const [exportSubTab, setExportSubTab] = useState<'shop' | 'master'>('shop');
-
   // Local state for Mapping
   const [localNvcMapping, setLocalNvcMapping] = useState<ColumnMappingConfig>(nvcMapping);
   const [localAppMapping, setLocalAppMapping] = useState<ColumnMappingConfig>(appMapping);
@@ -52,9 +49,6 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   const [exportSettings, setExportSettings] = useState<ExportColumnSettings>(() => {
     return StorageService.getCarrierExportSettings(carrierId);
   });
-
-  const [selectedExportSourceHeader, setSelectedExportSourceHeader] = useState('');
-  const [customExportLabel, setCustomExportLabel] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,170 +108,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     ...(localAppMapping.customColumns || []).map(c => c.excelColumn),
   ].filter(Boolean)));
 
-  const handleAddNewCustomExportColumn = () => {
-    if (!selectedExportSourceHeader) {
-      showToast('Vui lòng chọn một cột quét từ file NVC hoặc App.', 'warning');
-      return;
-    }
-    const label = (customExportLabel.trim() || selectedExportSourceHeader);
-    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
 
-    const exists = exportSettings[targetKey].some(c => c.sourceHeader === selectedExportSourceHeader || c.label === label);
-    if (exists) {
-      showToast(`Cột "${label}" đã có sẵn trong mẫu xuất file.`, 'warning');
-      return;
-    }
-
-    const newCol: ExportColumnItem = {
-      id: `exp_custom_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      label,
-      enabled: true,
-      category: 'custom',
-      sourceHeader: selectedExportSourceHeader,
-    };
-
-    const updated = {
-      ...exportSettings,
-      [targetKey]: [...exportSettings[targetKey], newCol],
-    };
-    setExportSettings(updated);
-    triggerAutoSave(localNvcMapping, localAppMapping, updated);
-    showToast(`Đã thêm cột xuất "${label}"!`, 'success');
-    setSelectedExportSourceHeader('');
-    setCustomExportLabel('');
-  };
-
-  const handleRemoveExportColumn = (colId: string) => {
-    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
-    const updated = {
-      ...exportSettings,
-      [targetKey]: exportSettings[targetKey].filter(c => c.id !== colId),
-    };
-    setExportSettings(updated);
-    triggerAutoSave(localNvcMapping, localAppMapping, updated);
-    showToast('Đã xóa cột tùy chọn khỏi mẫu xuất.', 'info');
-  };
-
-  const handleAutoAddAllScannedHeaders = () => {
-    const targetKey = exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns';
-    const currentCols = exportSettings[targetKey];
-    let countAdded = 0;
-
-    const newCols = [...currentCols];
-    allScannedHeaders.forEach(h => {
-      const alreadyHas = newCols.some(c => c.sourceHeader === h || c.label.toLowerCase() === h.toLowerCase());
-      if (!alreadyHas) {
-        newCols.push({
-          id: `exp_auto_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          label: h,
-          enabled: true,
-          category: 'custom',
-          sourceHeader: h,
-        });
-        countAdded++;
-      }
-    });
-
-    if (countAdded === 0) {
-      showToast('Tất cả cột quét được từ 2 file đã có sẵn trong danh sách mẫu xuất!', 'info');
-      return;
-    }
-
-    const updated = {
-      ...exportSettings,
-      [targetKey]: newCols,
-    };
-    setExportSettings(updated);
-    triggerAutoSave(localNvcMapping, localAppMapping, updated);
-    showToast(`Đã tự động thêm ${countAdded} cột mới quét từ 2 file!`, 'success');
-  };
-
-  // Export handlers — auto-save on every change
-  const currentExportColumns = exportSubTab === 'shop' ? exportSettings.shopColumns : exportSettings.masterColumns;
-
-  const handleToggleExportColumn = (colId: string) => {
-    if (colId === 'stt' || colId === 'waybill') return;
-    const updatedCols = currentExportColumns.map((col: ExportColumnItem) => col.id === colId ? { ...col, enabled: !col.enabled } : col);
-    const newSettings: ExportColumnSettings = {
-      ...exportSettings,
-      [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
-    };
-    setExportSettings(newSettings);
-    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
-  };
-
-  // Drag & drop state for export column reordering
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  const handleMoveExportColumn = (colId: string, direction: 'up' | 'down') => {
-    const idx = currentExportColumns.findIndex((col: ExportColumnItem) => col.id === colId);
-    if (idx === -1) return;
-    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (newIdx < 0 || newIdx >= currentExportColumns.length) return;
-
-    const updatedCols = [...currentExportColumns];
-    const [movedCol] = updatedCols.splice(idx, 1);
-    updatedCols.splice(newIdx, 0, movedCol);
-
-    const newSettings: ExportColumnSettings = {
-      ...exportSettings,
-      [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
-    };
-    setExportSettings(newSettings);
-    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
-  };
-
-  const handleDropExportColumn = (targetIdx: number) => {
-    if (draggedIndex === null || draggedIndex === targetIdx) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    const updatedCols = [...currentExportColumns];
-    const [movedCol] = updatedCols.splice(draggedIndex, 1);
-    updatedCols.splice(targetIdx, 0, movedCol);
-
-    const newSettings: ExportColumnSettings = {
-      ...exportSettings,
-      [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
-    };
-    setExportSettings(newSettings);
-    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleSelectAllExport = (enabled: boolean) => {
-    const updatedCols = currentExportColumns.map((col: ExportColumnItem) => {
-      if (col.id === 'stt' || col.id === 'waybill') return col;
-      return { ...col, enabled };
-    });
-    const newSettings: ExportColumnSettings = {
-      ...exportSettings,
-      [exportSubTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
-    };
-    setExportSettings(newSettings);
-    triggerAutoSave(localNvcMapping, localAppMapping, newSettings);
-  };
-
-  const handleResetExportDefaults = async () => {
-    const ok = await showConfirm({
-      title: 'Khôi Phục Mặc Định',
-      message: 'Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?',
-      confirmText: 'Khôi Phục',
-      warning: true,
-    });
-    if (ok) {
-      const defaultClone = JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
-      setExportSettings(defaultClone);
-      StorageService.saveCarrierExportSettings(carrierId, defaultClone);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2000);
-    }
-  };
 
 
 
@@ -577,64 +408,114 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             );
           })()}
 
-
           {/* ═══════════════════════════════════════════ */}
-          {/* TAB 2: MẪU XUẤT EXCEL (EXPORT SETTINGS) */}
+          {/* TAB 2: MẪU XUẤT EXCEL (3-PANEL VISUAL COLUMNS WORKSPACE) */}
           {/* ═══════════════════════════════════════════ */}
-          {mainTab === 'export' && (
-            <div>
-              {/* Sub-tabs: File Shop vs File Master */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setExportSubTab('shop')}
-                    className={`btn btn-sm ${exportSubTab === 'shop' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ padding: '6px 14px', fontSize: 12 }}
-                  >
-                    📄 Bảng Kê Shop ({exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled).length}/{exportSettings.shopColumns.length} cột)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExportSubTab('master')}
-                    className={`btn btn-sm ${exportSubTab === 'master' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ padding: '6px 14px', fontSize: 12 }}
-                  >
-                    📊 Báo Cáo Tổng Hợp Gom Đơn ({exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled).length}/{exportSettings.masterColumns.length} cột)
-                  </button>
-                </div>
+          {mainTab === 'export' && (() => {
+            const handleAddAllToTarget = (target: 'shop' | 'master') => {
+              const currentCols = target === 'shop' ? exportSettings.shopColumns : exportSettings.masterColumns;
+              const existingSourceHeaders = new Set(currentCols.map(c => c.sourceHeader).filter(Boolean));
 
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectAllExport(true)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '4px 8px' }}
-                  >
-                    Chọn Tất Cả
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectAllExport(false)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '4px 8px' }}
-                  >
-                    Bỏ Chọn Hết
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetExportDefaults}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '4px 8px' }}
-                    title="Khôi phục mặc định"
-                  >
-                    <RotateCcw size={12} />
-                    <span>Mặc định</span>
-                  </button>
-                </div>
-              </div>
+              const newItems: ExportColumnItem[] = [];
 
-              {exportSubTab === 'shop' && (
+              allScannedHeaders.forEach(h => {
+                if (!existingSourceHeaders.has(h)) {
+                  newItems.push({
+                    id: `col_scanned_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                    label: h,
+                    enabled: true,
+                    category: 'custom',
+                    sourceHeader: h,
+                  });
+                }
+              });
+
+              // Enable all existing columns
+              const updatedCurrent = currentCols.map(c => ({ ...c, enabled: true }));
+              const combined = [...updatedCurrent, ...newItems];
+
+              const updatedSettings = {
+                ...exportSettings,
+                [target === 'shop' ? 'shopColumns' : 'masterColumns']: combined,
+              };
+
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+              showToast(`Đã chọn tất cả ${combined.length} cột vào ${target === 'shop' ? 'Bảng Kê Shop' : 'Báo Cáo Tổng Hợp'}!`, 'success');
+            };
+
+            const handleToggleCol = (target: 'shop' | 'master', colId: string) => {
+              const listKey = target === 'shop' ? 'shopColumns' : 'masterColumns';
+              const updatedList = exportSettings[listKey].map(c => c.id === colId ? { ...c, enabled: !c.enabled } : c);
+              const updatedSettings = { ...exportSettings, [listKey]: updatedList };
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+            };
+
+            const handleMoveCol = (target: 'shop' | 'master', index: number, direction: 'up' | 'down') => {
+              const listKey = target === 'shop' ? 'shopColumns' : 'masterColumns';
+              const list = [...exportSettings[listKey]];
+              const targetIdx = direction === 'up' ? index - 1 : index + 1;
+              if (targetIdx < 0 || targetIdx >= list.length) return;
+              const temp = list[index];
+              list[index] = list[targetIdx];
+              list[targetIdx] = temp;
+              const updatedSettings = { ...exportSettings, [listKey]: list };
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+            };
+
+            const handleRemoveCol = (target: 'shop' | 'master', colId: string) => {
+              const listKey = target === 'shop' ? 'shopColumns' : 'masterColumns';
+              const updatedList = exportSettings[listKey].filter(c => c.id !== colId);
+              const updatedSettings = { ...exportSettings, [listKey]: updatedList };
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+            };
+
+            const handleUpdateLabel = (target: 'shop' | 'master', colId: string, newLabel: string) => {
+              const listKey = target === 'shop' ? 'shopColumns' : 'masterColumns';
+              const updatedList = exportSettings[listKey].map(c => c.id === colId ? { ...c, label: newLabel } : c);
+              const updatedSettings = { ...exportSettings, [listKey]: updatedList };
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+            };
+
+            const handleAddHeaderToTarget = (target: 'shop' | 'master', headerName: string) => {
+              const listKey = target === 'shop' ? 'shopColumns' : 'masterColumns';
+              const list = exportSettings[listKey];
+
+              // Check if already exists
+              const existing = list.find(c => c.sourceHeader === headerName || c.label === headerName || c.id === headerName);
+              if (existing) {
+                if (!existing.enabled) {
+                  handleToggleCol(target, existing.id);
+                } else {
+                  showToast(`Cột "${headerName}" đã có trong danh sách!`, 'info');
+                }
+                return;
+              }
+
+              const newCol: ExportColumnItem = {
+                id: `col_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                label: headerName,
+                enabled: true,
+                category: 'custom',
+                sourceHeader: headerName,
+              };
+
+              const updatedSettings = {
+                ...exportSettings,
+                [listKey]: [...list, newCol],
+              };
+              setExportSettings(updatedSettings);
+              triggerAutoSave(localNvcMapping, localAppMapping, updatedSettings);
+              showToast(`Đã thêm cột "${headerName}" vào ${target === 'shop' ? 'Bảng Kê Shop' : 'Báo Cáo Tổng'}!`, 'success');
+            };
+
+            return (
+              <div>
+                {/* Security notice bar */}
                 <div style={{
                   background: 'rgba(79, 70, 229, 0.05)',
                   border: '1px dashed var(--primary)',
@@ -642,235 +523,299 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                   padding: '8px 12px',
                   fontSize: 12,
                   color: 'var(--text-main)',
-                  marginBottom: 14,
+                  marginBottom: 12,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
                 }}>
                   <ShieldAlert size={15} color="var(--primary)" />
                   <span>
-                    <strong>Bảo mật:</strong> Cột <em>Cước gốc NVC</em> và <em>Lợi nhuận</em> đã tự động ẩn trong file của Shop.
+                    <strong>Thiết Kế Trực Quan 3 Bảng:</strong> Chọn cột bên trái hoặc bấm ⚡ Chọn tất cả để đẩy tự động sang <strong>Bảng Kê Shop (Sheet 2)</strong> và <strong>Báo Cáo Tổng Hợp Gom Đơn (Sheet 1)</strong>.
                   </span>
                 </div>
-              )}
 
-              {/* Dynamic Add Scanned Column Box */}
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
-                padding: 12,
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-color)',
-                marginBottom: 14,
-              }}>
+                {/* 🌟 3-PANEL VISUAL WORKSPACE */}
                 <div style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  color: 'var(--primary)',
-                  marginBottom: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
+                  display: 'grid',
+                  gridTemplateColumns: '250px 1fr 1fr',
+                  gap: 12,
+                  alignItems: 'start',
                 }}>
-                  <span>➕ Thêm Cột Tùy Chọn Từ File Thực Tế Quét Được ({allScannedHeaders.length} Cột)</span>
-                  {allScannedHeaders.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleAutoAddAllScannedHeaders}
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: 11, padding: '3px 8px' }}
-                      title="Tự động thêm toàn bộ các cột thực tế tìm thấy trong 2 file"
-                    >
-                      <Zap size={12} color="var(--warning)" />
-                      <span>Tự động thêm tất cả {allScannedHeaders.length} cột</span>
-                    </button>
-                  )}
-                </div>
+                  {/* PANEL 1: KHO CỘT KHẢ DỤNG (LEFT POOL) */}
+                  <div style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderBottom: '1px solid var(--border-color)',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <span>🎯 KHO CỘT ({allScannedHeaders.length} CỘT)</span>
+                    </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: 8, alignItems: 'center' }}>
-                  <SearchableSelect
-                    options={allScannedHeaders.map(h => {
-                      const isBoth = nvcHeaders.includes(h) && appHeaders.includes(h);
-                      const isNvc = nvcHeaders.includes(h);
-                      return {
-                        value: h,
-                        label: h,
-                        badge: isBoth ? 'Cả 2 File' : isNvc ? 'File NVC' : 'File App',
-                        badgeType: isBoth ? 'both' : isNvc ? 'nvc' : 'app',
-                      };
-                    })}
-                    value={selectedExportSourceHeader}
-                    onChange={(val) => {
-                      setSelectedExportSourceHeader(val);
-                      if (!customExportLabel) setCustomExportLabel(val);
-                    }}
-                    placeholder={allScannedHeaders.length > 0 ? `🔍 Gõ tìm kiếm từ khóa cột (${allScannedHeaders.length} cột)...` : '⚠️ Chưa có cột quét'}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Tên tiêu đề hiển thị trên Excel xuất..."
-                    value={customExportLabel}
-                    onChange={(e) => setCustomExportLabel(e.target.value)}
-                    className="input-field"
-                    style={{ padding: '5px 10px', fontSize: 12 }}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleAddNewCustomExportColumn}
-                    className="btn btn-primary btn-sm"
-                    style={{ padding: '0 12px', fontSize: 11, height: 32 }}
-                    disabled={!selectedExportSourceHeader}
-                  >
-                    <Plus size={13} />
-                    <span>Thêm Cột Xuất</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Grid of Checkboxes */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 8,
-              }}>
-                {currentExportColumns.map((col: ExportColumnItem, idx: number) => {
-                  const isMandatory = col.id === 'stt' || col.id === 'waybill';
-                  const isCustom = col.category === 'custom';
-
-                  return (
-                    <div
-                      key={col.id}
-                      draggable={true}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(idx));
-                        setDraggedIndex(idx);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (dragOverIndex !== idx) setDragOverIndex(idx);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedIndex(null);
-                        setDragOverIndex(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleDropExportColumn(idx);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-md)',
-                        background: draggedIndex === idx
-                          ? 'var(--bg-tertiary)'
-                          : dragOverIndex === idx
-                          ? 'rgba(79, 70, 229, 0.12)'
-                          : col.enabled ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
-                        border: dragOverIndex === idx
-                          ? '2px dashed var(--primary)'
-                          : col.enabled ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                        cursor: 'grab',
-                        transition: 'all 0.15s ease',
-                        opacity: draggedIndex === idx ? 0.4 : isMandatory ? 0.85 : 1,
-                      }}
-                    >
-                      {/* Drag Handle Icon */}
-                      <div
-                        style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex', alignItems: 'center', flexShrink: 0 }}
-                        title="Giữ và kéo thả để đổi thứ tự vị trí cột"
-                      >
-                        <GripVertical size={15} />
+                    <div style={{ padding: 8 }}>
+                      {/* 1-Click Select All Buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleAddAllToTarget('shop')}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 10, padding: '4px 6px', justifyContent: 'center', width: '100%' }}
+                        >
+                          <Zap size={11} color="var(--warning)" />
+                          <span>⚡ Chọn tất cả vào Shop</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddAllToTarget('master')}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 10, padding: '4px 6px', justifyContent: 'center', width: '100%' }}
+                        >
+                          <Zap size={11} color="var(--primary)" />
+                          <span>⚡ Chọn tất cả vào Báo Cáo</span>
+                        </button>
                       </div>
 
-                      <input
-                        type="checkbox"
-                        checked={col.enabled}
-                        disabled={isMandatory}
-                        onChange={() => handleToggleExportColumn(col.id)}
-                        style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: isMandatory ? 'not-allowed' : 'pointer' }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0, cursor: isMandatory ? 'not-allowed' : 'pointer' }} onClick={() => !isMandatory && handleToggleExportColumn(col.id)}>
-                        <div style={{
-                          fontSize: 12,
-                          fontWeight: col.enabled ? 700 : 500,
-                          color: col.enabled ? 'var(--text-main)' : 'var(--text-muted)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}>
-                          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>#{idx + 1}</span>
-                          {col.label}
-                        </div>
-                        {isMandatory && <div style={{ fontSize: 10, color: 'var(--primary)' }}>Bắt buộc</div>}
-                        {isCustom && (
-                          <div style={{ fontSize: 9, color: 'var(--warning)', fontWeight: 600 }}>
-                            Quét từ file ({col.sourceHeader || col.label})
+                      <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {allScannedHeaders.length === 0 ? (
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic', padding: 6, textAlign: 'center' }}>
+                            Chưa có cột quét từ Excel.
                           </div>
-                        )}
-                      </div>
-
-                      {/* Up & Down Reorder Buttons */}
-                      <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={(e) => { e.stopPropagation(); handleMoveExportColumn(col.id, 'up'); }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '2px 4px', opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
-                          title="Di chuyển cột lên trước"
-                        >
-                          <ArrowUp size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={idx === currentExportColumns.length - 1}
-                          onClick={(e) => { e.stopPropagation(); handleMoveExportColumn(col.id, 'down'); }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '2px 4px', opacity: idx === currentExportColumns.length - 1 ? 0.3 : 1, cursor: idx === currentExportColumns.length - 1 ? 'not-allowed' : 'pointer' }}
-                          title="Di chuyển cột xuống sau"
-                        >
-                          <ArrowDown size={12} />
-                        </button>
-
-                        {/* Trash button for non-mandatory columns */}
-                        {!isMandatory && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveExportColumn(col.id); }}
-                            className="btn btn-danger btn-sm"
-                            style={{ padding: '2px 5px', flexShrink: 0 }}
-                            title={`Xóa cột "${col.label}" khỏi mẫu xuất file này`}
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        ) : (
+                          allScannedHeaders.map(h => (
+                            <div key={h} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '5px 7px',
+                              background: 'var(--bg-primary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: 11,
+                              gap: 4
+                            }}>
+                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }} title={h}>
+                                {h}
+                              </div>
+                              <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddHeaderToTarget('shop', h)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: 9, padding: '1px 4px' }}
+                                  title="Thêm vào Bảng kê Shop"
+                                >
+                                  + Shop
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddHeaderToTarget('master', h)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: 9, padding: '1px 4px' }}
+                                  title="Thêm vào Báo cáo Tổng"
+                                >
+                                  + Tổng
+                                </button>
+                              </div>
+                            </div>
+                          ))
                         )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
 
-              {/* Preview Line */}
-              <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Eye size={13} /> Xem trước hàng tiêu đề:
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: 'var(--bg-tertiary)', padding: 8, borderRadius: 'var(--radius-md)' }}>
-                  {currentExportColumns.filter((c: ExportColumnItem) => c.enabled).map((c: ExportColumnItem, idx: number) => (
-                    <span key={c.id} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 600 }}>
-                      {idx + 1}. {c.label}
-                    </span>
-                  ))}
+                  {/* PANEL 2: BẢNG KÊ CHI TIẾT SHOP (MIDDLE) */}
+                  <div style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderBottom: '1px solid var(--border-color)',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: 'var(--success)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <span>📄 BẢNG KÊ SHOP ({exportSettings.shopColumns.filter(c => c.enabled).length}/{exportSettings.shopColumns.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = exportSettings.shopColumns.map(c => ({ ...c, enabled: true }));
+                          setExportSettings({ ...exportSettings, shopColumns: updated });
+                          triggerAutoSave(localNvcMapping, localAppMapping, { ...exportSettings, shopColumns: updated });
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: 9, padding: '2px 5px' }}
+                      >
+                        Bật Hết
+                      </button>
+                    </div>
+
+                    <div style={{ padding: 8, maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {exportSettings.shopColumns.map((col, idx) => (
+                        <div key={col.id} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '5px 7px',
+                          background: col.enabled ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.03)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
+                          opacity: col.enabled ? 1 : 0.55,
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={col.enabled}
+                            onChange={() => handleToggleCol('shop', col.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <input
+                            type="text"
+                            value={col.label}
+                            onChange={(e) => handleUpdateLabel('shop', col.id, e.target.value)}
+                            className="input-field"
+                            style={{ padding: '2px 5px', fontSize: 11, flex: 1 }}
+                          />
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCol('shop', idx, 'up')}
+                              disabled={idx === 0}
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--text-muted)' }}
+                            >
+                              <ArrowUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCol('shop', idx, 'down')}
+                              disabled={idx === exportSettings.shopColumns.length - 1}
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--text-muted)' }}
+                            >
+                              <ArrowDown size={11} />
+                            </button>
+                            {col.category === 'custom' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCol('shop', col.id)}
+                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--danger)' }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* PANEL 3: BÁO CÁO TỔNG HỢP GOM ĐƠN (RIGHT) */}
+                  <div style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderBottom: '1px solid var(--border-color)',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <span>📊 BÁO CÁO TỔNG ({exportSettings.masterColumns.filter(c => c.enabled).length}/{exportSettings.masterColumns.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = exportSettings.masterColumns.map(c => ({ ...c, enabled: true }));
+                          setExportSettings({ ...exportSettings, masterColumns: updated });
+                          triggerAutoSave(localNvcMapping, localAppMapping, { ...exportSettings, masterColumns: updated });
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: 9, padding: '2px 5px' }}
+                      >
+                        Bật Hết
+                      </button>
+                    </div>
+
+                    <div style={{ padding: 8, maxHeight: 350, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {exportSettings.masterColumns.map((col, idx) => (
+                        <div key={col.id} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '5px 7px',
+                          background: col.enabled ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.03)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
+                          opacity: col.enabled ? 1 : 0.55,
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={col.enabled}
+                            onChange={() => handleToggleCol('master', col.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <input
+                            type="text"
+                            value={col.label}
+                            onChange={(e) => handleUpdateLabel('master', col.id, e.target.value)}
+                            className="input-field"
+                            style={{ padding: '2px 5px', fontSize: 11, flex: 1 }}
+                          />
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCol('master', idx, 'up')}
+                              disabled={idx === 0}
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--text-muted)' }}
+                            >
+                              <ArrowUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveCol('master', idx, 'down')}
+                              disabled={idx === exportSettings.masterColumns.length - 1}
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--text-muted)' }}
+                            >
+                              <ArrowDown size={11} />
+                            </button>
+                            {col.category === 'custom' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCol('master', col.id)}
+                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 1, color: 'var(--danger)' }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-            </div>
-          )}
+            );
+          })()}
 
         </div>
 
