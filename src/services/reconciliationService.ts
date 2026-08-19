@@ -551,3 +551,70 @@ export function performReconciliation(
     unmatchedOrders,
   };
 }
+
+export interface DetectedNewShop {
+  code: string;
+  name: string;
+  phone: string;
+  address: string;
+  orderCount: number;
+  totalCod: number;
+}
+
+export function detectUnregisteredShopsFromOrders(
+  orders: { shopName?: string; shopCode?: string; shopPhone?: string; shopAddress?: string; nvcCod?: number; codAmount?: number }[],
+  registeredShops: Shop[]
+): DetectedNewShop[] {
+  const newShopMap = new Map<string, DetectedNewShop>();
+
+  orders.forEach(o => {
+    const rawName = (o.shopName || '').trim();
+    const rawCode = (o.shopCode || '').trim();
+    const rawPhone = (o.shopPhone || '').trim();
+    const rawAddress = (o.shopAddress || '').trim();
+
+    if (!rawName && !rawCode && !rawPhone) return;
+
+    const normName = normalizeHeader(rawName);
+    const normCode = normalizeHeader(rawCode);
+    const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+
+    // Check if matches any existing shop
+    const isMatched = registeredShops.some(s => {
+      const sName = normalizeHeader(s.name);
+      const sCode = normalizeHeader(s.code);
+      const sPhones = [s.phone, ...(s.phoneList || [])].flatMap(p => (p || '').split(/[,/;\s]+/)).map(p => p.replace(/[^0-9]/g, ''));
+
+      return (
+        (cleanPhone && sPhones.some(p => p === cleanPhone || cleanPhone.endsWith(p) || p.endsWith(cleanPhone))) ||
+        (normCode && sCode && normCode === sCode) ||
+        (normName && sName && (normName === sName || normName.includes(sName) || sName.includes(normName)))
+      );
+    });
+
+    if (!isMatched) {
+      const key = normCode || normName || cleanPhone;
+      const codVal = o.nvcCod || o.codAmount || 0;
+
+      if (!newShopMap.has(key)) {
+        const generatedCode = rawCode ? rawCode.toUpperCase() : `SHOP_${rawName.substring(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, '') || Date.now().toString().slice(-4)}`;
+        newShopMap.set(key, {
+          code: generatedCode,
+          name: rawName || rawCode || 'Shop Mới Chưa Đặt Tên',
+          phone: rawPhone,
+          address: rawAddress,
+          orderCount: 1,
+          totalCod: codVal,
+        });
+      } else {
+        const item = newShopMap.get(key)!;
+        item.orderCount += 1;
+        item.totalCod += codVal;
+        if (!item.phone && rawPhone) item.phone = rawPhone;
+        if (!item.address && rawAddress) item.address = rawAddress;
+      }
+    }
+  });
+
+  return Array.from(newShopMap.values());
+}
