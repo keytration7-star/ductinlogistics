@@ -359,27 +359,26 @@ export function performReconciliation(
     let shopOtherFee = 0;
     let declaredFee = 0;
 
-    if (nvcFee > 0) {
-      shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
-      shopOtherFee = pricingPlan.fixedSurcharge || 0;
+    // Always calculate shop freight fee based on weight & pricing plan
+    shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
+    shopOtherFee = pricingPlan.fixedSurcharge || 0;
 
-      if (status === 'returned' || status === 'returning') {
-        const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-        shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
-      }
+    if (status === 'returned' || status === 'returning') {
+      const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+      shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+    }
 
-      if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
-        shopOtherFee += pricingPlan.partialDeliveryFee;
-      }
+    if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
+      shopOtherFee += pricingPlan.partialDeliveryFee;
+    }
 
-      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
-        shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
-      }
+    if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
+      shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
+    }
 
-      if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
-        declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
-        shopOtherFee += declaredFee;
-      }
+    if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
+      declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
+      shopOtherFee += declaredFee;
     }
 
     // CTV Commission calculation

@@ -40,13 +40,53 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
+  // Helper to safely get total shop revenue, NVC cost, and profit per statement & session
+  const getStmtShopFee = (stmt: any) => {
+    const fee = (stmt.totalShopFee || 0) + (stmt.totalShopOtherFee || 0);
+    if (fee > 0) return fee;
+    if (stmt.orders && stmt.orders.length > 0) {
+      return stmt.orders.reduce((sum: number, o: any) => sum + (o.shopCalculatedFee || 25000) + (o.shopOtherFee || 0), 0);
+    }
+    return 0;
+  };
+
+  const getStmtNvcCost = (stmt: any) => {
+    if (stmt.totalNvcCost !== undefined) return stmt.totalNvcCost;
+    if (stmt.orders && stmt.orders.length > 0) {
+      return stmt.orders.reduce((sum: number, o: any) => sum + (o.nvcBaseFee || 0) + (o.nvcOtherFee || 0), 0);
+    }
+    return 0;
+  };
+
+  const getStmtProfit = (stmt: any) => {
+    const fee = getStmtShopFee(stmt);
+    const cost = getStmtNvcCost(stmt);
+    return fee - cost;
+  };
+
+  const getSessionShopRevenue = (s: ReconciliationSession) => {
+    if (s.totalShopRevenue > 0) return s.totalShopRevenue;
+    return s.statements.reduce((sum, st) => sum + getStmtShopFee(st), 0);
+  };
+
+  const getSessionNvcCost = (s: ReconciliationSession) => {
+    if (s.totalNvcCost > 0) return s.totalNvcCost;
+    return s.statements.reduce((sum, st) => sum + getStmtNvcCost(st), 0);
+  };
+
+  const getSessionProfit = (s: ReconciliationSession) => {
+    const rev = getSessionShopRevenue(s);
+    const cost = getSessionNvcCost(s);
+    return rev - cost;
+  };
+
   // Overall Financial Aggregations
   const totalOrdersAllTime = sessions.reduce((sum, s) => sum + s.totalOrders, 0);
   const totalCodAllTime = sessions.reduce((sum, s) => sum + s.totalCod, 0);
-  const totalShopRevenueAllTime = sessions.reduce((sum, s) => sum + s.totalShopRevenue, 0);
-  const totalNvcCostAllTime = sessions.reduce((sum, s) => sum + s.totalNvcCost, 0);
-  const totalProfitAllTime = sessions.reduce((sum, s) => sum + s.totalProfit, 0);
-  const totalNetPayoutAllTime = sessions.reduce((sum, s) => sum + s.totalNetPayout, 0);
+  const totalShopRevenueAllTime = sessions.reduce((sum, s) => sum + getSessionShopRevenue(s), 0);
+  const totalNvcCostAllTime = sessions.reduce((sum, s) => sum + getSessionNvcCost(s), 0);
+  const totalProfitAllTime = totalShopRevenueAllTime - totalNvcCostAllTime;
+  const totalNetPayoutAllTime = totalCodAllTime - totalShopRevenueAllTime;
 
   const profitMarginPercent = totalShopRevenueAllTime > 0 
     ? ((totalProfitAllTime / totalShopRevenueAllTime) * 100).toFixed(1) 
@@ -58,18 +98,19 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   for (const sess of sessions) {
     for (const stmt of sess.statements) {
       const key = stmt.shopName;
+      const stmtProfit = getStmtProfit(stmt);
       if (!shopProfitMap.has(key)) {
         shopProfitMap.set(key, {
           name: stmt.shopName,
           orders: stmt.totalOrders,
           cod: stmt.totalCod,
-          profit: stmt.totalProfit,
+          profit: stmtProfit,
         });
       } else {
         const item = shopProfitMap.get(key)!;
         item.orders += stmt.totalOrders;
         item.cod += stmt.totalCod;
-        item.profit += stmt.totalProfit;
+        item.profit += stmtProfit;
       }
     }
   }
@@ -354,8 +395,8 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                   <td className="mono" style={{ color: 'var(--info)', fontWeight: 600 }}>
                     {formatVND(session.totalCod)}
                   </td>
-                  <td className="mono" style={{ color: 'var(--success)', fontWeight: 700 }}>
-                    +{formatVND(session.totalProfit)}
+                  <td className="mono" style={{ color: getSessionProfit(session) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                    {getSessionProfit(session) >= 0 ? '+' : ''}{formatVND(getSessionProfit(session))}
                   </td>
                   <td className="mono" style={{ fontWeight: 600 }}>
                     {formatVND(session.totalNetPayout)}

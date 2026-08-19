@@ -269,7 +269,59 @@ export const StorageService = {
     const data = localStorage.getItem(SESSIONS_KEY);
     if (!data) return [];
     try {
-      return JSON.parse(data);
+      const sessions: ReconciliationSession[] = JSON.parse(data);
+      let autoRepaired = false;
+
+      sessions.forEach(session => {
+        let sessionShopFeeSum = 0;
+        let sessionNvcCostSum = 0;
+
+        session.statements.forEach(stmt => {
+          let stmtShopFeeSum = 0;
+          let stmtOtherFeeSum = 0;
+          let stmtNvcCostSum = 0;
+          let stmtCodSum = 0;
+
+          stmt.orders.forEach(order => {
+            if ((!order.shopCalculatedFee || order.shopCalculatedFee === 0) && (!order.nvcBaseFee || order.nvcBaseFee === 0)) {
+              order.shopCalculatedFee = 25000;
+              order.netShopPayout = (order.codAmount || 0) - order.shopCalculatedFee - (order.shopOtherFee || 0);
+              order.profitMargin = order.shopCalculatedFee + (order.shopOtherFee || 0) - ((order.nvcBaseFee || 0) + (order.nvcOtherFee || 0));
+              autoRepaired = true;
+            }
+            stmtShopFeeSum += (order.shopCalculatedFee || 0);
+            stmtOtherFeeSum += (order.shopOtherFee || 0);
+            stmtNvcCostSum += (order.nvcBaseFee || 0) + (order.nvcOtherFee || 0);
+            stmtCodSum += (order.codAmount || 0);
+          });
+
+          if ((!stmt.totalShopFee || stmt.totalShopFee === 0) && stmtShopFeeSum > 0) {
+            stmt.totalShopFee = stmtShopFeeSum;
+            stmt.totalShopOtherFee = stmtOtherFeeSum;
+            stmt.totalNvcCost = stmtNvcCostSum;
+            stmt.totalProfit = (stmtShopFeeSum + stmtOtherFeeSum) - stmtNvcCostSum;
+            stmt.totalNetPayout = stmtCodSum - (stmtShopFeeSum + stmtOtherFeeSum);
+            autoRepaired = true;
+          }
+
+          sessionShopFeeSum += (stmt.totalShopFee + (stmt.totalShopOtherFee || 0));
+          sessionNvcCostSum += (stmt.totalNvcCost || 0);
+        });
+
+        if ((!session.totalShopRevenue || session.totalShopRevenue === 0 || !session.totalProfit || session.totalProfit === 0) && sessionShopFeeSum > 0) {
+          session.totalShopRevenue = sessionShopFeeSum;
+          session.totalNvcCost = sessionNvcCostSum;
+          session.totalProfit = sessionShopFeeSum - sessionNvcCostSum;
+          session.totalNetPayout = (session.totalCod || 0) - sessionShopFeeSum;
+          autoRepaired = true;
+        }
+      });
+
+      if (autoRepaired) {
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      }
+
+      return sessions;
     } catch {
       return [];
     }
