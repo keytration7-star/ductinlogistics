@@ -556,6 +556,7 @@ export interface DetectedNewShop {
   code: string;
   name: string;
   phone: string;
+  phoneList: string[];
   address: string;
   orderCount: number;
   totalCod: number;
@@ -598,10 +599,13 @@ export function detectUnregisteredShopsFromOrders(
 
       if (!newShopMap.has(key)) {
         const generatedCode = rawCode ? rawCode.toUpperCase() : `SHOP_${rawName.substring(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, '') || Date.now().toString().slice(-4)}`;
+        const initialPhones = rawPhone ? [rawPhone] : [];
+
         newShopMap.set(key, {
           code: generatedCode,
           name: rawName || rawCode || 'Shop Mới Chưa Đặt Tên',
           phone: rawPhone,
+          phoneList: initialPhones,
           address: rawAddress,
           orderCount: 1,
           totalCod: codVal,
@@ -610,7 +614,13 @@ export function detectUnregisteredShopsFromOrders(
         const item = newShopMap.get(key)!;
         item.orderCount += 1;
         item.totalCod += codVal;
-        if (!item.phone && rawPhone) item.phone = rawPhone;
+
+        if (rawPhone) {
+          if (!item.phoneList.includes(rawPhone)) {
+            item.phoneList.push(rawPhone);
+          }
+          item.phone = item.phoneList.join(', ');
+        }
         if (!item.address && rawAddress) item.address = rawAddress;
       }
     }

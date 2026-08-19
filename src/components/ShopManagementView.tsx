@@ -121,6 +121,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       code: d.code || `SHOP_${Date.now().toString().slice(-4)}_${i}`,
       name: d.name,
       phone: d.phone,
+      phoneList: d.phoneList || (d.phone ? [d.phone] : []),
       email: '',
       address: d.address,
       bankAccount: {
@@ -218,14 +219,27 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       return;
     }
 
-    const index = shops.findIndex(s => s.id === editingShop.id);
+    // Parse multi-phone string into phone and phoneList
+    const rawPhones = editingShop.phone || '';
+    const parsedPhones = rawPhones
+      .split(/[,/;\s]+/)
+      .map(p => p.trim())
+      .filter(p => p.length >= 7);
+
+    const shopToSave: Shop = {
+      ...editingShop,
+      phone: rawPhones,
+      phoneList: parsedPhones.length > 0 ? parsedPhones : [rawPhones],
+    };
+
+    const index = shops.findIndex(s => s.id === shopToSave.id);
     let updatedShops: Shop[];
 
     if (index >= 0) {
       updatedShops = [...shops];
-      updatedShops[index] = editingShop;
+      updatedShops[index] = shopToSave;
     } else {
-      updatedShops = [editingShop, ...shops];
+      updatedShops = [shopToSave, ...shops];
     }
 
     onSaveShops(updatedShops);
