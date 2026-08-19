@@ -17,49 +17,58 @@ const ALIASES = {
   waybill: [
     'ma_van_don', 'mvd', 'tracking_number', 'tracking_code', 'ma_don', 'ma_don_hang',
     'ma_phieu_gui', 'ma_buu_gui', 'order_code', 'tracking', 'ma_bill', 'so_hieu',
-    'so_hieu_buu_gui', 'ma_kien_hang', 'waybill'
+    'so_hieu_buu_gui', 'ma_kien_hang', 'waybill', 'ma_giao_hang', 'ma_tra_cuu',
+    'client_order_code', 'order_id', 'order_no', 'order_number', 'ma_don_nvc',
+    'ma_don_ghn', 'ma_don_ghtk', 'ma_don_khach_hang', 'tracking_id', 'shipment_id',
+    'so_phieu_gui', 'ma_buu_gui_nvc', 'stt_ma_don'
   ],
   cod: [
     'tien_thu_ho', 'cod', 'tien_cod', 'thu_ho', 'so_tien_cod', 'tien_tra_nguoi_gui',
     'tien_cod_thuc_nhan', 'so_tien_thu_ho', 'tong_cod', 'cod_thu_ho', 'so_tien_thu',
-    'cod_amount', 'collect_amount'
+    'cod_amount', 'collect_amount', 'tong_tien_thu_ho', 'cod_chuyen_khoan', 'tong_nhan',
+    'cod_giao_thanh_cong', 'tien_co_cod', 'cod_tra_shop'
   ],
   fee: [
     'cuoc_phi', 'tong_cuoc', 'cuoc_van_chuyen', 'phi_van_chuyen', 'cuoc_chinh',
     'phi_dich_vu', 'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
-    'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh'
+    'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh', 'phi_giao_hang',
+    'cuoc_tru', 'phi_chinh', 'tong_phi_giao_hang', 'phi_dich_vu_chinh'
   ],
   otherFee: [
     'phi_khac', 'phu_phi', 'phi_bao_hiem', 'phi_chuyen_hoan', 'phi_hoan',
-    'phi_giao_lai', 'phi_kiem_dem', 'phu_phi_vung_xa', 'other_fee', 'surcharge'
+    'phi_giao_lai', 'phi_kiem_dem', 'phu_phi_vung_xa', 'other_fee', 'surcharge',
+    'phi_hoan_thanh_cong', 'phi_chuyen_tra'
   ],
   weight: [
     'khoi_luong', 'trong_luong', 'can_nang', 'khoi_luong_tinh_cuoc', 'kl_quy_doi',
     'weight', 'gross_weight', 'khoi_luong_kg', 'trong_luong_kg', 'can_nang_kg',
-    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'kg'
+    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'kg', 'trong_luong_tinh_phi'
   ],
   status: [
     'trang_thai', 'tinh_trang', 'ket_qua_giao', 'trang_thai_don', 'trang_thai_giao_hang',
-    'status', 'delivery_status', 'ket_qua', 'trang_thai_doi_soat', 'ghi_chu'
+    'status', 'delivery_status', 'ket_qua', 'trang_thai_doi_soat', 'ghi_chu',
+    'trang_thai_giao', 'tinh_trang_don_hang'
   ],
   shopName: [
     'ten_shop', 'shop_name', 'ten_nguoi_gui', 'ho_ten_nguoi_gui', 'ten_khach_hang',
     'ten_cua_hang', 'chu_shop', 'cua_hang', 'shop', 'khach_hang', 'sender_name',
-    'ma_shop', 'ma_khach_hang'
+    'ma_shop', 'ma_khach_hang', 'ten_kho', 'kho_gui', 'ten_kho_gui', 'store_name',
+    'client_name', 'ten_doi_tac'
   ],
   shopPhone: [
     'sdt_shop', 'sdt_nguoi_gui', 'dien_thoai_shop', 'dien_thoai_nguoi_gui', 'so_dien_thoai_nguoi_gui',
-    'sdt_khach', 'sender_phone', 'phone_shop', 'sdt_gui', 'dien_thoai_gui'
+    'sdt_khach', 'sender_phone', 'phone_shop', 'sdt_gui', 'dien_thoai_gui', 'sdt_kho',
+    'sdt_kho_gui', 'dien_thoai_kho', 'mobile_shop'
   ],
   shopAddress: [
     'dia_chi_shop', 'dia_chi_nguoi_gui', 'dia_chi_gui', 'dia_chi_kho', 'dia_chi_kho_gui',
-    'sender_address', 'kho_gui', 'noi_gui'
+    'sender_address', 'kho_gui', 'noi_gui', 'dc_kho'
   ],
   receiverName: [
-    'ten_nguoi_nhan', 'ho_ten_nguoi_nhan', 'ten_khach_nhan', 'nguoi_nhan', 'receiver_name'
+    'ten_nguoi_nhan', 'ho_ten_nguoi_nhan', 'ten_khach_nhan', 'nguoi_nhan', 'receiver_name', 'khach_hang_nhan'
   ],
   receiverPhone: [
-    'sdt_nhan', 'sdt_nguoi_nhan', 'dien_thoai_nhan', 'so_dien_thoai_nguoi_nhan', 'receiver_phone'
+    'sdt_nhan', 'sdt_nguoi_nhan', 'dien_thoai_nhan', 'so_dien_thoai_nguoi_nhan', 'receiver_phone', 'sdt_khach_nhan'
   ],
   receiverAddress: [
     'dia_chi_nhan', 'dia_chi_nguoi_nhan', 'dia_chi_giao_hang', 'dia_chi_khach_nhan',
@@ -78,10 +87,13 @@ export interface ColumnMatchConfidence {
 export function autoDetectColumnsWithConfidence(
   headers: string[],
   type: 'nvc' | 'app',
-  savedMapping?: ColumnMappingConfig
+  savedMapping?: ColumnMappingConfig,
+  sampleRows?: Record<string, any>[]
 ): { mapping: ColumnMappingConfig; confidences: Record<string, ColumnMatchConfidence> } {
   const mapping: ColumnMappingConfig = { waybillColumn: '' };
   const confidences: Record<string, ColumnMatchConfidence> = {};
+
+  const waybillForbidden = ['danh_sach', 'bao_cao', 'cong_ty', 'stt', 'nguoi_gui', 'nguoi_nhan', 'dia_chi', 'sdt', 'tien', 'cod', 'cuoc', 'phi'];
 
   const findBestMatchWithScore = (
     key: keyof ColumnMappingConfig,
@@ -149,7 +161,41 @@ export function autoDetectColumnsWithConfidence(
     return '';
   };
 
-  mapping.waybillColumn = findBestMatchWithScore('waybillColumn', 'Mã vận đơn', ALIASES.waybill, savedMapping?.waybillColumn) || headers[0] || '';
+  mapping.waybillColumn = findBestMatchWithScore('waybillColumn', 'Mã vận đơn', ALIASES.waybill, savedMapping?.waybillColumn, waybillForbidden);
+
+  // If waybillColumn not matched via header text, inspect sample data rows!
+  if (!mapping.waybillColumn && sampleRows && sampleRows.length > 0) {
+    for (const header of headers) {
+      const normH = normalizeHeader(header);
+      if (waybillForbidden.some(f => normH.includes(f))) continue;
+
+      let validWaybillCount = 0;
+      for (const row of sampleRows.slice(0, 10)) {
+        const val = String(row[header] || '').trim();
+        if (val && val.length >= 4 && !/^\d{1,3}$/.test(val)) {
+          validWaybillCount++;
+        }
+      }
+
+      if (validWaybillCount >= Math.min(3, sampleRows.length)) {
+        mapping.waybillColumn = header;
+        confidences.waybillColumn = {
+          columnKey: 'waybillColumn',
+          fieldLabel: 'Mã vận đơn',
+          matchedHeader: header,
+          confidencePercent: 85,
+          isConfident: true,
+        };
+        break;
+      }
+    }
+  }
+
+  // Fallback to first non-forbidden header if still empty
+  if (!mapping.waybillColumn) {
+    const safeHeader = headers.find(h => !waybillForbidden.some(f => normalizeHeader(h).includes(f))) || headers[0] || '';
+    mapping.waybillColumn = safeHeader;
+  }
 
   if (type === 'nvc') {
     mapping.codColumn = findBestMatchWithScore('codColumn', 'Tiền COD Thu Hộ', ALIASES.cod, savedMapping?.codColumn);
@@ -176,31 +222,29 @@ export function autoDetectColumnsWithConfidence(
 export function autoDetectColumns(
   headers: string[], 
   type: 'nvc' | 'app', 
-  savedMapping?: ColumnMappingConfig
+  savedMapping?: ColumnMappingConfig,
+  sampleRows?: Record<string, any>[]
 ): ColumnMappingConfig {
   const mapping: ColumnMappingConfig = {
     waybillColumn: '',
   };
+
+  const waybillForbidden = ['danh_sach', 'bao_cao', 'cong_ty', 'stt', 'nguoi_gui', 'nguoi_nhan', 'dia_chi', 'sdt', 'tien', 'cod', 'cuoc', 'phi'];
 
   const findBestMatch = (
     aliases: string[], 
     savedCol?: string, 
     mustNotInclude: string[] = []
   ): string => {
-    // 1. If user previously selected a column and it exists in current headers, keep user's choice
     if (savedCol && headers.includes(savedCol)) {
       return savedCol;
     }
 
-    // 2. Exact match check first (highest priority)
     for (const header of headers) {
       const normalized = normalizeHeader(header);
-      
-      // Skip if contains forbidden words
       if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) {
         continue;
       }
-
       for (const alias of aliases) {
         if (normalized === alias) {
           return header;
@@ -208,15 +252,11 @@ export function autoDetectColumns(
       }
     }
 
-    // 3. Prefix/Suffix or substring match
     for (const header of headers) {
       const normalized = normalizeHeader(header);
-      
-      // Skip if contains forbidden words
       if (mustNotInclude.some(forbidden => normalized.includes(forbidden))) {
         continue;
       }
-
       for (const alias of aliases) {
         if (normalized.startsWith(alias + '_') || normalized.endsWith('_' + alias) || normalized.includes(alias)) {
           return header;
@@ -227,7 +267,32 @@ export function autoDetectColumns(
     return '';
   };
 
-  mapping.waybillColumn = findBestMatch(ALIASES.waybill, savedMapping?.waybillColumn) || headers[0] || '';
+  mapping.waybillColumn = findBestMatch(ALIASES.waybill, savedMapping?.waybillColumn, waybillForbidden);
+
+  // Data content inspection fallback
+  if (!mapping.waybillColumn && sampleRows && sampleRows.length > 0) {
+    for (const header of headers) {
+      const normH = normalizeHeader(header);
+      if (waybillForbidden.some(f => normH.includes(f))) continue;
+
+      let validWaybillCount = 0;
+      for (const row of sampleRows.slice(0, 10)) {
+        const val = String(row[header] || '').trim();
+        if (val && val.length >= 4 && !/^\d{1,3}$/.test(val)) {
+          validWaybillCount++;
+        }
+      }
+
+      if (validWaybillCount >= Math.min(3, sampleRows.length)) {
+        mapping.waybillColumn = header;
+        break;
+      }
+    }
+  }
+
+  if (!mapping.waybillColumn) {
+    mapping.waybillColumn = headers.find(h => !waybillForbidden.some(f => normalizeHeader(h).includes(f))) || headers[0] || '';
+  }
 
   if (type === 'nvc') {
     mapping.codColumn = findBestMatch(ALIASES.cod, savedMapping?.codColumn);

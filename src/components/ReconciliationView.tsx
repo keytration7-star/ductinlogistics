@@ -156,7 +156,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setNvcHeaders(headers);
       setNvcRows(rows);
       const saved = StorageService.getColumnMappings();
-      const detectedMapping = autoDetectColumns(headers, 'nvc', saved.nvc);
+      const detectedMapping = autoDetectColumns(headers, 'nvc', saved.nvc, rows);
       setNvcMapping(detectedMapping);
       StorageService.saveColumnMappings(detectedMapping, appMapping);
       // 🔑 Lưu headers của hãng này để dùng khi mở cài đặt mà chưa có file
@@ -181,7 +181,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         setAppHeaders(headers);
         setAppRows(rows);
         const saved = StorageService.getColumnMappings();
-        const detectedMapping = autoDetectColumns(headers, 'app', saved.app);
+        const detectedMapping = autoDetectColumns(headers, 'app', saved.app, rows);
         setAppMapping(detectedMapping);
         StorageService.saveColumnMappings(nvcMapping, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
@@ -208,7 +208,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         setAppRows(combinedRows);
 
         const saved = StorageService.getColumnMappings();
-        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app);
+        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app, combinedRows);
         setAppMapping(detectedMapping);
         StorageService.saveColumnMappings(nvcMapping, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
