@@ -269,15 +269,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             return (
               <div key={group.title}>
                 <div style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 800,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.06em',
-                  padding: '4px 8px 6px',
+                  color: '#475569',
+                  letterSpacing: '0.08em',
+                  padding: '6px 8px 6px',
+                  textTransform: 'uppercase',
                 }}>
                   {group.title}
                 </div>
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {allowedItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -287,20 +288,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => setActiveTab(item.id)}
                         className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                           <div className="sidebar-icon-box" style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 'var(--radius-sm)',
-                            background: isActive ? '#2563eb' : 'var(--bg-tertiary)',
-                            color: isActive ? '#ffffff' : 'var(--text-muted)',
+                            width: 32,
+                            height: 32,
+                            borderRadius: 10,
+                            background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-tertiary)',
+                            color: isActive ? '#ffffff' : 'var(--primary)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
                             transition: 'all 0.2s ease',
                           }}>
-                            <Icon size={15} />
+                            <Icon size={18} />
                           </div>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.label}
@@ -308,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
 
                         {item.badge && (
-                          <span className={`badge ${isActive ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: 9, padding: '1px 5px', flexShrink: 0 }}>
+                          <span className={`badge ${isActive ? 'badge-primary' : 'badge-neutral'}`} style={{ fontSize: 9, padding: '2px 6px', fontWeight: 800, flexShrink: 0 }}>
                             {item.badge}
                           </span>
                         )}
