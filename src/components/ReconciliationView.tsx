@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { generateSmartSessionName } from '../utils/periodUtils';
 import { 
   UploadCloud, 
   FileSpreadsheet, 
@@ -79,8 +80,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [appHeaders, setAppHeaders] = useState<string[]>([]);
   const [appRows, setAppRows] = useState<Record<string, any>[]>([]);
   const [appMapping, setAppMapping] = useState<ColumnMappingConfig>(savedMappings.app || { waybillColumn: '' });
-
-  const [selectedCarrierId, setSelectedCarrierId] = useState<string>(carriers[0]?.carrierId || 'ghtk');
+  const selectedCarrierIdState = carriers[0]?.carrierId || 'ghtk';
+  const [selectedCarrierId, setSelectedCarrierId] = useState<string>(selectedCarrierIdState);
   const selectedCarrierTier = carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0];
 
   // Auto-sync column mapping when selected carrier changes
@@ -92,9 +93,18 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }
   }, [selectedCarrierId]);
 
-  const [sessionPeriodName, setSessionPeriodName] = useState<string>(
-    `Kỳ Đối Soát Tháng ${new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}`
-  );
+  const [sessionPeriodName, setSessionPeriodName] = useState<string>('');
+
+  // Auto-generate smart session period name when carrier or file changes
+  React.useEffect(() => {
+    const existingSessions = StorageService.getSessions();
+    const carrierObj = carriers.find(c => c.id === selectedCarrierId || c.carrierId === selectedCarrierId);
+    const cName = carrierObj ? carrierObj.carrierName : selectedCarrierId;
+    const combinedRows = [...nvcRows, ...appRows];
+    
+    const smartName = generateSmartSessionName(cName, existingSessions, combinedRows);
+    setSessionPeriodName(smartName);
+  }, [selectedCarrierId, carriers, nvcRows, appRows]);
 
   const [reconcileMode, setReconcileMode] = useState<'1file' | '2files'>('2files');
   const [isProcessing, setIsProcessing] = useState(false);
