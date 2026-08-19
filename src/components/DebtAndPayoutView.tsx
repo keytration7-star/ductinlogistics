@@ -520,9 +520,17 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                                   {formatVND(remainingDebt)}
                                 </td>
                                 <td>
-                                  {status === 'PAID' && <span className="badge badge-success">🟢 Đủ</span>}
-                                  {status === 'PARTIAL' && <span className="badge badge-info">🔵 1 phần</span>}
-                                  {status === 'UNPAID' && <span className="badge badge-danger">🔴 Chưa đi</span>}
+                                  {stmt.totalNetPayout < 0 ? (
+                                    <span className="badge badge-warning" style={{ fontSize: 10 }} title="Shop chưa có tiền COD để trừ cước, số nợ sẽ được tự động cấn trừ vào kỳ sau">
+                                      🔴 Shop nợ cước {formatVND(Math.abs(stmt.totalNetPayout))}
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {status === 'PAID' && <span className="badge badge-success">🟢 Đủ</span>}
+                                      {status === 'PARTIAL' && <span className="badge badge-info">🔵 1 phần</span>}
+                                      {status === 'UNPAID' && <span className="badge badge-danger">🔴 Chưa đi</span>}
+                                    </>
+                                  )}
                                 </td>
                                 <td style={{ textAlign: 'right' }}>
                                   <button
@@ -591,6 +599,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 const shopPayments = payments.filter(p => p.shopId === shop.id || p.shopCode === shop.code);
                 const shopPaidTotal = shopPayments.reduce((sum, p) => sum + p.amount, 0);
                 const shopDebt = Math.max(0, shopTotalNetPayout - shopPaidTotal);
+                const isShopOwingGomdon = shopTotalNetPayout < 0;
 
                 return (
                   <tr key={shop.id}>
@@ -612,14 +621,18 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     </td>
                     <td className="mono" style={{ color: 'var(--info)' }}>{formatVND(shopTotalCod)}</td>
                     <td className="mono" style={{ color: '#92400e' }}>-{formatVND(shopTotalFee)}</td>
-                    <td className="mono" style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatVND(shopTotalNetPayout)}</td>
+                    <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : 'var(--primary)' }}>{formatVND(shopTotalNetPayout)}</td>
                     <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>{formatVND(shopPaidTotal)}</td>
-                    <td className="mono" style={{ fontWeight: 700, color: shopDebt > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                      {formatVND(shopDebt)}
+                    <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : shopDebt > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                      {isShopOwingGomdon ? `-${formatVND(Math.abs(shopTotalNetPayout))}` : formatVND(shopDebt)}
                     </td>
                     <td>
-                      {shopDebt > 0 ? (
-                        <span className="badge badge-danger">Nợ {formatVND(shopDebt)}</span>
+                      {isShopOwingGomdon ? (
+                        <span className="badge badge-warning" title="Shop đang nợ tiền cước nhà gom, số tiền này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo">
+                          🔴 Shop nợ Nhà Gom {formatVND(Math.abs(shopTotalNetPayout))}
+                        </span>
+                      ) : shopDebt > 0 ? (
+                        <span className="badge badge-danger">Cần trả Shop {formatVND(shopDebt)}</span>
                       ) : (
                         <span className="badge badge-success">🟢 Đã thanh toán hết</span>
                       )}
