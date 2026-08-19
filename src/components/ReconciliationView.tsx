@@ -525,83 +525,54 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
-      {/* 🌟 3-Step Guided Workflow Stepper Header */}
-      <div style={{
-        background: 'var(--bg-secondary)',
-        padding: '14px 20px',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border-color)',
+      {/* 🌟 4-Step Guided Workflow Stepper Header */}
+      <div className="glass-panel" style={{
+        padding: '14px 18px',
         display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr auto 1fr',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: 10,
         alignItems: 'center',
-        gap: 12,
       }}>
-        {/* Step 1 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: 'var(--primary)',
-            color: '#fff',
+        {[
+          { step: '01', title: 'CHỌN HÃNG & CHẾ ĐỘ', desc: selectedCarrierTier?.carrierName || 'Chọn NVC', active: true, done: !!selectedCarrierId },
+          { step: '02', title: 'TẢI FILE EXCEL', desc: nvcFile ? `${nvcFile.name.slice(0, 16)}...` : 'Kéo thả file', active: !!nvcFile, done: !!nvcFile },
+          { step: '03', title: 'KHỚP NỐI & TÍNH CƯỚC', desc: currentSession ? `${currentSession.matchedOrdersCount} đơn thành công` : 'Chờ đối soát', active: !!currentSession, done: !!currentSession },
+          { step: '04', title: 'KẾT QUẢ & XUẤT FILE', desc: currentSession ? `${currentSession.statements.length} Shop đối soát` : 'Xuất Excel / ZIP', active: !!currentSession, done: !!currentSession },
+        ].map((item) => (
+          <div key={item.step} style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: 13,
-            flexShrink: 0
-          }}>1</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 1: CHỌN HÃNG & CHẾ ĐỘ</div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cấu hình NVC & Chế độ 1/2 File</div>
+            gap: 10,
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
+            background: item.done ? 'var(--success-bg)' : item.active ? 'rgba(79, 70, 229, 0.06)' : 'var(--bg-tertiary)',
+            border: item.done ? '1px solid var(--success-border)' : item.active ? '1px solid var(--primary-glow)' : '1px solid var(--border-color)',
+          }}>
+            <div style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: item.done ? 'var(--success)' : item.active ? 'var(--primary)' : 'var(--bg-secondary)',
+              color: item.done || item.active ? '#ffffff' : 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: 12,
+              flexShrink: 0,
+            }}>
+              {item.done ? <CheckCircle2 size={15} /> : item.step}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: item.done ? 'var(--success)' : item.active ? 'var(--primary)' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                STEP {item.step}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {item.title}
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div style={{ height: 1, width: 30, background: 'var(--border-color)' }} />
-
-        {/* Step 2 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: (nvcFile || appFile) ? 'var(--success)' : 'var(--bg-tertiary)',
-            color: (nvcFile || appFile) ? '#fff' : 'var(--text-dim)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: 13,
-            flexShrink: 0
-          }}>2</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 2: KÉO THẢ FILE EXCEL</div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Tải file đối soát NVC / App</div>
-          </div>
-        </div>
-
-        <div style={{ height: 1, width: 30, background: 'var(--border-color)' }} />
-
-        {/* Step 3 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: currentSession ? 'var(--primary)' : 'var(--bg-tertiary)',
-            color: currentSession ? '#fff' : 'var(--text-dim)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: 13,
-            flexShrink: 0
-          }}>3</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 3: KẾT QUẢ & BẢNG KÊ</div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Xem COD, Cước & Xuất file</div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* 2-File Upload Dropzones */}

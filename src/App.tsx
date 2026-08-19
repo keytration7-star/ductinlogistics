@@ -159,13 +159,51 @@ export function App() {
         minWidth: 0,
         overflowY: 'auto',
       }}>
+        {/* Minimal Enterprise Top Header */}
+        <header style={{
+          height: 52,
+          minHeight: 52,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border-color)',
+          padding: '0 28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
+        }}>
+          {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+            <span style={{ fontWeight: 600 }}>GOMDON PRO ENTERPRISE</span>
+            <span>/</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+              {activeTab === 'reconciliation' && 'Đối Soát Kéo Thả'}
+              {activeTab === 'shops' && 'Danh Sách Shop & Biểu Giá'}
+              {activeTab === 'debt' && 'Công Nợ & Đi Tiền Bank'}
+              {activeTab === 'carriers' && 'Bảng Giá NVC Gốc'}
+              {activeTab === 'ctv' && 'Cộng Tác Viên (CTV)'}
+              {activeTab === 'emails' && 'Gửi Email Hàng Loạt'}
+              {activeTab === 'history' && 'Lịch Sử & Lợi Nhuận'}
+              {activeTab === 'users' && 'Quản Lý Tài Khoản'}
+            </span>
+          </div>
+
+          {/* System Status Indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="badge badge-success" style={{ fontSize: 11, padding: '3px 8px' }}>
+              🟢 Hệ Thống Trực Tuyến
+            </span>
+          </div>
+        </header>
+
         {/* Main Content Body */}
         <main style={{
           flex: 1,
-          maxWidth: 1500,
+          maxWidth: 1540,
           width: '100%',
           margin: '0 auto',
-          padding: '28px 32px 60px',
+          padding: '24px 28px 60px',
         }}>
           {activeTab === 'reconciliation' && (
             <ReconciliationView
