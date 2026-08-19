@@ -57,6 +57,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           roles: ['ADMIN', 'ACCOUNTANT']
         },
         { 
+          id: 'audit', 
+          label: 'Rà Soát Dữ Liệu', 
+          desc: 'Rà soát đa kỳ & đơn sót',
+          icon: ShieldCheck,
+          badge: 'Mới',
+          roles: ['ADMIN', 'ACCOUNTANT', 'STAFF']
+        },
+        { 
           id: 'carriers', 
           label: 'Bảng Giá NVC Gốc', 
           desc: 'J&T, SPX, GHN, GHTK...',

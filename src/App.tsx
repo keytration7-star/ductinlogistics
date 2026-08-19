@@ -6,6 +6,7 @@ import { CarriersPricingView } from './components/CarriersPricingView';
 import { BulkEmailView } from './components/BulkEmailView';
 import { HistoryAndAnalyticsView } from './components/HistoryAndAnalyticsView';
 import { DebtAndPayoutView } from './components/DebtAndPayoutView';
+import { DataAuditView } from './components/DataAuditView';
 import { UserManagementView } from './components/UserManagementView';
 import { CtvManagementView } from './components/CtvManagementView';
 import { LoginView } from './components/LoginView';
@@ -181,6 +182,7 @@ export function App() {
               {activeTab === 'reconciliation' && 'Đối Soát Kéo Thả'}
               {activeTab === 'shops' && 'Danh Sách Shop & Biểu Giá'}
               {activeTab === 'debt' && 'Công Nợ & Đi Tiền Bank'}
+              {activeTab === 'audit' && 'Rà Soát Dữ Liệu'}
               {activeTab === 'carriers' && 'Bảng Giá NVC Gốc'}
               {activeTab === 'ctv' && 'Cộng Tác Viên (CTV)'}
               {activeTab === 'emails' && 'Gửi Email Hàng Loạt'}
@@ -236,6 +238,19 @@ export function App() {
                 const updatedSessions = StorageService.getSessions();
                 setSessions(updatedSessions);
               }}
+            />
+          )}
+
+          {activeTab === 'audit' && (
+            <DataAuditView
+              sessions={sessions}
+              shops={shops}
+              currentUser={currentUser}
+              onRefreshSessions={() => {
+                const updatedSessions = StorageService.getSessions();
+                setSessions(updatedSessions);
+              }}
+              onNavigateToPayout={() => setActiveTab('debt')}
             />
           )}
 
