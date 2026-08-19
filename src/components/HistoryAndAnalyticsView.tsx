@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount } from '../types';
 import { ExcelService } from '../services/excelService';
+import { cleanSessionName } from '../utils/periodUtils';
 
 interface HistoryAndAnalyticsViewProps {
   sessions: ReconciliationSession[];
@@ -182,7 +183,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
         gap: 16,
       }}>
         {/* Total Orders */}
-        <div className="kpi-card">
+        <div className="kpi-card" style={{
+          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(99, 102, 241, 0.02) 100%)',
+          border: '1.5px solid rgba(79, 70, 229, 0.25)',
+        }}>
           <div className="kpi-title">
             <span>TỔNG SỐ ĐƠN ĐÃ ĐỐI SOÁT</span>
             <Calendar size={18} color="var(--primary)" />
@@ -192,7 +196,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
         </div>
 
         {/* Total COD */}
-        <div className="kpi-card">
+        <div className="kpi-card" style={{
+          background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, rgba(56, 189, 248, 0.02) 100%)',
+          border: '1.5px solid rgba(2, 132, 199, 0.25)',
+        }}>
           <div className="kpi-title">
             <span>TỔNG TIỀN COD ĐÃ THU HỘ</span>
             <DollarSign size={18} color="var(--info)" />
@@ -204,7 +211,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
         </div>
 
         {/* Total Shop Revenue */}
-        <div className="kpi-card">
+        <div className="kpi-card" style={{
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(168, 85, 247, 0.02) 100%)',
+          border: '1.5px solid rgba(139, 92, 246, 0.25)',
+        }}>
           <div className="kpi-title">
             <span>DOANH THU CƯỚC THU SHOP</span>
             <DollarSign size={18} color="var(--primary)" />
@@ -217,8 +227,8 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
 
         {/* Total Net Profit */}
         <div className="kpi-card profit" style={{
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
-          border: '1px solid var(--success-border)',
+          background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.1) 0%, rgba(16, 185, 129, 0.04) 100%)',
+          border: '1.5px solid rgba(5, 150, 105, 0.3)',
         }}>
           <div className="kpi-title" style={{ color: 'var(--success)' }}>
             <span>TỔNG LÃI RÒNG NHÀ GOM (PROFIT)</span>
@@ -233,12 +243,15 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
         </div>
 
         {/* Total Net Payout to Shops */}
-        <div className="kpi-card">
+        <div className="kpi-card" style={{
+          background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.06) 0%, rgba(245, 158, 11, 0.02) 100%)',
+          border: '1.5px solid rgba(217, 119, 6, 0.25)',
+        }}>
           <div className="kpi-title">
             <span>TỔNG TIỀN ĐÃ TRẢ CÁC SHOP</span>
-            <Layers size={18} color="var(--text-main)" />
+            <Layers size={18} color="var(--warning)" />
           </div>
-          <div className="kpi-value" style={{ color: 'var(--text-main)' }}>
+          <div className="kpi-value" style={{ color: 'var(--warning)' }}>
             {formatVND(totalNetPayoutAllTime)}
           </div>
           <div className="kpi-subtext">= Tổng COD - Tổng Cước trừ Shop</div>
@@ -306,17 +319,21 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
       )}
 
       {/* History Table Filter & Search */}
-      <div className="table-container glass-panel">
+      <div className="table-container glass-panel" style={{
+        border: '1.5px solid rgba(226, 232, 240, 0.95)',
+        borderRadius: 16,
+        boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.05)',
+      }}>
         <div style={{
           padding: '16px 20px',
-          borderBottom: '1px solid var(--border-color)',
+          borderBottom: '1.5px solid var(--border-color)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 12,
         }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <PieChart size={18} color="var(--primary)" />
             Danh Sách Các Kỳ Đối Soát Đã Thực Hiện ({filteredSessions.length})
           </h3>
@@ -350,39 +367,43 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
           </div>
         </div>
 
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Kỳ Đối Soát</th>
-              <th>Hãng Vận Chuyển</th>
-              <th>Số Đơn / Số Shop</th>
-              <th>Tổng Tiền COD</th>
-              <th>LỢI NHUẬN GOM ĐƠN</th>
-              <th>Tổng Tiền Trả Khách</th>
-              <th>Ngày Tạo</th>
-              <th style={{ textAlign: 'center' }}>Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSessions.length === 0 ? (
+        {/* Scrollable Framed Container */}
+        <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                  {sessions.length === 0 
-                    ? 'Chưa có kỳ đối soát nào được lưu. Bạn hãy vào tab "Đối Soát Kéo Thả" để tải file và đối soát.' 
-                    : 'Không tìm thấy kỳ đối soát phù hợp với từ khóa tìm kiếm.'}
-                </td>
+                <th>STT</th>
+                <th>Kỳ Đối Soát</th>
+                <th>Hãng Vận Chuyển</th>
+                <th>Số Đơn / Số Shop</th>
+                <th>Tổng Tiền COD</th>
+                <th>LỢI NHUẬN GOM ĐƠN</th>
+                <th>Tổng Tiền Trả Khách</th>
+                <th>Ngày Tạo</th>
+                <th style={{ textAlign: 'center' }}>Thao Tác</th>
               </tr>
-            ) : (
-              filteredSessions.map((session, idx) => (
-                <tr key={session.id}>
-                  <td>{idx + 1}</td>
-                  <td>
-                    <strong style={{ fontSize: 14, color: 'var(--primary)' }}>{session.sessionName}</strong>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-                      File: {session.nvcFileName} • {session.appFileName}
-                    </div>
+            </thead>
+            <tbody>
+              {filteredSessions.length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                    {sessions.length === 0 
+                      ? 'Chưa có kỳ đối soát nào được lưu. Bạn hãy vào tab "Đối Soát Kéo Thả" để tải file và đối soát.' 
+                      : 'Không tìm thấy kỳ đối soát phù hợp với từ khóa tìm kiếm.'}
                   </td>
+                </tr>
+              ) : (
+                filteredSessions.map((session, idx) => (
+                  <tr key={session.id}>
+                    <td>{idx + 1}</td>
+                    <td>
+                      <strong style={{ fontSize: 14, color: 'var(--primary)' }}>
+                        {cleanSessionName(session.sessionName, session.createdAt, session.carrierName)}
+                      </strong>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                        File: {session.nvcFileName} • {session.appFileName}
+                      </div>
+                    </td>
                   <td>
                     <span className="badge badge-neutral">{session.carrierName}</span>
                   </td>
@@ -458,6 +479,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
     </div>
