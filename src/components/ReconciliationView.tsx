@@ -11,8 +11,7 @@ import {
   RefreshCw, 
   Search, 
   DollarSign, 
-  TrendingUp, 
-  Layers, 
+  TrendingUp,
   Sparkles,
   ArrowUpDown,
   XCircle,
@@ -524,25 +523,99 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
-      {/* 2-File Upload Dropzones */}
-      <div className="glass-panel" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 14 }}>
+      {/* 🌟 3-Step Guided Workflow Stepper Header */}
+      <div style={{
+        background: 'var(--bg-secondary)',
+        padding: '14px 20px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-color)',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr auto 1fr',
+        alignItems: 'center',
+        gap: 12,
+      }}>
+        {/* Step 1 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            background: 'var(--primary)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: 13,
+            flexShrink: 0
+          }}>1</div>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UploadCloud size={24} color="var(--primary)" />
-              Bộ Xử Lý & Khớp Nối 2 File Excel Đối Soát
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 1: CHỌN HÃNG & CHẾ ĐỘ</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cấu hình NVC & Chế độ 1/2 File</div>
+          </div>
+        </div>
+
+        <div style={{ height: 1, width: 30, background: 'var(--border-color)' }} />
+
+        {/* Step 2 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            background: (nvcFile || appFile) ? 'var(--success)' : 'var(--bg-tertiary)',
+            color: (nvcFile || appFile) ? '#fff' : 'var(--text-dim)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: 13,
+            flexShrink: 0
+          }}>2</div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 2: KÉO THẢ FILE EXCEL</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Tải file đối soát NVC / App</div>
+          </div>
+        </div>
+
+        <div style={{ height: 1, width: 30, background: 'var(--border-color)' }} />
+
+        {/* Step 3 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            background: currentSession ? 'var(--primary)' : 'var(--bg-tertiary)',
+            color: currentSession ? '#fff' : 'var(--text-dim)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: 13,
+            flexShrink: 0
+          }}>3</div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>BƯỚC 3: KẾT QUẢ & BẢNG KÊ</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Xem COD, Cước & Xuất file</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2-File Upload Dropzones */}
+      <div className="glass-panel" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+              <UploadCloud size={22} color="var(--primary)" />
+              Bộ Xử Lý & Khớp Nối File Excel Đối Soát
             </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Kéo và thả 2 file Excel trực tiếp vào ô bên dưới để tự động ghép theo Mã Vận Đơn, phân loại Shop và tính tiền COD.
-            </p>
           </div>
 
-          <div>
-            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-              Tên kỳ đối soát
-            </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>Tên Kỳ Đối Soát:</label>
             <input
               type="text"
               value={sessionPeriodName}
@@ -772,17 +845,18 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* Dropzone 2: File App */}
           <div 
-            onClick={() => appFileInputRef.current?.click()}
-            onDragOver={handleAppDragOver}
-            onDragEnter={handleAppDragOver}
-            onDragLeave={handleAppDragLeave}
-            onDrop={handleAppDrop}
+            onClick={() => reconcileMode === '2files' && appFileInputRef.current?.click()}
+            onDragOver={reconcileMode === '2files' ? handleAppDragOver : undefined}
+            onDragEnter={reconcileMode === '2files' ? handleAppDragOver : undefined}
+            onDragLeave={reconcileMode === '2files' ? handleAppDragLeave : undefined}
+            onDrop={reconcileMode === '2files' ? handleAppDrop : undefined}
             style={{
-              border: `2px dashed ${isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
+              border: `2px dashed ${reconcileMode === '1file' ? 'var(--border-color)' : isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
               borderRadius: 'var(--radius-lg)',
               padding: 24,
-              background: isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
+              background: reconcileMode === '1file' ? 'var(--bg-tertiary)' : isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+              cursor: reconcileMode === '1file' ? 'not-allowed' : 'pointer',
+              opacity: reconcileMode === '1file' ? 0.6 : 1,
               textAlign: 'center',
               transition: 'all 0.2s ease',
               transform: isDraggingApp ? 'scale(1.02)' : 'none',
@@ -828,10 +902,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
 
             <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-              {isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
+              {reconcileMode === '1file' ? '2. KHÔNG CẦN DÙNG (CHẾ ĐỘ 1 FILE)' : isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
             </h4>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-              {appFile ? (
+              {reconcileMode === '1file' ? (
+                'Hệ thống tự động phân tách Shop theo Tên cửa hàng & SĐT có sẵn trong File Đối Soát.'
+              ) : appFile ? (
                 <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
               ) : (
                 'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
@@ -895,84 +971,108 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       {currentSession && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           
-          {/* Financial KPI Summary Cards */}
+          {/* Financial KPI Summary Dashboard */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
             gap: 16,
           }}>
-            <div className="kpi-card">
-              <div className="kpi-title">
-                <span>TỔNG SỐ ĐƠN HÀNG</span>
-                <Layers size={18} color="var(--primary)" />
+            {/* Panel 1: Dòng Tiền Khách Hàng (Shop Payout) */}
+            <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <DollarSign size={18} /> 💳 BÁO CÁO DÒNG TIỀN KHÁCH HÀNG (SHOP)
+                </span>
+                <span style={{ fontSize: 11, background: 'rgba(79,70,229,0.1)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                  {currentSession.statements.length} Shop Đối Soát
+                </span>
               </div>
-              <div className="kpi-value">{currentSession.totalOrders.toLocaleString('vi-VN')}</div>
-              <div className="kpi-subtext">
-                <strong style={{ color: 'var(--success)' }}>{currentSession.matchedOrdersCount} đã khớp shop</strong> • {currentSession.unmatchedOrdersCount} chưa khớp
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>TỔNG ĐƠN HÀNG</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
+                    {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 400 }}>đơn</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--success)' }}>
+                    ✓ {currentSession.matchedOrdersCount} đã khớp • {currentSession.unmatchedOrdersCount} chưa khớp
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>TỔNG TIỀN COD THU HỘ</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', margin: '4px 0' }}>
+                    {formatVND(currentSession.totalCod)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Tiền NVC đã thu từ người nhận</div>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>DOANH THU CƯỚC THU SHOP</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
+                    {formatVND(currentSession.totalShopRevenue)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cước tính theo bảng giá Shop</div>
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.12) 0%, rgba(124,58,237,0.12) 100%)', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(79,70,229,0.3)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>THỰC CHUYỂN TRẢ SHOP</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', margin: '4px 0' }}>
+                    {formatVND(currentSession.totalNetPayout)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>= COD thu - Cước & Phí Shop</div>
+                </div>
               </div>
             </div>
 
-            <div className="kpi-card">
-              <div className="kpi-title">
-                <span>TỔNG TIỀN COD THU HỘ</span>
-                <DollarSign size={18} color="var(--info)" />
+            {/* Panel 2: Lợi Nhuận & Hiệu Quả Nhà Gom (Profit & Ops) */}
+            <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={18} /> 📈 BÁO CÁO LỢI NHUẬN NHÀ GOM ĐƠN
+                </span>
+                <span style={{ fontSize: 11, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                  Hiệu Quả Kinh Doanh
+                </span>
               </div>
-              <div className="kpi-value" style={{ color: 'var(--info)' }}>
-                {formatVND(currentSession.totalCod)}
-              </div>
-              <div className="kpi-subtext">Tiền NVC chuyển về tài khoản tổng</div>
-            </div>
 
-            <div className="kpi-card">
-              <div className="kpi-title">
-                <span>CƯỚC TRẢ NVC (CHI PHÍ GỐC)</span>
-                <DollarSign size={18} color="var(--warning)" />
-              </div>
-              <div className="kpi-value" style={{ color: 'var(--warning)' }}>
-                {formatVND(currentSession.totalNvcCost)}
-              </div>
-              <div className="kpi-subtext">Tính theo biểu giá mua sỉ {currentSession.carrierName}</div>
-            </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>CƯỚC GỐC PHẢI TRẢ NVC</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warning)', margin: '4px 0' }}>
+                    {formatVND(currentSession.totalNvcCost)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Theo giá sỉ mua NVC {currentSession.carrierName}</div>
+                </div>
 
-            <div className="kpi-card">
-              <div className="kpi-title">
-                <span>DOANH THU CƯỚC THU SHOP</span>
-                <DollarSign size={18} color="var(--primary)" />
-              </div>
-              <div className="kpi-value" style={{ color: 'var(--primary)' }}>
-                {formatVND(currentSession.totalShopRevenue)}
-              </div>
-              <div className="kpi-subtext">Tổng cước trừ vào COD của các Shop</div>
-            </div>
+                <div style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.12) 0%, rgba(16,185,129,0.12) 100%)', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--success-border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>LỢI NHUẬN RỒNG (LÃI THUẦN)</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--success)', margin: '4px 0' }}>
+                    +{formatVND(currentSession.totalProfit)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>= Cước Shop thu - Cước NVC trả</div>
+                </div>
 
-            <div className="kpi-card profit" style={{
-              background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(2, 132, 199, 0.08) 100%)',
-              border: '1px solid var(--success-border)',
-            }}>
-              <div className="kpi-title" style={{ color: 'var(--success)' }}>
-                <span>LỢI NHUẬN NHÀ GOM (LÃI THUẦN)</span>
-                <TrendingUp size={18} color="var(--success)" />
-              </div>
-              <div className="kpi-value" style={{ color: 'var(--success)' }}>
-                +{formatVND(currentSession.totalProfit)}
-              </div>
-              <div className="kpi-subtext" style={{ color: 'var(--text-main)' }}>
-                = Doanh thu cước Shop - Cước gốc NVC
-              </div>
-            </div>
+                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>HOA HỒNG CHI TRẢ CTV</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
+                    {formatVND(currentSession.totalCtvCommission || 0)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hoa hồng chia cho các CTV</div>
+                </div>
 
-            <div className="kpi-card" style={{
-              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%)',
-              border: '1px solid rgba(79, 70, 229, 0.3)',
-            }}>
-              <div className="kpi-title" style={{ color: 'var(--primary)' }}>
-                <span>TỔNG TIỀN CẦN CHUYỂN CÁC SHOP</span>
-                <CheckCircle2 size={18} color="var(--primary)" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => ExcelService.downloadCtvCommissionReport(currentSession)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}
+                  >
+                    <Download size={14} color="var(--primary)" />
+                    <span>Tải Báo Cáo Hoa Hồng CTV</span>
+                  </button>
+                </div>
               </div>
-              <div className="kpi-value" style={{ color: 'var(--text-main)' }}>
-                {formatVND(currentSession.totalNetPayout)}
-              </div>
-              <div className="kpi-subtext">= Tổng COD - Tổng Cước thu Shop</div>
             </div>
           </div>
 
