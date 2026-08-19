@@ -492,8 +492,8 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
           {/* ═══════════════════════════════════════════ */}
           {mainTab === 'mapping' && (() => {
             const UNIFIED_FIELDS: {
-              keyNvc?: keyof ColumnMappingConfig;
-              keyApp?: keyof ColumnMappingConfig;
+              keyNvc: keyof ColumnMappingConfig;
+              keyApp: keyof ColumnMappingConfig;
               label: string;
               emoji: string;
               hint: string;
@@ -501,15 +501,15 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             }[] = [
               { keyNvc: 'waybillColumn',   keyApp: 'waybillColumn',   label: 'Mã Vận Đơn',           emoji: '🔑', hint: 'Khóa chính bắt buộc ghép 2 file', isRequired: true },
               { keyNvc: 'codColumn',       keyApp: 'codColumn',       label: 'Tiền COD Thu Hộ',       emoji: '💰', hint: 'COD NVC thu hộ vs COD App' },
-              { keyNvc: 'feeColumn',       label: 'Cước Phí Gốc NVC (Giá Sỉ)', emoji: '🚚', hint: 'Cước sỉ trả NVC để tính lãi' },
-              { keyNvc: 'otherFeeColumn',  label: 'Phụ Phí / Hoàn / Bảo Hiểm', emoji: '➕', hint: 'Phụ phí phát sinh' },
+              { keyNvc: 'feeColumn',       keyApp: 'feeColumn',       label: 'Cước Phí Gốc NVC (Giá Sỉ)', emoji: '🚚', hint: 'Cước sỉ trả NVC để tính lãi' },
+              { keyNvc: 'otherFeeColumn',  keyApp: 'otherFeeColumn',  label: 'Phụ Phí / Hoàn / Bảo Hiểm', emoji: '➕', hint: 'Phụ phí phát sinh' },
               { keyNvc: 'weightColumn',    keyApp: 'weightColumn',    label: 'Trọng Lượng (kg/g)',   emoji: '⚖️', hint: 'Cân nặng NVC vs App' },
-              { keyNvc: 'statusColumn',    label: 'Trạng Thái Đơn Hàng',   emoji: '📋', hint: 'Phân loại đơn giao / hoàn' },
+              { keyNvc: 'statusColumn',    keyApp: 'statusColumn',    label: 'Trạng Thái Đơn Hàng',   emoji: '📋', hint: 'Phân loại đơn giao / hoàn' },
               { keyNvc: 'shopNameColumn',  keyApp: 'shopNameColumn',  label: 'Tên Shop / Cửa Hàng',  emoji: '🏬', hint: 'Khớp danh mục shop hệ thống', isRequired: true },
               { keyNvc: 'shopPhoneColumn', keyApp: 'shopPhoneColumn', label: 'Số Điện Thoại Shop',    emoji: '📞', hint: 'Khớp shop theo SĐT phụ' },
-              { keyApp: 'receiverNameColumn',    label: 'Tên Người Nhận',       emoji: '👤', hint: 'Dữ liệu xuất bảng kê' },
-              { keyApp: 'receiverPhoneColumn',   label: 'SĐT Người Nhận',       emoji: '📱', hint: 'Dữ liệu xuất bảng kê' },
-              { keyApp: 'receiverAddressColumn', label: 'Địa Chỉ Người Nhận',   emoji: '🏠', hint: 'Dữ liệu xuất bảng kê' },
+              { keyNvc: 'receiverNameColumn',    keyApp: 'receiverNameColumn',    label: 'Tên Người Nhận',       emoji: '👤', hint: 'Dữ liệu xuất bảng kê' },
+              { keyNvc: 'receiverPhoneColumn',   keyApp: 'receiverPhoneColumn',   label: 'SĐT Người Nhận',       emoji: '📱', hint: 'Dữ liệu xuất bảng kê' },
+              { keyNvc: 'receiverAddressColumn', keyApp: 'receiverAddressColumn', label: 'Địa Chỉ Người Nhận',   emoji: '🏠', hint: 'Dữ liệu xuất bảng kê' },
             ];
 
             return (
