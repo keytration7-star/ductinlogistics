@@ -390,7 +390,7 @@ export function performReconciliation(
     if (ctvId) {
       const ctvObj = ctvs.find((c: CtvProfile) => c.id === ctvId);
       if (ctvObj) {
-        ctvCommission = StorageService.calculateCtvCommission(ctvObj, weight);
+        ctvCommission = StorageService.calculateCtvCommission(ctvObj, weight, carrierTier.carrierId);
       }
     }
 

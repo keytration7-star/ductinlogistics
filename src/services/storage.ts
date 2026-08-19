@@ -581,10 +581,23 @@ export const StorageService = {
     postServerSync('/api/db/ctvs', { ctvs });
   },
 
-  calculateCtvCommission(ctv: CtvProfile, weightKg: number): number {
+  calculateCtvCommission(ctv: CtvProfile, weightKg: number, carrierId?: string): number {
     if (!ctv || !ctv.active || !ctv.commissionRules || ctv.commissionRules.length === 0) {
       return 0;
     }
+
+    // Check Carrier Scope Assignment (Hãng vận chuyển phụ trách)
+    if (carrierId && ctv.assignedCarriers && ctv.assignedCarriers.length > 0) {
+      const isAll = ctv.assignedCarriers.includes('ALL') || ctv.assignedCarriers.includes('all');
+      if (!isAll) {
+        const normCarrier = carrierId.trim().toLowerCase();
+        const isMatched = ctv.assignedCarriers.some(c => c.trim().toLowerCase() === normCarrier);
+        if (!isMatched) {
+          return 0; // CTV không phụ trách hãng vận chuyển này!
+        }
+      }
+    }
+
     const weight = Math.max(0, weightKg || 0);
 
     // Sorted rules by max weight

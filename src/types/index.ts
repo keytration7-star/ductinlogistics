@@ -31,6 +31,8 @@ export interface CtvProfile {
   phone: string;
   email?: string;
   notes?: string;
+  assignedCarriers?: string[]; // Carrier IDs CTV manages: ['ALL'] or ['jnt', 'spx', 'ghn']
+  bankAccount?: BankAccount;
   commissionRules: CtvCommissionRule[];
   extraWeightStep: number;  // kg
   extraWeightPrice: number; // VND
