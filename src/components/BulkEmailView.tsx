@@ -10,7 +10,6 @@ import {
   Layers, 
   Copy, 
   Check, 
-  Settings, 
   Clock, 
   X, 
   Play, 
@@ -29,14 +28,12 @@ interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
   emailSettings: EmailSettings;
   onSaveEmailSettings: (settings: EmailSettings) => void;
-  onOpenSettings?: () => void;
 }
 
 export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   currentSession,
   emailSettings,
   onSaveEmailSettings,
-  onOpenSettings,
 }) => {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
@@ -292,18 +289,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           
-          {/* Gear icon button for Email & Password Configuration */}
-          <button
-            type="button"
-            onClick={() => onOpenSettings?.()}
-            className="btn btn-secondary btn-lg"
-            style={{ display: 'flex', alignItems: 'center', gap: 8, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-            title="Mở Cài đặt hệ thống để cấu hình tài khoản Gmail, Mật khẩu ứng dụng và máy chủ SMTP"
-          >
-            <Settings size={18} />
-            <span>Cài Đặt Mail & Mật Khẩu</span>
-          </button>
-
           {/* Schedule Email Button */}
           {statements.length > 0 && (
             <button
@@ -352,17 +337,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           marginBottom: 16,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
           gap: 10,
+          color: 'var(--danger)',
+          fontSize: 13,
+          fontWeight: 700,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)', fontSize: 13, fontWeight: 700 }}>
-            <AlertCircle size={20} />
-            <span>Chưa cài đặt Gmail người gửi! Hệ thống cần địa chỉ Gmail + Mật khẩu ứng dụng 16 ký tự để gửi email.</span>
-          </div>
-          <button className="btn btn-danger btn-sm" onClick={() => onOpenSettings?.()}>
-            <Settings size={14} /> Cài Đặt Gmail Người Gửi Ngay
-          </button>
+          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+          <span>Chưa cài đặt Gmail người gửi! Vui lòng mở menu Cài Đặt ⚙️ ở góc màn hình để thiết lập Gmail & Mật khẩu ứng dụng 16 ký tự.</span>
         </div>
       )}
 
