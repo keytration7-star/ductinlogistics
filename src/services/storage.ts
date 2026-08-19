@@ -276,14 +276,43 @@ export const StorageService = {
   },
 
   saveSession(session: ReconciliationSession): void {
+    // Clean raw bulky Excel objects before saving to localStorage to stay within browser 5MB quota
+    const cleanSession: ReconciliationSession = {
+      ...session,
+      statements: session.statements.map(stmt => ({
+        ...stmt,
+        orders: stmt.orders.map(o => {
+          const { rawNvcData, rawAppData, ...cleanOrder } = o;
+          return cleanOrder;
+        })
+      })),
+      unmatchedOrders: session.unmatchedOrders.map(o => {
+        const { rawNvcData, rawAppData, ...cleanOrder } = o;
+        return cleanOrder;
+      })
+    };
+
     const sessions = this.getSessions();
-    const index = sessions.findIndex(s => s.id === session.id);
+    const index = sessions.findIndex(s => s.id === cleanSession.id);
     if (index >= 0) {
-      sessions[index] = session;
+      sessions[index] = cleanSession;
     } else {
-      sessions.unshift(session);
+      sessions.unshift(cleanSession);
     }
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    } catch (err) {
+      console.warn('[LocalStorage QuotaExceeded] Trimming older sessions to fit quota:', err);
+      try {
+        // Keep top 10 most recent sessions if quota is exceeded
+        const trimmed = sessions.slice(0, 10);
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(trimmed));
+      } catch (err2) {
+        console.error('[LocalStorage Quota Error]', err2);
+      }
+    }
+
     postServerSync('/api/db/sessions', { sessions });
   },
 
