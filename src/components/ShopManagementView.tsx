@@ -797,7 +797,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         step="0.1"
                         min="0.1"
                         value={rule.maxWeight}
-                        onChange={(e) => handleWeightRuleChange(idx, 'maxWeight', parseFloat(e.target.value) || 1)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleWeightRuleChange(idx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1)}
                         className="input-field"
                         style={{ padding: '4px 8px', fontSize: 12 }}
                       />
@@ -809,7 +810,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         type="number"
                         step="500"
                         value={rule.price}
-                        onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                         className="input-field"
                         style={{ padding: '4px 8px', fontSize: 12 }}
                       />
@@ -844,9 +846,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         type="number"
                         step="0.5"
                         value={editingShop.pricingPlan.extraStepWeight}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingShop({
                           ...editingShop,
-                          pricingPlan: { ...editingShop.pricingPlan, extraStepWeight: parseFloat(e.target.value) || 1 }
+                          pricingPlan: { ...editingShop.pricingPlan, extraStepWeight: parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1 }
                         })}
                         className="input-field"
                         style={{ padding: '4px 8px', fontSize: 12 }}
@@ -862,9 +865,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         type="number"
                         step="500"
                         value={editingShop.pricingPlan.extraStepPrice}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingShop({
                           ...editingShop,
-                          pricingPlan: { ...editingShop.pricingPlan, extraStepPrice: parseInt(e.target.value) || 0 }
+                          pricingPlan: { ...editingShop.pricingPlan, extraStepPrice: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
                         })}
                         className="input-field"
                         style={{ padding: '4px 8px', fontSize: 12 }}
@@ -881,9 +885,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         min="0"
                         max="100"
                         value={editingShop.pricingPlan.returnFeePercent}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingShop({
                           ...editingShop,
-                          pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value) || 0 }
+                          pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
                         })}
                         className="input-field"
                         style={{ padding: '4px 8px', fontSize: 12, width: 60 }}

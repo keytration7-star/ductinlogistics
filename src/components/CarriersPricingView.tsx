@@ -304,7 +304,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         step="0.1"
                         min="0"
                         value={rule.minWeight}
-                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'minWeight', parseFloat(e.target.value) ?? 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'minWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                         className="input-field"
                         style={{ padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
                       />
@@ -315,7 +316,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         step="0.1"
                         min="0"
                         value={rule.maxWeight}
-                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'maxWeight', parseFloat(e.target.value) || 0.5)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0.5)}
                         className="input-field"
                         style={{ padding: '5px 6px', fontSize: 13, textAlign: 'center' }}
                       />
@@ -326,7 +328,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         step="500"
                         min="0"
                         value={rule.price}
-                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                         className="input-field"
                         style={{ padding: '5px 8px', fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}
                       />
@@ -367,7 +370,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                       step="0.5"
                       min="0.1"
                       value={carrier.extraStepWeight}
-                      onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepWeight', parseFloat(e.target.value) || 1)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1)}
                       className="input-field"
                       style={{ width: 55, padding: '3px 6px', fontSize: 12, display: 'inline-block', margin: '0 4px' }}
                     />
@@ -381,7 +385,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                       step="500"
                       min="0"
                       value={carrier.extraStepPrice}
-                      onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepPrice', parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
                       style={{ width: 85, padding: '3px 6px', fontSize: 12 }}
                     />
@@ -399,7 +404,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                       min="0"
                       max="100"
                       value={carrier.returnFeePercent}
-                      onChange={(e) => handleCarrierFieldChange(cIdx, 'returnFeePercent', parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleCarrierFieldChange(cIdx, 'returnFeePercent', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
                       style={{ width: 60, padding: '3px 6px', fontSize: 12 }}
                     />

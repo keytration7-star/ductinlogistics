@@ -464,7 +464,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       step="0.1"
                       min="0"
                       value={rule.minWeight}
-                      onChange={(e) => handleWeightRuleChange(rIdx, 'minWeight', parseFloat(e.target.value) ?? 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleWeightRuleChange(rIdx, 'minWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                       className="input-field"
                       style={{ width: 50, padding: '5px 6px', fontSize: 12, textAlign: 'center' }}
                       title="Từ (kg)"
@@ -475,7 +476,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       step="0.1"
                       min="0"
                       value={rule.maxWeight}
-                      onChange={(e) => handleWeightRuleChange(rIdx, 'maxWeight', parseFloat(e.target.value) || 0.5)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleWeightRuleChange(rIdx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0.5)}
                       className="input-field"
                       style={{ width: 65, padding: '5px 8px', fontSize: 12, textAlign: 'center' }}
                       title="Đến (kg)"
@@ -486,7 +488,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       step="500"
                       min="0"
                       value={rule.price}
-                      onChange={(e) => handleWeightRuleChange(rIdx, 'price', parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleWeightRuleChange(rIdx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
                       style={{ flex: 1, padding: '5px 8px', fontSize: 12 }}
                     />
@@ -523,7 +526,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       type="number"
                       step="500"
                       value={currentShop.extraStepPrice}
-                      onChange={(e) => handleUpdateCurrentShop('extraStepPrice', parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleUpdateCurrentShop('extraStepPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
                       style={{ width: 70, padding: '3px 6px', fontSize: 12 }}
                     />
@@ -538,7 +542,8 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
                       min="0"
                       max="100"
                       value={currentShop.returnFeePercent}
-                      onChange={(e) => handleUpdateCurrentShop('returnFeePercent', parseInt(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleUpdateCurrentShop('returnFeePercent', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                       className="input-field"
                       style={{ width: 50, padding: '3px 6px', fontSize: 12 }}
                     />
