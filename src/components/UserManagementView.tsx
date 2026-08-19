@@ -7,17 +7,19 @@ import {
   KeyRound, 
   Trash2, 
   Edit3, 
-  CheckCircle2, 
   X
 } from 'lucide-react';
 import { AuthService } from '../services/authService';
 import type { UserAccount, UserRole } from '../types';
+import { useToast, useConfirm } from './UIFeedback';
 
 interface UserManagementViewProps {
   currentUser: UserAccount;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentUser }) => {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [users, setUsers] = useState<UserAccount[]>(() => AuthService.getUsers());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
@@ -35,12 +37,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
   });
 
   const [formError, setFormError] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 2500);
-  };
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +54,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         phone: '',
         email: '',
       });
-      showToast('Đã tạo tài khoản nhân viên mới thành công!');
+      showToast('Đã tạo tài khoản nhân viên mới thành công!', 'success');
     } else {
       setFormError(res.error || 'Không thể tạo tài khoản.');
     }
@@ -79,33 +75,45 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
     if (res.success) {
       setUsers(AuthService.getUsers());
       setEditingUser(null);
-      showToast('Đã cập nhật thông tin tài khoản!');
+      showToast('Đã cập nhật thông tin tài khoản!', 'success');
     } else {
       setFormError(res.error || 'Cập nhật thất bại.');
     }
   };
 
-  const handleToggleLock = (user: UserAccount) => {
+  const handleToggleLock = async (user: UserAccount) => {
     const action = user.active ? 'khóa' : 'mở khóa';
-    if (window.confirm(`Bạn có chắc muốn ${action} tài khoản "${user.fullName}" (${user.username})?`)) {
+    const ok = await showConfirm({
+      title: `${action.toUpperCase()} TÀI KHOẢN`,
+      message: `Bạn có chắc muốn ${action} tài khoản "${user.fullName}" (${user.username})?`,
+      confirmText: action.toUpperCase(),
+      warning: user.active,
+    });
+    if (ok) {
       const res = AuthService.toggleUserActive(user.id);
       if (res.success) {
         setUsers(AuthService.getUsers());
-        showToast(`Đã ${action} tài khoản thành công!`);
+        showToast(`Đã ${action} tài khoản thành công!`, 'success');
       } else {
-        alert(res.error || 'Thao tác thất bại.');
+        showToast(res.error || 'Thao tác thất bại.', 'error');
       }
     }
   };
 
-  const handleDeleteUser = (user: UserAccount) => {
-    if (window.confirm(`CẢNH BÁO: Bạn có chắc muốn xóa vĩnh viễn tài khoản "${user.fullName}" (${user.username})?`)) {
+  const handleDeleteUser = async (user: UserAccount) => {
+    const ok = await showConfirm({
+      title: 'XÓA TÀI KHOẢN',
+      message: `CẢNH BÁO: Bạn có chắc muốn xóa vĩnh viễn tài khoản "${user.fullName}" (${user.username})?`,
+      confirmText: 'Xóa vĩnh viễn',
+      danger: true,
+    });
+    if (ok) {
       const res = AuthService.deleteUser(user.id);
       if (res.success) {
         setUsers(AuthService.getUsers());
-        showToast('Đã xóa tài khoản thành công!');
+        showToast('Đã xóa tài khoản thành công!', 'success');
       } else {
-        alert(res.error || 'Không thể xóa tài khoản.');
+        showToast(res.error || 'Không thể xóa tài khoản.', 'error');
       }
     }
   };
@@ -118,9 +126,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
     if (res.success) {
       setPasswordChangeUser(null);
       setNewPasswordInput('');
-      showToast('Đã đổi mật khẩu thành công!');
+      showToast('Đã đổi mật khẩu thành công!', 'success');
     } else {
-      alert(res.error || 'Đổi mật khẩu thất bại.');
+      showToast(res.error || 'Đổi mật khẩu thất bại.', 'error');
     }
   };
 
@@ -141,29 +149,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      
-      {/* Toast Notification */}
-      {successToast && (
-        <div style={{
-          position: 'fixed',
-          top: 24,
-          right: 24,
-          background: 'var(--success)',
-          color: '#fff',
-          padding: '12px 20px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-lg)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontWeight: 600,
-          animation: 'slideIn 0.3s ease',
-        }}>
-          <CheckCircle2 size={18} />
-          <span>{successToast}</span>
-        </div>
-      )}
 
       {/* Header bar */}
       <div className="glass-panel" style={{ padding: 24 }}>
@@ -270,11 +255,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                               💻 {u.activeDeviceName || '1 Thiết bị'}
                             </span>
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Bạn có chắc chắn muốn ngắt kết nối thiết bị "${u.activeDeviceName || 'hiện tại'}" của tài khoản ${u.username}?`)) {
+                              onClick={async () => {
+                                const ok = await showConfirm({
+                                  title: 'NGẮT KẾT NỐI THIẾT BỊ',
+                                  message: `Bạn có chắc chắn muốn ngắt kết nối thiết bị "${u.activeDeviceName || 'hiện tại'}" của tài khoản ${u.username}?`,
+                                  confirmText: 'Ngắt kết nối',
+                                  warning: true,
+                                });
+                                if (ok) {
                                   AuthService.kickUserDevice(u.id);
                                   setUsers(AuthService.getUsers());
-                                  showToast(`Đã ngắt kết nối thiết bị của ${u.username}!`);
+                                  showToast(`Đã ngắt kết nối thiết bị của ${u.username}!`, 'info');
                                 }
                               }}
                               className="btn btn-secondary btn-sm"

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Store, Plus, Trash2, Check, AlertCircle, Sparkles, CreditCard, Sliders, X } from 'lucide-react';
 import type { Shop, WeightStepRule } from '../types';
 
+import { useToast } from './UIFeedback';
+
 interface DiscoveredNewShop {
   tempId: string;
   name: string;
@@ -38,6 +40,7 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
   existingShops,
   onSaveNewShopsAndContinue,
 }) => {
+  const { showToast } = useToast();
   const [shopList, setShopList] = useState<DiscoveredNewShop[]>(() => {
     return discoveredShops.map((d, idx) => ({
       tempId: `new_shop_${idx}_${Date.now()}`,
@@ -148,7 +151,7 @@ export const NewShopsOnboardingModal: React.FC<NewShopsOnboardingModalProps> = (
       returnFeePercent: currentReturnFee,
     }));
     setShopList(updated);
-    alert('Đã sao chép biểu giá này áp dụng cho toàn bộ các Shop mới còn lại!');
+    showToast('Đã sao chép biểu giá này áp dụng cho toàn bộ các Shop mới còn lại!', 'success');
   };
 
   const handleSaveAndContinue = () => {

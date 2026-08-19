@@ -3,6 +3,8 @@ import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAle
 import type { ExportColumnSettings } from '../types';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
 
+import { useConfirm } from './UIFeedback';
+
 interface ExportColumnConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,6 +20,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
   carrierId,
   carrierName,
 }) => {
+  const { showConfirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'shop' | 'master'>('shop');
   const [settings, setSettings] = useState<ExportColumnSettings>(() => {
     if (carrierId) {
@@ -103,8 +106,14 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     setSettings(newSettings);
   };
 
-  const handleResetDefaults = () => {
-    if (confirm('Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?')) {
+  const handleResetDefaults = async () => {
+    const ok = await showConfirm({
+      title: 'KHÔI PHỤC MẶC ĐỊNH',
+      message: 'Bạn có chắc muốn khôi phục lại danh sách cột xuất Excel mặc định?',
+      confirmText: 'Khôi phục',
+      warning: true,
+    });
+    if (ok) {
       const defaultClone = JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
       setSettings(defaultClone);
       if (carrierId) {
