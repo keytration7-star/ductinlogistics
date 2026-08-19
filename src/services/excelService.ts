@@ -173,8 +173,30 @@ export const ExcelService = {
             headers.push(finalHeaderName);
           }
 
-          // Data starts at headerRowIndex + 2 if 2 headers, otherwise headerRowIndex + 1
-          const dataStartRowIndex = hasSecondHeaderRow ? headerRowIndex + 2 : headerRowIndex + 1;
+          // 🔑 Waybill Anchor Alignment Engine: Find exact column index of waybill
+          let waybillColIdx = -1;
+          for (let c = 0; c < headers.length; c++) {
+            const hNorm = normalizeHeader(headers[c]);
+            if (hNorm.includes('ma_van_don') || hNorm.includes('mvd') || hNorm.includes('tracking') || hNorm.includes('ma_don')) {
+              waybillColIdx = c;
+              break;
+            }
+          }
+
+          // Scan downwards to find the FIRST row that contains a real Waybill code
+          let dataStartRowIndex = hasSecondHeaderRow ? headerRowIndex + 2 : headerRowIndex + 1;
+          if (waybillColIdx !== -1) {
+            for (let r = headerRowIndex + 1; r < Math.min(headerRowIndex + 10, rawSheetData.length); r++) {
+              const rowVal = String(rawSheetData[r]?.[waybillColIdx] || '').trim();
+              const normVal = normalizeHeader(rowVal);
+              const isHeaderVal = normVal.includes('ma_van_don') || normVal.includes('ma_don') || normVal.includes('tracking') || normVal.includes('stt') || normVal.includes('tong');
+              
+              if (rowVal && rowVal.length >= 3 && !isHeaderVal) {
+                dataStartRowIndex = r;
+                break;
+              }
+            }
+          }
 
           // Build object rows from subsequent data rows
           const rows: Record<string, any>[] = [];
