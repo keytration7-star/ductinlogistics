@@ -760,168 +760,249 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           </div>
         </div>
 
-        {/* 2 Dropzones Grid with HTML5 Drag Events */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 20,
-          marginBottom: 20,
-        }}>
-          
-          {/* Dropzone 1: File NVC */}
-          <div 
-            onClick={() => nvcFileInputRef.current?.click()}
-            onDragOver={handleNvcDragOver}
-            onDragEnter={handleNvcDragOver}
-            onDragLeave={handleNvcDragLeave}
-            onDrop={handleNvcDrop}
-            style={{
-              border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--border-color)'}`,
-              borderRadius: 'var(--radius-lg)',
-              padding: 24,
-              background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
-              textAlign: 'center',
-              transition: 'all 0.2s ease',
-              transform: isDraggingNvc ? 'scale(1.02)' : 'none',
-              boxShadow: isDraggingNvc ? '0 0 16px var(--primary-glow)' : 'none',
-              position: 'relative',
-            }}
-          >
-            <input
-              type="file"
-              ref={nvcFileInputRef}
-              accept=".xlsx, .xls, .csv"
-              style={{ display: 'none' }}
-              onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
-            />
+        {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
+        {reconcileMode === '1file' ? (
+          /* Single File Hero Dropzone Mode */
+          <div style={{ marginBottom: 20 }}>
+            <div 
+              onClick={() => nvcFileInputRef.current?.click()}
+              onDragOver={handleNvcDragOver}
+              onDragEnter={handleNvcDragOver}
+              onDragLeave={handleNvcDragLeave}
+              onDrop={handleNvcDrop}
+              style={{
+                border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--primary)'}`,
+                borderRadius: 'var(--radius-lg)',
+                padding: '36px 24px',
+                background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.2s ease',
+                transform: isDraggingNvc ? 'scale(1.01)' : 'none',
+                boxShadow: isDraggingNvc ? '0 0 20px var(--primary-glow)' : '0 4px 12px rgba(0,0,0,0.03)',
+                position: 'relative',
+              }}
+            >
+              <input
+                type="file"
+                ref={nvcFileInputRef}
+                accept=".xlsx, .xls, .csv"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
+              />
 
-            {nvcFile && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setNvcFile(null);
-                  setNvcRows([]);
-                }}
-                className="btn btn-secondary btn-sm"
-                style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
-                title="Hủy chọn file này"
-              >
-                <XCircle size={14} color="var(--danger)" />
-              </button>
-            )}
+              {nvcFile && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNvcFile(null);
+                    setNvcRows([]);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ position: 'absolute', top: 14, right: 14, padding: '4px 8px' }}
+                  title="Đổi file khác"
+                >
+                  <XCircle size={14} color="var(--danger)" />
+                  <span>Đổi File Khác</span>
+                </button>
+              )}
 
-            <div style={{
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'var(--bg-tertiary)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px',
-            }}>
-              {nvcFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingNvc ? '#fff' : 'var(--primary)'} />}
+              <div style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'rgba(79, 70, 229, 0.1)',
+                color: nvcFile ? '#fff' : 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 14px',
+              }}>
+                {nvcFile ? <CheckCircle2 size={30} /> : <FileSpreadsheet size={30} color="var(--primary)" />}
+              </div>
+
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
+                {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : '📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT DUY NHẤT (VÍ DỤ GHN / GHTK / VIETTEL POST)'}
+              </h3>
+              
+              <p style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 10px', lineHeight: 1.5 }}>
+                {nvcFile ? (
+                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                    Đã đọc thành công <strong>{nvcRows.length.toLocaleString('vi-VN')} dòng đơn hàng</strong> từ file. Hệ thống sẽ tự động bóc tách phân loại Shop theo Tên cửa hàng & SĐT có sẵn trong file.
+                  </span>
+                ) : (
+                  'Kéo và thả trực tiếp File Excel đối soát từ NVC vào đây. Ở Chế độ 1 File, hệ thống tự động bóc tách danh sách Shop theo cột Tên cửa hàng / SĐT mà không cần file App.'
+                )}
+              </p>
+
+              {nvcFile && nvcMapping.waybillColumn && (
+                <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', padding: '4px 12px', borderRadius: 20 }}>
+                  ✓ Đã tự động nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Dual Files 50-50 Grid Mode */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 20,
+            marginBottom: 20,
+          }}>
+            
+            {/* Dropzone 1: File NVC */}
+            <div 
+              onClick={() => nvcFileInputRef.current?.click()}
+              onDragOver={handleNvcDragOver}
+              onDragEnter={handleNvcDragOver}
+              onDragLeave={handleNvcDragLeave}
+              onDrop={handleNvcDrop}
+              style={{
+                border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--border-color)'}`,
+                borderRadius: 'var(--radius-lg)',
+                padding: 24,
+                background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.2s ease',
+                transform: isDraggingNvc ? 'scale(1.02)' : 'none',
+                boxShadow: isDraggingNvc ? '0 0 16px var(--primary-glow)' : 'none',
+                position: 'relative',
+              }}
+            >
+              <input
+                type="file"
+                ref={nvcFileInputRef}
+                accept=".xlsx, .xls, .csv"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
+              />
+
+              {nvcFile && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNvcFile(null);
+                    setNvcRows([]);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
+                  title="Hủy chọn file này"
+                >
+                  <XCircle size={14} color="var(--danger)" />
+                </button>
+              )}
+
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'var(--bg-tertiary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px',
+              }}>
+                {nvcFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingNvc ? '#fff' : 'var(--primary)'} />}
+              </div>
+
+              <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                {isDraggingNvc ? 'THẢ FILE ĐỐI SOÁT NVC VÀO ĐÂY' : '1. FILE ĐỐI SOÁT TỪ NVC'}
+              </h4>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                {nvcFile ? (
+                  <strong style={{ color: 'var(--text-main)' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
+                ) : (
+                  'Kéo thả trực tiếp file Excel đối soát NVC vào đây (Có Mã đơn, COD, Cước...)'
+                )}
+              </p>
+
+              {nvcFile && (
+                <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                  ✓ Đã nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+                </div>
+              )}
             </div>
 
-            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-              {isDraggingNvc ? 'THẢ FILE ĐỐI SOÁT NVC VÀO ĐÂY' : '1. FILE ĐỐI SOÁT TỪ NVC'}
-            </h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-              {nvcFile ? (
-                <strong style={{ color: 'var(--text-main)' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
-              ) : (
-                'Kéo thả trực tiếp file Excel đối soát NVC vào đây (Có Mã đơn, COD, Cước...)'
+            {/* Dropzone 2: File App */}
+            <div 
+              onClick={() => appFileInputRef.current?.click()}
+              onDragOver={handleAppDragOver}
+              onDragEnter={handleAppDragOver}
+              onDragLeave={handleAppDragLeave}
+              onDrop={handleAppDrop}
+              style={{
+                border: `2px dashed ${isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
+                borderRadius: 'var(--radius-lg)',
+                padding: 24,
+                background: isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.2s ease',
+                transform: isDraggingApp ? 'scale(1.02)' : 'none',
+                boxShadow: isDraggingApp ? '0 0 16px var(--primary-glow)' : 'none',
+                position: 'relative',
+              }}
+            >
+              <input
+                type="file"
+                ref={appFileInputRef}
+                accept=".xlsx, .xls, .csv"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && handleAppFileChange(e.target.files[0])}
+              />
+
+              {appFile && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAppFile(null);
+                    setAppRows([]);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
+                  title="Hủy chọn file này"
+                >
+                  <XCircle size={14} color="var(--danger)" />
+                </button>
               )}
-            </p>
 
-            {nvcFile && (
-              <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
-                ✓ Đã nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                background: appFile ? 'var(--success)' : isDraggingApp ? 'var(--primary)' : 'var(--bg-tertiary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px',
+              }}>
+                {appFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingApp ? '#fff' : 'var(--primary)'} />}
               </div>
-            )}
-          </div>
 
-          {/* Dropzone 2: File App */}
-          <div 
-            onClick={() => reconcileMode === '2files' && appFileInputRef.current?.click()}
-            onDragOver={reconcileMode === '2files' ? handleAppDragOver : undefined}
-            onDragEnter={reconcileMode === '2files' ? handleAppDragOver : undefined}
-            onDragLeave={reconcileMode === '2files' ? handleAppDragLeave : undefined}
-            onDrop={reconcileMode === '2files' ? handleAppDrop : undefined}
-            style={{
-              border: `2px dashed ${reconcileMode === '1file' ? 'var(--border-color)' : isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
-              borderRadius: 'var(--radius-lg)',
-              padding: 24,
-              background: reconcileMode === '1file' ? 'var(--bg-tertiary)' : isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
-              cursor: reconcileMode === '1file' ? 'not-allowed' : 'pointer',
-              opacity: reconcileMode === '1file' ? 0.6 : 1,
-              textAlign: 'center',
-              transition: 'all 0.2s ease',
-              transform: isDraggingApp ? 'scale(1.02)' : 'none',
-              boxShadow: isDraggingApp ? '0 0 16px var(--primary-glow)' : 'none',
-              position: 'relative',
-            }}
-          >
-            <input
-              type="file"
-              ref={appFileInputRef}
-              accept=".xlsx, .xls, .csv"
-              style={{ display: 'none' }}
-              onChange={(e) => e.target.files?.[0] && handleAppFileChange(e.target.files[0])}
-            />
+              <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                {isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
+              </h4>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                {appFile ? (
+                  <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
+                ) : (
+                  'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
+                )}
+              </p>
 
-            {appFile && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAppFile(null);
-                  setAppRows([]);
-                }}
-                className="btn btn-secondary btn-sm"
-                style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
-                title="Hủy chọn file này"
-              >
-                <XCircle size={14} color="var(--danger)" />
-              </button>
-            )}
-
-            <div style={{
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              background: appFile ? 'var(--success)' : isDraggingApp ? 'var(--primary)' : 'var(--bg-tertiary)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px',
-            }}>
-              {appFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingApp ? '#fff' : 'var(--primary)'} />}
+              {appFile && (
+                <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                  ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
+                </div>
+              )}
             </div>
 
-            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-              {reconcileMode === '1file' ? '2. KHÔNG CẦN DÙNG (CHẾ ĐỘ 1 FILE)' : isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
-            </h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-              {reconcileMode === '1file' ? (
-                'Hệ thống tự động phân tách Shop theo Tên cửa hàng & SĐT có sẵn trong File Đối Soát.'
-              ) : appFile ? (
-                <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
-              ) : (
-                'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
-              )}
-            </p>
-
-            {appFile && (
-              <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
-                ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
-              </div>
-            )}
           </div>
-
-        </div>
+        )}
 
         {/* Action Controls Bar */}
         <div style={{
