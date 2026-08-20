@@ -11,7 +11,6 @@ import type {
 } from '../types';
 import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill, normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
-import { calculateOpeningDebtForNewStatement } from './settlementService';
 
 export interface DuplicateCheckResult {
   hasConflict: boolean;
@@ -322,9 +321,6 @@ export function performReconciliation(
   mode: '1file' | '2files' = '2files'
 ): ReconciliationSession {
   const ctvs = StorageService.getCtvs();
-  const existingSessions = StorageService.getSessions();
-  const paymentRecords = StorageService.getPaymentRecords();
-  const isJntCarrier = /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b/i.test(`${carrierTier.carrierId || ''} ${carrierTier.carrierName || ''}`);
   const appMap = new Map<string, Record<string, any>>();
   const duplicateAppWaybills = new Set<string>();
   const nvcWaybillCounts = new Map<string, number>();
@@ -400,13 +396,10 @@ export function performReconciliation(
       shopAddress = extractRowField(undefined, nvcRow, nvcMapping.shopAddressColumn, ['dia_chi_gui', 'dc_gui', 'kho_gui']);
       shopCode = extractRowField(undefined, nvcRow, nvcMapping.shopCodeColumn, ['ma_shop', 'ma_cua_hang', 'store_id']);
     } else if (appRow) {
-      // J&T has no sender identity in the NVC settlement source. Never fill a
-      // missing identity with a placeholder, otherwise a row can be assigned
-      // to a shop on a name or phone alone.
-      shopName = String(appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] || '' : '').trim();
-      shopPhone = String(appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] || '' : '').trim();
-      shopAddress = String(appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] || '' : '').trim();
-      shopCode = String(appMapping.shopCodeColumn ? appRow[appMapping.shopCodeColumn] || '' : '').trim();
+      shopName = (appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] : '') || 'Shop Không Tên';
+      shopPhone = (appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] : '') || '';
+      shopAddress = (appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] : '') || '';
+      shopCode = (appMapping.shopCodeColumn ? appRow[appMapping.shopCodeColumn] : '') || '';
     }
 
     const receiverName = extractRowField(appRow, nvcRow, appMapping.receiverNameColumn || nvcMapping.receiverNameColumn, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach', 'khach_nhan', 'receiver']) || 'Khách Nhận';
@@ -419,7 +412,6 @@ export function performReconciliation(
       || nvcWaybillCounts.get(waybill)! > 1
       || duplicateAppWaybills.has(waybill)
       || (mode === '2files' && !appRow)
-      || (isJntCarrier && (!shopName && !shopPhone && !shopCode))
       || status === 'unknown';
     const shopMatch = nvcSettlementVerified === false
       ? { matched: false as const, reason: 'Số tiền NVC trả sau cấn trừ không khớp COD − cước − phụ phí + điều chỉnh; cần kiểm tra mapping cột' }
@@ -427,8 +419,6 @@ export function performReconciliation(
       ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File NVC; cần làm sạch file trước khi đối soát' }
       : duplicateAppWaybills.has(waybill)
       ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File App; cần làm sạch file trước khi đối soát' }
-      : (isJntCarrier && (!shopName && !shopPhone && !shopCode))
-      ? { matched: false as const, reason: 'Thiếu Tên người gửi, SĐT người gửi và Mã kho/Shop trong File App' }
       : status === 'unknown'
       ? { matched: false as const, reason: `Không nhận diện được trạng thái “${statusText}”; cần xác nhận cấu hình hoặc file NVC` }
       : findRegisteredShop(registeredShops, { phone: shopPhone, code: shopCode, name: shopName });
@@ -594,9 +584,7 @@ export function performReconciliation(
         totalShopFee: 0,
         totalShopOtherFee: 0,
         totalNetPayout: 0,
-        // Snapshot the signed opening balance now. Future edits to the shop
-        // profile must never alter a previously issued settlement statement.
-        previousDebt: shopObj ? calculateOpeningDebtForNewStatement(shopObj, existingSessions, paymentRecords) : 0,
+        previousDebt: shopObj?.previousDebt || 0,
         totalNvcCost: 0,
         totalProfit: 0,
         totalDeliveredCod: 0,

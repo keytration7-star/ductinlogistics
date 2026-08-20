@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StorageService } from '../services/storage';
 import type { CtvProfile, CtvCommissionRule } from '../types';
-import { Users, Plus, Edit2, Trash2, Check, X, DollarSign, Award, Search, Truck, CreditCard, Calculator } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Check, X, DollarSign, Award, Search, Truck, CreditCard, Calculator, Ban } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
 
 const AVAILABLE_CARRIERS = [
@@ -69,18 +69,19 @@ export const CtvManagementView: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (ctvId: string, name: string) => {
+  const handleDeactivate = async (ctvId: string, name: string) => {
     const ok = await showConfirm({
-      title: 'Xóa Cộng Tác Viên',
-      message: `Bạn có chắc chắn muốn xóa Cộng Tác Viên "${name}" không?`,
-      danger: true,
+      title: 'Ngừng Hoạt Động Cộng Tác Viên',
+      message: `Ngừng tính hoa hồng cho CTV "${name}" ở các kỳ sau? Hồ sơ và lịch sử hoa hồng đã có sẽ được giữ nguyên.`,
+      warning: true,
+      confirmText: 'Ngừng hoạt động',
     });
     if (!ok) return;
 
-    const updated = ctvs.filter(c => c.id !== ctvId);
+    const updated = ctvs.map(c => c.id === ctvId ? { ...c, active: false } : c);
     setCtvs(updated);
     StorageService.saveCtvs(updated);
-    showToast(`Đã xóa CTV ${name}`, 'success');
+    showToast(`Đã ngừng hoạt động CTV ${name}; lịch sử vẫn được giữ lại.`, 'success');
   };
 
   const handleSaveModal = (e: React.FormEvent) => {
@@ -304,9 +305,10 @@ export const CtvManagementView: React.FC = () => {
                         <button onClick={() => handleOpenEdit(ctv)} className="btn btn-secondary btn-sm" title="Sửa thông tin CTV">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(ctv.id, ctv.name)} className="btn btn-danger btn-sm" title="Xóa CTV">
-                          <Trash2 size={14} />
+                        {ctv.active && <button onClick={() => handleDeactivate(ctv.id, ctv.name)} className="btn btn-danger btn-sm" title="Ngừng hoạt động, không xóa lịch sử">
+                          <Ban size={14} />
                         </button>
+                        }
                       </div>
                     </td>
                   </tr>

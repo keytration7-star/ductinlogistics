@@ -22,7 +22,6 @@ import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
-import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, getStatementPaidAmount } from '../services/settlementService';
 
 interface DebtAndPayoutViewProps {
   sessions: ReconciliationSession[];
@@ -73,20 +72,19 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const isSessionEligibleForPayout = (session: ReconciliationSession) => (session.unmatchedOrdersCount || 0) === 0;
 
   // Compute Payout Stats for a specific Shop in a Session
-  const getStatementPayoutInfo = (sessionId: string, statement: ShopSettlementStatement) => {
-    const statementPayments = payments.filter(p => !p.voidedAt && p.sessionId === sessionId && p.shopId === statement.shopId);
-    const paidAmount = getStatementPaidAmount(statement, sessionId, payments);
-    const settlement = calculateStatementSettlement(statement, paidAmount);
-    const remainingDebt = settlement.amountPayable;
+  const getStatementPayoutInfo = (sessionId: string, shopId: string, totalNetPayout: number) => {
+    const statementPayments = payments.filter(p => !p.voidedAt && p.sessionId === sessionId && p.shopId === shopId);
+    const paidAmount = statementPayments.reduce((sum, p) => sum + p.amount, 0);
+    const remainingDebt = Math.max(0, totalNetPayout - paidAmount);
 
     let status: PayoutStatus = 'UNPAID';
-    if (paidAmount >= calculateStatementSettlement(statement).amountPayable && calculateStatementSettlement(statement).amountPayable > 0) {
+    if (paidAmount >= totalNetPayout && totalNetPayout > 0) {
       status = 'PAID';
     } else if (paidAmount > 0) {
       status = 'PARTIAL';
     }
 
-    return { paidAmount, remainingDebt, shopOwes: settlement.amountShopOwes, status, statementPayments };
+    return { paidAmount, remainingDebt, status, statementPayments };
   };
 
   // Compute Overall Stats Across All Sessions
@@ -96,8 +94,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   sessions.forEach(session => {
     if (!isSessionEligibleForPayout(session)) return;
     session.statements.forEach(stmt => {
-      grandTotalNetPayout += calculateStatementSettlement(stmt).amountPayable;
-      const { paidAmount } = getStatementPayoutInfo(session.id, stmt);
+      grandTotalNetPayout += stmt.totalNetPayout;
+      const { paidAmount } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
       grandTotalPaid += paidAmount;
     });
   });
@@ -110,7 +108,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       showToast('Kỳ này còn đơn chưa khớp nên chưa được phép đi tiền. Hãy xử lý đối soát trước.', 'warning');
       return;
     }
-    const { remainingDebt } = getStatementPayoutInfo(session.id, statement);
+    const { remainingDebt } = getStatementPayoutInfo(session.id, statement.shopId, statement.totalNetPayout);
     setTargetSession(session);
     setTargetStatement(statement);
     setPayAmount(remainingDebt.toString());
@@ -132,7 +130,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       showToast('Vui lòng nhập số tiền chuyển khoản hợp lệ.', 'warning');
       return;
     }
-    const { remainingDebt } = getStatementPayoutInfo(targetSession.id, targetStatement);
+    const { remainingDebt } = getStatementPayoutInfo(targetSession.id, targetStatement.shopId, targetStatement.totalNetPayout);
     if (amountNum > remainingDebt) {
       showToast(`Số tiền nhập lớn hơn số còn phải trả (${formatVND(remainingDebt)}). Không thể tạo bản ghi trả vượt.`, 'warning');
       return;
@@ -193,7 +191,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       return;
     }
     const exportItems = session.statements.flatMap(stmt => {
-      const { remainingDebt, status } = getStatementPayoutInfo(session.id, stmt);
+      const { remainingDebt, status } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
       if (remainingDebt <= 0) return [];
       let statusText = 'Đã đi tiền đủ';
       if (status === 'UNPAID') statusText = 'Chưa đi tiền';
@@ -227,7 +225,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       return;
     }
     const unpaidStmts = session.statements.filter(stmt => {
-      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt);
+      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
       return remainingDebt > 0;
     });
 
@@ -237,7 +235,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     }
 
     const totalUnpaidDebt = unpaidStmts.reduce((sum, stmt) => {
-      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt);
+      const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
       return sum + remainingDebt;
     }, 0);
 
@@ -249,7 +247,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
     if (ok) {
       unpaidStmts.forEach(stmt => {
-        const { remainingDebt } = getStatementPayoutInfo(session.id, stmt);
+        const { remainingDebt } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
         if (remainingDebt > 0) {
           StorageService.savePaymentRecord({
             sessionId: session.id,
@@ -445,8 +443,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   if (!matchesSearch) return false;
                   if (statusFilter === 'ALL') return true;
                   if (!isSessionEligibleForPayout(session)) return statusFilter === 'HOLD';
-                  const total = session.statements.reduce((sum, stmt) => sum + calculateStatementSettlement(stmt).amountPayable, 0);
-                  const paid = session.statements.reduce((sum, stmt) => sum + getStatementPayoutInfo(session.id, stmt).paidAmount, 0);
+                  const total = session.statements.reduce((sum, stmt) => sum + stmt.totalNetPayout, 0);
+                  const paid = session.statements.reduce((sum, stmt) => sum + getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout).paidAmount, 0);
                   const status: PayoutStatus = paid >= total && total > 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : 'UNPAID';
                   return status === statusFilter;
                 })
@@ -457,8 +455,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   let sessionPaid = 0;
 
                   session.statements.forEach(stmt => {
-                    sessionNetPayout += calculateStatementSettlement(stmt).amountPayable;
-                    const { paidAmount } = getStatementPayoutInfo(session.id, stmt);
+                    sessionNetPayout += stmt.totalNetPayout;
+                    const { paidAmount } = getStatementPayoutInfo(session.id, stmt.shopId, stmt.totalNetPayout);
                     sessionPaid += paidAmount;
                   });
 
@@ -636,9 +634,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
                   const shopPayments = payments.filter(p => !p.voidedAt && (p.shopId === shop.id || p.shopCode === shop.code));
                   const shopPaidTotal = shopPayments.reduce((sum, p) => sum + p.amount, 0);
-                  const currentBalance = calculateOpeningDebtForNewStatement(shop, sessions, payments);
-                  const shopDebt = Math.max(0, currentBalance);
-                  const isShopOwingGomdon = currentBalance < 0;
+                  const shopDebt = Math.max(0, shopTotalNetPayout - shopPaidTotal);
+                  const isShopOwingGomdon = shopTotalNetPayout < 0;
 
                   return (
                     <tr key={shop.id}>
@@ -663,12 +660,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       <td className="mono" style={{ fontWeight: 700, color: isShopOwingGomdon ? 'var(--danger)' : 'var(--primary)', textAlign: 'right' }}>{formatVND(shopTotalNetPayout)}</td>
                       <td className="mono" style={{ fontWeight: 700, color: 'var(--success)', textAlign: 'right' }}>{formatVND(shopPaidTotal)}</td>
                       <td className="mono" style={{ fontWeight: 800, color: isShopOwingGomdon ? 'var(--danger)' : shopDebt > 0 ? 'var(--danger)' : 'var(--success)', textAlign: 'right' }}>
-                        {isShopOwingGomdon ? `-${formatVND(Math.abs(currentBalance))}` : formatVND(shopDebt)}
+                        {isShopOwingGomdon ? `-${formatVND(Math.abs(shopTotalNetPayout))}` : formatVND(shopDebt)}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         {isShopOwingGomdon ? (
                           <span className="badge badge-warning" style={{ fontSize: 10 }} title="Shop đang nợ tiền cước nhà gom, số tiền này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo">
-                            🔴 Nợ Nhà Gom {formatVND(Math.abs(currentBalance))}
+                            🔴 Nợ Nhà Gom {formatVND(Math.abs(shopTotalNetPayout))}
                           </span>
                         ) : shopDebt > 0 ? (
                           <span className="badge badge-danger" style={{ fontSize: 10 }}>Cần trả {formatVND(shopDebt)}</span>
@@ -875,8 +872,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       return stmt.shopName.toLowerCase().includes(q) || stmt.shopCode.toLowerCase().includes(q);
                     })
                     .map(stmt => {
-                      const { paidAmount, remainingDebt, shopOwes, status } = getStatementPayoutInfo(activeDetailSession.id, stmt);
-                      const statementSettlement = calculateStatementSettlement(stmt);
+                      const { paidAmount, remainingDebt, status } = getStatementPayoutInfo(activeDetailSession.id, stmt.shopId, stmt.totalNetPayout);
 
                       return (
                         <tr key={stmt.shopId}>
@@ -897,15 +893,15 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           </td>
                           <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(stmt.totalCod)}</td>
                           <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}</td>
-                          <td className="mono" style={{ fontWeight: 700, color: shopOwes > 0 ? 'var(--danger)' : 'var(--primary)', textAlign: 'right' }}>{formatVND(statementSettlement.amountPayable)}</td>
+                          <td className="mono" style={{ fontWeight: 700, color: 'var(--primary)', textAlign: 'right' }}>{formatVND(stmt.totalNetPayout)}</td>
                           <td className="mono" style={{ fontWeight: 700, color: 'var(--success)', textAlign: 'right' }}>{formatVND(paidAmount)}</td>
                           <td className="mono" style={{ fontWeight: 800, color: remainingDebt > 0 ? 'var(--danger)' : 'var(--success)', textAlign: 'right' }}>
                             {formatVND(remainingDebt)}
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            {shopOwes > 0 ? (
+                            {stmt.totalNetPayout < 0 ? (
                               <span className="badge badge-warning" style={{ fontSize: 10 }}>
-                                🔴 Shop nợ {formatVND(shopOwes)}
+                                🔴 Shop nợ {formatVND(Math.abs(stmt.totalNetPayout))}
                               </span>
                             ) : (
                               <>

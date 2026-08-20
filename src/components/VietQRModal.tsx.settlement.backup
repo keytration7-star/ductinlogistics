@@ -8,7 +8,6 @@ interface VietQRModalProps {
 }
 
 import { BANK_CODES } from '../constants/banks';
-import { calculateStatementSettlement } from '../services/settlementService';
 
 export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) => {
   const [copied, setCopied] = useState(false);
@@ -19,8 +18,7 @@ export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) 
   const bankCode = BANK_CODES[bankName] || 'MB';
   const accountNumber = statement.bankInfo.accountNumber.replace(/[^0-9]/g, '') || '091234567899';
   const accountHolder = encodeURIComponent(statement.bankInfo.accountHolder || statement.shopName);
-  const settlement = calculateStatementSettlement(statement);
-  const amount = settlement.amountPayable;
+  const amount = Math.max(0, statement.totalNetPayout);
   const memo = encodeURIComponent(`DOI SOAT ${statement.shopCode} ${statement.periodName.replace(/[^a-zA-Z0-9]/g, '')}`);
 
   const qrUrl = `https://img.vietqr.io/image/${bankCode}-${accountNumber}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${accountHolder}`;
@@ -58,15 +56,11 @@ export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) 
           <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 4 }}>
             Thanh toán đối soát cho: <strong>{statement.shopName}</strong>
           </div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: amount > 0 ? 'var(--success)' : 'var(--danger)', fontFamily: 'var(--font-mono)', marginBottom: 16 }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--success)', fontFamily: 'var(--font-mono)', marginBottom: 16 }}>
             {new Intl.NumberFormat('vi-VN').format(amount)} đ
           </div>
 
-          {settlement.amountShopOwes > 0 ? (
-            <div style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16, fontSize: 14, fontWeight: 700 }}>
-              Shop còn nợ công ty {new Intl.NumberFormat('vi-VN').format(settlement.amountShopOwes)} đ. Không tạo mã QR chuyển tiền; số nợ sẽ chuyển sang kỳ sau.
-            </div>
-          ) : <div style={{
+          <div style={{
             background: '#ffffff',
             padding: 16,
             borderRadius: 'var(--radius-lg)',
@@ -82,7 +76,7 @@ export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) 
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
-          </div>}
+          </div>
 
           <div style={{
             background: 'var(--bg-primary)',

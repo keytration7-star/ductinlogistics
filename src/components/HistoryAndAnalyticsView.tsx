@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useConfirm } from './UIFeedback';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -9,12 +8,11 @@ import {
   FileSpreadsheet, 
   Award,
   Search,
-  Trash2,
   PieChart,
   Layers,
   Mail
 } from 'lucide-react';
-import type { ReconciliationSession, Shop, UserAccount } from '../types';
+import type { ReconciliationSession, Shop } from '../types';
 import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 
@@ -23,8 +21,6 @@ interface HistoryAndAnalyticsViewProps {
   shops: Shop[];
   onSelectSession: (session: ReconciliationSession) => void;
   onNavigateToEmail?: (session: ReconciliationSession) => void;
-  onDeleteSession?: (sessionId: string) => void;
-  currentUser?: UserAccount;
 }
 
 export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = ({
@@ -32,10 +28,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   shops,
   onSelectSession,
   onNavigateToEmail,
-  onDeleteSession,
-  currentUser,
 }) => {
-  const { showConfirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [carrierFilter, setCarrierFilter] = useState('ALL');
 
@@ -46,7 +39,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     const fee = (stmt.totalShopFee || 0) + (stmt.totalShopOtherFee || 0);
     if (fee > 0) return fee;
     if (stmt.orders && stmt.orders.length > 0) {
-      return stmt.orders.reduce((sum: number, o: any) => sum + (o.shopCalculatedFee || 25000) + (o.shopOtherFee || 0), 0);
+      return stmt.orders.reduce((sum: number, o: any) => sum + (o.shopCalculatedFee ?? 0) + (o.shopOtherFee ?? 0), 0);
     }
     return 0;
   };
@@ -66,12 +59,12 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   };
 
   const getSessionShopRevenue = (s: ReconciliationSession) => {
-    if (s.totalShopRevenue > 0) return s.totalShopRevenue;
+    if (s.totalShopRevenue !== undefined) return s.totalShopRevenue;
     return s.statements.reduce((sum, st) => sum + getStmtShopFee(st), 0);
   };
 
   const getSessionNvcCost = (s: ReconciliationSession) => {
-    if (s.totalNvcCost > 0) return s.totalNvcCost;
+    if (s.totalNvcCost !== undefined) return s.totalNvcCost;
     return s.statements.reduce((sum, st) => sum + getStmtNvcCost(st), 0);
   };
 
@@ -128,26 +121,6 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     const matchCarrier = carrierFilter === 'ALL' || s.carrierId === carrierFilter;
     return matchQuery && matchCarrier;
   });
-
-  const handleDelete = async (sess: ReconciliationSession) => {
-    if (currentUser?.role !== 'ADMIN') {
-      await showConfirm({
-        title: '🔒 Quyền Quản Trị Viên',
-        message: 'Tài khoản Kế toán / Nhân viên không có quyền xóa kỳ đối soát dòng tiền. Chỉ Admin mới có quyền thực hiện thao tác này.',
-        confirmText: 'Đã hiểu',
-      });
-      return;
-    }
-    const ok = await showConfirm({
-      title: 'Xoá Kỳ Đối Soát',
-      message: `Bạn có chắc muốn xóa kỳ đối soát "${sess.sessionName}"?`,
-      confirmText: 'Xoá',
-      danger: true,
-    });
-    if (ok && onDeleteSession) {
-      onDeleteSession(sess.id);
-    }
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -462,16 +435,6 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                         <FileSpreadsheet size={13} />
                       </button>
 
-                      {onDeleteSession && (
-                        <button
-                          onClick={() => handleDelete(session)}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '5px 8px' }}
-                          title="Xóa kỳ đối soát này"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>

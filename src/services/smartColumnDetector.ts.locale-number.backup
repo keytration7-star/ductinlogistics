@@ -390,39 +390,8 @@ export function autoDetectColumns(
 export function parseNumber(val: any): number {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  // Files from carriers may store amounts as Vietnamese text (1.234.000),
-  // English text (1,234,000), or a decimal weight (0,5 / 0.5). Preserve the
-  // sign and decide separators before parsing instead of blindly removing only
-  // commas, which turns 1.234.000 into 1.234.
-  let str = val.toString()
-    .replace(/đ|vnd|₫/gi, '')
-    .replace(/\s/g, '')
-    .replace(/[^0-9,.-]/g, '');
-  if (!str || str === '-' || str === '.' || str === ',') return 0;
-
-  const commaCount = (str.match(/,/g) || []).length;
-  const dotCount = (str.match(/\./g) || []).length;
-  if (commaCount > 0 && dotCount > 0) {
-    // The right-most separator is the decimal separator.
-    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
-      str = str.replace(/\./g, '').replace(',', '.');
-    } else {
-      str = str.replace(/,/g, '');
-    }
-  } else if (commaCount > 0 || dotCount > 0) {
-    const separator = commaCount > 0 ? ',' : '.';
-    const count = commaCount || dotCount;
-    const parts = str.split(separator);
-    const decimalDigits = parts[parts.length - 1].length;
-    const looksLikeThousands = count > 1 || (count === 1 && decimalDigits === 3 && parts[0].replace('-', '').length > 0);
-    if (looksLikeThousands) {
-      str = str.split(separator).join('');
-    } else if (separator === ',') {
-      str = str.replace(',', '.');
-    }
-  }
-
-  const num = Number(str);
+  const str = val.toString().replace(/,/g, '').replace(/đ|vnd|VND|₫|k|K/g, '').trim();
+  const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 }
 

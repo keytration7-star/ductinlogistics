@@ -245,7 +245,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           borderTop: '1px solid var(--border-color)',
         }}>
           <ShieldCheck size={15} color="var(--success)" />
-          <span>Hệ thống bảo mật cục bộ an toàn 100%</span>
+          <span>Truy cập nội bộ có phân quyền — không chia sẻ thông tin đăng nhập</span>
         </div>
 
       </div>

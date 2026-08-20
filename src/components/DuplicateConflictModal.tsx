@@ -1,11 +1,10 @@
-import { AlertTriangle, RefreshCcw, Filter, X, ArrowRight, FileText } from 'lucide-react';
+import { AlertTriangle, Filter, X, ArrowRight, FileText } from 'lucide-react';
 import type { DuplicateCheckResult } from '../services/reconciliationService';
 
 interface DuplicateConflictModalProps {
   isOpen: boolean;
   onClose: () => void;
   checkResult: DuplicateCheckResult;
-  onOverwrite: () => void;
   onFilterNewOnly: () => void;
 }
 
@@ -13,7 +12,6 @@ export const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
   isOpen,
   onClose,
   checkResult,
-  onOverwrite,
   onFilterNewOnly,
 }) => {
   if (!isOpen || !checkResult.hasConflict) return null;
@@ -164,45 +162,7 @@ export const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
           {/* Action Options */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             
-            {/* Option 1: Overwrite & Replace */}
-            <button
-              onClick={onOverwrite}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '14px 18px',
-                borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(99, 102, 241, 0.08) 100%)',
-                border: '1.5px solid var(--primary)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--primary)', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <RefreshCcw size={18} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>
-                    🔄 Cập Nhật & Ghi Đè (Lấy dữ liệu từ file mới này)
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Cập nhật lại số liệu của kỳ đối soát cũ bằng tệp file mới này. Tránh bị cộng dồn số tiền.
-                  </div>
-                </div>
-              </div>
-              <ArrowRight size={18} color="var(--primary)" />
-            </button>
-
-            {/* Option 2: Filter New Only */}
+            {/* Only new rows can be processed; a stored financial session is never overwritten here. */}
             {!is100PercentDuplicate && (
               <button
                 onClick={onFilterNewOnly}
@@ -240,6 +200,12 @@ export const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
                 </div>
                 <ArrowRight size={18} color="#059669" />
               </button>
+            )}
+
+            {is100PercentDuplicate && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                Toàn bộ đơn đã có trong lịch sử. App giữ nguyên kỳ đã lưu; hãy mở kỳ cũ để kiểm tra hoặc tạo một kỳ hiệu chỉnh có phê duyệt riêng.
+              </div>
             )}
 
           </div>

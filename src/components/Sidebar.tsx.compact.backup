@@ -161,11 +161,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Top Branding & User Header */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{
-          padding: '12px 14px 10px',
+          padding: '14px 14px 12px',
           borderBottom: '1px solid var(--border-color)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 12,
         }}>
           {/* 1. BRANDING HEADER */}
           <div 
@@ -179,8 +179,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }}
           >
             <div style={{
-              width: 34,
-              height: 34,
+              width: 36,
+              height: 36,
               borderRadius: 'var(--radius-md)',
               background: 'var(--primary)',
               display: 'flex',
@@ -190,18 +190,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               flexShrink: 0,
               boxShadow: 'var(--shadow-sm)',
             }}>
-              <Truck size={18} />
+              <Truck size={19} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 14.5, fontWeight: 750, letterSpacing: '-0.025em', color: 'var(--text-main)' }}>
+                <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
                   GOMDON <span style={{ color: 'var(--primary)' }}>PRO</span>
                 </span>
                 <span className="badge badge-primary" style={{ fontSize: 9, padding: '1px 5px' }}>
                   ENTERPRISE
                 </span>
               </div>
-              <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 500, letterSpacing: '-0.01em' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 500 }}>
                 Hệ Thống Đối Soát & Quản Trị
               </div>
             </div>
@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* 2. USER PROFILE BLOCK */}
           <div style={{
             background: 'var(--bg-secondary)',
-            padding: '7px 9px',
+            padding: '8px 10px',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-color)',
             display: 'flex',
@@ -226,8 +226,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, cursor: currentUser.role === 'ADMIN' ? 'pointer' : 'default', flex: 1 }}
             >
               <div style={{
-                width: 29,
-                height: 29,
+                width: 30,
+                height: 30,
                 borderRadius: '50%',
                 background: 'var(--primary)',
                 color: '#fff',
@@ -235,13 +235,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
-                fontSize: 11.5,
+                fontSize: 12,
                 flexShrink: 0,
               }}>
                 {currentUser.fullName ? currentUser.fullName.slice(0, 2).toUpperCase() : 'U'}
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-main)' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-main)' }}>
                   {currentUser.fullName}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
@@ -262,23 +262,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Grouped Navigation Menu */}
-        <div style={{ padding: '10px 10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {navGroups.map(group => {
             const allowedItems = group.items.filter(i => i.roles.includes(currentUser.role));
             if (allowedItems.length === 0) return null;
             return (
               <div key={group.title}>
                 <div style={{
-                  fontSize: 10.5,
-                  fontWeight: 750,
+                  fontSize: 12,
+                  fontWeight: 800,
                   color: '#475569',
-                  letterSpacing: '0.075em',
-                  padding: '7px 9px 4px',
+                  letterSpacing: '0.08em',
+                  padding: '6px 8px 6px',
                   textTransform: 'uppercase',
                 }}>
                   {group.title}
                 </div>
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {allowedItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -288,11 +288,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => setActiveTab(item.id)}
                         className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                           <div className="sidebar-icon-box" style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 9,
+                            width: 32,
+                            height: 32,
+                            borderRadius: 10,
                             background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-tertiary)',
                             color: isActive ? '#ffffff' : 'var(--primary)',
                             display: 'flex',
@@ -301,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             flexShrink: 0,
                             transition: 'all 0.2s ease',
                           }}>
-                            <Icon size={17} />
+                            <Icon size={18} />
                           </div>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.label}

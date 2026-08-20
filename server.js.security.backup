@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 
@@ -66,97 +65,6 @@ function writeJsonFile(filename, data) {
   }
 }
 
-// ──────────────────────────────────────────
-// 🔐 SERVER-SIDE AUTHORIZATION
-// Browser-side role checks are only a UI convenience. All access to financial
-// data must be verified here, where a visitor cannot forge an ADMIN role.
-// Sessions intentionally live only in memory: a server restart invalidates old
-// tokens and requires a fresh sign-in.
-// ──────────────────────────────────────────
-const activeSessions = new Map();
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-
-function publicUser(user) {
-  if (!user) return null;
-  const { password: _password, ...safeUser } = user;
-  return safeUser;
-}
-
-function readBearerToken(req) {
-  const header = req.get('authorization') || '';
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : '';
-}
-
-function requireAuth(req, res, next) {
-  const token = readBearerToken(req);
-  const session = token ? activeSessions.get(token) : null;
-  if (!session || session.expiresAt <= Date.now()) {
-    if (token) activeSessions.delete(token);
-    return res.status(401).json({ success: false, error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
-  }
-  req.authUser = session.user;
-  next();
-}
-
-function requireAdmin(req, res, next) {
-  if (req.authUser?.role !== 'ADMIN') {
-    return res.status(403).json({ success: false, error: 'Chỉ Quản trị viên mới có quyền thực hiện thao tác này.' });
-  }
-  next();
-}
-
-function requireFinanceWrite(req, res, next) {
-  if (!['ADMIN', 'ACCOUNTANT', 'STAFF'].includes(req.authUser?.role)) {
-    return res.status(403).json({ success: false, error: 'Tài khoản không có quyền ghi dữ liệu vận hành.' });
-  }
-  next();
-}
-
-app.post('/api/auth/login', (req, res) => {
-  const username = String(req.body?.username || '').trim();
-  const password = String(req.body?.password || '').trim();
-  if (!username || !password) {
-    return res.status(400).json({ success: false, error: 'Vui lòng nhập tên đăng nhập và mật khẩu.' });
-  }
-  const users = readJsonFile('users.json', []);
-  const user = Array.isArray(users) ? users.find(item => item?.username?.toLowerCase() === username.toLowerCase()) : null;
-  if (!user || !user.active || user.password !== password) {
-    return res.status(401).json({ success: false, error: 'Tên đăng nhập hoặc mật khẩu không chính xác.' });
-  }
-  const deviceId = String(req.body?.deviceId || '').trim();
-  if (user.role !== 'ADMIN' && user.activeDeviceId && user.activeDeviceId !== deviceId) {
-    return res.status(403).json({ success: false, error: 'Tài khoản đang hoạt động trên một thiết bị khác.' });
-  }
-  const now = new Date().toISOString();
-  user.lastLoginAt = now;
-  user.lastActiveAt = now;
-  if (deviceId) user.activeDeviceId = deviceId;
-  if (req.body?.deviceName) user.activeDeviceName = String(req.body.deviceName).slice(0, 120);
-  writeJsonFile('users.json', users);
-  const token = crypto.randomBytes(32).toString('base64url');
-  const safeUser = publicUser(user);
-  activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + SESSION_TTL_MS });
-  res.json({ success: true, token, user: safeUser, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() });
-});
-
-app.post('/api/auth/logout', requireAuth, (req, res) => {
-  activeSessions.delete(readBearerToken(req));
-  res.json({ success: true });
-});
-
-app.get('/api/auth/me', requireAuth, (req, res) => res.json({ success: true, user: req.authUser }));
-
-app.post('/api/auth/verify-password', requireAuth, (req, res) => {
-  const password = String(req.body?.password || '').trim();
-  const users = readJsonFile('users.json', []);
-  const current = Array.isArray(users) ? users.find(user => user?.id === req.authUser.id) : null;
-  if (!current || current.password !== password) {
-    return res.status(401).json({ success: false, error: 'Mật khẩu không chính xác.' });
-  }
-  res.json({ success: true });
-});
-
 // 📸 AUTOMATED SERVER SNAPSHOT BACKUP ENGINE
 function createSnapshot(reason = 'auto') {
   try {
@@ -205,7 +113,7 @@ setInterval(() => {
 // ──────────────────────────────────────────
 
 // GET all data from server storage
-app.get('/api/db/all', requireAuth, (req, res) => {
+app.get('/api/db/all', (req, res) => {
   try {
     const shops = readJsonFile('shops.json', null);
     const carriers = readJsonFile('carriers.json', null);
@@ -229,7 +137,7 @@ app.get('/api/db/all', requireAuth, (req, res) => {
         emailSettings,
         exportColumns,
         carrierData,
-        users: Array.isArray(users) ? users.map(publicUser) : users,
+        users,
         payments,
         ctvs,
         auditLogs,
@@ -241,58 +149,49 @@ app.get('/api/db/all', requireAuth, (req, res) => {
 });
 
 // GET payments
-app.get('/api/db/payments', requireAuth, (req, res) => {
+app.get('/api/db/payments', (req, res) => {
   const payments = readJsonFile('payments.json', []);
   res.json({ success: true, payments });
 });
 
 // POST save payments
-app.post('/api/db/payments', requireAuth, requireFinanceWrite, (req, res) => {
+app.post('/api/db/payments', (req, res) => {
   const success = writeJsonFile('payments.json', req.body.payments || []);
   res.json({ success });
 });
 
 // POST save ctvs
-app.post('/api/db/ctvs', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/ctvs', (req, res) => {
   const success = writeJsonFile('ctvs.json', req.body.ctvs || []);
   res.json({ success });
 });
 
 // POST save users
-app.post('/api/db/users', requireAuth, requireAdmin, (req, res) => {
-  const currentUsers = readJsonFile('users.json', []);
-  const currentById = new Map((Array.isArray(currentUsers) ? currentUsers : []).map(user => [user.id, user]));
-  const incomingUsers = Array.isArray(req.body.users) ? req.body.users : [];
-  // Password hashes/secrets must never be sent back to the browser. Preserve
-  // the stored password when an Admin edits other profile fields.
-  const users = incomingUsers.map(user => {
-    const current = currentById.get(user?.id);
-    return current && !user?.password ? { ...user, password: current.password } : user;
-  });
-  const success = writeJsonFile('users.json', users);
+app.post('/api/db/users', (req, res) => {
+  const success = writeJsonFile('users.json', req.body.users || []);
   res.json({ success });
 });
 
 // POST save shops
-app.post('/api/db/shops', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/shops', (req, res) => {
   const success = writeJsonFile('shops.json', req.body.shops || []);
   res.json({ success });
 });
 
 // POST save carriers
-app.post('/api/db/carriers', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/carriers', (req, res) => {
   const success = writeJsonFile('carriers.json', req.body.carriers || []);
   res.json({ success });
 });
 
 // POST save sessions (bulk)
-app.post('/api/db/sessions', requireAuth, requireFinanceWrite, (req, res) => {
+app.post('/api/db/sessions', (req, res) => {
   const success = writeJsonFile('sessions.json', req.body.sessions || []);
   res.json({ success });
 });
 
 // POST upsert single session (granually without array trimming)
-app.post('/api/db/sessions/upsert', requireAuth, requireFinanceWrite, (req, res) => {
+app.post('/api/db/sessions/upsert', (req, res) => {
   try {
     const { session } = req.body;
     if (!session || !session.id) {
@@ -313,7 +212,7 @@ app.post('/api/db/sessions/upsert', requireAuth, requireFinanceWrite, (req, res)
 });
 
 // POST delete single session
-app.post('/api/db/sessions/delete', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/sessions/delete', (req, res) => {
   try {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: 'Thiếu id session' });
@@ -327,31 +226,31 @@ app.post('/api/db/sessions/delete', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST save company info
-app.post('/api/db/company-info', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/company-info', (req, res) => {
   const success = writeJsonFile('company_info.json', req.body.companyInfo || {});
   res.json({ success });
 });
 
 // POST save email settings
-app.post('/api/db/email-settings', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/email-settings', (req, res) => {
   const success = writeJsonFile('email_settings.json', req.body.emailSettings || {});
   res.json({ success });
 });
 
 // POST save export columns
-app.post('/api/db/export-columns', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/export-columns', (req, res) => {
   const success = writeJsonFile('export_columns.json', req.body.exportColumns || {});
   res.json({ success });
 });
 
 // POST save audit logs
-app.post('/api/db/audit-logs', requireAuth, requireFinanceWrite, (req, res) => {
+app.post('/api/db/audit-logs', (req, res) => {
   const success = writeJsonFile('audit_logs.json', req.body.logs || []);
   res.json({ success });
 });
 
 // POST save carrier data
-app.post('/api/db/carrier-data', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/carrier-data', (req, res) => {
   const current = readJsonFile('carrier_data.json', {});
   const updated = { ...current, ...req.body.carrierData };
   const success = writeJsonFile('carrier_data.json', updated);
@@ -359,7 +258,7 @@ app.post('/api/db/carrier-data', requireAuth, requireAdmin, (req, res) => {
 });
 
 // GET snapshots list
-app.get('/api/db/snapshots', requireAuth, requireAdmin, (req, res) => {
+app.get('/api/db/snapshots', (req, res) => {
   try {
     if (!fs.existsSync(BACKUPS_DIR)) return res.json({ success: true, snapshots: [] });
     const files = fs.readdirSync(BACKUPS_DIR)
@@ -382,7 +281,7 @@ app.get('/api/db/snapshots', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST create manual snapshot
-app.post('/api/db/snapshots/create', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/snapshots/create', (req, res) => {
   const snapshotName = createSnapshot('manual_admin');
   if (snapshotName) {
     res.json({ success: true, snapshotName, message: 'Đã tạo bản sao lưu snapshot thành công!' });
@@ -392,7 +291,7 @@ app.post('/api/db/snapshots/create', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST restore snapshot
-app.post('/api/db/snapshots/restore', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/snapshots/restore', (req, res) => {
   try {
     const { filename } = req.body;
     if (!filename) return res.status(400).json({ success: false, error: 'Thiếu tên file snapshot' });
@@ -429,7 +328,7 @@ app.post('/api/db/snapshots/restore', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST import full backup to server
-app.post('/api/db/backup/import', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/backup/import', (req, res) => {
   try {
     createSnapshot('pre_import_safety');
     const backup = req.body;
@@ -453,7 +352,7 @@ app.post('/api/db/backup/import', requireAuth, requireAdmin, (req, res) => {
 // ──────────────────────────────────────────
 // 📲 TELEGRAM BOT API
 // ──────────────────────────────────────────
-app.post('/api/send-telegram', requireAuth, async (req, res) => {
+app.post('/api/send-telegram', async (req, res) => {
   try {
     const { botToken, chatId, text } = req.body;
     if (!botToken || !chatId || !text) {
@@ -488,7 +387,7 @@ app.post('/api/send-telegram', requireAuth, async (req, res) => {
 // ──────────────────────────────────────────
 // 📧 EMAIL API
 // ──────────────────────────────────────────
-app.post('/api/send-email', requireAuth, async (req, res) => {
+app.post('/api/send-email', async (req, res) => {
   try {
     const {
       senderName,

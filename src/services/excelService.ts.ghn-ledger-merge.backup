@@ -5,7 +5,6 @@ import { saveAs } from 'file-saver';
 import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
 import { normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
-import { calculateStatementSettlement } from './settlementService';
 import { extractRowField } from './reconciliationService';
 
 export function formatAnyDateValue(val: any): string {
@@ -99,10 +98,8 @@ function findGhnHeaderRow(rawSheetData: any[][]): number {
 /**
  * GHN settlement workbooks place two independent ledgers side-by-side:
  * delivered COD orders on the left and shipment fees charged in the period on
- * the right. A waybill can appear once in each ledger: it is one shipment,
- * not a duplicate. Merge only that unambiguous one-to-one case; every other
- * repetition remains separate so the reconciliation gate can hold it for
- * manual verification.
+ * the right. Flatten them into one auditable row stream without modifying the
+ * customer-provided workbook.
  */
 function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Record<string, any>[] | null {
   const headerRowIndex = findGhnHeaderRow(rawSheetData);
@@ -116,8 +113,7 @@ function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Reco
   if (waybillIndexes.length < 2) return null;
 
   const [deliveredStart, feeStart] = waybillIndexes;
-  const deliveredRows: Record<string, any>[] = [];
-  const feeRows: Record<string, any>[] = [];
+  const rows: Record<string, any>[] = [];
   const valueAt = (row: any[], index: number) => row[index] ?? '';
   const validWaybill = (value: any) => {
     const text = String(value || '').trim();
@@ -147,7 +143,7 @@ function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Reco
     const feeWaybill = valueAt(row, feeStart);
 
     if (validWaybill(deliveredWaybill)) {
-      deliveredRows.push({
+      rows.push({
         'Mã đơn GHN': String(deliveredWaybill).trim(),
         'Mã đơn khách hàng': valueAt(row, deliveredStart + 1),
         'Cửa hàng': valueAt(row, deliveredStart + 2),
@@ -171,7 +167,7 @@ function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Reco
       const feeShopName = valueAt(row, feeStart + 2);
       const feeShopCodes = codesByShopName.get(shopNameKey(feeShopName));
       const inferredFeeShopCode = feeShopCodes?.size === 1 ? Array.from(feeShopCodes)[0] : '';
-      feeRows.push({
+      rows.push({
         'Mã đơn GHN': String(feeWaybill).trim(),
         'Mã đơn khách hàng': valueAt(row, feeStart + 1),
         'Cửa hàng': feeShopName,
@@ -194,40 +190,6 @@ function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Reco
       });
     }
   }
-  const byWaybill = (items: Record<string, any>[]) => items.reduce((map, item) => {
-    const waybill = String(item['Mã đơn GHN'] || '').trim().toUpperCase();
-    const list = map.get(waybill) || [];
-    list.push(item);
-    map.set(waybill, list);
-    return map;
-  }, new Map<string, Record<string, any>[]>());
-  const deliveredByWaybill = byWaybill(deliveredRows);
-  const feesByWaybill = byWaybill(feeRows);
-  const rows: Record<string, any>[] = [];
-  const mergedWaybills = new Set<string>();
-
-  deliveredRows.forEach(delivered => {
-    const waybill = String(delivered['Mã đơn GHN'] || '').trim().toUpperCase();
-    const deliveredMatches = deliveredByWaybill.get(waybill) || [];
-    const feeMatches = feesByWaybill.get(waybill) || [];
-    if (deliveredMatches.length === 1 && feeMatches.length === 1) {
-      const fee = feeMatches[0];
-      rows.push({
-        ...delivered,
-        'Cước phí': fee['Cước phí'],
-        'Loại dòng đối soát': 'COD + cước GHN đã cấn trừ',
-      });
-      mergedWaybills.add(waybill);
-      return;
-    }
-    rows.push(delivered);
-  });
-
-  feeRows.forEach(fee => {
-    const waybill = String(fee['Mã đơn GHN'] || '').trim().toUpperCase();
-    if (!mergedWaybills.has(waybill)) rows.push(fee);
-  });
-
   return rows;
 }
 
@@ -535,9 +497,8 @@ export const ExcelService = {
     });
 
     // 🌟 Yêu cầu 3: Thống kê chi tiết Đơn Giao (BN đơn, BN tiền), Đơn Hoàn, Đơn GH1P, Công nợ cũ
-    const settlement = calculateStatementSettlement(statement);
-    const previousDebtVal = settlement.openingDebt;
-    const finalPayout = settlement.amountPayable;
+    const previousDebtVal = statement.previousDebt || 0;
+    const finalPayout = statement.totalNetPayout + previousDebtVal;
 
     const rowsData = [
       ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
@@ -548,8 +509,7 @@ export const ExcelService = {
       ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],
       ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
       ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
-      ['9. Công nợ đầu kỳ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop (cộng vào kỳ này)' : 'Không có công nợ đầu kỳ'],
-      ['10. Shop còn nợ công ty', settlement.amountShopOwes, 'VNĐ', settlement.amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
+      ['9. Công nợ cũ còn nợ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop còn nợ công ty (trừ bớt vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop từ kỳ trước (cộng thêm vào kỳ này)' : 'Không có công nợ cũ'],
     ];
 
     rowsData.forEach(r => {
@@ -567,7 +527,7 @@ export const ExcelService = {
     });
 
     // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text
-    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', settlement.amountShopOwes > 0 ? 'Không chuyển tiền; công nợ shop được chuyển sang kỳ sau' : 'Tiền công ty sẽ chuyển khoản cho Shop']);
+    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', 'Tiền công ty sẽ chuyển khoản cho Shop']);
     grandRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
       cell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFF0000' } }; // Red
@@ -820,7 +780,6 @@ export const ExcelService = {
     });
 
     session.statements.forEach((stmt, idx) => {
-      const settlement = calculateStatementSettlement(stmt);
       const addedRow = wsMaster.addRow([
         idx + 1,
         stmt.shopCode,
@@ -831,7 +790,7 @@ export const ExcelService = {
         stmt.totalShopFee + stmt.totalShopOtherFee,
         stmt.totalNvcCost,
         stmt.totalProfit,
-        settlement.amountPayable,
+        stmt.totalNetPayout,
         `${stmt.bankInfo.bankName} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder})`,
       ]);
 
@@ -853,7 +812,7 @@ export const ExcelService = {
       session.totalShopRevenue,
       session.totalNvcCost,
       session.totalProfit,
-      session.statements.reduce((sum, stmt) => sum + calculateStatementSettlement(stmt).amountPayable, 0),
+      session.totalNetPayout,
       '',
     ]);
 

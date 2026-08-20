@@ -28,12 +28,7 @@ import { AuthService } from './services/authService';
 
 export function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  // Sessions created before server-side authentication have no access token.
-  // Treat them as logged out so the UI can never look authenticated while its
-  // data requests are correctly rejected by the server.
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() =>
-    AuthService.getAccessToken() ? AuthService.getCurrentUser() : null
-  );
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => AuthService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<string>('reconciliation');
 
   const [shops, setShops] = useState<Shop[]>([]);
@@ -48,11 +43,8 @@ export function App() {
   const [dataConnection, setDataConnection] = useState<'checking' | 'connected' | 'offline'>('checking');
 
   useEffect(() => {
-    // Data APIs require a server-issued session. Loading before login would
-    // either fail or show stale browser cache, so sync only after auth exists.
-    if (currentUser) loadAllData();
-    else setDataConnection('offline');
-  }, [currentUser]);
+    loadAllData();
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);

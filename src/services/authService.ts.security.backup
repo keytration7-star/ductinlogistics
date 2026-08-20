@@ -3,12 +3,6 @@ import { DeviceService } from './deviceService';
 
 const USERS_STORAGE_KEY = 'gomdon_users_v1';
 const CURRENT_USER_STORAGE_KEY = 'gomdon_current_user_v1';
-const ACCESS_TOKEN_STORAGE_KEY = 'gomdon_access_token_v1';
-
-export const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 export const DEFAULT_ADMIN_USER: UserAccount = {
   id: 'user_super_admin',
@@ -34,8 +28,7 @@ export const AuthService = {
       }
     }
 
-    // Keep the local list display-only. Passwords are intentionally not
-    // returned by the server after login/sync.
+    // Migrate any legacy super admin (e.g. 'Ductin-admin' or 'user_super_admin') to 'admin' / 'admin@'
     let adminFound = false;
     users = users.map(u => {
       if (u.id === 'user_super_admin' || u.username?.toLowerCase() === 'ductin-admin' || u.username?.toLowerCase() === 'admin') {
@@ -44,6 +37,7 @@ export const AuthService = {
           ...u,
           id: 'user_super_admin',
           username: 'admin',
+          password: (u.password === 'ductin@admin' || !u.password) ? 'admin@' : u.password,
           fullName: (u.fullName && u.fullName.includes('Đức Tín')) ? 'Quản Trị Viên (Admin)' : (u.fullName || 'Quản Trị Viên (Admin)'),
         };
       }
@@ -54,6 +48,7 @@ export const AuthService = {
       users.unshift(DEFAULT_ADMIN_USER);
     }
 
+    this.saveUsers(users);
     return users;
   },
 
@@ -61,20 +56,57 @@ export const AuthService = {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
     fetch('/api/db/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ users }),
     }).catch(err => console.warn('[User Server Save Fail]:', err));
   },
 
   async syncUsersFromServer(): Promise<UserAccount[]> {
     try {
-      const res = await fetch('/api/db/all', { headers: getAuthHeaders() });
+      const res = await fetch('/api/db/all');
       if (res.ok) {
         const result = await res.json();
         let serverUsers: UserAccount[] = (result.success && result.data && Array.isArray(result.data.users)) ? result.data.users : [];
 
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(serverUsers));
-        return serverUsers;
+        // Clean up serverUsers: convert legacy 'Ductin-admin' to 'admin'
+        serverUsers = serverUsers.map(u => {
+          if (u && (u.id === 'user_super_admin' || u.username?.toLowerCase() === 'ductin-admin' || u.username?.toLowerCase() === 'admin')) {
+            return {
+              ...u,
+              id: 'user_super_admin',
+              username: 'admin',
+              password: (u.password === 'ductin@admin' || !u.password) ? 'admin@' : u.password,
+            };
+          }
+          return u;
+        });
+
+        const localUsers: UserAccount[] = this.getUsers();
+
+        const mergedMap = new Map<string, UserAccount>();
+        mergedMap.set('admin', DEFAULT_ADMIN_USER);
+
+        serverUsers.forEach(u => {
+          if (u && u.username) {
+            mergedMap.set(u.username.toLowerCase(), u);
+          }
+        });
+
+        localUsers.forEach(u => {
+          if (u && u.username && !mergedMap.has(u.username.toLowerCase())) {
+            mergedMap.set(u.username.toLowerCase(), u);
+          }
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mergedList));
+        fetch('/api/db/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: mergedList }),
+        }).catch(() => {});
+
+        return mergedList;
       }
     } catch (err) {
       console.warn('[Sync Users Fail]:', err);
@@ -100,24 +132,6 @@ export const AuthService = {
     }
   },
 
-  getAccessToken(): string | null {
-    return localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-  },
-
-  async verifyCurrentPassword(password: string): Promise<boolean> {
-    try {
-      const response = await fetch('/api/auth/verify-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ password: password.trim() }),
-      });
-      const result = await response.json().catch(() => null);
-      return Boolean(response.ok && result?.success);
-    } catch {
-      return false;
-    }
-  },
-
   async login(usernameInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
     const uClean = (usernameInput || '').trim();
     const pClean = (passwordInput || '').trim();
@@ -126,31 +140,52 @@ export const AuthService = {
       return { success: false, error: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu.' };
     }
 
+    // Smart sync and merge with server before login check
+    await this.syncUsersFromServer();
+
+    const users = this.getUsers();
+    const found = users.find(u => u.username.toLowerCase() === uClean.toLowerCase());
+
+    if (!found) {
+      return { success: false, error: 'Tên đăng nhập không tồn tại trên hệ thống.' };
+    }
+
+    if (!found.active) {
+      return { success: false, error: 'Tài khoản này đang bị khóa. Vui lòng liên hệ Admin.' };
+    }
+
+    if (found.password !== pClean) {
+      return { success: false, error: 'Mật khẩu không chính xác. Vui lòng thử lại.' };
+    }
+
     const deviceId = DeviceService.getDeviceId();
     const deviceName = DeviceService.getDeviceName();
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: uClean, password: pClean, deviceId, deviceName }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success || !result.token || !result.user) {
-        return { success: false, error: result?.error || 'Không thể xác thực với máy chủ.' };
-      }
-      localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, result.token);
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([result.user]));
-      this.setCurrentUser(result.user);
-      return { success: true, user: result.user };
-    } catch {
-      return { success: false, error: 'Không kết nối được máy chủ để xác thực. Vui lòng kiểm tra mạng.' };
+    const now = new Date().toISOString();
+
+    // 🔒 Block multi-device login for non-ADMIN accounts
+    if (found.role !== 'ADMIN' && found.activeDeviceId && found.activeDeviceId !== deviceId) {
+      return {
+        success: false,
+        error: `Tài khoản đang được đăng nhập trên thiết bị: "${found.activeDeviceName || 'máy khác'}". Vui lòng liên hệ Admin để được hỗ trợ đăng xuất thiết bị cũ.`,
+      };
     }
+
+    // Bind current device
+    found.lastLoginAt = now;
+    found.activeDeviceId = deviceId;
+    found.activeDeviceName = deviceName;
+    found.lastActiveAt = now;
+
+    this.saveUsers(users);
+
+    const sessionUser = { ...found };
+    delete sessionUser.password; // do not keep plain password in current user state
+
+    this.setCurrentUser(sessionUser);
+    return { success: true, user: sessionUser };
   },
 
   logout(): void {
-    const headers = getAuthHeaders();
-    if (headers.Authorization) fetch('/api/auth/logout', { method: 'POST', headers }).catch(() => {});
-    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
     this.setCurrentUser(null);
   },
 

@@ -5,7 +5,6 @@ import {
   UploadCloud, 
   FileSpreadsheet, 
   Search, 
-  Zap, 
   AlertTriangle, 
   Layers, 
   Building2, 
@@ -14,11 +13,13 @@ import {
   Truck,
   Store,
   FileText,
-  Trash2
+  Trash2,
+  ClipboardList
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount } from '../types';
 import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
+import { AuditService } from '../services/auditService';
 
 interface DataAuditViewProps {
   sessions: ReconciliationSession[];
@@ -53,7 +54,7 @@ export interface NvcFileItem {
 export const DataAuditView: React.FC<DataAuditViewProps> = ({
   sessions,
   shops,
-  currentUser: _currentUser,
+  currentUser,
   onRefreshSessions,
   onNavigateToPayout,
 }) => {
@@ -69,6 +70,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const [activeBucketFilter, setActiveBucketFilter] = useState<'ALL' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' | 'VALID'>('ALL');
   const [selectedCarrierFilter, setSelectedCarrierFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const auditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogs().slice(0, 30) : [];
 
   // Helper format currency
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
@@ -360,6 +362,14 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
 
   // Auto Create Supplementary Session for Missing Orders
   const handleCreateSupplementarySession = async () => {
+    // This screen accepts heterogeneous source files and is deliberately an
+    // audit-only workspace. It cannot become a financial source of truth.
+    const requiresVerifiedReconciliation: boolean = true;
+    if (requiresVerifiedReconciliation) {
+      showToast('Đã khóa tự tạo kỳ bù từ màn rà soát để tránh tính tiền từ dữ liệu chưa được xác nhận. Vui lòng dùng luồng Đối soát chính.', 'warning');
+      return;
+    }
+
     if (missingOrders.length === 0) {
       showToast('Không có đơn hàng/Khách hàng bị sót nào để lập Kỳ Đối Soát Bù.', 'info');
       return;
@@ -454,9 +464,12 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
 
     showToast(`Đã tạo thành công ${createdCount} Kỳ Đối Soát Bù phân loại theo từng Hãng Vận Chuyển!`, 'success');
 
-    if (onRefreshSessions) onRefreshSessions();
-    if (onNavigateToPayout) onNavigateToPayout();
+    onRefreshSessions?.();
+    onNavigateToPayout?.();
   };
+  // Kept for a future Admin-reviewed workflow; intentionally not exposed from
+  // this audit-only screen.
+  void handleCreateSupplementarySession;
 
   // Unique Carriers in audit results
   const availableCarriers = Array.from(new Set(auditOrders.map(o => o.carrierName)));
@@ -491,16 +504,38 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
         </div>
 
         {auditOrders.length > 0 && (
-          <button
-            onClick={handleCreateSupplementarySession}
-            className="btn btn-primary"
-            style={{ fontSize: 13, fontWeight: 800, padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <Zap size={16} />
-            <span>Tạo Kỳ Đối Soát Bù ({missingOrders.length} Đơn Sót)</span>
-          </button>
+          <div style={{ maxWidth: 360, fontSize: 12, color: 'var(--warning)', fontWeight: 700, lineHeight: 1.45 }}>
+            Các đơn sót chỉ được liệt kê để kiểm tra. Tạo kỳ bù phải thực hiện tại luồng Đối soát, sau khi xác nhận file và ánh xạ cột.
+          </div>
         )}
       </div>
+
+      {currentUser.role === 'ADMIN' && (
+        <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid var(--primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <ClipboardList size={20} color="var(--primary)" />
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>Nhật Ký Thao Tác Tài Chính</h3>
+            <span className="badge badge-primary" style={{ fontSize: 10 }}>{auditLogs.length} bản ghi gần nhất</span>
+          </div>
+          {auditLogs.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Chưa có thao tác tài chính hoặc đối soát nào được ghi nhận.</p>
+          ) : (
+            <div style={{ overflowX: 'auto', maxHeight: 280 }}>
+              <table className="data-table" style={{ minWidth: 760 }}>
+                <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Chi tiết</th></tr></thead>
+                <tbody>{auditLogs.map(log => (
+                  <tr key={log.id}>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 11 }}>{new Date(log.timestamp).toLocaleString('vi-VN')}</td>
+                    <td><strong>{log.username}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({log.userRole})</span></td>
+                    <td><span className="badge badge-primary" style={{ fontSize: 10 }}>{log.action}</span></td>
+                    <td style={{ fontSize: 12 }}>{log.details}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* DUAL DRAG & DROP ZONES (2 VÙNG KÉO THẢ GIỐNG ĐỐI SOÁT) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
@@ -760,14 +795,9 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               <Building2 size={20} />
               Danh Sách Khách Hàng (Shop) Bị Thiếu / Sót Kỳ Đối Soát ({missingShopsSummary.length} Shop)
             </h3>
-            <button
-              onClick={handleCreateSupplementarySession}
-              className="btn btn-danger btn-sm"
-              style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px' }}
-            >
-              <Zap size={14} />
-              <span>Tạo Kỳ Đối Soát Bù Đã Đánh Dấu</span>
-            </button>
+            <span style={{ fontSize: 11, color: 'var(--warning)', fontWeight: 700 }}>
+              Chỉ dùng để kiểm tra; không tự tạo kỳ bù
+            </span>
           </div>
 
           <div style={{ maxHeight: 260, overflowY: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>

@@ -35,14 +35,6 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
     if (!showAppMapping) setActiveTab('nvc');
   }, [showAppMapping]);
 
-  // Always show the mapping currently loaded for this carrier when the dialog opens.
-  React.useEffect(() => {
-    if (isOpen) {
-      setLocalNvcMapping(nvcMapping);
-      setLocalAppMapping(appMapping);
-    }
-  }, [isOpen, nvcMapping, appMapping]);
-
   if (!isOpen) return null;
 
   const updateNvcField = (field: keyof ColumnMappingConfig, val: string) => {
@@ -114,8 +106,8 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
       setActiveTab('nvc');
       return;
     }
-    if (requireAppMapping && (!localAppMapping.waybillColumn || !localAppMapping.shopNameColumn)) {
-      showToast('Vui lòng chọn Cột Mã Vận Đơn và Cột Tên Shop / Người Gửi cho File Đơn Hàng App.', 'warning');
+    if (requireAppMapping && !localAppMapping.waybillColumn) {
+      showToast('Vui lòng chọn Cột Mã Vận Đơn cho File Đơn Hàng App.', 'warning');
       setActiveTab('app');
       return;
     }
@@ -131,14 +123,6 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
 
   const nvcCustoms = localNvcMapping.customColumns || [];
   const appCustoms = localAppMapping.customColumns || [];
-  const selectClass = (value?: string, required = false) => [
-    'select-field',
-    'mapping-select',
-    value ? 'mapping-select--configured' : '',
-    !value && required ? 'mapping-select--required' : '',
-  ].filter(Boolean).join(' ');
-  const nvcRequiredComplete = Boolean(localNvcMapping.waybillColumn);
-  const appRequiredComplete = Boolean(localAppMapping.waybillColumn && localAppMapping.shopNameColumn);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -273,17 +257,6 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
             </button>
           </div>
 
-          <div className="mapping-legend" aria-live="polite">
-            <span className="mapping-legend__item mapping-legend__item--configured"><Check size={14} /> Đã chọn / hệ thống nhận diện</span>
-            <span className="mapping-legend__item mapping-legend__item--required"><AlertCircle size={14} /> Bắt buộc chưa chọn</span>
-            <span className={`mapping-progress ${nvcRequiredComplete ? 'mapping-progress--complete' : ''}`}>
-              File NVC: {nvcRequiredComplete ? 'đủ cột bắt buộc' : 'cần chọn Mã vận đơn'}
-            </span>
-            {showAppMapping && <span className={`mapping-progress ${appRequiredComplete ? 'mapping-progress--complete' : ''}`}>
-              File App: {appRequiredComplete ? 'đủ cột bắt buộc' : 'cần chọn Mã vận đơn và Tên shop'}
-            </span>}
-          </div>
-
           {/* TAB 1: FILE NVC */}
           {activeTab === 'nvc' && (
             <div>
@@ -298,7 +271,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.waybillColumn || ''}
                     onChange={(e) => updateNvcField('waybillColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.waybillColumn, true)}
+                    className="select-field"
                   >
                     <option value="">-- Chọn cột --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -310,7 +283,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.codColumn || ''}
                     onChange={(e) => updateNvcField('codColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.codColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -322,7 +295,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.feeColumn || ''}
                     onChange={(e) => updateNvcField('feeColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.feeColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -334,7 +307,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.otherFeeColumn || ''}
                     onChange={(e) => updateNvcField('otherFeeColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.otherFeeColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -343,7 +316,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
 
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Cột Điều Chỉnh NVC</label>
-                  <select value={localNvcMapping.adjustmentColumn || ''} onChange={(e) => updateNvcField('adjustmentColumn', e.target.value)} className={selectClass(localNvcMapping.adjustmentColumn)}>
+                  <select value={localNvcMapping.adjustmentColumn || ''} onChange={(e) => updateNvcField('adjustmentColumn', e.target.value)} className="select-field">
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
@@ -351,7 +324,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
 
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Cột Số Tiền NVC Trả Sau Cấn Trừ</label>
-                  <select value={localNvcMapping.settlementAmountColumn || ''} onChange={(e) => updateNvcField('settlementAmountColumn', e.target.value)} className={selectClass(localNvcMapping.settlementAmountColumn)}>
+                  <select value={localNvcMapping.settlementAmountColumn || ''} onChange={(e) => updateNvcField('settlementAmountColumn', e.target.value)} className="select-field">
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
@@ -362,7 +335,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.weightColumn || ''}
                     onChange={(e) => updateNvcField('weightColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.weightColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -374,7 +347,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.statusColumn || ''}
                     onChange={(e) => updateNvcField('statusColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.statusColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -386,7 +359,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.dateColumn || ''}
                     onChange={(e) => updateNvcField('dateColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.dateColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -398,7 +371,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localNvcMapping.refOrderCodeColumn || ''}
                     onChange={(e) => updateNvcField('refOrderCodeColumn', e.target.value)}
-                    className={selectClass(localNvcMapping.refOrderCodeColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {nvcHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -507,7 +480,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.waybillColumn || ''}
                     onChange={(e) => updateAppField('waybillColumn', e.target.value)}
-                    className={selectClass(localAppMapping.waybillColumn, true)}
+                    className="select-field"
                   >
                     <option value="">-- Chọn cột --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -519,7 +492,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.shopNameColumn || ''}
                     onChange={(e) => updateAppField('shopNameColumn', e.target.value)}
-                    className={selectClass(localAppMapping.shopNameColumn, true)}
+                    className="select-field"
                   >
                     <option value="">-- Chọn cột --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -531,7 +504,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.shopPhoneColumn || ''}
                     onChange={(e) => updateAppField('shopPhoneColumn', e.target.value)}
-                    className={selectClass(localAppMapping.shopPhoneColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -543,7 +516,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.shopAddressColumn || ''}
                     onChange={(e) => updateAppField('shopAddressColumn', e.target.value)}
-                    className={selectClass(localAppMapping.shopAddressColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -555,7 +528,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.receiverNameColumn || ''}
                     onChange={(e) => updateAppField('receiverNameColumn', e.target.value)}
-                    className={selectClass(localAppMapping.receiverNameColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -567,7 +540,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.receiverPhoneColumn || ''}
                     onChange={(e) => updateAppField('receiverPhoneColumn', e.target.value)}
-                    className={selectClass(localAppMapping.receiverPhoneColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -579,7 +552,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.receiverAddressColumn || ''}
                     onChange={(e) => updateAppField('receiverAddressColumn', e.target.value)}
-                    className={selectClass(localAppMapping.receiverAddressColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -591,7 +564,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.productNameColumn || ''}
                     onChange={(e) => updateAppField('productNameColumn', e.target.value)}
-                    className={selectClass(localAppMapping.productNameColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -603,7 +576,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.orderNoteColumn || ''}
                     onChange={(e) => updateAppField('orderNoteColumn', e.target.value)}
-                    className={selectClass(localAppMapping.orderNoteColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -615,7 +588,7 @@ export const ColumnMappingModal: React.FC<ColumnMappingModalProps> = (props) => 
                   <select
                     value={localAppMapping.weightColumn || ''}
                     onChange={(e) => updateAppField('weightColumn', e.target.value)}
-                    className={selectClass(localAppMapping.weightColumn)}
+                    className="select-field"
                   >
                     <option value="">-- Không chọn --</option>
                     {appHeaders.map(h => <option key={h} value={h}>{h}</option>)}

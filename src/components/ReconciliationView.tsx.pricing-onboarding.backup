@@ -17,11 +17,7 @@ import {
   XCircle,
   UserCheck,
   RotateCcw,
-  Settings2,
-  Plus,
-  Trash2,
-  Sliders,
-  Calculator
+  Settings2
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -30,8 +26,7 @@ import type {
   ShopSettlementStatement,
   ColumnMappingConfig,
   ReconciledOrder,
-  UserAccount,
-  ShopPricingPlan
+  UserAccount
 } from '../types';
 import { ExcelService } from '../services/excelService';
 import { autoDetectColumns } from '../services/smartColumnDetector';
@@ -65,22 +60,7 @@ type ShopProposalGroup = {
   entries: ShopProposalEntry[];
   decision: ShopProposalDecision;
   targetShopId?: string;
-  pricingPlan: ShopPricingPlan;
-  testWeight: number;
 };
-
-const createOnboardingPricingPlan = (): ShopPricingPlan => ({
-  id: `plan_onboarding_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-  name: 'Biểu giá nhập khi xác nhận shop',
-  // Zero is intentional only as an unconfirmed form value. Validation below
-  // prevents creation until Admin enters a real shop fee.
-  weightRules: [{ minWeight: 0, maxWeight: 1, price: 0 }],
-  extraStepWeight: 1,
-  extraStepPrice: 0,
-  returnFeePercent: 50,
-  insuranceFeePercent: 0,
-  fixedSurcharge: 0,
-});
 
 const isVerifiedCarrier = (carrier?: CarrierWholesaleTier): boolean => {
   const identity = `${carrier?.carrierId || ''} ${carrier?.carrierName || ''}`;
@@ -199,28 +179,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [showShopProposal, setShowShopProposal] = useState(false);
   const [shopReviewConfirmed, setShopReviewConfirmed] = useState(false);
 
-  const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
-    setShopProposalGroups(groups => groups.map(group => group.id === groupId
-      ? { ...group, pricingPlan: updater({ ...group.pricingPlan, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }) }
-      : group
-    ));
-  };
-
-  const addProposalWeightRule = (group: ShopProposalGroup) => {
-    updateProposalPricing(group.id, pricingPlan => {
-      const lastRule = pricingPlan.weightRules[pricingPlan.weightRules.length - 1];
-      const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
-      const newMax = lastRule ? Math.ceil(newMin) : 1;
-      const newPrice = lastRule ? lastRule.price + 5000 : 0;
-      return { ...pricingPlan, weightRules: [...pricingPlan.weightRules, { minWeight: newMin, maxWeight: newMax, price: newPrice }] };
-    });
-  };
-
-  const removeProposalWeightRule = (group: ShopProposalGroup, index: number) => {
-    if (group.pricingPlan.weightRules.length <= 1) return;
-    updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, weightRules: pricingPlan.weightRules.filter((_, ruleIndex) => ruleIndex !== index) }));
-  };
-
   const prepareShopProposals = (rows: Record<string, any>[], mapping: ColumnMappingConfig) => {
     const entries = new Map<string, ShopProposalEntry>();
     rows.forEach(row => {
@@ -261,15 +219,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const label = items.length === 1
         ? (items[0].existing ? 'Shop đã có hồ sơ' : 'Shop mới cần xác nhận')
         : `Xung đột định danh: ${names.size} tên · ${phones.size} SĐT`;
-      return {
-        id: `identity-group-${groupIndex}`,
-        label,
-        entries: items,
-        decision: 'pending' as ShopProposalDecision,
-        targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined,
-        pricingPlan: createOnboardingPricingPlan(),
-        testWeight: 1.5,
-      };
+      return { id: `identity-group-${groupIndex}`, label, entries: items, decision: 'pending' as ShopProposalDecision, targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined };
     });
     setShopProposalGroups(proposals);
     setShopReviewConfirmed(false);
@@ -298,15 +248,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       showToast('Vui lòng chọn hồ sơ shop hiện có để gộp cho từng nhóm có dữ liệu trùng.', 'warning');
       return;
     }
-    const pricingMissing = shopProposalGroups.filter(group => {
-      const willCreateShop = group.entries.some(entry => !entry.existing)
-        && !(group.decision === 'merge' && group.targetShopId);
-      return willCreateShop && (group.pricingPlan.weightRules[0]?.price || 0) <= 0;
-    });
-    if (pricingMissing.length > 0) {
-      showToast(`Còn ${pricingMissing.length} nhóm shop mới chưa có cước 0–1kg. Không thể tạo shop có biểu giá 0đ.`, 'warning');
-      return;
-    }
+    const pricePlan = { id: `plan_${Date.now()}`, name: 'Bảng giá cần cấu hình', weightRules: [{ minWeight: 0, maxWeight: 1, price: 0 }], extraStepWeight: 1, extraStepPrice: 0, returnFeePercent: 0, insuranceFeePercent: 0, fixedSurcharge: 0 };
     const additions: Shop[] = [];
     const updates = new Map<string, Shop>();
     shopProposalGroups.forEach((group, groupIndex) => {
@@ -330,7 +272,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const sets = group.decision === 'merge' ? [newEntries] : newEntries.map(entry => [entry]);
       sets.forEach((set, setIndex) => {
         const first = set[0];
-        additions.push({ id: `shop_import_${Date.now()}_${groupIndex}_${setIndex}`, code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`, name: first.name, phone: first.phone, phoneList: [...new Set(set.map(x => x.phone).filter(Boolean))], nameAliases: [...new Set(set.map(x => x.name).filter(name => name !== first.name))], email: '', address: first.address, bankAccount: { bankName: '', accountNumber: '', accountHolder: first.name }, pricingPlan: { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }, notes: `Xác nhận từ file App (${set.reduce((sum, x) => sum + x.count, 0)} đơn)`, createdAt: new Date().toISOString(), active: true });
+        additions.push({ id: `shop_import_${Date.now()}_${groupIndex}_${setIndex}`, code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`, name: first.name, phone: first.phone, phoneList: [...new Set(set.map(x => x.phone).filter(Boolean))], nameAliases: [...new Set(set.map(x => x.name).filter(name => name !== first.name))], email: '', address: first.address, bankAccount: { bankName: '', accountNumber: '', accountHolder: first.name }, pricingPlan: { ...pricePlan, id: `${pricePlan.id}_${groupIndex}_${setIndex}` }, notes: `Xác nhận từ file App (${set.reduce((sum, x) => sum + x.count, 0)} đơn)`, createdAt: new Date().toISOString(), active: true });
       });
     });
     const updatedShops = shops.map(shop => updates.get(shop.id) || shop);
@@ -338,7 +280,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     setShopReviewConfirmed(true);
     setShowShopProposal(false);
     const mergedCount = updates.size;
-    showToast(`Đã xác nhận: thêm ${additions.length} shop mới${mergedCount ? `, cập nhật ${mergedCount} hồ sơ shop` : ''}. Biểu giá cơ bản đã được lưu cùng hồ sơ shop.`, 'success');
+    showToast(`Đã xác nhận: thêm ${additions.length} shop mới${mergedCount ? `, cập nhật ${mergedCount} hồ sơ shop` : ''}. Hãy cấu hình biểu giá cho shop mới trước khi đối soát.`, 'success');
   };
 
   // Zip Download Progress State
@@ -445,82 +387,38 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
       } else {
-        // Multi-file J&T exports can legitimately differ in optional columns
-        // (for example product, warehouse or print columns).  Do not compare
-        // whole schemas position-by-position: normalize each file to the
-        // identity/logistics fields that reconciliation actually uses.
-        const canonicalHeaders = {
-          waybill: 'Mã vận đơn (chuẩn hóa đa file)',
-          shopName: 'Tên người gửi (chuẩn hóa đa file)',
-          shopPhone: 'SĐT người gửi (chuẩn hóa đa file)',
-          shopAddress: 'Địa chỉ người gửi (chuẩn hóa đa file)',
-          shopCode: 'Mã shop (chuẩn hóa đa file)',
-          receiverName: 'Tên người nhận (chuẩn hóa đa file)',
-          receiverPhone: 'SĐT người nhận (chuẩn hóa đa file)',
-          receiverAddress: 'Địa chỉ người nhận (chuẩn hóa đa file)',
-          weight: 'Trọng lượng (chuẩn hóa đa file)',
-          cod: 'COD (chuẩn hóa đa file)',
-          status: 'Trạng thái (chuẩn hóa đa file)',
-        };
-        const normalizedHeaders = Object.values(canonicalHeaders);
+        // Multi-file upload & merge
+        let firstHeaders: string[] = [];
         let combinedRows: Record<string, any>[] = [];
-        const saved = StorageService.getCarrierMapping(selectedCarrierId);
 
-        for (const file of filesArray) {
+        for (let i = 0; i < filesArray.length; i++) {
+          const file = filesArray[i];
           const { headers, rows } = await ExcelService.parseExcelFile(file);
-          const fileMapping = autoDetectColumns(headers, 'app', saved.app, rows);
-          const missingRequired: string[] = [];
-          if (!fileMapping.waybillColumn) missingRequired.push('Mã vận đơn');
-          if (!fileMapping.shopNameColumn) missingRequired.push('Tên người gửi/Shop');
-          if (!fileMapping.shopPhoneColumn) missingRequired.push('SĐT người gửi/Shop');
-          if (missingRequired.length > 0) {
-            throw new Error(`File “${file.name}” thiếu cột bắt buộc: ${missingRequired.join(', ')}. App không gộp file này để tránh nhầm đơn hoặc nhầm shop.`);
+          if (i === 0) {
+            firstHeaders = headers;
+            combinedRows = [...rows];
+          } else {
+            combinedRows.push(...rows);
           }
-
-          combinedRows.push(...rows.map(row => ({
-            ...row,
-            [canonicalHeaders.waybill]: row[fileMapping.waybillColumn],
-            [canonicalHeaders.shopName]: row[fileMapping.shopNameColumn || ''],
-            [canonicalHeaders.shopPhone]: row[fileMapping.shopPhoneColumn || ''],
-            [canonicalHeaders.shopAddress]: row[fileMapping.shopAddressColumn || ''],
-            [canonicalHeaders.shopCode]: row[fileMapping.shopCodeColumn || ''],
-            [canonicalHeaders.receiverName]: row[fileMapping.receiverNameColumn || ''],
-            [canonicalHeaders.receiverPhone]: row[fileMapping.receiverPhoneColumn || ''],
-            [canonicalHeaders.receiverAddress]: row[fileMapping.receiverAddressColumn || ''],
-            [canonicalHeaders.weight]: row[fileMapping.weightColumn || ''],
-            [canonicalHeaders.cod]: row[fileMapping.codColumn || ''],
-            [canonicalHeaders.status]: row[fileMapping.statusColumn || ''],
-          })));
         }
 
         const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${combinedRows.length} dòng)`);
         setAppFile(mergedFile);
-        setAppHeaders(normalizedHeaders);
+        setAppHeaders(firstHeaders);
         setAppRows(combinedRows);
         setIsMappingConfirmed(false);
 
-        const normalizedMapping: ColumnMappingConfig = {
-          waybillColumn: canonicalHeaders.waybill,
-          shopNameColumn: canonicalHeaders.shopName,
-          shopPhoneColumn: canonicalHeaders.shopPhone,
-          shopAddressColumn: canonicalHeaders.shopAddress,
-          shopCodeColumn: canonicalHeaders.shopCode,
-          receiverNameColumn: canonicalHeaders.receiverName,
-          receiverPhoneColumn: canonicalHeaders.receiverPhone,
-          receiverAddressColumn: canonicalHeaders.receiverAddress,
-          weightColumn: canonicalHeaders.weight,
-          codColumn: canonicalHeaders.cod,
-          statusColumn: canonicalHeaders.status,
-        };
-        setAppMapping(normalizedMapping);
-        prepareShopProposals(combinedRows, normalizedMapping);
+        const saved = StorageService.getCarrierMapping(selectedCarrierId);
+        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app, combinedRows);
+        setAppMapping(detectedMapping);
+        prepareShopProposals(combinedRows, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
-        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, normalizedHeaders);
+        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, firstHeaders);
 
-        showToast(`Đã chuẩn hóa và gộp ${filesArray.length} file Excel App (${combinedRows.length.toLocaleString('vi-VN')} dòng). Mã đơn trùng vẫn sẽ bị chặn ở bước đối soát.`, 'success');
+        showToast(`Đã tự động gộp ${filesArray.length} file Excel đơn hàng App (${combinedRows.length.toLocaleString('vi-VN')} dòng dữ liệu)!`, 'success');
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
+      showToast('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
     }
   };
@@ -674,8 +572,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn && !appMapping.shopPhoneColumn && !appMapping.shopCodeColumn)) {
-      showToast('File App cần xác nhận ít nhất một cột nhận diện shop (Tên người gửi, SĐT người gửi hoặc Mã shop).', 'warning');
+    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn || !appMapping.shopPhoneColumn)) {
+      showToast('J&T phải xác nhận đồng thời cột Tên người gửi và SĐT người gửi để nhận diện shop. Vui lòng kiểm tra ánh xạ file App.', 'warning');
       setShowMappingModal(true);
       return;
     }
@@ -731,11 +629,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Manually Assign Unmatched Order to a Shop
   const handleAssignUnmatchedOrder = (order: ReconciledOrder, targetShopId: string) => {
     if (!currentSession || !targetShopId) return;
-    const hasPayout = StorageService.getPaymentRecords().some(payment => !payment.voidedAt && payment.sessionId === currentSession.id);
-    if (hasPayout) {
-      showToast('Kỳ này đã phát sinh đi tiền nên bị khóa chỉnh sửa. Hãy hủy/đảo bản ghi đi tiền trước, sau đó mới điều chỉnh đối soát.', 'error');
-      return;
-    }
     if (!isAdmin) {
       showToast('Chỉ Admin mới được phép gán thủ công đơn vào shop.', 'error');
       return;
@@ -745,7 +638,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    const targetShop = shops.find(s => s.id === targetShopId && s.active);
+    const targetShop = shops.find(s => s.id === targetShopId);
     if (!targetShop) return;
 
     // Manual assignment only fixes the shop identity; it must retain exactly
@@ -1991,7 +1884,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                             style={{ padding: '4px 8px', fontSize: 12, width: 220 }}
                           >
                             <option value="">-- Chọn Shop để gán --</option>
-                            {shops.filter(s => s.active).map(s => (
+                            {shops.map(s => (
                               <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                             ))}
                           </select>
@@ -2038,64 +1931,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       <option value="separate">Tạo shop độc lập theo từng định danh</option>
                     </select>}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 9, marginTop: 12 }}>
-                    {group.entries.map(entry => {
-                      const accent = entry.existing ? '#059669' : '#d97706';
-                      const surface = entry.existing ? 'rgba(16, 185, 129, 0.07)' : 'rgba(245, 158, 11, 0.08)';
-                      const border = entry.existing ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.48)';
-                      return <div key={`${entry.name}|${entry.phone}`} style={{ border: `1px solid ${border}`, borderLeft: `4px solid ${accent}`, background: surface, borderRadius: 'var(--radius-sm)', padding: '10px 12px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                          <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{entry.name}</strong>
-                          <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>{entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7, fontSize: 12, color: 'var(--text-main)' }}>
-                          <span className="mono" style={{ fontWeight: 700, color: accent }}>{entry.phone || 'Chưa có SĐT'}</span>
-                          <span style={{ color: 'var(--text-muted)' }}>•</span>
-                          <span><strong>{entry.count}</strong> đơn</span>
-                        </div>
-                        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>📍 {entry.address || 'Chưa có địa chỉ kho gửi'}</div>
-                      </div>;
-                    })}
-                  </div>
+                  {group.entries.map(entry => <div key={`${entry.name}|${entry.phone}`} style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}><strong style={{ color: 'var(--text-main)' }}>{entry.name}</strong><span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>{entry.existing ? 'Đã có hồ sơ' : 'Shop mới'}</span><span>· {entry.phone || 'Chưa có SĐT'} · {entry.count} đơn{entry.address ? ` · ${entry.address}` : ''}</span></div>)}
                   {group.decision === 'merge' && group.entries.some(entry => entry.existing) && <div style={{ marginTop: 12 }}>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 5 }}>Gộp vào hồ sơ shop đã có</label>
                     <select value={group.targetShopId || ''} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))} className="select-field" style={{ width: '100%', padding: '7px 9px', fontSize: 12 }}>
                       <option value="">-- Chọn shop đích --</option>
                       {shops.filter(shop => shop.active).map(shop => <option key={shop.id} value={shop.id}>{shop.code} · {shop.name} · {shop.phone}</option>)}
                     </select>
-                  </div>}
-                  {group.entries.some(entry => !entry.existing) && !(group.decision === 'merge' && group.targetShopId) && <div style={{ marginTop: 16, padding: 15, borderRadius: 'var(--radius-md)', background: 'rgba(79, 70, 229, 0.045)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}><Sliders size={16} /> Biểu giá cước bậc thang theo cân nặng</div>
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => addProposalWeightRule(group)} style={{ fontSize: 11, padding: '4px 9px' }}><Plus size={13} /> Thêm nấc cân nặng</button>
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Áp dụng cho shop mới tạo từ nhóm này. Cước 0–1kg là bắt buộc; các nấc sau giúp app tính đúng theo biểu giá riêng.</p>
-                    <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {group.pricingPlan.weightRules.map((rule, index) => <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                        <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>{index === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}</div>
-                        <input type="number" min="0.1" step="0.1" value={rule.maxWeight} className="input-field" style={{ width: 82, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                          const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, maxWeight: Number(event.target.value || 0) } : item);
-                          return { ...pricingPlan, weightRules };
-                        })} />
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
-                        <input type="number" min="0" step="500" value={rule.price === 0 ? '' : rule.price} placeholder={index === 0 ? 'Bắt buộc nhập' : '0'} className="input-field" style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                          const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, price: Number(event.target.value || 0) } : item);
-                          return { ...pricingPlan, weightRules };
-                        })} />
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
-                        {group.pricingPlan.weightRules.length > 1 && <button type="button" className="btn btn-danger btn-sm" style={{ padding: '4px 6px' }} onClick={() => removeProposalWeightRule(group, index)} title="Xóa nấc cân"><Trash2 size={12} /></button>}
-                      </div>)}
-                      <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vượt cân: mỗi thêm<input type="number" min="0.1" step="0.1" value={group.pricingPlan.extraStepWeight} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepWeight: Number(event.target.value || 1) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước cộng thêm (đ)<input type="number" min="0" step="500" value={group.pricingPlan.extraStepPrice === 0 ? '' : group.pricingPlan.extraStepPrice} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepPrice: Number(event.target.value || 0) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)<input type="number" min="0" max="100" value={group.pricingPlan.returnFeePercent} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, returnFeePercent: Number(event.target.value || 0) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phụ thu cố định (đ)<input type="number" min="0" step="500" value={group.pricingPlan.fixedSurcharge === 0 ? '' : group.pricingPlan.fixedSurcharge} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, fixedSurcharge: Number(event.target.value || 0) }))} /></label>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 10, background: 'rgba(79, 70, 229, 0.06)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calculator size={15} color="var(--primary)" /><span style={{ fontSize: 12, fontWeight: 700 }}>Thử tính cước:</span><input type="number" min="0.1" step="0.1" value={group.testWeight} className="input-field" style={{ width: 72, padding: '4px 7px', fontSize: 12 }} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, testWeight: Number(event.target.value || 0.1) } : item))} /><span style={{ fontSize: 12 }}>kg</span></div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước tính ra: <strong className="mono" style={{ fontSize: 15, color: 'var(--success)' }}>{new Intl.NumberFormat('vi-VN').format(calculateWeightFee(group.testWeight, group.pricingPlan))} đ</strong></div>
-                    </div>
                   </div>}
                 </div>
               ))}

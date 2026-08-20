@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Truck, Plus, Trash2, Check, X, CheckCircle2 } from 'lucide-react';
-import type { CarrierWholesaleTier, WeightStepRule } from '../types';
+import type { CarrierWholesaleTier, WeightStepRule, UserAccount } from '../types';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { StorageService } from '../services/storage';
@@ -9,9 +9,10 @@ import { useToast, useConfirm } from './UIFeedback';
 interface CarriersPricingViewProps {
   carriers: CarrierWholesaleTier[];
   onSaveCarriers: (carriers: CarrierWholesaleTier[]) => void;
+  currentUser: UserAccount;
 }
 
-export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carriers, onSaveCarriers }) => {
+export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carriers, onSaveCarriers, currentUser }) => {
   const { showToast: uiToast } = useToast();
   const { showConfirm } = useConfirm();
   const [carrierList, setCarrierList] = useState<CarrierWholesaleTier[]>(carriers);
@@ -26,6 +27,12 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   // New Carrier form state
   const [newCarrierName, setNewCarrierName] = useState('');
   const [newCarrierCode, setNewCarrierCode] = useState('');
+  const isAdmin = currentUser.role === 'ADMIN';
+  const requireAdmin = () => {
+    if (isAdmin) return true;
+    uiToast('Chỉ Admin được phép thay đổi bảng giá NVC vì dữ liệu này ảnh hưởng trực tiếp đến đối soát.', 'warning');
+    return false;
+  };
 
   // Sync state if props change
   React.useEffect(() => {
@@ -38,6 +45,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
     field: keyof WeightStepRule,
     val: number
   ) => {
+    if (!requireAdmin()) return;
     const updated = [...carrierList];
     updated[carrierIdx].weightRules[ruleIdx] = {
       ...updated[carrierIdx].weightRules[ruleIdx],
@@ -50,6 +58,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   };
 
   const handleAddRule = (carrierIdx: number) => {
+    if (!requireAdmin()) return;
     const updated = [...carrierList];
     const rules = updated[carrierIdx].weightRules;
     const lastRule = rules[rules.length - 1];
@@ -65,6 +74,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   };
 
   const handleRemoveRule = (carrierIdx: number, ruleIdx: number) => {
+    if (!requireAdmin()) return;
     const updated = [...carrierList];
     if (updated[carrierIdx].weightRules.length <= 1) return;
     updated[carrierIdx].weightRules = updated[carrierIdx].weightRules.filter((_, idx) => idx !== ruleIdx);
@@ -79,6 +89,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
     field: 'extraStepWeight' | 'extraStepPrice' | 'returnFeePercent',
     val: number
   ) => {
+    if (!requireAdmin()) return;
     const updated = [...carrierList];
     updated[carrierIdx] = {
       ...updated[carrierIdx],
@@ -100,6 +111,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
 
   // Delete Carrier
   const handleDeleteCarrier = async (carrierId: string, carrierName: string) => {
+    if (!requireAdmin()) return;
     const ok = await showConfirm({
       title: 'Xoá Hãng Vận Chuyển',
       message: `Bạn có chắc muốn xóa tạm thời đơn vị vận chuyển "${carrierName}"? Bạn có thể thêm lại bất cứ lúc nào.`,
@@ -117,6 +129,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   // Add New Carrier
   const handleAddNewCarrier = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireAdmin()) return;
     if (!newCarrierName.trim()) {
       uiToast('Vui lòng nhập tên đơn vị vận chuyển', 'warning');
       return;
@@ -149,6 +162,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   };
 
   const handleSaveAll = () => {
+    if (!requireAdmin()) return;
     onSaveCarriers(carrierList);
     triggerSaveToast();
   };
@@ -185,17 +199,22 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800 }}>Bảng Giá Cước Gốc Ký Với Đơn Vị Vận Chuyển (NVC)</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Mọi thay đổi sẽ <strong>tự động lưu ngay lập tức</strong> vào bộ nhớ máy tính. Bạn cũng có thể bấm nút Lưu bên phải.
+            Bảng giá là nguồn cấu hình tài chính. Chỉ Admin được phép cập nhật và mọi thay đổi được lưu để dùng cho các kỳ đối soát tiếp theo.
           </p>
+          {!isAdmin && (
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--warning)', fontWeight: 700 }}>
+              Chế độ xem: bạn không thể sửa bảng giá hoặc cấu hình hãng.
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-secondary">
+          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-secondary" disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được thêm hãng vận chuyển' : undefined}>
             <Plus size={16} />
             <span>Thêm Hãng Vận Chuyển Mới</span>
           </button>
 
-          <button onClick={handleSaveAll} className="btn btn-primary" style={{ minWidth: 190 }}>
+          <button onClick={handleSaveAll} className="btn btn-primary" style={{ minWidth: 190 }} disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được lưu thay đổi bảng giá' : undefined}>
             <Check size={16} />
             <span>{showSaveToast ? '✓ Đã Lưu Xong!' : 'Lưu Thay Đổi Bảng Giá'}</span>
           </button>
@@ -209,7 +228,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
             Bấm nút "Thêm Hãng Vận Chuyển Mới" để tạo đơn vị vận chuyển bạn đang sử dụng.
           </p>
-          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary">
+          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary" disabled={!isAdmin}>
             <Plus size={16} />
             <span>Thêm Đơn Vị Vận Chuyển</span>
           </button>
@@ -220,6 +239,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
           gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 520px))',
           gap: 20,
           alignItems: 'start',
+          pointerEvents: isAdmin ? 'auto' : 'none',
+          opacity: isAdmin ? 1 : 0.72,
         }}>
           {carrierList.map((carrier, cIdx) => (
             <div 

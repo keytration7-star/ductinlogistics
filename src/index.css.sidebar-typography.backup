@@ -568,15 +568,13 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 7px 10px;
-  min-height: 44px;
-  border-radius: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-main);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 650;
-  letter-spacing: -0.012em;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
@@ -619,7 +617,7 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--primary);
   color: #ffffff !important;
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 13px;
   box-shadow: var(--shadow-sm);
   transform: none;
 }

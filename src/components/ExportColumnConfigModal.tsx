@@ -29,6 +29,9 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     return StorageService.getExportColumnSettings();
   });
   const [savedSuccess, setSavedSuccess] = useState(false);
+  // Drag & drop state for export column reordering
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   if (!isOpen) return null;
 
@@ -50,10 +53,6 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     };
     setSettings(newSettings);
   };
-
-  // Drag & drop state for export column reordering
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const handleMoveColumn = (colId: string, direction: 'up' | 'down') => {
     const idx = currentColumns.findIndex(col => col.id === colId);

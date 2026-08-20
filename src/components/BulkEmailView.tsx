@@ -102,6 +102,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   const statements = currentSession?.statements || [];
+  const hasUnmatchedOrders = (currentSession?.unmatchedOrdersCount || 0) > 0;
   const selectedStatement = statements.find(s => s.shopId === selectedShopId) || statements[0];
   const missingShopEmailsCount = statements.filter(s => !s.shopEmail || !s.shopEmail.includes('@')).length;
 
@@ -201,6 +202,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   const handleStartBatchSend = async () => {
+    if (hasUnmatchedOrders) {
+      setScheduledTargetTime(null);
+      showToast('Kỳ đối soát còn đơn chưa khớp nên không thể gửi email hoặc bảng kê cho shop.', 'warning');
+      return;
+    }
     if (statements.length === 0) {
       showToast('Chưa có danh sách shop đối soát nào trong kỳ này.', 'warning');
       return;
@@ -226,12 +232,20 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   // Schedule Helpers
   const setQuickSchedule = (minutesFromNow: number) => {
+    if (hasUnmatchedOrders) {
+      showToast('Cần xử lý toàn bộ đơn chưa khớp trước khi hẹn gửi email.', 'warning');
+      return;
+    }
     const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
     setScheduledTargetTime(target);
     setIsScheduleModalOpen(false);
   };
 
   const setSpecificTimeToday = (hour: number, minute: number) => {
+    if (hasUnmatchedOrders) {
+      showToast('Cần xử lý toàn bộ đơn chưa khớp trước khi hẹn gửi email.', 'warning');
+      return;
+    }
     const target = new Date();
     target.setHours(hour, minute, 0, 0);
     if (target.getTime() <= Date.now()) {
@@ -243,6 +257,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   const handleApplyCustomSchedule = () => {
+    if (hasUnmatchedOrders) {
+      showToast('Cần xử lý toàn bộ đơn chưa khớp trước khi hẹn gửi email.', 'warning');
+      return;
+    }
     if (!customDateTimeInput) return;
     const target = new Date(customDateTimeInput);
     if (target.getTime() <= Date.now()) {
@@ -294,6 +312,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             <button
               type="button"
               onClick={() => setIsScheduleModalOpen(true)}
+              disabled={hasUnmatchedOrders}
               className={`btn btn-lg ${scheduledTargetTime ? 'btn-warning' : 'btn-secondary'}`}
               style={{ display: 'flex', alignItems: 'center', gap: 8 }}
               title="Hẹn giờ để hệ thống tự động gửi email"
@@ -307,7 +326,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           {statements.length > 0 && (
             <button
               onClick={handleStartBatchSend}
-              disabled={isSendingBatch}
+              disabled={isSendingBatch || hasUnmatchedOrders}
               className="btn btn-primary btn-lg"
               style={{ display: 'flex', alignItems: 'center', gap: 8 }}
             >
@@ -344,6 +363,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         }}>
           <AlertCircle size={20} style={{ flexShrink: 0 }} />
           <span>Chưa cài đặt Gmail người gửi! Vui lòng mở menu Cài Đặt ⚙️ ở góc màn hình để thiết lập Gmail & Mật khẩu ứng dụng 16 ký tự.</span>
+        </div>
+      )}
+
+      {hasUnmatchedOrders && (
+        <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)', fontSize: 13, fontWeight: 700 }}>
+          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+          <span>Kỳ này còn {currentSession?.unmatchedOrdersCount} đơn chưa khớp. Email, file Excel và lịch hẹn gửi bị khóa cho đến khi đối soát hoàn tất.</span>
         </div>
       )}
 
@@ -420,6 +446,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={handleStartBatchSend}
+                disabled={hasUnmatchedOrders}
                 className="btn btn-primary btn-sm"
                 style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700 }}
               >
@@ -809,6 +836,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={async () => {
+                            if (hasUnmatchedOrders) {
+                              showToast('Không thể gửi bảng kê khi kỳ còn đơn chưa khớp.', 'warning');
+                              return;
+                            }
                             const recipientEmails = EmailService.getEmailsForStatement(stmt);
                             if (recipientEmails.length === 0) {
                               showToast('Shop chưa có địa chỉ email nhận.', 'warning');
@@ -842,6 +873,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                             }
                           }}
                           className="btn btn-primary btn-sm"
+                          disabled={hasUnmatchedOrders}
                           style={{ padding: '5px 9px', fontSize: 11 }}
                           title="Gửi ngay cho riêng Shop này qua SMTP"
                         >
@@ -850,8 +882,15 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                         </button>
 
                         <button
-                          onClick={() => ExcelService.downloadShopStatement(stmt)}
+                          onClick={() => {
+                            if (hasUnmatchedOrders) {
+                              showToast('Không thể tải bảng kê khi kỳ còn đơn chưa khớp.', 'warning');
+                              return;
+                            }
+                            ExcelService.downloadShopStatement(stmt);
+                          }}
                           className="btn btn-secondary btn-sm"
+                          disabled={hasUnmatchedOrders}
                           style={{ padding: '5px 8px' }}
                           title="Tải file Excel"
                         >

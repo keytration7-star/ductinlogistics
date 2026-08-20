@@ -73,6 +73,7 @@ export interface Shop {
   name: string; // e.g. "Shop Thời Trang Mina"
   phone: string;
   phoneList?: string[]; // Multiple SĐT for exact matching
+  nameAliases?: string[]; // Tên shop/nhãn gửi khác, chỉ khớp chính xác với cùng một hồ sơ shop
   email: string;
   emailList?: string[]; // Multiple emails for receiving statements
   address: string;
@@ -115,6 +116,9 @@ export interface ColumnMappingConfig {
   weightColumn?: string;
   statusColumn?: string;
   otherFeeColumn?: string;
+  additionalFeeColumns?: string[]; // Nhiều cột phụ phí NVC cần cộng cùng lúc
+  adjustmentColumn?: string;       // Điều chỉnh tăng/giảm của NVC
+  settlementAmountColumn?: string; // Số tiền NVC trả sau khi cấn trừ, dùng để kiểm tra
   dateColumn?: string;
   refOrderCodeColumn?: string;
   shopNameColumn?: string;
@@ -145,7 +149,7 @@ export interface ExportColumnSettings {
   masterColumns: ExportColumnItem[];
 }
 
-export type OrderStatus = 'delivered' | 'returning' | 'returned' | 'in_transit' | 'cancelled' | 'unknown';
+export type OrderStatus = 'delivered' | 'returning' | 'returned' | 'in_transit' | 'cancelled' | 'fee_charged' | 'unknown';
 
 export interface ReconciledOrder {
   id: string;
@@ -163,6 +167,8 @@ export interface ReconciledOrder {
   codAmount: number;            // Tiền COD thu hộ
   nvcBaseFee: number;           // Cước NVC tính cho nhà gom
   nvcOtherFee: number;          // Phí khác NVC
+  nvcSettlementAmount?: number; // Số NVC thực trả sau cấn trừ trong file đối soát
+  nvcSettlementVerified?: boolean;
   shopCalculatedFee: number;    // Cước gom đơn tính cho Shop theo bảng giá riêng
   shopOtherFee: number;         // Phí khác/bảo hiểm/hoàn tính cho Shop
   netShopPayout: number;        // Tiền thực trả Shop = COD - Cước Shop - Phí khác
@@ -170,7 +176,9 @@ export interface ReconciledOrder {
   status: OrderStatus;          // Trạng thái đơn hàng
   statusText: string;           // Text gốc từ file NVC
   matched: boolean;             // Khớp được với shop hay chưa
+  shopMatchMethod?: 'phone' | 'code' | 'name' | 'name_alias' | 'manual_admin'; // Căn cứ phân shop để kiểm tra lại
   matchError?: string;          // Lý do không khớp
+  canManualAssignShop?: boolean; // Chỉ cho phép sửa lỗi nhận diện shop, không được bỏ qua lỗi dữ liệu tài chính
   isPartialDelivery?: boolean;  // Đơn GH1P (Giao hàng 1 phần)
   declaredValue?: number;       // Giá trị khai giá
   declaredFee?: number;         // Phí khai giá tính cho shop
@@ -197,6 +205,10 @@ export interface PaymentRecord {
   bankName?: string;          // Ngân hàng chuyển
   transactionRef?: string;    // Mã giao dịch ngân hàng (FT...)
   note?: string;              // Ghi chú thanh toán
+  voidedAt?: string;          // Thời điểm hủy/đảo bản ghi; không xóa lịch sử tài chính
+  voidedByUsername?: string;
+  voidedByFullName?: string;
+  voidReason?: string;
 }
 
 export interface ShopSettlementStatement {
@@ -245,6 +257,10 @@ export interface ReconciliationSession {
   mode?: '1file' | '2files';    // Chế độ 1 File (GHN/GHTK) hoặc 2 File (J&T)
   nvcFileName: string;
   appFileName?: string;
+  mappingSnapshot?: {           // Cấu hình cột đã dùng cho chính kỳ này
+    nvc: ColumnMappingConfig;
+    app?: ColumnMappingConfig;
+  };
   totalOrders: number;
   matchedOrdersCount: number;
   unmatchedOrdersCount: number;

@@ -1,5 +1,4 @@
 import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile } from '../types';
-import { getAuthHeaders } from './authService';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
@@ -161,7 +160,7 @@ async function postServerSync(endpoint: string, body: any) {
   try {
     await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -173,7 +172,7 @@ export const StorageService = {
   // 🔄 Sync all data from Server on App Launch
   async syncWithServer(): Promise<boolean> {
     try {
-      const res = await fetch('/api/db/all', { headers: getAuthHeaders() });
+      const res = await fetch('/api/db/all');
       if (!res.ok) return false;
       const result = await res.json();
       if (!result.success || !result.data) return false;
@@ -353,19 +352,6 @@ export const StorageService = {
   clearSessionsOnly(): void {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
     postServerSync('/api/db/sessions', { sessions: [] });
-  },
-
-  // Deliberate operational reset: preserves master data (shops, pricing,
-  // carriers, accounts and mappings) while clearing transactional history.
-  async clearOperationalData(): Promise<void> {
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
-    localStorage.setItem(PAYMENTS_KEY, JSON.stringify([]));
-    localStorage.setItem('gomdon_audit_logs_v1', JSON.stringify([]));
-    await Promise.all([
-      postServerSync('/api/db/sessions', { sessions: [] }),
-      postServerSync('/api/db/payments', { payments: [] }),
-      postServerSync('/api/db/audit-logs', { logs: [] }),
-    ]);
   },
 
   getEmailSettings(): EmailSettings {
@@ -675,7 +661,7 @@ export const StorageService = {
   // 📸 SERVER SNAPSHOT BACKUP & RECOVERY APIs
   async getServerSnapshots(): Promise<{ filename: string; sizeBytes: number; createdAt: string; modifiedAt: string }[]> {
     try {
-      const res = await fetch('/api/db/snapshots', { headers: getAuthHeaders() });
+      const res = await fetch('/api/db/snapshots');
       if (!res.ok) return [];
       const data = await res.json();
       return data.snapshots || [];
@@ -688,7 +674,7 @@ export const StorageService = {
     try {
       const res = await fetch('/api/db/snapshots/restore', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename }),
       });
       if (!res.ok) return false;
@@ -705,7 +691,7 @@ export const StorageService = {
 
   async createManualServerSnapshot(): Promise<boolean> {
     try {
-      const res = await fetch('/api/db/snapshots/create', { method: 'POST', headers: getAuthHeaders() });
+      const res = await fetch('/api/db/snapshots/create', { method: 'POST' });
       if (!res.ok) return false;
       const data = await res.json();
       return !!data.success;

@@ -429,7 +429,7 @@ const TabGuide: React.FC = () => {
           ]} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
             {[
-              ['📊', 'Đối Soát Kéo Thả', 'Ghép 2 file tự động, tính COD từng shop'],
+              ['📊', 'Đối Soát Kéo Thả', 'J&T ghép 2 file; GHN nạp 1 file theo sheet/kỳ'],
               ['🏪', 'Quản Lý Shop', 'Lưu thông tin & biểu giá riêng từng khách'],
               ['🚚', 'Bảng Giá NVC', 'Cài giá sỉ từng hãng vận chuyển'],
               ['📧', 'Gửi Email', 'Gửi đối soát hàng loạt qua Gmail'],
@@ -455,18 +455,17 @@ const TabGuide: React.FC = () => {
         <div>
           <VisualDiagram arrows items={[
             { icon: '🗂️', label: 'Tải File NVC', color: '#4f46e5' },
-            { icon: '🗂️', label: 'Tải File Shop', color: '#10b981' },
-            { icon: '🔗', label: 'Kéo Thả Ghép', color: '#f59e0b' },
-            { icon: '⚡', label: 'Tính Tiền', color: '#ec4899' },
-            { icon: '📥', label: 'Xuất File', color: '#14b8a6' },
+            { icon: '🔗', label: 'Xác nhận cột', color: '#f59e0b' },
+            { icon: '⚡', label: 'Kiểm tra chênh lệch', color: '#ec4899' },
+            { icon: '📥', label: 'Xuất bảng kê', color: '#14b8a6' },
           ]} />
-          <StepRow n={1} text="Tải File NVC (Hãng Vận Chuyển)" sub="Vào tab Đối Soát → Kéo thả file Excel của NVC vào vùng bên trái. Hệ thống tự nhận diện cột vận đơn, cân nặng, COD..." />
-          <StepRow n={2} text="Tải File Shop (Dữ Liệu Đơn)" sub="Kéo thả file Excel của Shop (hoặc nhiều shop) vào vùng bên phải." />
-          <StepRow n={3} text="Kéo Thả Ghép Dữ Liệu" sub="Kéo từng file shop sang ô ghép với file NVC tương ứng. Hệ thống hiển thị preview kết quả." />
-          <StepRow n={4} text="Kiểm Tra & Lưu Kỳ Đối Soát" sub="Xem bảng tổng hợp số tiền từng shop, chỉnh sửa nếu cần, sau đó bấm Lưu Kỳ." />
-          <StepRow n={5} text="Xuất File Excel Từng Khách" sub="Bấm nút Xuất Excel → mỗi shop được 1 file riêng với bảng tính chi tiết." />
-          <InfoBox type="tip">Hệ thống tự động khớp mã vận đơn giữa 2 file và tính giá theo biểu giá đã cài cho từng Shop.</InfoBox>
-          <InfoBox type="warn">Nếu file Excel có cột bị sai tên, vào <strong>Cấu Hình Ánh Xạ Cột</strong> để map lại đúng cột.</InfoBox>
+          <StepRow n={1} text="Chọn đúng hãng và kỳ" sub="Hiện chỉ dùng J&T và GHN. Với GHN, chọn chính xác một sheet/kỳ; app không tự gộp các sheet." />
+          <StepRow n={2} text="Tải đúng cấu trúc file" sub="J&T bắt buộc tải File NVC và File đơn xuất từ App. GHN chỉ tải một file đối soát; app tự tách bảng COD và bảng cước." />
+          <StepRow n={3} text="Xác nhận ánh xạ cột" sub="Kiểm tra mã vận đơn, COD, cước, trạng thái và định danh shop trước khi bấm đối soát. Không dùng mapping cũ nếu file NVC đổi mẫu." />
+          <StepRow n={4} text="Xử lý đơn chưa khớp" sub="Mọi đơn chưa xác định được shop, trạng thái hoặc có lỗi công thức phải được xử lý trước. Không tự gán shop theo tên gần giống." />
+          <StepRow n={5} text="Đối chiếu nguồn rồi xuất" sub="So sánh tổng nguồn NVC với bảng kê. Chỉ khi không còn đơn treo, xuất Excel/ZIP/email cho từng shop." />
+          <InfoBox type="tip">Một shop có thể có nhiều SĐT và tên gọi khác (alias), nhưng mỗi định danh phải là duy nhất để tránh nhầm shop.</InfoBox>
+          <InfoBox type="warn">Cước NVC bằng 0 nghĩa là không trừ cước shop lại trong kỳ này. Nếu thấy chênh lệch, đối chiếu theo từng mã vận đơn, không sửa tổng tiền thủ công.</InfoBox>
         </div>
       ),
     },
@@ -507,9 +506,9 @@ const TabGuide: React.FC = () => {
       color: '#f59e0b',
       content: (
         <div>
-          <StepRow n={1} text="Thêm Hãng Vận Chuyển" sub="Tab Bảng Giá NVC → bấm + Thêm NVC → nhập tên & mã hãng (VD: GHTK, GHN, BEST)." />
-          <StepRow n={2} text="Cài Giá Cước Gốc Bậc Thang" sub="Cài bảng giá sỉ bạn ký với NVC. Dùng để tính lợi nhuận (chênh lệch với giá bán cho Shop)." />
-          <StepRow n={3} text="Cấu Hình Ánh Xạ Cột" sub="Mỗi NVC có file Excel khác nhau. Cài 1 lần để hệ thống biết cột nào là mã vận đơn, cân nặng, COD..." />
+          <StepRow n={1} text="Chỉ Admin cập nhật cấu hình" sub="Bảng giá và profile hãng là cấu hình tài chính. Người xem chỉ có quyền đọc." />
+          <StepRow n={2} text="Cài Giá Cước Gốc Bậc Thang" sub="Cài bảng giá sỉ bạn ký với NVC để theo dõi lợi nhuận. Số cước đối soát thực tế vẫn lấy ưu tiên từ file NVC." />
+          <StepRow n={3} text="Cấu Hình Ánh Xạ Cột" sub="Mỗi NVC có thể đổi tên cột. Chỉ lưu profile sau khi đã kiểm tra bằng file mẫu thật." />
           <StepRow n={4} text="Cấu Hình Cột Xuất" sub="Chọn các cột xuất ra file Excel riêng cho từng khách sau khi đối soát." />
           <InfoBox type="info">Bảng giá NVC dùng để tính lợi nhuận gộp của bạn. Giá bán cho Shop được cài riêng trong tab Quản Lý Shop.</InfoBox>
         </div>
@@ -571,9 +570,9 @@ const TabGuide: React.FC = () => {
       content: (
         <div>
           <StepRow n={1} text="Sao Lưu Dữ Liệu" sub="Sidebar → Sao Lưu Dữ Liệu → Tab Sao Lưu → Tải Về File JSON. Lưu file này nơi an toàn." />
-          <StepRow n={2} text="Khôi Phục Từ File" sub="Tab Khôi Phục → Chọn file .json đã tải về → hệ thống ghi đè dữ liệu hiện tại." />
+          <StepRow n={2} text="Khôi Phục Từ File" sub="Dán nội dung JSON đã sao lưu; hệ thống tạo snapshot an toàn phía server trước khi khôi phục." />
           <StepRow n={3} text="Đồng Bộ Lên Server" sub="Dữ liệu được tự động đồng bộ lên VPS mỗi khi có thay đổi. Bạn có thể dùng từ nhiều máy tính." />
-          <InfoBox type="warn">Khi Khôi Phục sẽ ghi đè toàn bộ dữ liệu hiện tại. Hãy sao lưu trước khi thực hiện!</InfoBox>
+          <InfoBox type="warn">Khôi phục làm thay đổi dữ liệu hiện tại. Chỉ Admin thực hiện sau khi đã tạo và kiểm tra bản sao lưu.</InfoBox>
           <InfoBox type="tip">Nên sao lưu định kỳ hàng tuần và trước mỗi kỳ đối soát lớn.</InfoBox>
         </div>
       ),

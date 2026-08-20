@@ -116,4 +116,12 @@ function emailApiPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), emailApiPlugin()],
+  // Keep local development behavior aligned with the VPS: database APIs are
+  // served by Express, while Vite serves the React interface.
+  server: {
+    proxy: {
+      '/api/db': 'http://127.0.0.1:3000',
+      '/api/send-telegram': 'http://127.0.0.1:3000',
+    },
+  },
 });

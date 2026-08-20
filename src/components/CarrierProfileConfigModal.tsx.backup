@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
-import { Settings2, SlidersHorizontal, Check, X, Trash2, RotateCcw, AlertCircle, ShieldAlert, Zap, ArrowUp, ArrowDown } from 'lucide-react';
+import { Settings2, SlidersHorizontal, FileSpreadsheet, Check, X, Trash2, RotateCcw, AlertCircle, ShieldAlert, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ColumnMappingConfig, ExportColumnSettings, ExportColumnItem } from '../types';
 import { autoDetectColumns } from '../services/smartColumnDetector';
 import { StorageService } from '../services/storage';
@@ -155,7 +155,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                 </span>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                Chỉ cấu hình cách đọc file đầu vào của hãng <strong>{carrierName}</strong>. Mẫu cột file xuất được chọn ở bước xuất bảng kê.
+                Tùy chỉnh ánh xạ cột file đầu vào & mẫu cột xuất file Excel dành riêng cho hãng <strong>{carrierName}</strong>.
               </p>
             </div>
           </div>
@@ -165,7 +165,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
           </button>
         </div>
 
-        {/* This entry point is intentionally only for inbound-file mapping. */}
+        {/* Level 1 Tabs: Ánh Xạ Cột vs Mẫu Xuất Excel */}
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border-color)',
@@ -190,7 +190,28 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             }}
           >
             <SlidersHorizontal size={17} />
-            <span>Ánh Xạ Cột File Nhập</span>
+            <span>1. Cấu Hình Ánh Xạ Cột Excel (Mapping)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('export')}
+            style={{
+              padding: '12px 20px',
+              border: 'none',
+              background: 'none',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              color: mainTab === 'export' ? 'var(--primary)' : 'var(--text-muted)',
+              borderBottom: mainTab === 'export' ? '3px solid var(--primary)' : '3px solid transparent',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <FileSpreadsheet size={17} />
+            <span>2. Cấu Hình Mẫu Cột Xuất File Excel</span>
           </button>
         </div>
 

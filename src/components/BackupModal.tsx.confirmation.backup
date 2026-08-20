@@ -41,11 +41,6 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [serverSnapshots, setServerSnapshots] = useState<{ filename: string; sizeBytes: number; createdAt: string; modifiedAt: string }[]>([]);
   const [resetConfirmation, setResetConfirmation] = useState('');
-  const hasConfirmedOperationalReset = resetConfirmation
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase() === 'XOA DU LIEU';
 
   const loadSnapshots = async () => {
     const list = await StorageService.getServerSnapshots();
@@ -60,11 +55,14 @@ export const BackupModal: React.FC<BackupModalProps> = ({
 
   if (!isOpen || currentUser.role !== 'ADMIN') return null;
 
-  const handleVerifyAdminPassword = async (e: React.FormEvent) => {
+  const handleVerifyAdminPassword = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
-    const verified = await AuthService.verifyCurrentPassword(adminPasswordInput);
-    if (verified) {
+
+    const users = AuthService.getUsers();
+    const adminUser = users.find(u => u.id === currentUser.id && u.role === 'ADMIN');
+    
+    if (adminUser && adminUser.password === adminPasswordInput.trim()) {
       setIsAuthenticated(true);
       setAdminPasswordInput('');
       setAuthError(null);
@@ -84,7 +82,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   };
 
   const handleClearOperationalData = async () => {
-    if (!hasConfirmedOperationalReset) return;
+    if (resetConfirmation.trim().toUpperCase() !== 'XÓA DỮ LIỆU') return;
     const ok = await showConfirm({
       title: 'Xóa Dữ Liệu Vận Hành',
       message: 'App sẽ xóa toàn bộ kỳ đối soát, công nợ/phiếu đi tiền và nhật ký vận hành. Danh sách shop, biểu giá, hãng vận chuyển, tài khoản và ánh xạ file được giữ nguyên. Một snapshot VPS sẽ được tạo trước khi xóa.',
@@ -434,7 +432,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
                       <button
                         type="button"
                         onClick={handleClearOperationalData}
-                        disabled={!hasConfirmedOperationalReset}
+                        disabled={resetConfirmation.trim().toUpperCase() !== 'XÓA DỮ LIỆU'}
                         className="btn btn-danger btn-sm"
                       >
                         <RefreshCcw size={14} />

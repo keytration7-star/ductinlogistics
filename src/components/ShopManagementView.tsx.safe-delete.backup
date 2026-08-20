@@ -222,51 +222,6 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     }
   };
 
-  // A master shop may only be physically removed before it has any operational
-  // or financial footprint. Historical references must remain auditable.
-  const getShopUsage = (shopId: string) => {
-    const persistedSessions = StorageService.getSessions();
-    const allSessions = sourceSession && !persistedSessions.some(session => session.id === sourceSession.id)
-      ? [sourceSession, ...persistedSessions]
-      : persistedSessions;
-    const sessionCount = allSessions.filter(session =>
-      session.statements.some(statement => statement.shopId === shopId) ||
-      session.unmatchedOrders.some(order => order.shopId === shopId)
-    ).length;
-    const paymentCount = StorageService.getPaymentRecords()
-      .filter(payment => payment.shopId === shopId).length;
-
-    return { sessionCount, paymentCount, canDelete: sessionCount === 0 && paymentCount === 0 };
-  };
-
-  const handleDeleteEmptyShop = async (shop: Shop) => {
-    if (currentUser?.role !== 'ADMIN') {
-      showToast('Chỉ Admin được xóa shop chưa phát sinh.', 'warning');
-      return;
-    }
-
-    const usage = getShopUsage(shop.id);
-    if (!usage.canDelete) {
-      showToast(`Không thể xóa “${shop.name}”: shop đã có ${usage.sessionCount} kỳ đối soát và ${usage.paymentCount} phiếu đi tiền. Hãy dùng “Ngừng hoạt động” để giữ lịch sử.`, 'warning');
-      return;
-    }
-
-    const confirmed = await showConfirm({
-      title: 'Xóa Shop Chưa Phát Sinh',
-      message: `Xóa vĩnh viễn hồ sơ “${shop.name}” (${shop.code})? Shop này chưa có đơn đối soát hoặc phiếu đi tiền. Thao tác chỉ xóa hồ sơ shop và không thể hoàn tác từ màn hình này.`,
-      confirmText: 'Xóa shop',
-      warning: true,
-    });
-    if (!confirmed) return;
-
-    const updated = shops.filter(item => item.id !== shop.id);
-    onSaveShops(updated);
-    const replacement = updated.find(item => item.active) || updated[0] || null;
-    setSelectedShopId(replacement?.id || null);
-    setEditingShop(replacement ? JSON.parse(JSON.stringify(replacement)) : null);
-    showToast(`Đã xóa hồ sơ shop chưa phát sinh “${shop.name}”.`, 'success');
-  };
-
   // File Scanning Handler for New Shop Auto-Detection
   const handleScanExcelFileForNewShops = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isAdmin) {
@@ -612,25 +567,6 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {(() => {
-                  const usage = getShopUsage(editingShop.id);
-                  const deleteTitle = usage.canDelete
-                    ? 'Xóa shop chưa có dữ liệu vận hành'
-                    : `Không thể xóa: đã có ${usage.sessionCount} kỳ đối soát hoặc ${usage.paymentCount} phiếu đi tiền`;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteEmptyShop(editingShop)}
-                      className="btn btn-danger btn-sm"
-                      disabled={!usage.canDelete}
-                      style={{ padding: '6px 12px', opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
-                      title={deleteTitle}
-                    >
-                      <Trash2 size={14} />
-                      <span>Xóa shop trống</span>
-                    </button>
-                  );
-                })()}
                 {editingShop.active && <button
                   type="button"
                   onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}

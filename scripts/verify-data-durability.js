@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 
-console.log('🔍 Starting GOMDON PRO ENTERPRISE Data Durability Audit...\n');
+console.log('Starting read-only GOMDON PRO ENTERPRISE data durability audit...\n');
 
 let passCount = 0;
 let failCount = 0;
@@ -22,14 +22,9 @@ function assert(condition, message) {
   }
 }
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(BACKUPS_DIR)) {
-  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-}
-
-// Test 1: Check DATA_DIR existence & write access
+// This verifier is intentionally read-only: it must never create, modify,
+// restore, or remove a financial data file while performing a check.
+// Test 1: Check data directories exist
 assert(fs.existsSync(DATA_DIR), 'Directory ./data exists on server');
 assert(fs.existsSync(BACKUPS_DIR), 'Directory ./data/backups exists for snapshots');
 
@@ -64,35 +59,10 @@ dbFiles.forEach(file => {
   }
 });
 
-// Test 3: Simulate Atomic Temporary-File Swap
-console.log('\n🧪 Simulating Atomic Write Pattern...');
-const testFile = path.join(DATA_DIR, 'test_atomic.json');
-const tempFile = path.join(DATA_DIR, `test_atomic.json.tmp.${Date.now()}`);
-
-try {
-  const testData = { test: true, timestamp: Date.now(), title: 'Atomic Persistence Test' };
-  fs.writeFileSync(tempFile, JSON.stringify(testData, null, 2), 'utf8');
-  const fd = fs.openSync(tempFile, 'r+');
-  fs.fsyncSync(fd);
-  fs.closeSync(fd);
-  fs.renameSync(tempFile, testFile);
-
-  const readBack = JSON.parse(fs.readFileSync(testFile, 'utf8'));
-  assert(readBack.test === true && readBack.title === 'Atomic Persistence Test', 'Atomic write & sync replacement executed successfully');
-  fs.unlinkSync(testFile);
-} catch (err) {
-  assert(false, `Atomic write test failed: ${err.message}`);
-}
-
-// Test 4: Check Automated Snapshot Generation
-console.log('\n🧪 Auditing Backup Snapshot Engine...');
+// Test 3: Audit existing snapshots only
+console.log('\nAuditing existing backup snapshots (read-only)...');
 if (fs.existsSync(BACKUPS_DIR)) {
   let snapshots = fs.readdirSync(BACKUPS_DIR).filter(f => f.startsWith('snapshot_') && f.endsWith('.json'));
-  if (snapshots.length === 0) {
-    const dummySnap = path.join(BACKUPS_DIR, `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}_audit_test.json`);
-    fs.writeFileSync(dummySnap, JSON.stringify({ timestamp: new Date().toISOString(), reason: 'audit_test', shops: [] }, null, 2));
-    snapshots = [path.basename(dummySnap)];
-  }
   assert(snapshots.length > 0, `Found ${snapshots.length} automated snapshot backups in ./data/backups/`);
   
   if (snapshots.length > 0) {
@@ -109,7 +79,7 @@ if (fs.existsSync(BACKUPS_DIR)) {
 console.log('\n----------------------------------------');
 console.log(`📊 Audit Summary: ${passCount} PASSED, ${failCount} FAILED.`);
 if (failCount === 0) {
-  console.log('🛡️ RESULT: GOMDON PRO Data Durability meets 100% Production Standards!\n');
+  console.log('RESULT: Existing JSON files and snapshots passed this read-only structural audit.\n');
 } else {
   console.error('⚠️ RESULT: Found vulnerabilities to address.\n');
   process.exit(1);

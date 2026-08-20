@@ -445,82 +445,43 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
       } else {
-        // Multi-file J&T exports can legitimately differ in optional columns
-        // (for example product, warehouse or print columns).  Do not compare
-        // whole schemas position-by-position: normalize each file to the
-        // identity/logistics fields that reconciliation actually uses.
-        const canonicalHeaders = {
-          waybill: 'Mã vận đơn (chuẩn hóa đa file)',
-          shopName: 'Tên người gửi (chuẩn hóa đa file)',
-          shopPhone: 'SĐT người gửi (chuẩn hóa đa file)',
-          shopAddress: 'Địa chỉ người gửi (chuẩn hóa đa file)',
-          shopCode: 'Mã shop (chuẩn hóa đa file)',
-          receiverName: 'Tên người nhận (chuẩn hóa đa file)',
-          receiverPhone: 'SĐT người nhận (chuẩn hóa đa file)',
-          receiverAddress: 'Địa chỉ người nhận (chuẩn hóa đa file)',
-          weight: 'Trọng lượng (chuẩn hóa đa file)',
-          cod: 'COD (chuẩn hóa đa file)',
-          status: 'Trạng thái (chuẩn hóa đa file)',
-        };
-        const normalizedHeaders = Object.values(canonicalHeaders);
+        // Multi-file upload & merge
+        let firstHeaders: string[] = [];
         let combinedRows: Record<string, any>[] = [];
-        const saved = StorageService.getCarrierMapping(selectedCarrierId);
 
-        for (const file of filesArray) {
+        for (let i = 0; i < filesArray.length; i++) {
+          const file = filesArray[i];
           const { headers, rows } = await ExcelService.parseExcelFile(file);
-          const fileMapping = autoDetectColumns(headers, 'app', saved.app, rows);
-          const missingRequired: string[] = [];
-          if (!fileMapping.waybillColumn) missingRequired.push('Mã vận đơn');
-          if (!fileMapping.shopNameColumn) missingRequired.push('Tên người gửi/Shop');
-          if (!fileMapping.shopPhoneColumn) missingRequired.push('SĐT người gửi/Shop');
-          if (missingRequired.length > 0) {
-            throw new Error(`File “${file.name}” thiếu cột bắt buộc: ${missingRequired.join(', ')}. App không gộp file này để tránh nhầm đơn hoặc nhầm shop.`);
+          if (i === 0) {
+            firstHeaders = headers;
+            combinedRows = [...rows];
+          } else {
+            const sameSchema = headers.length === firstHeaders.length
+              && headers.every((header, index) => header === firstHeaders[index]);
+            if (!sameSchema) {
+              throw new Error(`File “${file.name}” có cấu trúc cột khác file đầu tiên. Không thể gộp để tránh đọc sai Tên/SĐT shop; hãy xuất cùng mẫu hoặc đối soát riêng.`);
+            }
+            combinedRows.push(...rows);
           }
-
-          combinedRows.push(...rows.map(row => ({
-            ...row,
-            [canonicalHeaders.waybill]: row[fileMapping.waybillColumn],
-            [canonicalHeaders.shopName]: row[fileMapping.shopNameColumn || ''],
-            [canonicalHeaders.shopPhone]: row[fileMapping.shopPhoneColumn || ''],
-            [canonicalHeaders.shopAddress]: row[fileMapping.shopAddressColumn || ''],
-            [canonicalHeaders.shopCode]: row[fileMapping.shopCodeColumn || ''],
-            [canonicalHeaders.receiverName]: row[fileMapping.receiverNameColumn || ''],
-            [canonicalHeaders.receiverPhone]: row[fileMapping.receiverPhoneColumn || ''],
-            [canonicalHeaders.receiverAddress]: row[fileMapping.receiverAddressColumn || ''],
-            [canonicalHeaders.weight]: row[fileMapping.weightColumn || ''],
-            [canonicalHeaders.cod]: row[fileMapping.codColumn || ''],
-            [canonicalHeaders.status]: row[fileMapping.statusColumn || ''],
-          })));
         }
 
         const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${combinedRows.length} dòng)`);
         setAppFile(mergedFile);
-        setAppHeaders(normalizedHeaders);
+        setAppHeaders(firstHeaders);
         setAppRows(combinedRows);
         setIsMappingConfirmed(false);
 
-        const normalizedMapping: ColumnMappingConfig = {
-          waybillColumn: canonicalHeaders.waybill,
-          shopNameColumn: canonicalHeaders.shopName,
-          shopPhoneColumn: canonicalHeaders.shopPhone,
-          shopAddressColumn: canonicalHeaders.shopAddress,
-          shopCodeColumn: canonicalHeaders.shopCode,
-          receiverNameColumn: canonicalHeaders.receiverName,
-          receiverPhoneColumn: canonicalHeaders.receiverPhone,
-          receiverAddressColumn: canonicalHeaders.receiverAddress,
-          weightColumn: canonicalHeaders.weight,
-          codColumn: canonicalHeaders.cod,
-          statusColumn: canonicalHeaders.status,
-        };
-        setAppMapping(normalizedMapping);
-        prepareShopProposals(combinedRows, normalizedMapping);
+        const saved = StorageService.getCarrierMapping(selectedCarrierId);
+        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app, combinedRows);
+        setAppMapping(detectedMapping);
+        prepareShopProposals(combinedRows, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
-        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, normalizedHeaders);
+        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, firstHeaders);
 
-        showToast(`Đã chuẩn hóa và gộp ${filesArray.length} file Excel App (${combinedRows.length.toLocaleString('vi-VN')} dòng). Mã đơn trùng vẫn sẽ bị chặn ở bước đối soát.`, 'success');
+        showToast(`Đã tự động gộp ${filesArray.length} file Excel đơn hàng App (${combinedRows.length.toLocaleString('vi-VN')} dòng dữ liệu)!`, 'success');
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
+      showToast('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
     }
   };
@@ -674,8 +635,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn && !appMapping.shopPhoneColumn && !appMapping.shopCodeColumn)) {
-      showToast('File App cần xác nhận ít nhất một cột nhận diện shop (Tên người gửi, SĐT người gửi hoặc Mã shop).', 'warning');
+    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn || !appMapping.shopPhoneColumn)) {
+      showToast('J&T phải xác nhận đồng thời cột Tên người gửi và SĐT người gửi để nhận diện shop. Vui lòng kiểm tra ánh xạ file App.', 'warning');
       setShowMappingModal(true);
       return;
     }

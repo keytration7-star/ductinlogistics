@@ -1,6 +1,5 @@
 import type { ShopSettlementStatement } from '../types';
 import { StorageService } from './storage';
-import { calculateStatementSettlement } from './settlementService';
 
 export const PdfService = {
   printShopStatementPdf(statement: ShopSettlementStatement): void {
@@ -8,9 +7,8 @@ export const PdfService = {
     const companyTitle = (company.companyName || 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
-    const settlement = calculateStatementSettlement(statement);
-    const previousDebtVal = settlement.openingDebt;
-    const finalPayout = settlement.amountPayable;
+    const previousDebtVal = statement.previousDebt || 0;
+    const finalPayout = statement.totalNetPayout + previousDebtVal;
 
     const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
@@ -156,22 +154,16 @@ export const PdfService = {
               <td></td>
             </tr>
             <tr>
-              <td>8. Công nợ đầu kỳ (-/+)</td>
+              <td>8. Công nợ cũ còn nợ (-/+)</td>
               <td style="text-align: right; font-weight: bold;">${formatVND(previousDebtVal)}</td>
               <td style="text-align: center;">VNĐ</td>
               <td>${previousDebtVal < 0 ? 'Shop nợ công ty (trừ bớt)' : previousDebtVal > 0 ? 'Công ty nợ Shop (cộng thêm)' : 'Không có công nợ cũ'}</td>
-            </tr>
-            <tr>
-              <td>9. Shop còn nợ công ty chuyển kỳ sau</td>
-              <td style="text-align: right; font-weight: bold; color: #dc2626;">${formatVND(settlement.amountShopOwes)}</td>
-              <td style="text-align: center;">VNĐ</td>
-              <td>${settlement.amountShopOwes > 0 ? 'Không phát sinh chuyển tiền trong kỳ này' : 'Không có'}</td>
             </tr>
             <tr class="grand-total">
               <td>▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)</td>
               <td style="text-align: right; font-size: 15px;">${formatVND(finalPayout)}</td>
               <td style="text-align: center;">VNĐ</td>
-              <td>${settlement.amountShopOwes > 0 ? 'Không chuyển tiền; công nợ được chuyển sang kỳ sau' : 'Tiền công ty chuyển khoản cho Shop'}</td>
+              <td>Tiền công ty chuyển khoản cho Shop</td>
             </tr>
           </tbody>
         </table>

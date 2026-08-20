@@ -445,82 +445,38 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
       } else {
-        // Multi-file J&T exports can legitimately differ in optional columns
-        // (for example product, warehouse or print columns).  Do not compare
-        // whole schemas position-by-position: normalize each file to the
-        // identity/logistics fields that reconciliation actually uses.
-        const canonicalHeaders = {
-          waybill: 'Mã vận đơn (chuẩn hóa đa file)',
-          shopName: 'Tên người gửi (chuẩn hóa đa file)',
-          shopPhone: 'SĐT người gửi (chuẩn hóa đa file)',
-          shopAddress: 'Địa chỉ người gửi (chuẩn hóa đa file)',
-          shopCode: 'Mã shop (chuẩn hóa đa file)',
-          receiverName: 'Tên người nhận (chuẩn hóa đa file)',
-          receiverPhone: 'SĐT người nhận (chuẩn hóa đa file)',
-          receiverAddress: 'Địa chỉ người nhận (chuẩn hóa đa file)',
-          weight: 'Trọng lượng (chuẩn hóa đa file)',
-          cod: 'COD (chuẩn hóa đa file)',
-          status: 'Trạng thái (chuẩn hóa đa file)',
-        };
-        const normalizedHeaders = Object.values(canonicalHeaders);
+        // Multi-file upload & merge
+        let firstHeaders: string[] = [];
         let combinedRows: Record<string, any>[] = [];
-        const saved = StorageService.getCarrierMapping(selectedCarrierId);
 
-        for (const file of filesArray) {
+        for (let i = 0; i < filesArray.length; i++) {
+          const file = filesArray[i];
           const { headers, rows } = await ExcelService.parseExcelFile(file);
-          const fileMapping = autoDetectColumns(headers, 'app', saved.app, rows);
-          const missingRequired: string[] = [];
-          if (!fileMapping.waybillColumn) missingRequired.push('Mã vận đơn');
-          if (!fileMapping.shopNameColumn) missingRequired.push('Tên người gửi/Shop');
-          if (!fileMapping.shopPhoneColumn) missingRequired.push('SĐT người gửi/Shop');
-          if (missingRequired.length > 0) {
-            throw new Error(`File “${file.name}” thiếu cột bắt buộc: ${missingRequired.join(', ')}. App không gộp file này để tránh nhầm đơn hoặc nhầm shop.`);
+          if (i === 0) {
+            firstHeaders = headers;
+            combinedRows = [...rows];
+          } else {
+            combinedRows.push(...rows);
           }
-
-          combinedRows.push(...rows.map(row => ({
-            ...row,
-            [canonicalHeaders.waybill]: row[fileMapping.waybillColumn],
-            [canonicalHeaders.shopName]: row[fileMapping.shopNameColumn || ''],
-            [canonicalHeaders.shopPhone]: row[fileMapping.shopPhoneColumn || ''],
-            [canonicalHeaders.shopAddress]: row[fileMapping.shopAddressColumn || ''],
-            [canonicalHeaders.shopCode]: row[fileMapping.shopCodeColumn || ''],
-            [canonicalHeaders.receiverName]: row[fileMapping.receiverNameColumn || ''],
-            [canonicalHeaders.receiverPhone]: row[fileMapping.receiverPhoneColumn || ''],
-            [canonicalHeaders.receiverAddress]: row[fileMapping.receiverAddressColumn || ''],
-            [canonicalHeaders.weight]: row[fileMapping.weightColumn || ''],
-            [canonicalHeaders.cod]: row[fileMapping.codColumn || ''],
-            [canonicalHeaders.status]: row[fileMapping.statusColumn || ''],
-          })));
         }
 
         const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${combinedRows.length} dòng)`);
         setAppFile(mergedFile);
-        setAppHeaders(normalizedHeaders);
+        setAppHeaders(firstHeaders);
         setAppRows(combinedRows);
         setIsMappingConfirmed(false);
 
-        const normalizedMapping: ColumnMappingConfig = {
-          waybillColumn: canonicalHeaders.waybill,
-          shopNameColumn: canonicalHeaders.shopName,
-          shopPhoneColumn: canonicalHeaders.shopPhone,
-          shopAddressColumn: canonicalHeaders.shopAddress,
-          shopCodeColumn: canonicalHeaders.shopCode,
-          receiverNameColumn: canonicalHeaders.receiverName,
-          receiverPhoneColumn: canonicalHeaders.receiverPhone,
-          receiverAddressColumn: canonicalHeaders.receiverAddress,
-          weightColumn: canonicalHeaders.weight,
-          codColumn: canonicalHeaders.cod,
-          statusColumn: canonicalHeaders.status,
-        };
-        setAppMapping(normalizedMapping);
-        prepareShopProposals(combinedRows, normalizedMapping);
+        const saved = StorageService.getCarrierMapping(selectedCarrierId);
+        const detectedMapping = autoDetectColumns(firstHeaders, 'app', saved.app, combinedRows);
+        setAppMapping(detectedMapping);
+        prepareShopProposals(combinedRows, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
-        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, normalizedHeaders);
+        StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, firstHeaders);
 
-        showToast(`Đã chuẩn hóa và gộp ${filesArray.length} file Excel App (${combinedRows.length.toLocaleString('vi-VN')} dòng). Mã đơn trùng vẫn sẽ bị chặn ở bước đối soát.`, 'success');
+        showToast(`Đã tự động gộp ${filesArray.length} file Excel đơn hàng App (${combinedRows.length.toLocaleString('vi-VN')} dòng dữ liệu)!`, 'success');
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
+      showToast('Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
       console.error(err);
     }
   };
@@ -674,8 +630,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn && !appMapping.shopPhoneColumn && !appMapping.shopCodeColumn)) {
-      showToast('File App cần xác nhận ít nhất một cột nhận diện shop (Tên người gửi, SĐT người gửi hoặc Mã shop).', 'warning');
+    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn || !appMapping.shopPhoneColumn)) {
+      showToast('J&T phải xác nhận đồng thời cột Tên người gửi và SĐT người gửi để nhận diện shop. Vui lòng kiểm tra ánh xạ file App.', 'warning');
       setShowMappingModal(true);
       return;
     }
@@ -731,11 +687,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Manually Assign Unmatched Order to a Shop
   const handleAssignUnmatchedOrder = (order: ReconciledOrder, targetShopId: string) => {
     if (!currentSession || !targetShopId) return;
-    const hasPayout = StorageService.getPaymentRecords().some(payment => !payment.voidedAt && payment.sessionId === currentSession.id);
-    if (hasPayout) {
-      showToast('Kỳ này đã phát sinh đi tiền nên bị khóa chỉnh sửa. Hãy hủy/đảo bản ghi đi tiền trước, sau đó mới điều chỉnh đối soát.', 'error');
-      return;
-    }
     if (!isAdmin) {
       showToast('Chỉ Admin mới được phép gán thủ công đơn vào shop.', 'error');
       return;
@@ -745,7 +696,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    const targetShop = shops.find(s => s.id === targetShopId && s.active);
+    const targetShop = shops.find(s => s.id === targetShopId);
     if (!targetShop) return;
 
     // Manual assignment only fixes the shop identity; it must retain exactly
@@ -1991,7 +1942,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                             style={{ padding: '4px 8px', fontSize: 12, width: 220 }}
                           >
                             <option value="">-- Chọn Shop để gán --</option>
-                            {shops.filter(s => s.active).map(s => (
+                            {shops.map(s => (
                               <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                             ))}
                           </select>
@@ -2038,25 +1989,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       <option value="separate">Tạo shop độc lập theo từng định danh</option>
                     </select>}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 9, marginTop: 12 }}>
-                    {group.entries.map(entry => {
-                      const accent = entry.existing ? '#059669' : '#d97706';
-                      const surface = entry.existing ? 'rgba(16, 185, 129, 0.07)' : 'rgba(245, 158, 11, 0.08)';
-                      const border = entry.existing ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.48)';
-                      return <div key={`${entry.name}|${entry.phone}`} style={{ border: `1px solid ${border}`, borderLeft: `4px solid ${accent}`, background: surface, borderRadius: 'var(--radius-sm)', padding: '10px 12px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                          <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{entry.name}</strong>
-                          <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>{entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7, fontSize: 12, color: 'var(--text-main)' }}>
-                          <span className="mono" style={{ fontWeight: 700, color: accent }}>{entry.phone || 'Chưa có SĐT'}</span>
-                          <span style={{ color: 'var(--text-muted)' }}>•</span>
-                          <span><strong>{entry.count}</strong> đơn</span>
-                        </div>
-                        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>📍 {entry.address || 'Chưa có địa chỉ kho gửi'}</div>
-                      </div>;
-                    })}
-                  </div>
+                  {group.entries.map(entry => <div key={`${entry.name}|${entry.phone}`} style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}><strong style={{ color: 'var(--text-main)' }}>{entry.name}</strong><span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>{entry.existing ? 'Đã có hồ sơ' : 'Shop mới'}</span><span>· {entry.phone || 'Chưa có SĐT'} · {entry.count} đơn{entry.address ? ` · ${entry.address}` : ''}</span></div>)}
                   {group.decision === 'merge' && group.entries.some(entry => entry.existing) && <div style={{ marginTop: 12 }}>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 5 }}>Gộp vào hồ sơ shop đã có</label>
                     <select value={group.targetShopId || ''} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))} className="select-field" style={{ width: '100%', padding: '7px 9px', fontSize: 12 }}>

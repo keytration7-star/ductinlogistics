@@ -1,7 +1,6 @@
 import type { ShopSettlementStatement, EmailSettings } from '../types';
 import { StorageService } from './storage';
 import { getAuthHeaders } from './authService';
-import { calculateStatementSettlement } from './settlementService';
 import * as XLSX from 'xlsx';
 
 export const EmailService = {
@@ -51,7 +50,6 @@ export const EmailService = {
   },
 
   renderEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string): { subject: string; body: string } {
-    const settlement = calculateStatementSettlement(statement);
     let subject = settings.subjectTemplate;
     let body = settings.bodyTemplate;
 
@@ -72,9 +70,7 @@ export const EmailService = {
       '{TONG_COD}': this.formatMoney(statement.totalCod),
       '{TONG_CUOC}': this.formatMoney(statement.totalShopFee),
       '{PHI_KHAC}': this.formatMoney(statement.totalShopOtherFee),
-      '{THUC_TRA}': this.formatMoney(settlement.amountPayable),
-      '{CONG_NO_DAU_KY}': this.formatMoney(settlement.openingDebt),
-      '{SHOP_CON_NO}': this.formatMoney(settlement.amountShopOwes),
+      '{THUC_TRA}': this.formatMoney(statement.totalNetPayout),
       '{NGAN_HANG}': statement.bankInfo.bankName || 'Chưa cập nhật',
       '{SO_TAI_KHOAN}': statement.bankInfo.accountNumber || 'Chưa cập nhật',
       '{CHU_TAI_KHOAN}': statement.bankInfo.accountHolder || statement.shopName,
@@ -91,7 +87,6 @@ export const EmailService = {
   },
 
   renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string): string {
-    const settlement = calculateStatementSettlement(statement);
     const companyInfo = StorageService.getCompanyInfo();
     const companyName = companyInfo?.companyName || settings.senderName || 'CÔNG TY LOGISTICS & GOM ĐƠN';
     const companyAddress = companyInfo?.address || '';
@@ -103,7 +98,7 @@ export const EmailService = {
 
     const totalCodStr = this.formatMoney(statement.totalCod);
     const totalFeeStr = this.formatMoney(statement.totalShopFee + statement.totalShopOtherFee);
-    const netPayoutStr = this.formatMoney(settlement.amountPayable);
+    const netPayoutStr = this.formatMoney(statement.totalNetPayout);
 
     return `
 <!DOCTYPE html>
@@ -211,7 +206,7 @@ export const EmailService = {
                       ${netPayoutStr} <span style="font-size: 14px; font-weight: 600;">đ</span>
                     </div>
                     <div style="font-size: 11.5px; color: #166534; margin-top: 4px; font-weight: 600;">
-                      ${settlement.amountShopOwes > 0 ? `Shop còn nợ công ty ${this.formatMoney(settlement.amountShopOwes)} đ; chuyển kỳ sau` : '(= COD - Cước + công nợ đầu kỳ)'}
+                      (= COD - Cước vận chuyển)
                     </div>
                   </td>
                 </tr>

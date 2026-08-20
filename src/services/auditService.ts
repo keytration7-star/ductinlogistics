@@ -1,3 +1,5 @@
+import { getAuthHeaders } from './authService';
+
 export interface SystemAuditRecord {
   id: string;
   timestamp: string;
@@ -37,7 +39,7 @@ export const AuditService = {
     try {
       fetch('/api/db/audit-logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ logs: trimmedLogs }),
       }).catch(() => {});
     } catch {}
