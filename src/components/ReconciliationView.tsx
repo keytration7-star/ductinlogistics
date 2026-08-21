@@ -234,6 +234,7 @@ type ShopProposalGroup = {
   entries: ShopProposalEntry[];
   decision: ShopProposalDecision;
   targetShopId?: string;
+  customMainName?: string;
   pricingPlan: ShopPricingPlan;
   testWeight: number;
 };
@@ -511,6 +512,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const original = shops.find(shop => shop.id === group.targetShopId);
         if (!original) return;
         const target = updates.get(original.id) || { ...original, phoneList: [...(original.phoneList || [])], nameAliases: [...(original.nameAliases || [])] };
+        if (group.customMainName && group.customMainName.trim()) {
+          target.name = group.customMainName.trim();
+        }
         const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
         const aliasList = new Set((target.nameAliases || []).filter(Boolean));
         group.entries.forEach(entry => {
@@ -2312,13 +2316,42 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       </div>;
                     })}
                   </div>
-                  {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && <div style={{ marginTop: 12, background: '#fffbeb', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d' }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 5 }}>Chọn shop chính để gộp tất cả các tên/SĐT trong nhóm này về 1 Bảng kê:</label>
-                    <select value={group.targetShopId || ''} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))} className="select-field" style={{ width: '100%', padding: '7px 9px', fontSize: 12, fontWeight: 600 }}>
-                      <option value="">-- Chọn shop chính để nhận toàn bộ tiền đối soát --</option>
-                      {shops.filter(shop => shop.active).map(shop => <option key={shop.id} value={shop.id}>{shop.code} · {shop.name} · {shop.phone}</option>)}
-                    </select>
-                  </div>}
+                  {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && (
+                    <div style={{ marginTop: 12, background: '#fffbeb', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 4 }}>
+                          ✏️ Tên Shop gộp đại diện (In trên Bảng Kê Excel & Báo cáo):
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`Ví dụ: ${group.entries[0]?.name || 'Shop Gộp Mới'} (Bỏ trống sẽ tự lấy tên đầu tiên)`}
+                          value={group.customMainName || ''}
+                          onChange={event => {
+                            const val = event.target.value;
+                            setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, customMainName: val } : item));
+                          }}
+                          className="input-field"
+                          style={{ width: '100%', padding: '7px 10px', fontSize: 13, fontWeight: 700, borderColor: '#f59e0b', background: '#fff' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                          Chọn shop chính để gộp tất cả các tên/SĐT trong nhóm này về 1 Bảng kê:
+                        </label>
+                        <select
+                          value={group.targetShopId || ''}
+                          onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))}
+                          className="select-field"
+                          style={{ width: '100%', padding: '7px 9px', fontSize: 12, fontWeight: 600 }}
+                        >
+                          <option value="">-- Chọn shop chính để nhận toàn bộ tiền đối soát --</option>
+                          {shops.filter(shop => shop.active).map(shop => (
+                            <option key={shop.id} value={shop.id}>{shop.code} · {shop.name} · {shop.phone}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                   {group.entries.some(entry => !entry.existing) && !(group.decision === 'merge' && group.targetShopId) && <div style={{ marginTop: 16, padding: 15, borderRadius: 'var(--radius-md)', background: 'rgba(79, 70, 229, 0.045)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}><Sliders size={16} /> Biểu giá cước bậc thang theo cân nặng</div>
