@@ -839,7 +839,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   const handleCheckDuplicatesAndProceed = (effectiveShops: Shop[]) => {
     setTargetShopsForExec(effectiveShops);
-    const dupResult = checkDuplicateWaybills(nvcRows, nvcMapping.waybillColumn, StorageService.getSessions());
+    const dupResult = checkDuplicateWaybills(nvcRows, nvcMapping.waybillColumn, StorageService.getSessions(), nvcMapping.codColumn);
 
     if (dupResult.hasConflict) {
       setDuplicateCheckResult(dupResult);

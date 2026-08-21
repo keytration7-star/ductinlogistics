@@ -123,7 +123,8 @@ export function findRegisteredShop(
 export function checkDuplicateWaybills(
   nvcRows: Record<string, any>[],
   waybillCol: string,
-  existingSessions: ReconciliationSession[]
+  existingSessions: ReconciliationSession[],
+  codCol?: string
 ): DuplicateCheckResult {
   if (!waybillCol || nvcRows.length === 0) {
     return {
@@ -135,7 +136,7 @@ export function checkDuplicateWaybills(
     };
   }
 
-  const existingWaybillMap = new Map<string, { sessionId: string; sessionName: string; createdAt: string }>();
+  const existingWaybillMap = new Map<string, { sessionId: string; sessionName: string; createdAt: string; codAmount: number }>();
   for (const session of existingSessions) {
     for (const stmt of session.statements) {
       for (const order of stmt.orders) {
@@ -144,6 +145,7 @@ export function checkDuplicateWaybills(
             sessionId: session.id,
             sessionName: session.sessionName,
             createdAt: session.createdAt,
+            codAmount: order.codAmount || 0,
           });
         }
       }
@@ -154,6 +156,7 @@ export function checkDuplicateWaybills(
           sessionId: session.id,
           sessionName: session.sessionName,
           createdAt: session.createdAt,
+          codAmount: order.codAmount || 0,
         });
       }
     }
@@ -172,12 +175,20 @@ export function checkDuplicateWaybills(
     validRowsCount++;
     const key = rawWaybill.toString().trim().toUpperCase();
     if (existingWaybillMap.has(key)) {
-      duplicateWaybills.add(key);
       const matchedInfo = existingWaybillMap.get(key)!;
-      if (!conflictingSessionName) {
-        conflictingSessionName = matchedInfo.sessionName;
-        conflictingSessionId = matchedInfo.sessionId;
-        conflictingSessionDate = matchedInfo.createdAt;
+      const newCod = codCol ? parseNumber(row[codCol]) : 0;
+      
+      // If previous session recorded 0 COD (only fee) and new row brings positive COD:
+      // This is a legitimate multi-stage settlement (COD payment in Period 2), NOT a duplicate conflict!
+      const isLegitimateMultiStageCod = matchedInfo.codAmount === 0 && newCod > 0;
+
+      if (!isLegitimateMultiStageCod) {
+        duplicateWaybills.add(key);
+        if (!conflictingSessionName) {
+          conflictingSessionName = matchedInfo.sessionName;
+          conflictingSessionId = matchedInfo.sessionId;
+          conflictingSessionDate = matchedInfo.createdAt;
+        }
       }
     }
   }
