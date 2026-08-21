@@ -230,6 +230,7 @@ export type CustomShopSubGroup = {
   id: string;
   name: string;
   entryKeys: string[];
+  targetShopId?: string;
 };
 
 type ShopProposalEntry = { name: string; phone: string; address: string; count: number; existing: boolean; existingShopId?: string };
@@ -380,6 +381,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Custom merge checkbox states per group
   const [selectedEntryKeysMap, setSelectedEntryKeysMap] = useState<Record<string, string[]>>({});
   const [customGroupInputMap, setCustomGroupInputMap] = useState<Record<string, string>>({});
+  const [customGroupTargetShopMap, setCustomGroupTargetShopMap] = useState<Record<string, string>>({});
 
   const filteredUnmatchedOrders = useMemo(() => {
     if (!currentSession) return [];
@@ -529,6 +531,28 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           group.customSubGroups.forEach((subGroup, subIndex) => {
             const subEntries = group.entries.filter(e => subGroup.entryKeys.includes(`${e.name.toLocaleLowerCase('vi-VN')}|${e.phone.replace(/\D/g, '')}`));
             if (subEntries.length === 0) return;
+
+            const targetShop = subGroup.targetShopId
+              ? shops.find(s => s.id === subGroup.targetShopId)
+              : shops.find(s => s.active && subEntries.some(e => normalizeHeader(s.name) === normalizeHeader(e.name)));
+
+            if (targetShop) {
+              const target = updates.get(targetShop.id) || { ...targetShop, phoneList: [...(targetShop.phoneList || [])], nameAliases: [...(targetShop.nameAliases || [])] };
+              if (subGroup.name && subGroup.name.trim()) {
+                target.name = subGroup.name.trim();
+              }
+              const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
+              const aliasList = new Set((target.nameAliases || []).filter(Boolean));
+              subEntries.forEach(entry => {
+                if (entry.phone) phoneList.add(entry.phone);
+                if (entry.name && normalizeHeader(entry.name) !== normalizeHeader(target.name)) aliasList.add(entry.name);
+              });
+              target.phoneList = [...phoneList];
+              target.nameAliases = [...aliasList];
+              updates.set(target.id, target);
+              return;
+            }
+
             const primaryPhone = subEntries.find(e => e.phone)?.phone || '';
             const normalizedEntryPhone = normalizePhone(primaryPhone);
             const existingShopWithSamePhone = shops.find(s =>
@@ -2524,15 +2548,30 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                           <input
                             type="text"
-                            placeholder="Gõ tên Shop gộp (Ví dụ: Shop Kiều Nhung Tổng)"
+                            placeholder="Gõ tên Shop gộp (Ví dụ: AC hoặc Shop Kiều Nhung)"
                             value={customGroupInputMap[group.id] || ''}
                             onChange={e => setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: e.target.value })}
                             className="input-field"
-                            style={{ flex: 1, minWidth: 240, padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
+                            style={{ flex: 1, minWidth: 200, padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
                           />
+
+                          <select
+                            value={customGroupTargetShopMap[group.id] || ''}
+                            onChange={e => setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: e.target.value })}
+                            className="select-field"
+                            style={{ width: 240, padding: '7px 8px', fontSize: 12, fontWeight: 600 }}
+                          >
+                            <option value="">-- Tạo Hồ sơ Shop Mới --</option>
+                            {shops.filter(s => s.active).map(shop => (
+                              <option key={shop.id} value={shop.id}>
+                                Gộp vào: {shop.code} · {shop.name}
+                              </option>
+                            ))}
+                          </select>
+
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
@@ -2540,17 +2579,20 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                             onClick={() => {
                               const selectedKeys = selectedEntryKeysMap[group.id] || [];
                               const customName = (customGroupInputMap[group.id] || '').trim();
+                              const targetShopId = customGroupTargetShopMap[group.id] || undefined;
                               if (selectedKeys.length === 0 || !customName) return;
 
                               const newSubGroup: CustomShopSubGroup = {
                                 id: `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                                 name: customName,
                                 entryKeys: [...selectedKeys],
+                                targetShopId,
                               };
 
                               setShopProposalGroups(groups => groups.map(g => g.id === group.id ? { ...g, customSubGroups: [...(g.customSubGroups || []), newSubGroup] } : g));
                               setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [] });
                               setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: '' });
+                              setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: '' });
                               showToast(`Đã gom thành công nhóm shop "${customName}"!`, 'success');
                             }}
                             style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700 }}
