@@ -449,7 +449,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         id: `identity-group-${groupIndex}`,
         label,
         entries: items,
-        decision: 'pending' as ShopProposalDecision,
+        decision: (items.length === 1 && items[0].existing ? 'separate' : 'pending') as ShopProposalDecision,
         targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined,
         pricingPlan: createOnboardingPricingPlan(),
         testWeight: 1.5,
@@ -472,14 +472,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   const saveShopProposals = () => {
     if (!isAdmin) return;
-    const unresolved = shopProposalGroups.filter(group => group.entries.some(entry => !entry.existing) && group.decision === 'pending');
+    const unresolved = shopProposalGroups.filter(group =>
+      (group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && group.decision === 'pending'
+    );
     if (unresolved.length > 0) {
-      showToast(`Còn ${unresolved.length} nhóm shop mới/chồng chéo chưa được Admin chọn cách xử lý.`, 'warning');
+      showToast(`Còn ${unresolved.length} nhóm shop xung đột/mới chưa được Admin chọn cách xử lý (Tách hoặc Gộp).`, 'warning');
       return;
     }
-    const missingTargets = shopProposalGroups.filter(group => group.decision === 'merge' && group.entries.some(entry => entry.existing) && !group.targetShopId);
+    const missingTargets = shopProposalGroups.filter(group => group.decision === 'merge' && group.entries.length > 1 && !group.targetShopId);
     if (missingTargets.length > 0) {
-      showToast('Vui lòng chọn hồ sơ shop hiện có để gộp cho từng nhóm có dữ liệu trùng.', 'warning');
+      showToast('Vui lòng chọn shop chính để gộp tiền về cho từng nhóm xung đột.', 'warning');
       return;
     }
     const pricingMissing = shopProposalGroups.filter(group => {
@@ -494,15 +496,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     const additions: Shop[] = [];
     const updates = new Map<string, Shop>();
     shopProposalGroups.forEach((group, groupIndex) => {
-      const newEntries = group.entries.filter(entry => !entry.existing);
-      if (newEntries.length === 0) return;
       if (group.decision === 'merge' && group.targetShopId) {
         const original = shops.find(shop => shop.id === group.targetShopId);
         if (!original) return;
         const target = updates.get(original.id) || { ...original, phoneList: [...(original.phoneList || [])], nameAliases: [...(original.nameAliases || [])] };
         const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
         const aliasList = new Set((target.nameAliases || []).filter(Boolean));
-        newEntries.forEach(entry => {
+        group.entries.forEach(entry => {
           if (entry.phone) phoneList.add(entry.phone);
           if (entry.name && entry.name !== target.name) aliasList.add(entry.name);
         });
@@ -511,6 +511,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         updates.set(target.id, target);
         return;
       }
+      const newEntries = group.entries.filter(entry => !entry.existing);
+      if (newEntries.length === 0) return;
       const sets = group.decision === 'merge' ? [newEntries] : newEntries.map(entry => [entry]);
       sets.forEach((set, setIndex) => {
         const first = set[0];
@@ -2266,10 +2268,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 <div key={group.id} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <strong>{group.label}</strong>
-                    {group.entries.some(entry => !entry.existing) && <select value={group.decision} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))} className="select-field" style={{ width: 310, padding: '6px 8px', fontSize: 12 }}>
+                    {(group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && <select value={group.decision} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))} className="select-field" style={{ width: 320, padding: '6px 8px', fontSize: 12, fontWeight: 700 }}>
                       <option value="pending">-- Admin chọn cách xử lý --</option>
-                      <option value="merge">Gộp vào một shop (thêm tên/SĐT phụ)</option>
-                      <option value="separate">Tạo shop độc lập theo từng định danh</option>
+                      <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
+                      <option value="merge">Gộp tất cả vào một shop (thêm tên/SĐT phụ)</option>
                     </select>}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 9, marginTop: 12 }}>
@@ -2291,10 +2293,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       </div>;
                     })}
                   </div>
-                  {group.decision === 'merge' && group.entries.some(entry => entry.existing) && <div style={{ marginTop: 12 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 5 }}>Gộp vào hồ sơ shop đã có</label>
-                    <select value={group.targetShopId || ''} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))} className="select-field" style={{ width: '100%', padding: '7px 9px', fontSize: 12 }}>
-                      <option value="">-- Chọn shop đích --</option>
+                  {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && <div style={{ marginTop: 12, background: '#fffbeb', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d' }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 5 }}>Chọn shop chính để gộp tất cả các tên/SĐT trong nhóm này về 1 Bảng kê:</label>
+                    <select value={group.targetShopId || ''} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))} className="select-field" style={{ width: '100%', padding: '7px 9px', fontSize: 12, fontWeight: 600 }}>
+                      <option value="">-- Chọn shop chính để nhận toàn bộ tiền đối soát --</option>
                       {shops.filter(shop => shop.active).map(shop => <option key={shop.id} value={shop.id}>{shop.code} · {shop.name} · {shop.phone}</option>)}
                     </select>
                   </div>}
