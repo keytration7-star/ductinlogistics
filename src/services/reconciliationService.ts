@@ -55,40 +55,66 @@ export function findRegisteredShop(
   const code = normalizeHeader(identity.code || '');
   const name = normalizeHeader(identity.name || '');
 
-  // A name + phone pair is the strongest identity. This intentionally lets an
-  // admin keep independent shops that happen to share one phone or one name.
+  // 1. Exact Match: Name + Phone pair
   if (phone && name) {
-    const paired = activeShops.filter(shop =>
-      getShopPhones(shop).includes(phone) &&
-      (normalizeHeader(shop.name) === name || (shop.nameAliases || []).some(alias => normalizeHeader(alias) === name))
-    );
+    const paired = activeShops.filter(shop => {
+      const hasPhone = getShopPhones(shop).includes(phone);
+      const sName = normalizeHeader(shop.name);
+      const hasName = sName === name || (shop.nameAliases || []).some(alias => normalizeHeader(alias) === name);
+      return hasPhone && hasName;
+    });
     if (paired.length === 1) return { matched: true, shop: paired[0], method: 'phone' };
-    if (paired.length > 1) return { matched: false, reason: 'Trùng đồng thời cặp tên shop và SĐT với nhiều hồ sơ' };
   }
 
-  const sources: Array<{ method: 'phone' | 'code' | 'name' | 'name_alias'; candidates: Shop[] }> = [];
-  if (phone) sources.push({ method: 'phone', candidates: activeShops.filter(shop => getShopPhones(shop).includes(phone)) });
-  if (code) sources.push({ method: 'code', candidates: activeShops.filter(shop => normalizeHeader(shop.code) === code) });
+  // 2. Exact Match by Code
+  if (code) {
+    const codeMatched = activeShops.filter(shop => normalizeHeader(shop.code) === code);
+    if (codeMatched.length === 1) return { matched: true, shop: codeMatched[0], method: 'code' };
+  }
+
+  // 3. Exact Match by Name or Alias
   if (name) {
-    sources.push({ method: 'name', candidates: activeShops.filter(shop => normalizeHeader(shop.name) === name) });
-    sources.push({ method: 'name_alias', candidates: activeShops.filter(shop => (shop.nameAliases || []).some(alias => normalizeHeader(alias) === name)) });
+    const nameMatched = activeShops.filter(shop => {
+      const sName = normalizeHeader(shop.name);
+      return sName === name || (shop.nameAliases || []).some(alias => normalizeHeader(alias) === name);
+    });
+    if (nameMatched.length === 1) return { matched: true, shop: nameMatched[0], method: 'name' };
   }
 
-  const label = (method: 'phone' | 'code' | 'name' | 'name_alias') => method === 'phone' ? 'SĐT' : method === 'code' ? 'mã shop/kho' : 'tên shop';
-  const ambiguous = sources.find(source => source.candidates.length > 1);
-  if (ambiguous) {
-    return { matched: false, reason: `Trùng ${label(ambiguous.method)} với nhiều shop đã đăng ký` };
+  // 4. Phone Match resolution among candidate shops
+  if (phone) {
+    const phoneCandidates = activeShops.filter(shop => getShopPhones(shop).includes(phone));
+    if (phoneCandidates.length === 1) {
+      return { matched: true, shop: phoneCandidates[0], method: 'phone' };
+    }
+
+    if (phoneCandidates.length > 1) {
+      // Multiple shops share the same phone number. Use `name` to disambiguate!
+      if (name) {
+        // Substring / Fuzzy match among phone candidates
+        const fuzzyMatches = phoneCandidates.filter(shop => {
+          const sName = normalizeHeader(shop.name);
+          const aliases = (shop.nameAliases || []).map(normalizeHeader);
+          const allNames = [sName, ...aliases].filter(Boolean);
+          return allNames.some(n => name.includes(n) || n.includes(name));
+        });
+        if (fuzzyMatches.length === 1) {
+          return { matched: true, shop: fuzzyMatches[0], method: 'name' };
+        }
+      }
+      return { matched: false, reason: `Trùng SĐT với ${phoneCandidates.length} shop (${phoneCandidates.map(s => s.name).join(', ')}). Vui lòng kiểm tra Tên shop.` };
+    }
   }
 
-  const exactMatches = sources.filter(source => source.candidates.length === 1);
-  const matchedShopIds = new Set(exactMatches.map(source => source.candidates[0].id));
-  if (matchedShopIds.size > 1) {
-    return { matched: false, reason: 'SĐT, mã shop/kho hoặc tên shop đang chỉ tới các shop khác nhau' };
-  }
-
-  for (const method of ['phone', 'code', 'name', 'name_alias'] as const) {
-    const source = exactMatches.find(item => item.method === method);
-    if (source) return { matched: true, shop: source.candidates[0], method };
+  // 5. Broad Fuzzy Name Match if name is provided
+  if (name) {
+    const broadFuzzy = activeShops.filter(shop => {
+      const sName = normalizeHeader(shop.name);
+      return sName && (name.includes(sName) || sName.includes(name));
+    });
+    if (broadFuzzy.length === 1) {
+      return { matched: true, shop: broadFuzzy[0], method: 'name' };
+    }
   }
 
   return { matched: false, reason: 'Không có SĐT, mã shop/kho hoặc tên shop khớp chính xác với danh mục' };
