@@ -476,6 +476,8 @@ export function performReconciliation(
       ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File NVC; cần làm sạch file trước khi đối soát' }
       : duplicateAppWaybills.has(waybill)
       ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File App; cần làm sạch file trước khi đối soát' }
+      : (mode === '2files' && !appRow)
+      ? { matched: false as const, reason: 'Mã vận đơn có trong File NVC nhưng không tìm thấy trong File App xuất ra' }
       : (isJntCarrier && (!shopName && !shopPhone && !shopCode))
       ? { matched: false as const, reason: 'Thiếu Tên người gửi, SĐT người gửi và Mã kho/Shop trong File App' }
       : status === 'unknown'
