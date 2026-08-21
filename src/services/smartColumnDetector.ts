@@ -44,7 +44,7 @@ const ALIASES = {
     'phi_hoan_thanh_cong', 'phi_chuyen_tra'
   ],
   adjustment: ['dieu_chinh', 'adjustment', 'phi_dieu_chinh'],
-  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat'],
+  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat', 'tong_doi_soat'],
   weight: [
     'khoi_luong', 'trong_luong', 'can_nang', 'khoi_luong_tinh_cuoc', 'kl_quy_doi',
     'weight', 'gross_weight', 'khoi_luong_kg', 'trong_luong_kg', 'can_nang_kg',

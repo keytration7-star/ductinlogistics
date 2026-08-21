@@ -590,17 +590,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       }
       setNvcFile(file);
       const parsed = await ExcelService.parseExcelFile(file);
-      if (isGhnCarrier && parsed.format !== 'ghn_settlement') {
+      if (isGhnCarrier && parsed.format !== 'ghn_settlement' && parsed.format !== 'ghn_cod_transfer') {
         setNvcFile(null);
-        showToast('File này không đúng cấu trúc biên bản đối soát GHN (2 bảng COD và cước). Vui lòng kiểm tra lại hãng/file.', 'error');
+        showToast('File này không đúng cấu trúc đối soát GHN đã hỗ trợ (biên bản 2 bảng hoặc phiên chuyển tiền COD). Vui lòng kiểm tra lại hãng/file.', 'error');
         return;
       }
-      if (!isGhnCarrier && parsed.format === 'ghn_settlement') {
+      if (!isGhnCarrier && (parsed.format === 'ghn_settlement' || parsed.format === 'ghn_cod_transfer')) {
         setNvcFile(null);
         showToast(`Bạn đang chọn ${selectedCarrierTier?.carrierName || 'hãng khác'}, nhưng file có cấu trúc biên bản GHN. Vui lòng chọn đúng thẻ GHN trước khi nhập.`, 'error');
         return;
       }
-      if (isGhnCarrier && parsed.format === 'ghn_settlement') {
+      if (isGhnCarrier && (parsed.format === 'ghn_settlement' || parsed.format === 'ghn_cod_transfer')) {
         if (!parsed.sheets?.length) throw new Error('Không tìm thấy sheet đối soát GHN hợp lệ');
         // A workbook may contain several settlement periods. Never pick one automatically:
         // mixing or settling the wrong period is a financial error.
@@ -614,7 +614,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         showToast(
           ignored > 0
             ? `Đã nhận diện ${parsed.sheets.length} sheet GHN đúng cấu trúc. ${ignored} sheet cũ/khác cấu trúc sẽ không được nhập. Hãy chọn chính xác sheet/kỳ cần đối soát.`
-            : `Đã nhận diện ${parsed.sheets.length} sheet GHN. Hãy chọn chính xác sheet/kỳ cần đối soát trước khi app nạp dữ liệu.`,
+            : `Đã nhận diện ${parsed.sheets.length} sheet GHN (${parsed.format === 'ghn_cod_transfer' ? 'Phiên chuyển tiền COD' : 'Biên bản COD + cước'}). Hãy chọn chính xác sheet/kỳ cần đối soát trước khi app nạp dữ liệu.`,
           ignored > 0 ? 'warning' : 'success'
         );
         return;

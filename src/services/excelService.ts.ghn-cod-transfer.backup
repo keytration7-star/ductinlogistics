@@ -65,7 +65,7 @@ export interface ParsedExcelSheetInfo {
 export interface ParsedExcelFile {
   headers: string[];
   rows: Record<string, any>[];
-  format: 'standard' | 'ghn_settlement' | 'ghn_cod_transfer';
+  format: 'standard' | 'ghn_settlement';
   sheets?: ParsedExcelSheetInfo[];
   ignoredSheetNames?: string[];
 }
@@ -86,115 +86,6 @@ const GHN_SETTLEMENT_HEADERS = [
   'Loại dòng đối soát',
   'Sheet đối soát GHN',
 ];
-
-// GHN's "Phiên chuyển tiền COD" export is a different settlement document:
-// one ledger, two header rows, and an already-calculated settlement total.
-// Keep it separate from the historical side-by-side COD/fee ledger parser.
-const GHN_COD_TRANSFER_HEADERS = [
-  'Mã đơn GHN',
-  'Mã đơn khách hàng',
-  'Cửa hàng',
-  'Mã Shop/Kho',
-  'Người nhận',
-  'Địa chỉ nhận',
-  'Ngày tạo',
-  'Ngày giao/trả',
-  'Trạng thái',
-  'Tiền COD',
-  'Cước phí',
-  'Điều chỉnh',
-  'Tổng đối soát',
-  'Loại dòng đối soát',
-  'Sheet đối soát GHN',
-];
-
-const ghnShopCodeFrom = (value: any) => {
-  const text = String(value || '').trim();
-  const match = text.match(/^\s*([A-Za-z0-9]+)\s*[-–]/);
-  return match ? match[1] : '';
-};
-
-const ghnShopNameFrom = (value: any) => String(value || '')
-  .replace(/^\s*[A-Za-z0-9]+\s*[-–]\s*/, '')
-  .trim();
-
-const ghnNumber = (value: any) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const parsed = Number(String(value || '').replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): Record<string, any>[] | null {
-  for (let rowIndex = 1; rowIndex < Math.min(20, rawSheetData.length); rowIndex++) {
-    const headers = (rawSheetData[rowIndex] || []).map(cell => normalizeHeader(String(cell || '')));
-    const groupHeaders = (rawSheetData[rowIndex - 1] || []).map(cell => normalizeHeader(String(cell || '')));
-    const waybillIndex = headers.findIndex(header => header === 'ma_don_ghn');
-    const shopIndex = headers.findIndex(header => header === 'cua_hang');
-    const statusIndex = headers.findIndex(header => header === 'trang_thai');
-    const codIndex = groupHeaders.findIndex(header => header === 'tien_cod');
-    const settlementIndex = groupHeaders.findIndex(header => header === 'tong_doi_soat');
-    const feeIndexes = groupHeaders
-      .map((header, index) => header === 'phi_dich_vu' ? index : -1)
-      .filter(index => index >= 0);
-
-    if (waybillIndex < 0 || shopIndex < 0 || statusIndex < 0 || codIndex < 0 || settlementIndex < 0 || feeIndexes.length !== 1) continue;
-
-    const validWaybill = (value: any) => {
-      const text = String(value || '').trim();
-      return text.length >= 4 && !['ma_don_ghn', 'tong_cong', 'tong_doi_soat'].includes(normalizeHeader(text));
-    };
-
-    const rows: Record<string, any>[] = [];
-    for (let dataIndex = rowIndex + 1; dataIndex < rawSheetData.length; dataIndex++) {
-      const row = rawSheetData[dataIndex] || [];
-      const waybill = row[waybillIndex];
-      if (!validWaybill(waybill)) continue;
-      const shopRaw = row[shopIndex] ?? '';
-      // GHN stores service fees as negative deductions. The reconciliation
-      // engine represents carrier cost as a positive number and adjustment as
-      // a signed offset, yielding COD - fee + adjustment = total settlement.
-      const fee = Math.abs(ghnNumber(row[feeIndexes[0]]));
-      const cod = ghnNumber(row[codIndex]);
-      const settlement = ghnNumber(row[settlementIndex]);
-      rows.push({
-        'Mã đơn GHN': String(waybill).trim(),
-        'Mã đơn khách hàng': row[waybillIndex + 1] ?? '',
-        'Cửa hàng': ghnShopNameFrom(shopRaw),
-        'Mã Shop/Kho': ghnShopCodeFrom(shopRaw),
-        'Người nhận': row[shopIndex + 1] ?? '',
-        'Địa chỉ nhận': row[shopIndex + 2] ?? '',
-        'Ngày tạo': row[shopIndex + 3] ?? '',
-        'Ngày giao/trả': row[shopIndex + 4] ?? '',
-        'Trạng thái': row[statusIndex] ?? '',
-        'Tiền COD': cod,
-        'Cước phí': fee,
-        'Điều chỉnh': settlement - cod + fee,
-        'Tổng đối soát': settlement,
-        'Loại dòng đối soát': 'Phiên chuyển tiền COD GHN',
-        'Sheet đối soát GHN': sheetName,
-      });
-    }
-    return rows;
-  }
-  return null;
-}
-
-export function parseGhnCodTransferWorkbook(workbook: XLSX.WorkBook, sheetNames?: string[]): ParsedExcelFile | null {
-  const ghnSheets = workbook.SheetNames.map(sheetName => {
-    const rawSheetData: any[][] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
-    const rows = parseGhnCodTransferSheet(rawSheetData, sheetName);
-    return rows ? { name: sheetName, rows } : null;
-  }).filter((sheet): sheet is { name: string; rows: Record<string, any>[] } => !!sheet);
-  if (ghnSheets.length === 0) return null;
-  const selectedSheets = sheetNames === undefined ? ghnSheets : ghnSheets.filter(sheet => sheetNames.includes(sheet.name));
-  return {
-    headers: GHN_COD_TRANSFER_HEADERS,
-    rows: selectedSheets.flatMap(sheet => sheet.rows),
-    format: 'ghn_cod_transfer',
-    sheets: ghnSheets.map(sheet => ({ name: sheet.name, rowCount: sheet.rows.length })),
-    ignoredSheetNames: workbook.SheetNames.filter(name => !ghnSheets.some(sheet => sheet.name === name)),
-  };
-}
 
 function findGhnHeaderRow(rawSheetData: any[][]): number {
   for (let rowIndex = 0; rowIndex < Math.min(60, rawSheetData.length); rowIndex++) {
@@ -232,7 +123,11 @@ function parseGhnSettlementSheet(rawSheetData: any[][], sheetName: string): Reco
     const text = String(value || '').trim();
     return text.length >= 4 && !['ma_don_ghn', 'tong_cong', 'tổng cộng'].includes(normalizeHeader(text));
   };
-  const shopCodeFrom = ghnShopCodeFrom;
+  const shopCodeFrom = (value: any) => {
+    const text = String(value || '').trim();
+    const match = text.match(/^\s*([A-Za-z0-9]+)\s*[-–]/);
+    return match ? match[1] : '';
+  };
   const shopNameKey = (value: any) => normalizeHeader(String(value || '').replace(/^\s*[A-Za-z0-9]+\s*[-–]\s*/, ''));
   const codesByShopName = new Map<string, Set<string>>();
   for (let rowIndex = headerRowIndex + 1; rowIndex < rawSheetData.length; rowIndex++) {
@@ -367,12 +262,6 @@ export const ExcelService = {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
-
-          const ghnCodTransferParsed = parseGhnCodTransferWorkbook(workbook, options?.sheetNames);
-          if (ghnCodTransferParsed) {
-            resolve(ghnCodTransferParsed);
-            return;
-          }
 
           const ghnParsed = parseGhnSettlementWorkbook(workbook, options?.sheetNames);
           if (ghnParsed) {
