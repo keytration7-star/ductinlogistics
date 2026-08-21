@@ -1975,37 +1975,44 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       <td className="mono">{formatVND(order.nvcBaseFee)}</td>
                       <td>{order.statusText}</td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {!isAdmin ? (
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chỉ Admin được phép gán thủ công</span>
-                          ) : !order.canManualAssignShop ? (
-                            <span style={{ fontSize: 11, color: 'var(--danger)', maxWidth: 260 }}>{order.matchError || 'Cần kiểm tra dữ liệu nguồn'}</span>
-                          ) : <>
-                          <select
-                            value={selectedAssignShops[order.id] || ''}
-                            onChange={(e) => setSelectedAssignShops({
-                              ...selectedAssignShops,
-                              [order.id]: e.target.value
-                            })}
-                            className="select-field"
-                            style={{ padding: '4px 8px', fontSize: 12, width: 220 }}
-                          >
-                            <option value="">-- Chọn Shop để gán --</option>
-                            {shops.filter(s => s.active).map(s => (
-                              <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                            ))}
-                          </select>
+                          ) : (
+                            <>
+                              {order.matchError && (
+                                <div style={{ fontSize: 11, color: 'var(--danger)', fontStyle: 'italic', maxWidth: 260 }}>
+                                  ⚠️ {order.matchError}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                <select
+                                  value={selectedAssignShops[order.id] || ''}
+                                  onChange={(e) => setSelectedAssignShops({
+                                    ...selectedAssignShops,
+                                    [order.id]: e.target.value
+                                  })}
+                                  className="select-field"
+                                  style={{ padding: '4px 8px', fontSize: 12, width: 220 }}
+                                >
+                                  <option value="">-- Chọn Shop để gán --</option>
+                                  {shops.filter(s => s.active).map(s => (
+                                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                  ))}
+                                </select>
 
-                          <button
-                            disabled={!selectedAssignShops[order.id]}
-                            onClick={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
-                            className="btn btn-primary btn-sm"
-                            style={{ padding: '4px 8px', fontSize: 11 }}
-                          >
-                            <UserCheck size={13} />
-                            <span>Gán đơn</span>
-                          </button>
-                          </>}
+                                <button
+                                  disabled={!selectedAssignShops[order.id]}
+                                  onClick={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
+                                  className="btn btn-primary btn-sm"
+                                  style={{ padding: '4px 8px', fontSize: 11 }}
+                                >
+                                  <UserCheck size={13} />
+                                  <span>Gán đơn</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
