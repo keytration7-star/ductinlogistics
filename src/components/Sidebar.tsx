@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 14.5, fontWeight: 750, letterSpacing: '-0.025em', color: 'var(--text-main)' }}>
-                  GOMDON <span style={{ color: 'var(--primary)' }}>PRO</span>
+                  KẾ TOÁN <span style={{ color: 'var(--primary)' }}>PRO</span>
                 </span>
                 <span className="badge badge-primary" style={{ fontSize: 9, padding: '1px 5px' }}>
                   ENTERPRISE
@@ -384,7 +384,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           padding: '2px 4px',
         }}>
           <ShieldCheck size={13} color="var(--success)" />
-          <span>Bảo mật nội bộ • GomDon Pro Enterprise</span>
+          <span>Bảo mật nội bộ • Kế Toán PRO Enterprise</span>
         </div>
       </div>
     </aside>

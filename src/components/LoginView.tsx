@@ -102,7 +102,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </div>
 
           <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>
-            GomDon Pro <span style={{ color: 'var(--primary)' }}>Enterprise</span>
+            Kế Toán PRO <span style={{ color: 'var(--primary)' }}>Enterprise</span>
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             Hệ thống Quản Lý & Đối Soát Vận Chuyển Chuyên Nghiệp

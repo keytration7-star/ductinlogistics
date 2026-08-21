@@ -333,7 +333,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     if (isGhnCarrier) setReconcileMode('1file');
   }, [isGhnCarrier]);
 
+  const getYesterdayIso = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  };
   const [sessionPeriodName, setSessionPeriodName] = useState<string>('');
+  const [sessionPeriodDate, setSessionPeriodDate] = useState<string>(getYesterdayIso());
 
   // Auto-generate smart session period name when carrier or file changes
   React.useEffect(() => {
@@ -575,7 +581,31 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         
         unmergedEntries.forEach((entry, setIndex) => {
           const exactMatchShop = shops.find(s => s.active && normalizeHeader(s.name) === normalizeHeader(entry.name));
-          if (exactMatchShop) return;
+          if (exactMatchShop) {
+            shops.forEach(s => {
+              if (s.id !== exactMatchShop.id && s.nameAliases) {
+                const updatedAliases = s.nameAliases.filter(alias => normalizeHeader(alias) !== normalizeHeader(entry.name));
+                if (updatedAliases.length !== s.nameAliases.length) {
+                  const existing = updates.get(s.id) || { ...s };
+                  existing.nameAliases = updatedAliases;
+                  updates.set(s.id, existing);
+                }
+              }
+            });
+            return;
+          }
+
+          shops.forEach(s => {
+            if (s.nameAliases) {
+              const updatedAliases = s.nameAliases.filter(alias => normalizeHeader(alias) !== normalizeHeader(entry.name));
+              if (updatedAliases.length !== s.nameAliases.length) {
+                const existing = updates.get(s.id) || { ...s };
+                existing.nameAliases = updatedAliases;
+                updates.set(s.id, existing);
+              }
+            }
+          });
+
           const normalizedEntryPhone = normalizePhone(entry.phone || '');
           const existingShopWithSamePhone = shops.find(s =>
             s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
@@ -963,6 +993,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         reconcileMode === '1file' ? undefined : appFile?.name,
         reconcileMode
       );
+
+      if (sessionPeriodDate) {
+        session.createdAt = new Date(sessionPeriodDate + 'T12:00:00.000Z').toISOString();
+      }
 
       setCurrentSession(session);
       AuditService.logAction(
@@ -1402,17 +1436,29 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           </div>
 
-          {/* Period Name Input */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>Tên Kỳ Đối Soát:</label>
-            <input
-              type="text"
-              value={sessionPeriodName}
-              onChange={(e) => setSessionPeriodName(e.target.value)}
-              className="input-field"
-              placeholder="Nhập tên kỳ đối soát..."
-              style={{ padding: '5px 12px', fontSize: 12, width: 280, fontWeight: 700, color: 'var(--primary)' }}
-            />
+          {/* Period Name & Date Input */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>🗓️ Ngày Chốt Kỳ:</label>
+              <input
+                type="date"
+                value={sessionPeriodDate}
+                onChange={(e) => setSessionPeriodDate(e.target.value)}
+                className="input-field"
+                style={{ padding: '5px 10px', fontSize: 12, width: 140, fontWeight: 700, color: 'var(--primary)' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>Tên Kỳ Đối Soát:</label>
+              <input
+                type="text"
+                value={sessionPeriodName}
+                onChange={(e) => setSessionPeriodName(e.target.value)}
+                className="input-field"
+                placeholder="Nhập tên kỳ đối soát..."
+                style={{ padding: '5px 12px', fontSize: 12, width: 280, fontWeight: 700, color: 'var(--primary)' }}
+              />
+            </div>
           </div>
 
           {isGhnCarrier && ghnSheets.length > 0 && (

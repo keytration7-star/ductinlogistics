@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 import type { ReconciliationSession, Shop } from '../types';
 import { ExcelService } from '../services/excelService';
+import { StorageService } from '../services/storage';
 import { cleanSessionName } from '../utils/periodUtils';
+import { useToast } from './UIFeedback';
 
 interface HistoryAndAnalyticsViewProps {
   sessions: ReconciliationSession[];
@@ -29,8 +31,42 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   onSelectSession,
   onNavigateToEmail,
 }) => {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [carrierFilter, setCarrierFilter] = useState('ALL');
+
+  // Edit Session Date & Name Modal
+  const [editingSession, setEditingSession] = useState<ReconciliationSession | null>(null);
+  const [editSessionName, setEditSessionName] = useState('');
+  const [editSessionDate, setEditSessionDate] = useState('');
+
+  const handleStartEditSession = (session: ReconciliationSession) => {
+    setEditingSession(session);
+    setEditSessionName(session.sessionName || '');
+    const dateObj = new Date(session.createdAt);
+    const dateIso = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    setEditSessionDate(dateIso);
+  };
+
+  const handleSaveSessionEdit = () => {
+    if (!editingSession) return;
+    if (!editSessionName.trim()) {
+      showToast('Tên kỳ đối soát không được để trống.', 'warning');
+      return;
+    }
+    const updatedSession: ReconciliationSession = {
+      ...editingSession,
+      sessionName: editSessionName.trim(),
+      createdAt: editSessionDate
+        ? new Date(editSessionDate + 'T12:00:00.000Z').toISOString()
+        : editingSession.createdAt,
+    };
+
+    StorageService.saveSession(updatedSession);
+    showToast('Đã cập nhật Ngày/Kỳ đối soát thành công!', 'success');
+    setEditingSession(null);
+    window.location.reload();
+  };
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
@@ -435,6 +471,15 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                         <FileSpreadsheet size={13} />
                       </button>
 
+                      <button
+                        onClick={() => handleStartEditSession(session)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 8px', fontSize: 11 }}
+                        title="Sửa Tên Kỳ hoặc Ngày Kỳ đối soát này"
+                      >
+                        <Calendar size={13} />
+                        <span>Sửa ngày</span>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -445,6 +490,60 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
         </div>
       </div>
 
+      {editingSession && (
+        <div className="modal-backdrop" style={{ zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)' }}>
+          <div className="glass-panel modal-content" style={{ width: 440, padding: 22, borderRadius: 16, background: '#ffffff' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Calendar size={18} /> Sửa Tên Kỳ & Ngày Kỳ Đối Soát
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4, color: 'var(--text-main)' }}>
+                  ✏️ Tên Kỳ Đối Soát:
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 700 }}
+                  value={editSessionName}
+                  onChange={(e) => setEditSessionName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4, color: 'var(--text-main)' }}>
+                  🗓️ Ngày Kỳ Đối Soát:
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 700 }}
+                  value={editSessionDate}
+                  onChange={(e) => setEditSessionDate(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingSession(null)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveSessionEdit}
+                >
+                  💾 Lưu Thay Đổi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
