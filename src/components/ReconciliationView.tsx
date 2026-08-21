@@ -250,9 +250,7 @@ type ShopProposalGroup = {
 const createOnboardingPricingPlan = (): ShopPricingPlan => ({
   id: `plan_onboarding_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
   name: 'Biểu giá nhập khi xác nhận shop',
-  // Zero is intentional only as an unconfirmed form value. Validation below
-  // prevents creation until Admin enters a real shop fee.
-  weightRules: [{ minWeight: 0, maxWeight: 1, price: 0 }],
+  weightRules: [{ minWeight: 0, maxWeight: 1, price: 20000 }],
   extraStepWeight: 1,
   extraStepPrice: 0,
   returnFeePercent: 50,
@@ -502,20 +500,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     );
     if (unresolved.length > 0) {
       showToast(`Còn ${unresolved.length} nhóm shop xung đột/mới chưa được Admin chọn cách xử lý (Tách hoặc Gộp).`, 'warning');
-      return;
-    }
-    const missingTargets = shopProposalGroups.filter(group => group.decision === 'merge' && group.entries.length > 1 && !group.targetShopId);
-    if (missingTargets.length > 0) {
-      showToast('Vui lòng chọn shop chính để gộp tiền về cho từng nhóm xung đột.', 'warning');
-      return;
-    }
-    const pricingMissing = shopProposalGroups.filter(group => {
-      const willCreateShop = group.entries.some(entry => !entry.existing)
-        && !(group.decision === 'merge' && group.targetShopId);
-      return willCreateShop && (group.pricingPlan.weightRules[0]?.price || 0) <= 0;
-    });
-    if (pricingMissing.length > 0) {
-      showToast(`Còn ${pricingMissing.length} nhóm shop mới chưa có cước 0–1kg. Không thể tạo shop có biểu giá 0đ.`, 'warning');
       return;
     }
     const missingCustomMerge = shopProposalGroups.filter(group => group.decision === 'custom_merge' && (!group.customSubGroups || group.customSubGroups.length === 0));
