@@ -599,22 +599,63 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         return;
       }
 
-      if (group.decision === 'merge' && group.targetShopId) {
+      if (group.decision === 'merge') {
         const original = shops.find(shop => shop.id === group.targetShopId);
-        if (!original) return;
-        const target = updates.get(original.id) || { ...original, phoneList: [...(original.phoneList || [])], nameAliases: [...(original.nameAliases || [])] };
-        if (group.customMainName && group.customMainName.trim()) {
-          target.name = group.customMainName.trim();
+        if (original) {
+          const target = updates.get(original.id) || { ...original, phoneList: [...(original.phoneList || [])], nameAliases: [...(original.nameAliases || [])] };
+          if (group.customMainName && group.customMainName.trim()) {
+            target.name = group.customMainName.trim();
+          }
+          const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
+          const aliasList = new Set((target.nameAliases || []).filter(Boolean));
+          group.entries.forEach(entry => {
+            if (entry.phone) phoneList.add(entry.phone);
+            if (entry.name && entry.name !== target.name) aliasList.add(entry.name);
+          });
+          target.phoneList = [...phoneList];
+          target.nameAliases = [...aliasList];
+          updates.set(target.id, target);
+          return;
         }
-        const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
-        const aliasList = new Set((target.nameAliases || []).filter(Boolean));
-        group.entries.forEach(entry => {
-          if (entry.phone) phoneList.add(entry.phone);
-          if (entry.name && entry.name !== target.name) aliasList.add(entry.name);
+
+        // If no existing shop targeted, create a new merged shop profile from all group entries!
+        let targetIndex = 0;
+        if (group.targetShopId && group.targetShopId.startsWith('entry_')) {
+          targetIndex = parseInt(group.targetShopId.replace('entry_', ''), 10) || 0;
+        }
+        const selectedMainName = (group.customMainName && group.customMainName.trim())
+          || (group.entries[targetIndex] ? group.entries[targetIndex].name : group.entries[0].name);
+        
+        const primaryPhone = group.entries[0]?.phone || '';
+        const normalizedEntryPhone = normalizePhone(primaryPhone);
+        const existingShopWithSamePhone = shops.find(s =>
+          s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
+        );
+        const pricingPlanToUse = existingShopWithSamePhone
+          ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
+          : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_merge`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
+        const bankAccountToUse = existingShopWithSamePhone
+          ? { ...existingShopWithSamePhone.bankAccount }
+          : { bankName: '', accountNumber: '', accountHolder: selectedMainName };
+
+        const aliasList = group.entries.map(e => e.name).filter(n => normalizeHeader(n) !== normalizeHeader(selectedMainName));
+        const allPhones = [...new Set(group.entries.map(e => e.phone).filter(Boolean))];
+
+        additions.push({
+          id: `shop_import_merge_${Date.now()}_${groupIndex}`,
+          code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}`,
+          name: selectedMainName,
+          phone: primaryPhone,
+          phoneList: allPhones,
+          nameAliases: aliasList,
+          email: '',
+          address: group.entries[0]?.address || '',
+          bankAccount: bankAccountToUse,
+          pricingPlan: pricingPlanToUse,
+          notes: `Gộp tất cả ${group.entries.length} tên shop (${group.entries.map(e => e.name).join(', ')})`,
+          createdAt: new Date().toISOString(),
+          active: true
         });
-        target.phoneList = [...phoneList];
-        target.nameAliases = [...aliasList];
-        updates.set(target.id, target);
         return;
       }
       const entriesToCreate = group.entries.filter(entry => {
@@ -2548,10 +2589,22 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                           className="select-field"
                           style={{ width: '100%', padding: '7px 9px', fontSize: 12, fontWeight: 600 }}
                         >
-                          <option value="">-- Chọn shop chính để nhận toàn bộ tiền đối soát --</option>
-                          {shops.filter(shop => shop.active).map(shop => (
-                            <option key={shop.id} value={shop.id}>{shop.code} · {shop.name} · {shop.phone}</option>
-                          ))}
+                          <optgroup label="Tên shop đại diện (Trong nhóm này)">
+                            {group.entries.map((entry, idx) => (
+                              <option key={`entry_${idx}`} value={`entry_${idx}`}>
+                                {entry.name} ({entry.count} đơn - SĐT: {entry.phone || 'Không SĐT'})
+                              </option>
+                            ))}
+                          </optgroup>
+                          {shops.filter(shop => shop.active).length > 0 && (
+                            <optgroup label="Hồ sơ Shop đã có sẵn trong danh mục">
+                              {shops.filter(shop => shop.active).map(shop => (
+                                <option key={shop.id} value={shop.id}>
+                                  {shop.code} · {shop.name} · {shop.phone}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                     </div>
