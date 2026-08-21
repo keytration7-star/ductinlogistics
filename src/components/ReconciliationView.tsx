@@ -442,14 +442,19 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const names = new Set(items.map(item => item.name));
       const phones = new Set(items.map(item => item.phone).filter(Boolean));
       const existingShopIds = [...new Set(items.map(item => item.existingShopId).filter(Boolean))] as string[];
-      const label = items.length === 1
+      const allFullyMatched = items.every(item => item.existing && item.existingShopId) && existingShopIds.length === items.length;
+
+      const label = allFullyMatched
+        ? 'Shop đã có hồ sơ (Đã ghép chuẩn từng Shop độc lập)'
+        : items.length === 1
         ? (items[0].existing ? 'Shop đã có hồ sơ' : 'Shop mới cần xác nhận')
         : `Xung đột định danh: ${names.size} tên · ${phones.size} SĐT`;
+
       return {
         id: `identity-group-${groupIndex}`,
         label,
         entries: items,
-        decision: (items.length === 1 && items[0].existing ? 'separate' : 'pending') as ShopProposalDecision,
+        decision: (allFullyMatched || (items.length === 1 && items[0].existing) ? 'separate' : 'pending') as ShopProposalDecision,
         targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined,
         pricingPlan: createOnboardingPricingPlan(),
         testWeight: 1.5,
