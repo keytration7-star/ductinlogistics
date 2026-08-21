@@ -460,9 +460,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         testWeight: 1.5,
       };
     });
+    const hasUnresolvedProposals = proposals.some(group => {
+      const allFullyMatched = group.entries.every(item => item.existing && item.existingShopId)
+        && new Set(group.entries.map(item => item.existingShopId)).size === group.entries.length;
+      return !allFullyMatched && (group.entries.some(entry => !entry.existing) || group.entries.length > 1);
+    });
+
     setShopProposalGroups(proposals);
-    setShopReviewConfirmed(false);
-    setShowShopProposal(proposals.length > 0);
+    setShopReviewConfirmed(!hasUnresolvedProposals);
+    setShowShopProposal(hasUnresolvedProposals);
   };
 
   // Covers drafts preserved while navigating tabs or after a hot update: the
