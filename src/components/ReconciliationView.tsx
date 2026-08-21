@@ -35,7 +35,7 @@ import type {
 } from '../types';
 import { ExcelService } from '../services/excelService';
 import { autoDetectColumns } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, type DuplicateCheckResult } from '../services/reconciliationService';
+import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, normalizePhone, getShopPhones, type DuplicateCheckResult } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
@@ -514,7 +514,32 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const sets = group.decision === 'merge' ? [newEntries] : newEntries.map(entry => [entry]);
       sets.forEach((set, setIndex) => {
         const first = set[0];
-        additions.push({ id: `shop_import_${Date.now()}_${groupIndex}_${setIndex}`, code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`, name: first.name, phone: first.phone, phoneList: [...new Set(set.map(x => x.phone).filter(Boolean))], nameAliases: [...new Set(set.map(x => x.name).filter(name => name !== first.name))], email: '', address: first.address, bankAccount: { bankName: '', accountNumber: '', accountHolder: first.name }, pricingPlan: { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }, notes: `Xác nhận từ file App (${set.reduce((sum, x) => sum + x.count, 0)} đơn)`, createdAt: new Date().toISOString(), active: true });
+        const normalizedEntryPhone = normalizePhone(first.phone || '');
+        const existingShopWithSamePhone = shops.find(s =>
+          s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
+        );
+        const pricingPlanToUse = existingShopWithSamePhone
+          ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
+          : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
+        const bankAccountToUse = existingShopWithSamePhone
+          ? { ...existingShopWithSamePhone.bankAccount }
+          : { bankName: '', accountNumber: '', accountHolder: first.name };
+
+        additions.push({
+          id: `shop_import_${Date.now()}_${groupIndex}_${setIndex}`,
+          code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`,
+          name: first.name,
+          phone: first.phone,
+          phoneList: [...new Set(set.map(x => x.phone).filter(Boolean))],
+          nameAliases: [...new Set(set.map(x => x.name).filter(name => name !== first.name))],
+          email: '',
+          address: first.address,
+          bankAccount: bankAccountToUse,
+          pricingPlan: pricingPlanToUse,
+          notes: `Xác nhận từ file App (${set.reduce((sum, x) => sum + x.count, 0)} đơn)${existingShopWithSamePhone ? ` - Kế thừa biểu giá & ngân hàng của ${existingShopWithSamePhone.name}` : ''}`,
+          createdAt: new Date().toISOString(),
+          active: true
+        });
       });
     });
     const updatedShops = shops.map(shop => updates.get(shop.id) || shop);

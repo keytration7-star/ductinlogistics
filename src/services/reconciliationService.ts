@@ -28,13 +28,13 @@ export type ShopMatchResult =
   | { matched: true; shop: Shop; method: 'phone' | 'code' | 'name' | 'name_alias' }
   | { matched: false; reason: string };
 
-function normalizePhone(phone: string | undefined): string {
+export function normalizePhone(phone: string | undefined): string {
   const digits = (phone || '').replace(/\D/g, '');
   if (digits.startsWith('84') && digits.length >= 10) return `0${digits.slice(2)}`;
   return digits;
 }
 
-function getShopPhones(shop: Shop): string[] {
+export function getShopPhones(shop: Shop): string[] {
   return [shop.phone, ...(shop.phoneList || [])]
     .flatMap(value => (value || '').split(/[,/;\s]+/))
     .map(normalizePhone)
