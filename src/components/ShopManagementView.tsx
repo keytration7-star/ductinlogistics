@@ -669,11 +669,11 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                 <div className="input-group">
-                  <label className="input-label">Tên Shop / Thương hiệu (*)</label>
+                  <label className="input-label">Tên Shop / Thương hiệu (In trên Bảng Kê) (*)</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ví dụ: Shop Thời Trang Mina"
+                    placeholder="Ví dụ: HNACH-MAT, Shop Mina..."
                     value={editingShop.name}
                     onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
                     className="input-field"
@@ -682,12 +682,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
 
                 <div className="input-group">
                   <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Tên shop/nhãn gửi khác</span>
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Cách nhau bằng dấu phẩy</span>
+                    <span>Tên shop / Nhãn gửi khác (Để nhận diện file)</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Phân cách bằng dấu phẩy</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="VD: Kho Mina, Mina Official..."
+                    placeholder="VD: Kho Mina, Mina Official, HNACH MAT..."
                     value={(editingShop.nameAliases || []).join(', ')}
                     onChange={(e) => setEditingShop({ ...editingShop, nameAliases: e.target.value.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean) })}
                     className="input-field"
