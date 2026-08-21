@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { generateSmartSessionName } from '../utils/periodUtils';
 import { 
   FileSpreadsheet, 
@@ -46,6 +46,175 @@ import { useToast, useConfirm } from './UIFeedback';
 
 import { StorageService } from '../services/storage';
 import { AuditService } from '../services/auditService';
+
+interface SearchableShopPickerProps {
+  shops: Shop[];
+  selectedShopId: string;
+  onSelectShop: (shopId: string) => void;
+  onAssign: () => void;
+}
+
+function SearchableShopPicker({ shops, selectedShopId, onSelectShop, onAssign }: SearchableShopPickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const activeShops = useMemo(() => shops.filter(s => s.active), [shops]);
+  const selectedShop = useMemo(() => activeShops.find(s => s.id === selectedShopId), [activeShops, selectedShopId]);
+
+  const filteredShops = useMemo(() => {
+    if (!query.trim()) return activeShops;
+    const q = query.trim().toLowerCase();
+    return activeShops.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.code.toLowerCase().includes(q) ||
+      (s.phone && s.phone.includes(q)) ||
+      (s.nameAliases || []).some(a => a.toLowerCase().includes(q))
+    );
+  }, [activeShops, query]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="select-field"
+          style={{
+            padding: '6px 12px',
+            fontSize: 12,
+            minWidth: 230,
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: selectedShop ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-secondary)',
+            borderColor: selectedShop ? 'var(--primary)' : 'var(--border-color)',
+            borderRadius: 'var(--radius-md)',
+            cursor: 'pointer',
+            fontWeight: selectedShop ? 600 : 400,
+            color: selectedShop ? 'var(--primary-dark)' : 'var(--text-muted)'
+          }}
+        >
+          {selectedShop ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{selectedShop.name}</span>
+              {selectedShop.phone && <span style={{ fontSize: 11, color: '#059669', background: 'rgba(16, 185, 129, 0.1)', padding: '1px 5px', borderRadius: 4 }}>📞 {selectedShop.phone}</span>}
+            </span>
+          ) : (
+            <span>-- Chọn Shop để gán --</span>
+          )}
+          <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
+        </button>
+
+        <button
+          disabled={!selectedShopId}
+          onClick={onAssign}
+          className="btn btn-primary btn-sm"
+          style={{ padding: '6px 12px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <UserCheck size={13} />
+          <span>Gán đơn</span>
+        </button>
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: 4,
+          width: 320,
+          maxHeight: 280,
+          background: 'var(--bg-primary, #ffffff)',
+          border: '1px solid var(--border-color, #cbd5e1)',
+          borderRadius: 8,
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          <div style={{ padding: 8, borderBottom: '1px solid var(--border-color, #e2e8f0)', background: 'var(--bg-secondary, #f8fafc)' }}>
+            <input
+              type="text"
+              autoFocus
+              placeholder="🔍 Tìm tên shop, SĐT..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 10px',
+                fontSize: 12,
+                border: '1px solid var(--border-color, #cbd5e1)',
+                borderRadius: 6,
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          <div style={{ overflowY: 'auto', maxHeight: 220, padding: 4 }}>
+            {filteredShops.length === 0 ? (
+              <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Không tìm thấy Shop khớp với từ khóa
+              </div>
+            ) : (
+              filteredShops.map(shop => {
+                const isSelected = shop.id === selectedShopId;
+                return (
+                  <div
+                    key={shop.id}
+                    onClick={() => {
+                      onSelectShop(shop.id);
+                      setIsOpen(false);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      background: isSelected ? 'var(--primary-bg, rgba(59, 130, 246, 0.12))' : 'transparent',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                      borderBottom: '1px solid rgba(226, 232, 240, 0.4)',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'var(--bg-secondary, #f1f5f9)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>{shop.name}</strong>
+                      <span className="badge badge-secondary" style={{ fontSize: 10 }}>{shop.code}</span>
+                    </div>
+                    {shop.phone && (
+                      <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                        📞 {shop.phone}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ReconciliationViewProps {
   shops: Shop[];
@@ -2032,31 +2201,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                                     ⚠️ {order.matchError}
                                   </div>
                                 )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                                  <select
-                                    value={selectedAssignShops[order.id] || ''}
-                                    onChange={(e) => setSelectedAssignShops({
+                                <div style={{ marginTop: 2 }}>
+                                  <SearchableShopPicker
+                                    shops={shops}
+                                    selectedShopId={selectedAssignShops[order.id] || ''}
+                                    onSelectShop={(shopId) => setSelectedAssignShops({
                                       ...selectedAssignShops,
-                                      [order.id]: e.target.value
+                                      [order.id]: shopId
                                     })}
-                                    className="select-field"
-                                    style={{ padding: '4px 8px', fontSize: 12, width: 200 }}
-                                  >
-                                    <option value="">-- Chọn Shop để gán --</option>
-                                    {shops.filter(s => s.active).map(s => (
-                                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                    ))}
-                                  </select>
-
-                                  <button
-                                    disabled={!selectedAssignShops[order.id]}
-                                    onClick={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
-                                    className="btn btn-primary btn-sm"
-                                    style={{ padding: '4px 8px', fontSize: 11 }}
-                                  >
-                                    <UserCheck size={13} />
-                                    <span>Gán đơn</span>
-                                  </button>
+                                    onAssign={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
+                                  />
                                 </div>
                               </>
                             )}
