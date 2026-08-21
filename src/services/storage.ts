@@ -159,13 +159,15 @@ export const DEFAULT_EXPORT_COLUMNS: ExportColumnSettings = {
 // Helper for sending server sync requests asynchronously
 async function postServerSync(endpoint: string, body: any) {
   try {
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) return; // Skip sync if not logged in
     await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(body),
     });
   } catch (err) {
-    console.warn(`[Server Sync Fail] ${endpoint}:`, err);
+    // Quiet failure in offline/local mode
   }
 }
 
@@ -173,7 +175,9 @@ export const StorageService = {
   // 🔄 Sync all data from Server on App Launch
   async syncWithServer(): Promise<boolean> {
     try {
-      const res = await fetch('/api/db/all', { headers: getAuthHeaders() });
+      const authHeaders = getAuthHeaders();
+      if (!authHeaders.Authorization) return false; // Skip server sync if no token present
+      const res = await fetch('/api/db/all', { headers: authHeaders });
       if (!res.ok) return false;
       const result = await res.json();
       if (!result.success || !result.data) return false;
