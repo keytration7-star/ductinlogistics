@@ -465,17 +465,11 @@ export function performReconciliation(
     const declaredValue = parseNumber(extractRowField(appRow, nvcRow, appMapping.declaredValueColumn || nvcMapping.declaredValueColumn, ['khai_gia', 'gia_tri_khai_gia', 'bao_hiem', 'declared_value']));
 
     const hasBlockingDataIssue = nvcSettlementVerified === false
-      || nvcWaybillCounts.get(waybill)! > 1
-      || duplicateAppWaybills.has(waybill)
       || (mode === '2files' && !appRow)
       || (isJntCarrier && (!shopName && !shopPhone && !shopCode))
       || status === 'unknown';
     const shopMatch = nvcSettlementVerified === false
       ? { matched: false as const, reason: 'Số tiền NVC trả sau cấn trừ không khớp COD − cước − phụ phí + điều chỉnh; cần kiểm tra mapping cột' }
-      : nvcWaybillCounts.get(waybill)! > 1
-      ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File NVC; cần làm sạch file trước khi đối soát' }
-      : duplicateAppWaybills.has(waybill)
-      ? { matched: false as const, reason: 'Mã vận đơn xuất hiện nhiều lần trong File App; cần làm sạch file trước khi đối soát' }
       : (mode === '2files' && !appRow)
       ? { matched: false as const, reason: 'Mã vận đơn có trong File NVC nhưng không tìm thấy trong File App xuất ra' }
       : (isJntCarrier && (!shopName && !shopPhone && !shopCode))
