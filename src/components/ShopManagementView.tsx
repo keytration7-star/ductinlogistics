@@ -668,28 +668,28 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-                <div className="input-group">
-                  <label className="input-label">Tên Shop / Thương hiệu (In trên Bảng Kê) (*)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ví dụ: HNACH-MAT, Shop Mina..."
-                    value={editingShop.name}
-                    onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-
-                <div className="input-group">
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
                   <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Tên shop / Nhãn gửi khác (Để nhận diện file)</span>
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Phân cách bằng dấu phẩy</span>
+                    <span>Tên Shop / Nhãn Gửi (*)</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gõ tên shop (Nếu có nhiều nhãn gửi khác nhau, gõ phân cách bằng dấu phẩy)</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="VD: Kho Mina, Mina Official, HNACH MAT..."
-                    value={(editingShop.nameAliases || []).join(', ')}
-                    onChange={(e) => setEditingShop({ ...editingShop, nameAliases: e.target.value.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean) })}
+                    required
+                    placeholder="Ví dụ: HNACH-MAT, HNACH MAT..."
+                    value={[editingShop.name, ...(editingShop.nameAliases || [])].filter(Boolean).join(', ')}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const parts = raw.split(/[,;\n]+/).map(v => v.trim());
+                      // Keep trailing spaces while typing single name
+                      const mainName = parts[0] || '';
+                      const aliases = parts.slice(1).filter(Boolean);
+                      setEditingShop({
+                        ...editingShop,
+                        name: mainName,
+                        nameAliases: aliases
+                      });
+                    }}
                     className="input-field"
                   />
                 </div>
