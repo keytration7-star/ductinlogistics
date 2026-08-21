@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { generateSmartSessionName } from '../utils/periodUtils';
 import { 
   FileSpreadsheet, 
@@ -195,9 +195,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   // Unmatched manual assign map
   const [selectedAssignShops, setSelectedAssignShops] = useState<Record<string, string>>({});
+  const [unmatchedSearchTerm, setUnmatchedSearchTerm] = useState('');
   const [shopProposalGroups, setShopProposalGroups] = useState<ShopProposalGroup[]>([]);
   const [showShopProposal, setShowShopProposal] = useState(false);
   const [shopReviewConfirmed, setShopReviewConfirmed] = useState(false);
+
+  const filteredUnmatchedOrders = useMemo(() => {
+    if (!currentSession) return [];
+    if (!unmatchedSearchTerm.trim()) return currentSession.unmatchedOrders;
+    const term = unmatchedSearchTerm.trim().toLowerCase();
+    return currentSession.unmatchedOrders.filter(o =>
+      o.waybill.toLowerCase().includes(term) ||
+      (o.shopName && o.shopName.toLowerCase().includes(term)) ||
+      (o.shopPhone && o.shopPhone.includes(term)) ||
+      (o.receiverName && o.receiverName.toLowerCase().includes(term)) ||
+      (o.receiverPhone && o.receiverPhone.includes(term)) ||
+      (o.productName && o.productName.toLowerCase().includes(term))
+    );
+  }, [currentSession, unmatchedSearchTerm]);
 
   const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
     setShopProposalGroups(groups => groups.map(group => group.id === groupId
@@ -1943,14 +1958,27 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           {/* TAB 3: UNMATCHED ORDERS WITH MANUAL ASSIGN CAPABILITY */}
           {activeResultTab === 'unmatched' && (
             <div className="table-container glass-panel">
-              <div style={{ padding: 16, background: 'var(--danger-bg)', borderBottom: '1px solid var(--danger-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)', fontWeight: 700 }}>
-                  <AlertTriangle size={18} />
-                  <span>Có {currentSession.unmatchedOrders.length} đơn chưa đủ điều kiện đưa vào bảng kê</span>
+              <div style={{ padding: 16, background: 'var(--danger-bg)', borderBottom: '1px solid var(--danger-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)', fontWeight: 700 }}>
+                    <AlertTriangle size={18} />
+                    <span>Có {currentSession.unmatchedOrders.length} đơn chưa đủ điều kiện đưa vào bảng kê</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Xem thông tin Shop/Người nhận đọc từ file bên dưới để chọn đúng Shop cần gán từ menu thả xuống.
+                  </p>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Chỉ các đơn thiếu nhận diện shop mới được gán thủ công. Đơn trùng, sai công thức hoặc chưa xác định trạng thái phải sửa ở file/cấu hình trước.
-                </p>
+
+                <div style={{ minWidth: 260 }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Tìm mã đơn, tên/SĐT shop hoặc khách..."
+                    value={unmatchedSearchTerm}
+                    onChange={(e) => setUnmatchedSearchTerm(e.target.value)}
+                    className="input-field"
+                    style={{ padding: '6px 12px', fontSize: 12, width: '100%', borderRadius: 'var(--radius-md)' }}
+                  />
+                </div>
               </div>
 
               <table className="data-table">
@@ -1958,7 +1986,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   <tr>
                     <th>STT</th>
                     <th>Mã Vận Đơn</th>
-                    <th>Khối Lượng</th>
+                    <th>Tên / SĐT Shop Đọc Từ File</th>
+                    <th>Người Nhận & Hàng Hóa</th>
                     <th>Tiền COD</th>
                     <th>Cước NVC</th>
                     <th>Trạng Thái</th>
@@ -1966,57 +1995,76 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {currentSession.unmatchedOrders.map((order, idx) => (
-                    <tr key={order.id}>
-                      <td>{idx + 1}</td>
-                      <td><strong className="mono" style={{ color: 'var(--danger)' }}>{order.waybill}</strong></td>
-                      <td>{order.weight} kg</td>
-                      <td className="mono">{formatVND(order.codAmount)}</td>
-                      <td className="mono">{formatVND(order.nvcBaseFee)}</td>
-                      <td>{order.statusText}</td>
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {!isAdmin ? (
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chỉ Admin được phép gán thủ công</span>
-                          ) : (
-                            <>
-                              {order.matchError && (
-                                <div style={{ fontSize: 11, color: 'var(--danger)', fontStyle: 'italic', maxWidth: 260 }}>
-                                  ⚠️ {order.matchError}
-                                </div>
-                              )}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                                <select
-                                  value={selectedAssignShops[order.id] || ''}
-                                  onChange={(e) => setSelectedAssignShops({
-                                    ...selectedAssignShops,
-                                    [order.id]: e.target.value
-                                  })}
-                                  className="select-field"
-                                  style={{ padding: '4px 8px', fontSize: 12, width: 220 }}
-                                >
-                                  <option value="">-- Chọn Shop để gán --</option>
-                                  {shops.filter(s => s.active).map(s => (
-                                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                  ))}
-                                </select>
-
-                                <button
-                                  disabled={!selectedAssignShops[order.id]}
-                                  onClick={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
-                                  className="btn btn-primary btn-sm"
-                                  style={{ padding: '4px 8px', fontSize: 11 }}
-                                >
-                                  <UserCheck size={13} />
-                                  <span>Gán đơn</span>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                  {filteredUnmatchedOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                        {unmatchedSearchTerm ? `Không tìm thấy đơn nào khớp với từ khóa "${unmatchedSearchTerm}"` : 'Không có đơn chưa khớp'}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredUnmatchedOrders.map((order: ReconciledOrder, idx: number) => (
+                      <tr key={order.id}>
+                        <td>{idx + 1}</td>
+                        <td><strong className="mono" style={{ color: 'var(--danger)' }}>{order.waybill}</strong></td>
+                        <td>
+                          <div>
+                            <strong style={{ fontSize: 12, color: 'var(--text-main)' }}>{order.shopName || '-- Chưa có tên --'}</strong>
+                            {order.shopPhone && <div className="mono" style={{ fontSize: 11, color: 'var(--primary)' }}>📞 {order.shopPhone}</div>}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600 }}>{order.receiverName || 'Khách Nhận'} {order.receiverPhone ? `(${order.receiverPhone})` : ''}</div>
+                            {order.productName && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📦 {order.productName}</div>}
+                          </div>
+                        </td>
+                        <td className="mono">{formatVND(order.codAmount)}</td>
+                        <td className="mono">{formatVND(order.nvcBaseFee)}</td>
+                        <td>{order.statusText}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {!isAdmin ? (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chỉ Admin được phép gán thủ công</span>
+                            ) : (
+                              <>
+                                {order.matchError && (
+                                  <div style={{ fontSize: 11, color: 'var(--danger)', fontStyle: 'italic', maxWidth: 240 }}>
+                                    ⚠️ {order.matchError}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                  <select
+                                    value={selectedAssignShops[order.id] || ''}
+                                    onChange={(e) => setSelectedAssignShops({
+                                      ...selectedAssignShops,
+                                      [order.id]: e.target.value
+                                    })}
+                                    className="select-field"
+                                    style={{ padding: '4px 8px', fontSize: 12, width: 200 }}
+                                  >
+                                    <option value="">-- Chọn Shop để gán --</option>
+                                    {shops.filter(s => s.active).map(s => (
+                                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                    ))}
+                                  </select>
+
+                                  <button
+                                    disabled={!selectedAssignShops[order.id]}
+                                    onClick={() => handleAssignUnmatchedOrder(order, selectedAssignShops[order.id])}
+                                    className="btn btn-primary btn-sm"
+                                    style={{ padding: '4px 8px', fontSize: 11 }}
+                                  >
+                                    <UserCheck size={13} />
+                                    <span>Gán đơn</span>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
