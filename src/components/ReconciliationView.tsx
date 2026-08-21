@@ -226,8 +226,14 @@ interface ReconciliationViewProps {
   onSaveShops: (shops: Shop[]) => void;
 }
 
+export type CustomShopSubGroup = {
+  id: string;
+  name: string;
+  entryKeys: string[];
+};
+
 type ShopProposalEntry = { name: string; phone: string; address: string; count: number; existing: boolean; existingShopId?: string };
-type ShopProposalDecision = 'pending' | 'merge' | 'separate';
+type ShopProposalDecision = 'pending' | 'merge' | 'separate' | 'custom_merge';
 type ShopProposalGroup = {
   id: string;
   label: string;
@@ -235,6 +241,7 @@ type ShopProposalGroup = {
   decision: ShopProposalDecision;
   targetShopId?: string;
   customMainName?: string;
+  customSubGroups?: CustomShopSubGroup[];
   pricingPlan: ShopPricingPlan;
   testWeight: number;
 };
@@ -369,6 +376,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [shopProposalGroups, setShopProposalGroups] = useState<ShopProposalGroup[]>([]);
   const [showShopProposal, setShowShopProposal] = useState(false);
   const [shopReviewConfirmed, setShopReviewConfirmed] = useState(false);
+
+  // Custom merge checkbox states per group
+  const [selectedEntryKeysMap, setSelectedEntryKeysMap] = useState<Record<string, string[]>>({});
+  const [customGroupInputMap, setCustomGroupInputMap] = useState<Record<string, string>>({});
 
   const filteredUnmatchedOrders = useMemo(() => {
     if (!currentSession) return [];
@@ -505,9 +516,89 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       showToast(`Còn ${pricingMissing.length} nhóm shop mới chưa có cước 0–1kg. Không thể tạo shop có biểu giá 0đ.`, 'warning');
       return;
     }
+    const missingCustomMerge = shopProposalGroups.filter(group => group.decision === 'custom_merge' && (!group.customSubGroups || group.customSubGroups.length === 0));
+    if (missingCustomMerge.length > 0) {
+      showToast('Vui lòng tích chọn các shop và bấm nút "Tạo Shop" cho nhóm gộp tùy chỉnh.', 'warning');
+      return;
+    }
     const additions: Shop[] = [];
     const updates = new Map<string, Shop>();
     shopProposalGroups.forEach((group, groupIndex) => {
+      if (group.decision === 'custom_merge') {
+        if (group.customSubGroups?.length) {
+          group.customSubGroups.forEach((subGroup, subIndex) => {
+            const subEntries = group.entries.filter(e => subGroup.entryKeys.includes(`${e.name.toLocaleLowerCase('vi-VN')}|${e.phone.replace(/\D/g, '')}`));
+            if (subEntries.length === 0) return;
+            const primaryPhone = subEntries.find(e => e.phone)?.phone || '';
+            const normalizedEntryPhone = normalizePhone(primaryPhone);
+            const existingShopWithSamePhone = shops.find(s =>
+              s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
+            );
+            const pricingPlanToUse = existingShopWithSamePhone
+              ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
+              : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_custom_${subIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
+            const bankAccountToUse = existingShopWithSamePhone
+              ? { ...existingShopWithSamePhone.bankAccount }
+              : { bankName: '', accountNumber: '', accountHolder: subGroup.name };
+
+            const aliasList = subEntries.map(e => e.name).filter(n => normalizeHeader(n) !== normalizeHeader(subGroup.name));
+            const allPhones = [...new Set(subEntries.map(e => e.phone).filter(Boolean))];
+
+            additions.push({
+              id: `shop_import_custom_${Date.now()}_${groupIndex}_${subIndex}`,
+              code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${subIndex}`,
+              name: subGroup.name,
+              phone: primaryPhone,
+              phoneList: allPhones,
+              nameAliases: aliasList,
+              email: '',
+              address: subEntries[0]?.address || '',
+              bankAccount: bankAccountToUse,
+              pricingPlan: pricingPlanToUse,
+              notes: `Gộp shop tùy chỉnh từ ${subEntries.length} tên shop (${subEntries.map(e => e.name).join(', ')})`,
+              createdAt: new Date().toISOString(),
+              active: true
+            });
+          });
+        }
+
+        const mergedKeys = new Set((group.customSubGroups || []).flatMap(sg => sg.entryKeys));
+        const unmergedEntries = group.entries.filter(e => !mergedKeys.has(`${e.name.toLocaleLowerCase('vi-VN')}|${e.phone.replace(/\D/g, '')}`));
+        
+        unmergedEntries.forEach((entry, setIndex) => {
+          const exactMatchShop = shops.find(s => s.active && normalizeHeader(s.name) === normalizeHeader(entry.name));
+          if (exactMatchShop) return;
+          const normalizedEntryPhone = normalizePhone(entry.phone || '');
+          const existingShopWithSamePhone = shops.find(s =>
+            s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
+          );
+          const pricingPlanToUse = existingShopWithSamePhone
+            ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
+            : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_rem_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
+          const bankAccountToUse = existingShopWithSamePhone
+            ? { ...existingShopWithSamePhone.bankAccount }
+            : { bankName: '', accountNumber: '', accountHolder: entry.name };
+
+          additions.push({
+            id: `shop_import_rem_${Date.now()}_${groupIndex}_${setIndex}`,
+            code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`,
+            name: entry.name,
+            phone: entry.phone,
+            phoneList: [entry.phone].filter(Boolean),
+            nameAliases: [],
+            email: '',
+            address: entry.address,
+            bankAccount: bankAccountToUse,
+            pricingPlan: pricingPlanToUse,
+            notes: `Tách shop riêng từ tên chưa gộp`,
+            createdAt: new Date().toISOString(),
+            active: true
+          });
+        });
+
+        return;
+      }
+
       if (group.decision === 'merge' && group.targetShopId) {
         const original = shops.find(shop => shop.id === group.targetShopId);
         if (!original) return;
@@ -2291,31 +2382,144 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 <div key={group.id} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <strong>{group.label}</strong>
-                    {(group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && <select value={group.decision} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))} className="select-field" style={{ width: 320, padding: '6px 8px', fontSize: 12, fontWeight: 700 }}>
-                      <option value="pending">-- Admin chọn cách xử lý --</option>
-                      <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
-                      <option value="merge">Gộp tất cả vào một shop (thêm tên/SĐT phụ)</option>
-                    </select>}
+                    {(group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && (
+                      <select
+                        value={group.decision}
+                        onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))}
+                        className="select-field"
+                        style={{ width: 340, padding: '6px 8px', fontSize: 12, fontWeight: 700 }}
+                      >
+                        <option value="pending">-- Admin chọn cách xử lý --</option>
+                        <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
+                        <option value="merge">Gộp tất cả vào một shop (thêm tên/SĐT phụ)</option>
+                        <option value="custom_merge">🎨 Gộp shop tùy chỉnh (Tích chọn gom từng nhóm)</option>
+                      </select>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 9, marginTop: 12 }}>
                     {group.entries.map(entry => {
-                      const accent = entry.existing ? '#059669' : '#d97706';
-                      const surface = entry.existing ? 'rgba(16, 185, 129, 0.07)' : 'rgba(245, 158, 11, 0.08)';
-                      const border = entry.existing ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.48)';
-                      return <div key={`${entry.name}|${entry.phone}`} style={{ border: `1px solid ${border}`, borderLeft: `4px solid ${accent}`, background: surface, borderRadius: 'var(--radius-sm)', padding: '10px 12px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                          <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{entry.name}</strong>
-                          <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>{entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}</span>
+                      const entryKey = `${entry.name.toLocaleLowerCase('vi-VN')}|${entry.phone.replace(/\D/g, '')}`;
+                      const mergedSubGroup = (group.customSubGroups || []).find(sg => sg.entryKeys.includes(entryKey));
+                      const isSelected = (selectedEntryKeysMap[group.id] || []).includes(entryKey);
+                      const accent = mergedSubGroup ? '#2563eb' : entry.existing ? '#059669' : '#d97706';
+                      const surface = mergedSubGroup ? 'rgba(37, 99, 235, 0.08)' : entry.existing ? 'rgba(16, 185, 129, 0.07)' : 'rgba(245, 158, 11, 0.08)';
+                      const border = mergedSubGroup ? 'rgba(37, 99, 235, 0.45)' : entry.existing ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.48)';
+
+                      return (
+                        <div key={entryKey} style={{ border: `1px solid ${border}`, borderLeft: `4px solid ${accent}`, background: surface, borderRadius: 'var(--radius-sm)', padding: '10px 12px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {group.decision === 'custom_merge' && (
+                                <input
+                                  type="checkbox"
+                                  disabled={!!mergedSubGroup}
+                                  checked={!!mergedSubGroup || isSelected}
+                                  onChange={(e) => {
+                                    const prev = selectedEntryKeysMap[group.id] || [];
+                                    if (e.target.checked) {
+                                      setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [...prev, entryKey] });
+                                    } else {
+                                      setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: prev.filter(k => k !== entryKey) });
+                                    }
+                                  }}
+                                  style={{ width: 16, height: 16, cursor: mergedSubGroup ? 'not-allowed' : 'pointer' }}
+                                />
+                              )}
+                              <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{entry.name}</strong>
+                            </div>
+                            {mergedSubGroup ? (
+                              <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' }}>
+                                ✓ Đã gộp vào Shop: <strong>{mergedSubGroup.name}</strong>
+                              </span>
+                            ) : (
+                              <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>
+                                {entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7, fontSize: 12, color: 'var(--text-main)' }}>
+                            <span className="mono" style={{ fontWeight: 700, color: accent }}>{entry.phone || 'Chưa có SĐT'}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                            <span><strong>{entry.count}</strong> đơn</span>
+                          </div>
+                          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>📍 {entry.address || 'Chưa có địa chỉ kho gửi'}</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7, fontSize: 12, color: 'var(--text-main)' }}>
-                          <span className="mono" style={{ fontWeight: 700, color: accent }}>{entry.phone || 'Chưa có SĐT'}</span>
-                          <span style={{ color: 'var(--text-muted)' }}>•</span>
-                          <span><strong>{entry.count}</strong> đơn</span>
-                        </div>
-                        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>📍 {entry.address || 'Chưa có địa chỉ kho gửi'}</div>
-                      </div>;
+                      );
                     })}
                   </div>
+
+                  {group.decision === 'custom_merge' && (
+                    <div style={{ marginTop: 14, background: 'rgba(79, 70, 229, 0.05)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid rgba(79, 70, 229, 0.25)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {(group.customSubGroups || []).length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <strong style={{ fontSize: 12, color: 'var(--primary)' }}>Các nhóm shop đã gom tạo thành công:</strong>
+                          {group.customSubGroups?.map(sg => (
+                            <div key={sg.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>
+                                🏪 Shop mới: <strong style={{ color: 'var(--primary)' }}>{sg.name}</strong> ({sg.entryKeys.length} tên nhãn gửi gộp)
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: 11, padding: '2px 8px', color: 'var(--danger)' }}
+                                onClick={() => {
+                                  setShopProposalGroups(groups => groups.map(g => g.id === group.id ? { ...g, customSubGroups: (g.customSubGroups || []).filter(item => item.id !== sg.id) } : g));
+                                }}
+                              >
+                                🗑️ Hủy gộp nhóm này
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--primary)' }}>
+                            ✨ Tích chọn các ô shop ở trên để gom thành 1 nhóm shop riêng:
+                          </label>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            Đã tích: <strong>{(selectedEntryKeysMap[group.id] || []).length}</strong> shop
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            placeholder="Gõ tên Shop gộp (Ví dụ: Shop Kiều Nhung Tổng)"
+                            value={customGroupInputMap[group.id] || ''}
+                            onChange={e => setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: e.target.value })}
+                            className="input-field"
+                            style={{ flex: 1, minWidth: 240, padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={(selectedEntryKeysMap[group.id] || []).length < 1 || !(customGroupInputMap[group.id] || '').trim()}
+                            onClick={() => {
+                              const selectedKeys = selectedEntryKeysMap[group.id] || [];
+                              const customName = (customGroupInputMap[group.id] || '').trim();
+                              if (selectedKeys.length === 0 || !customName) return;
+
+                              const newSubGroup: CustomShopSubGroup = {
+                                id: `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                                name: customName,
+                                entryKeys: [...selectedKeys],
+                              };
+
+                              setShopProposalGroups(groups => groups.map(g => g.id === group.id ? { ...g, customSubGroups: [...(g.customSubGroups || []), newSubGroup] } : g));
+                              setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [] });
+                              setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: '' });
+                              showToast(`Đã gom thành công nhóm shop "${customName}"!`, 'success');
+                            }}
+                            style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700 }}
+                          >
+                            ➕ Tạo Shop từ {(selectedEntryKeysMap[group.id] || []).length} tên đã chọn
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && (
                     <div style={{ marginTop: 12, background: '#fffbeb', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div>
