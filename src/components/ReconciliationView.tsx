@@ -1473,140 +1473,143 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* Upload Dropzones */}
       <div className="glass-panel" style={{ padding: 20 }}>
-        {/* 🌟 CARRIER WORKSPACE HEADER BANNER */}
+        {/* 🌟 CARRIER WORKSPACE HEADER BANNER WITH MERGED PERIOD CONTROLS */}
         <div style={{
           background: isJntCarrier
             ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%)'
             : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%)',
           border: isJntCarrier ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1.5px solid rgba(16, 185, 129, 0.35)',
           borderRadius: 14,
-          padding: '14px 18px',
+          padding: '12px 18px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 14,
-          marginBottom: 18,
+          gap: 16,
+          marginBottom: 16,
           flexWrap: 'wrap',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* Left: Carrier Icon & Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
+              width: 42,
+              height: 42,
+              borderRadius: 10,
               background: isJntCarrier ? '#dc2626' : '#059669',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 22,
+              fontSize: 20,
               flexShrink: 0,
             }}>
               {isJntCarrier ? '📦' : '🚚'}
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 15, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14.5, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
                   {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
                 </span>
                 <span style={{
-                  fontSize: 10.5,
+                  fontSize: 10,
                   background: isJntCarrier ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                   color: isJntCarrier ? '#dc2626' : '#059669',
-                  padding: '2px 8px',
+                  padding: '2px 7px',
                   borderRadius: 6,
                   fontWeight: 800,
                 }}>
-                  {isJntCarrier ? 'CHẾ ĐỘ 2 FILE (ĐỐI SOÁT + APP)' : 'CHẾ ĐỘ ĐỐI SOÁT 1 FILE DUY NHẤT'}
+                  {isJntCarrier ? '2 FILE (ĐỐI SOÁT + APP)' : '1 FILE DUY NHẤT'}
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.3 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.2 }}>
                 {isJntCarrier 
-                  ? 'Ghép File Đối Soát J&T + File App (tự động tính cước 0đ đơn chưa giao & cước theo bậc thang).' 
+                  ? 'Ghép File Đối Soát J&T + File App (tự động cước 0đ đơn chưa giao).' 
                   : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier?.carrierName || 'NVC'}.`}
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isAdmin) setConfigCarrier(selectedCarrierTier);
-            }}
-            className="btn btn-secondary btn-sm"
-            style={{
-              fontSize: 12,
-              padding: '7px 14px',
-              fontWeight: 700,
+          {/* Right: Merged Controls (Ngày Chốt Kỳ + Tên Kỳ Đối Soát + Nút Ánh Xạ Cột) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: '#fff',
-              border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
-              color: isJntCarrier ? '#dc2626' : '#059669',
+              background: '#ffffff',
+              padding: '4px 10px',
               borderRadius: 8,
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
-              cursor: 'pointer',
-            }}
-            title="Cài đặt ánh xạ cột cho file đối soát"
-          >
-            <Settings2 size={15} color={isJntCarrier ? '#dc2626' : '#059669'} />
-            <span>⚙️ Cài đặt ánh xạ cột</span>
-          </button>
-        </div>
-
-        {/* Period Name & Date Bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.9) 0%, rgba(241, 245, 249, 0.7) 100%)',
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: '1.5px solid rgba(226, 232, 240, 0.9)',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>🗓️ Ngày Chốt Kỳ:</label>
+              border: '1.5px solid var(--border-color)',
+            }}>
+              <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>🗓️ Ngày Chốt:</label>
               <input
                 type="date"
                 value={sessionPeriodDate}
                 onChange={(e) => setSessionPeriodDate(e.target.value)}
                 className="input-field"
-                style={{ padding: '5px 10px', fontSize: 12, width: 140, fontWeight: 700, color: 'var(--primary)' }}
+                style={{ padding: '3px 8px', fontSize: 11.5, width: 130, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
               />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>Tên Kỳ Đối Soát:</label>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#ffffff',
+              padding: '4px 10px',
+              borderRadius: 8,
+              border: '1.5px solid var(--border-color)',
+            }}>
+              <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>Tên Kỳ:</label>
               <input
                 type="text"
                 value={sessionPeriodName}
                 onChange={(e) => setSessionPeriodName(e.target.value)}
                 className="input-field"
                 placeholder="Nhập tên kỳ đối soát..."
-                style={{ padding: '5px 12px', fontSize: 12, width: 280, fontWeight: 700, color: 'var(--primary)' }}
+                style={{ padding: '3px 8px', fontSize: 11.5, width: 230, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
               />
             </div>
-          </div>
 
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Hãng đang đối soát: <strong style={{ color: isJntCarrier ? '#dc2626' : '#059669', fontSize: 13 }}>{selectedCarrierTier?.carrierName}</strong>
+            <button
+              type="button"
+              onClick={() => {
+                if (isAdmin) setConfigCarrier(selectedCarrierTier);
+              }}
+              className="btn btn-secondary btn-sm"
+              style={{
+                fontSize: 11.5,
+                padding: '6px 12px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                background: '#fff',
+                border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
+                color: isJntCarrier ? '#dc2626' : '#059669',
+                borderRadius: 8,
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              title="Cài đặt ánh xạ cột cho file đối soát"
+            >
+              <Settings2 size={14} color={isJntCarrier ? '#dc2626' : '#059669'} />
+              <span>⚙️ Ánh xạ cột</span>
+            </button>
           </div>
-
-          {isGhnCarrier && ghnSheets.length > 0 && (
-            <div style={{ width: '100%', marginTop: 10, padding: '10px 12px', background: 'rgba(79, 70, 229, 0.06)', border: '1px solid var(--primary-glow)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
-                <strong>Phiên GHN cần đối soát:</strong> File có {ghnSheets.length} sheet. Chọn đúng sheet cần đối soát:
-              </div>
-              <select value={selectedGhnSheet} onChange={(event) => handleGhnSheetChange(event.target.value)} className="select-field" style={{ minWidth: 190 }}>
-                <option value="" disabled>-- Chọn sheet/kỳ GHN --</option>
-                {ghnSheets.map(sheet => <option key={sheet.name} value={sheet.name}>{sheet.name} ({sheet.rowCount} dòng)</option>)}
-              </select>
-            </div>
-          )}
         </div>
+
+        {/* GHN Multiple Sheets Selector (If applicable) */}
+        {isGhnCarrier && ghnSheets.length > 0 && (
+          <div style={{ width: '100%', marginBottom: 14, padding: '8px 12px', background: 'rgba(79, 70, 229, 0.06)', border: '1px solid var(--primary-glow)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
+              <strong>Phiên GHN cần đối soát:</strong> File có {ghnSheets.length} sheet. Chọn đúng sheet cần đối soát:
+            </div>
+            <select value={selectedGhnSheet} onChange={(event) => handleGhnSheetChange(event.target.value)} className="select-field" style={{ minWidth: 190 }}>
+              <option value="" disabled>-- Chọn sheet/kỳ GHN --</option>
+              {ghnSheets.map(sheet => <option key={sheet.name} value={sheet.name}>{sheet.name} ({sheet.rowCount} dòng)</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
         {reconcileMode === '1file' ? (
