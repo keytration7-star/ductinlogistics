@@ -306,7 +306,19 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }
   }, [activeCarrierId]);
 
-  const selectedCarrierTier = carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0];
+  const fallbackCarrier: CarrierWholesaleTier = {
+    id: selectedCarrierId || 'jnt',
+    carrierId: selectedCarrierId || 'jnt',
+    carrierName: selectedCarrierId === 'jnt' ? 'J&T Express' : (selectedCarrierId || 'NVC').toUpperCase(),
+    weightRules: [{ minWeight: 0, maxWeight: 1, price: 20000 }],
+    extraStepWeight: 1,
+    extraStepPrice: 3500,
+    returnFeePercent: 50,
+  };
+
+  const selectedCarrierTier = (carriers && carriers.length > 0)
+    ? (carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0])
+    : fallbackCarrier;
   const isJntCarrier = /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b/i.test(`${selectedCarrierTier?.carrierId || ''} ${selectedCarrierTier?.carrierName || ''}`);
   const isGhnCarrier = /\bghn\b|giao\s*hang\s*nhanh/i.test(`${selectedCarrierTier?.carrierId || ''} ${selectedCarrierTier?.carrierName || ''}`);
   const isVerifiedSelectedCarrier = isVerifiedCarrier(selectedCarrierTier);
@@ -1494,7 +1506,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 15, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
-                  {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${selectedCarrierTier.carrierName.toUpperCase()}`}
+                  {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
                 </span>
                 <span style={{
                   fontSize: 10.5,
@@ -1510,7 +1522,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.3 }}>
                 {isJntCarrier 
                   ? 'Ghép File Đối Soát J&T + File App (tự động tính cước 0đ đơn chưa giao & cước theo bậc thang).' 
-                  : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier.carrierName}.`}
+                  : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier?.carrierName || 'NVC'}.`}
               </div>
             </div>
           </div>
