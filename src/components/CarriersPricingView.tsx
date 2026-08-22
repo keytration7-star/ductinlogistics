@@ -10,9 +10,10 @@ interface CarriersPricingViewProps {
   carriers: CarrierWholesaleTier[];
   onSaveCarriers: (carriers: CarrierWholesaleTier[]) => void;
   currentUser: UserAccount;
+  activeCarrierId?: string;
 }
 
-export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carriers, onSaveCarriers, currentUser }) => {
+export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carriers, onSaveCarriers, currentUser, activeCarrierId }) => {
   const { showToast: uiToast } = useToast();
   const { showConfirm } = useConfirm();
   const [carrierList, setCarrierList] = useState<CarrierWholesaleTier[]>(carriers);
@@ -38,6 +39,11 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
   React.useEffect(() => {
     setCarrierList(carriers);
   }, [carriers]);
+
+  const activeCarrierTier = carriers.find(c => c.carrierId === activeCarrierId || c.id === activeCarrierId);
+  const displayedCarriers = activeCarrierId 
+    ? carrierList.filter(c => c.carrierId === activeCarrierId || c.id === activeCarrierId)
+    : carrierList;
 
   const handleWeightRuleChange = (
     carrierIdx: number,
@@ -197,9 +203,13 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800 }}>Bảng Giá Cước Gốc Ký Với Đơn Vị Vận Chuyển (NVC)</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800 }}>
+            {activeCarrierTier ? `Bảng Giá Cước Gốc Ký Với ${activeCarrierTier.carrierName}` : 'Bảng Giá Cước Gốc Ký Với Đơn Vị Vận Chuyển (NVC)'}
+          </h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Bảng giá là nguồn cấu hình tài chính. Chỉ Admin được phép cập nhật và mọi thay đổi được lưu để dùng cho các kỳ đối soát tiếp theo.
+            {activeCarrierTier 
+              ? `Cấu hình biểu cước bậc thang và chiết khấu cước gốc áp dụng cho hãng ${activeCarrierTier.carrierName}.`
+              : 'Bảng giá là nguồn cấu hình tài chính. Chỉ Admin được phép cập nhật và mọi thay đổi được lưu để dùng cho các kỳ đối soát tiếp theo.'}
           </p>
           {!isAdmin && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--warning)', fontWeight: 700 }}>
@@ -209,10 +219,12 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-secondary" disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được thêm hãng vận chuyển' : undefined}>
-            <Plus size={16} />
-            <span>Thêm Hãng Vận Chuyển Mới</span>
-          </button>
+          {!activeCarrierId && (
+            <button onClick={() => setIsAddModalOpen(true)} className="btn btn-secondary" disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được thêm hãng vận chuyển' : undefined}>
+              <Plus size={16} />
+              <span>Thêm Hãng Vận Chuyển Mới</span>
+            </button>
+          )}
 
           <button onClick={handleSaveAll} className="btn btn-primary" style={{ minWidth: 190 }} disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được lưu thay đổi bảng giá' : undefined}>
             <Check size={16} />
@@ -221,17 +233,13 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
         </div>
       </div>
 
-      {carrierList.length === 0 ? (
+      {displayedCarriers.length === 0 ? (
         <div className="glass-panel" style={{ textAlign: 'center', padding: '50px 20px' }}>
           <Truck size={48} color="var(--text-dim)" style={{ margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Chưa có đơn vị vận chuyển nào</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Chưa có biểu giá cho đơn vị vận chuyển này</h3>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-            Bấm nút "Thêm Hãng Vận Chuyển Mới" để tạo đơn vị vận chuyển bạn đang sử dụng.
+            Bấm nút bên dưới để cấu hình biểu giá cho hãng.
           </p>
-          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary" disabled={!isAdmin}>
-            <Plus size={16} />
-            <span>Thêm Đơn Vị Vận Chuyển</span>
-          </button>
         </div>
       ) : (
         <div style={{
@@ -242,7 +250,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
           pointerEvents: isAdmin ? 'auto' : 'none',
           opacity: isAdmin ? 1 : 0.72,
         }}>
-          {carrierList.map((carrier, cIdx) => (
+          {displayedCarriers.map((carrier) => {
+            const cIdx = carrierList.findIndex(c => c.id === carrier.id);
+            return (
             <div 
               key={carrier.id} 
               className="card-3d" 
@@ -472,7 +482,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
 
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 

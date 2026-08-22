@@ -21,8 +21,7 @@ import {
   Plus,
   Trash2,
   Sliders,
-  Calculator,
-  Check
+  Calculator
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -225,6 +224,7 @@ interface ReconciliationViewProps {
   onNavigateToEmail: (session: ReconciliationSession) => void;
   currentUser: UserAccount;
   onSaveShops: (shops: Shop[]) => void;
+  activeCarrierId?: string;
 }
 
 export type CustomShopSubGroup = {
@@ -272,6 +272,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   onNavigateToEmail,
   currentUser,
   onSaveShops,
+  activeCarrierId,
 }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -294,45 +295,38 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [appHeaders, setAppHeaders] = useState<string[]>([]);
   const [appRows, setAppRows] = useState<Record<string, any>[]>([]);
   const [appMapping, setAppMapping] = useState<ColumnMappingConfig>(savedMappings.app || { waybillColumn: '' });
-  const savedCarrierId = localStorage.getItem('gomdon_last_selected_carrier');
-  const savedCarrier = carriers.find(c => c.carrierId === savedCarrierId || c.id === savedCarrierId);
-  const firstVerifiedCarrier = carriers.find(isVerifiedCarrier);
-  const savedCarrierIdState = isVerifiedCarrier(savedCarrier)
-    ? (savedCarrier?.carrierId || savedCarrier?.id || '')
-    : (firstVerifiedCarrier?.carrierId || firstVerifiedCarrier?.id || 'jnt');
-  const [selectedCarrierId, setSelectedCarrierIdState] = useState<string>(savedCarrierIdState);
+  
+  const initialCarrierId = activeCarrierId || localStorage.getItem('gomdon_last_selected_carrier') || 'jnt';
+  const [selectedCarrierId, setSelectedCarrierIdState] = useState<string>(initialCarrierId);
 
-  const setSelectedCarrierId = (id: string) => {
-    const carrier = carriers.find(c => c.carrierId === id || c.id === id);
-    if (!isVerifiedCarrier(carrier)) {
-      showToast('Hiện chỉ cho phép đối soát J&T và GHN vì đây là hai hãng đã được kiểm chứng bằng file thực tế.', 'warning');
-      return;
+  // Sync when activeCarrierId changes from Hub
+  React.useEffect(() => {
+    if (activeCarrierId) {
+      setSelectedCarrierIdState(activeCarrierId);
     }
-    setSelectedCarrierIdState(id);
-    localStorage.setItem('gomdon_last_selected_carrier', id);
-  };
+  }, [activeCarrierId]);
 
   const selectedCarrierTier = carriers.find(c => c.carrierId === selectedCarrierId || c.id === selectedCarrierId) || carriers[0];
   const isJntCarrier = /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b/i.test(`${selectedCarrierTier?.carrierId || ''} ${selectedCarrierTier?.carrierName || ''}`);
   const isGhnCarrier = /\bghn\b|giao\s*hang\s*nhanh/i.test(`${selectedCarrierTier?.carrierId || ''} ${selectedCarrierTier?.carrierName || ''}`);
   const isVerifiedSelectedCarrier = isVerifiedCarrier(selectedCarrierTier);
 
-  // Auto-sync column mapping when selected carrier changes
+  // Mode: J&T is 2-Files mode, GHN and all other carriers are 1-File mode
+  const [reconcileMode, setReconcileMode] = useState<'1file' | '2files'>(isJntCarrier ? '2files' : '1file');
+
+  // Auto-sync column mapping & mode when selected carrier changes
   React.useEffect(() => {
     if (selectedCarrierId) {
       const carrierMapping = StorageService.getCarrierMapping(selectedCarrierId);
       if (carrierMapping.nvc) setNvcMapping(carrierMapping.nvc);
       if (carrierMapping.app) setAppMapping(carrierMapping.app);
     }
-  }, [selectedCarrierId]);
-
-  React.useEffect(() => {
-    if (isJntCarrier) setReconcileMode('2files');
-  }, [isJntCarrier]);
-
-  React.useEffect(() => {
-    if (isGhnCarrier) setReconcileMode('1file');
-  }, [isGhnCarrier]);
+    if (isJntCarrier) {
+      setReconcileMode('2files');
+    } else {
+      setReconcileMode('1file');
+    }
+  }, [selectedCarrierId, isJntCarrier]);
 
   const getYesterdayIso = () => {
     const d = new Date();
@@ -353,7 +347,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     setSessionPeriodName(smartName);
   }, [selectedCarrierId, carriers, nvcRows, appRows]);
 
-  const [reconcileMode, setReconcileMode] = useState<'1file' | '2files'>('2files');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [, setIsMappingConfirmed] = useState(false);
@@ -1466,162 +1459,87 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         ))}
       </div>
 
-      {/* 2-File Upload Dropzones */}
+      {/* Upload Dropzones */}
       <div className="glass-panel" style={{ padding: 20 }}>
-        {/* 🌟 2 DISTINCT RECONCILIATION MODULE TABS */}
+        {/* 🌟 CARRIER WORKSPACE HEADER BANNER */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          background: isJntCarrier
+            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%)'
+            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%)',
+          border: isJntCarrier ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1.5px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: 14,
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           gap: 14,
           marginBottom: 18,
+          flexWrap: 'wrap',
         }}>
-          {/* Module Tab 1: J&T Express (2 Files) */}
-          <div
-            onClick={() => {
-              const jnt = carriers.find(c => c.carrierId === 'jnt' || c.id === 'jnt') || carriers[0];
-              setSelectedCarrierId(jnt.carrierId || jnt.id);
-              setReconcileMode('2files');
-            }}
-            style={{
-              padding: '16px 20px',
-              borderRadius: 14,
-              cursor: 'pointer',
-              background: reconcileMode === '2files' 
-                ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.14) 0%, rgba(99, 102, 241, 0.08) 100%)' 
-                : 'var(--bg-secondary)',
-              border: reconcileMode === '2files' ? '2.5px solid var(--primary)' : '1px solid var(--border-color)',
-              boxShadow: reconcileMode === '2files' ? '0 4px 16px rgba(79, 70, 229, 0.16)' : 'none',
-              transition: 'all 0.2s ease',
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: isJntCarrier ? '#dc2626' : '#059669',
+              color: '#fff',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 14,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: reconcileMode === '2files' ? 'var(--primary)' : 'var(--bg-tertiary)',
-                color: reconcileMode === '2files' ? '#fff' : 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-                flexShrink: 0,
-              }}>
-                📦
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: reconcileMode === '2files' ? 'var(--primary)' : 'var(--text-main)' }}>
-                    MODULE 1: ĐỐI SOÁT J&T EXPRESS
-                  </span>
-                  <span style={{ fontSize: 10.5, background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', padding: '2px 7px', borderRadius: 8, fontWeight: 800 }}>
-                    2 FILE
-                  </span>
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.3 }}>
-                  Ghép <strong>File Đối Soát J&T</strong> + <strong>File Đơn Hàng App</strong>
-                </div>
-              </div>
+              justifyContent: 'center',
+              fontSize: 22,
+              flexShrink: 0,
+            }}>
+              {isJntCarrier ? '📦' : '🚚'}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const jnt = carriers.find(c => c.carrierId === 'jnt' || c.id === 'jnt') || carriers[0];
-                  if (isAdmin) setConfigCarrier(jnt);
-                }}
-                className="btn btn-secondary btn-sm"
-                style={{
-                  fontSize: 12,
-                  padding: '6px 12px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: '#fff',
-                  border: '1.5px solid var(--primary)',
-                  color: 'var(--primary)',
-                  borderRadius: 8,
-                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.15)',
-                  cursor: 'pointer'
-                }}
-                title="Cài đặt ánh xạ cột cho File Đối Soát J&T và File App"
-              >
-                <Settings2 size={15} color="var(--primary)" />
-                <span>⚙️ Cài đặt ánh xạ cột</span>
-              </button>
-
-              {reconcileMode === '2files' && (
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Check size={14} strokeWidth={3} />
-                </div>
-              )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
+                  {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${selectedCarrierTier.carrierName.toUpperCase()}`}
+                </span>
+                <span style={{
+                  fontSize: 10.5,
+                  background: isJntCarrier ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  color: isJntCarrier ? '#dc2626' : '#059669',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  fontWeight: 800,
+                }}>
+                  {isJntCarrier ? 'CHẾ ĐỘ 2 FILE (ĐỐI SOÁT + APP)' : 'CHẾ ĐỘ ĐỐI SOÁT 1 FILE DUY NHẤT'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.3 }}>
+                {isJntCarrier 
+                  ? 'Ghép File Đối Soát J&T + File App (tự động tính cước 0đ đơn chưa giao & cước theo bậc thang).' 
+                  : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier.carrierName}.`}
+              </div>
             </div>
           </div>
 
-          {/* Module Tab 2: Other Carriers (1 Single File: GHN, GHTK, Viettel Post...) */}
-          <div
+          <button
+            type="button"
             onClick={() => {
-              const other = carriers.find(c => c.carrierId !== 'jnt' && c.id !== 'jnt') || carriers[1] || carriers[0];
-              setSelectedCarrierId(other.carrierId || other.id);
-              setReconcileMode('1file');
+              if (isAdmin) setConfigCarrier(selectedCarrierTier);
             }}
+            className="btn btn-secondary btn-sm"
             style={{
-              padding: '16px 20px',
-              borderRadius: 14,
-              cursor: 'pointer',
-              background: reconcileMode === '1file' 
-                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.08) 100%)' 
-                : 'var(--bg-secondary)',
-              border: reconcileMode === '1file' ? '2.5px solid var(--success)' : '1px solid var(--border-color)',
-              boxShadow: reconcileMode === '1file' ? '0 4px 16px rgba(16, 185, 129, 0.16)' : 'none',
-              transition: 'all 0.2s ease',
+              fontSize: 12,
+              padding: '7px 14px',
+              fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 14,
+              gap: 6,
+              background: '#fff',
+              border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
+              color: isJntCarrier ? '#dc2626' : '#059669',
+              borderRadius: 8,
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
+              cursor: 'pointer',
             }}
+            title="Cài đặt ánh xạ cột cho file đối soát"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: reconcileMode === '1file' ? 'var(--success)' : 'var(--bg-tertiary)',
-                color: reconcileMode === '1file' ? '#fff' : 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-                flexShrink: 0,
-              }}>
-                🚚
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: reconcileMode === '1file' ? 'var(--success)' : 'var(--text-main)' }}>
-                    MODULE 2: CÁC HÃNG KHÁC
-                  </span>
-                  <span style={{ fontSize: 10.5, background: 'rgba(16, 185, 129, 0.12)', color: '#059669', padding: '2px 7px', borderRadius: 8, fontWeight: 800 }}>
-                    1 FILE DUY NHẤT
-                  </span>
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.3 }}>
-                  GHN, GHTK, Viettel Post... Đối soát trực tiếp từ 1 File NVC
-                </div>
-              </div>
-            </div>
-            {reconcileMode === '1file' && (
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Check size={14} strokeWidth={3} />
-              </div>
-            )}
-          </div>
+            <Settings2 size={15} color={isJntCarrier ? '#dc2626' : '#059669'} />
+            <span>⚙️ Cài đặt ánh xạ cột</span>
+          </button>
         </div>
 
         {/* Period Name & Date Bar */}
@@ -1662,7 +1580,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Hãng đang chọn: <strong style={{ color: 'var(--primary)' }}>{selectedCarrierTier?.carrierName}</strong>
+            Hãng đang đối soát: <strong style={{ color: isJntCarrier ? '#dc2626' : '#059669', fontSize: 13 }}>{selectedCarrierTier?.carrierName}</strong>
           </div>
 
           {isGhnCarrier && ghnSheets.length > 0 && (
@@ -1677,134 +1595,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
         </div>
-
-        {/* CARRIER CARDS SELECTOR (For Module 2 - Other Carriers) */}
-        {reconcileMode === '1file' && (
-          <div style={{ marginBottom: 20, background: 'var(--bg-secondary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🚚 Chọn Đơn Vị Vận Chuyển Cần Đối Soát (Chế Độ 1 File):</span>
-              </div>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-              gap: 12,
-            }}>
-              {carriers.filter(c => c.carrierId !== 'jnt' && c.id !== 'jnt').map(c => {
-                const isSelected = c.carrierId === selectedCarrierId || c.id === selectedCarrierId;
-                const isVerified = isVerifiedCarrier(c);
-                return (
-                  <div
-                    key={c.id || c.carrierId}
-                    onClick={() => isVerified && setSelectedCarrierId(c.carrierId || c.id)}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      background: isSelected 
-                        ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.10) 100%)' 
-                        : 'var(--bg-primary)',
-                      border: isSelected ? '2px solid var(--success)' : '1px solid var(--border-color)',
-                      cursor: isVerified ? 'pointer' : 'not-allowed',
-                      opacity: isVerified ? 1 : 0.5,
-                      transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => isVerified && setSelectedCarrierId(c.carrierId || c.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          disabled={!isVerified}
-                          style={{ width: 16, height: 16, accentColor: 'var(--success)', cursor: 'pointer' }}
-                        />
-                        <span style={{
-                          fontSize: 10,
-                          fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: isSelected ? 'var(--success)' : 'var(--bg-tertiary)',
-                          color: isSelected ? '#fff' : 'var(--text-muted)',
-                          textTransform: 'uppercase',
-                        }}>
-                          {c.carrierId.toUpperCase()}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isAdmin && isVerified) setConfigCarrier(c);
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{
-                          padding: '3px 7px',
-                          borderRadius: 'var(--radius-sm)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 11,
-                        }}
-                        disabled={!isAdmin || !isVerified}
-                      >
-                        <Settings2 size={13} color="var(--primary)" />
-                        <span>Ánh xạ cột</span>
-                      </button>
-                    </div>
-
-                    <div style={{
-                      fontSize: 13,
-                      fontWeight: isSelected ? 700 : 600,
-                      color: isSelected ? 'var(--success)' : 'var(--text-main)',
-                      lineHeight: 1.3,
-                    }}>
-                      {c.carrierName}
-                    </div>
-
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                      Cước từ: <strong style={{ color: 'var(--text-main)' }}>{new Intl.NumberFormat('vi-VN').format(c.weightRules[0]?.price || 0)}đ</strong>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* J&T Single Focused Panel (For Module 1 - J&T Express) */}
-        {reconcileMode === '2files' && (
-          <div style={{ marginBottom: 16, background: 'rgba(79, 70, 229, 0.04)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(79, 70, 229, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>
-                📦 HÃNG VẬN CHUYỂN: J&T EXPRESS
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                (Biểu phí sỉ từ: <strong>{new Intl.NumberFormat('vi-VN').format(selectedCarrierTier?.weightRules[0]?.price || 14000)}đ</strong>)
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                const jnt = carriers.find(c => c.carrierId === 'jnt' || c.id === 'jnt') || carriers[0];
-                if (isAdmin) setConfigCarrier(jnt);
-              }}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: 11.5, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }}
-            >
-              <Settings2 size={13} color="var(--primary)" />
-              <span>Cài đặt ánh xạ J&T</span>
-            </button>
-          </div>
-        )}
 
         {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
         {reconcileMode === '1file' ? (
@@ -1868,7 +1658,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               </div>
 
               <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
-                {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : '📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT DUY NHẤT (VÍ DỤ GHN / GHTK / VIETTEL POST)'}
+                {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : `📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT ${selectedCarrierTier?.carrierName.toUpperCase()}`}
               </h3>
               
               <p style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 10px', lineHeight: 1.5 }}>

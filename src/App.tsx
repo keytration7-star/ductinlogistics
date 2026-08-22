@@ -340,6 +340,7 @@ export function App() {
               setCurrentSession={handleSetCurrentSession}
               currentUser={currentUser}
               onSaveShops={handleSaveShops}
+              activeCarrierId={activeCarrierId}
               onNavigateToEmail={(session) => {
                 handleSetCurrentSession(session);
                 setActiveTab('emails');
@@ -358,7 +359,7 @@ export function App() {
 
           {activeTab === 'debt' && (
             <DebtAndPayoutView
-              sessions={sessions}
+              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
               shops={shops}
               currentUser={currentUser}
               onRefreshSessions={() => {
@@ -370,7 +371,7 @@ export function App() {
 
           {activeTab === 'audit' && (
             <DataAuditView
-              sessions={sessions}
+              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
               shops={shops}
               currentUser={currentUser}
               onRefreshSessions={() => {
@@ -386,6 +387,7 @@ export function App() {
               carriers={carriers}
               onSaveCarriers={handleSaveCarriers}
               currentUser={currentUser}
+              activeCarrierId={activeCarrierId}
             />
           )}
 
@@ -399,7 +401,7 @@ export function App() {
 
           {activeTab === 'history' && (
             <HistoryAndAnalyticsView
-              sessions={sessions}
+              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
               shops={shops}
               onSelectSession={(session) => {
                 setCurrentSession(session);
