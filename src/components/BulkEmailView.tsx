@@ -73,11 +73,69 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   
   // All stored sessions for switching
   const allStoredSessions = StorageService.getSessions();
-  const [selectedSessionId, setSelectedSessionId] = useState<string>(
-    currentSession?.id || (allStoredSessions[0]?.id ?? '')
-  );
 
-  const activeSession = (allStoredSessions.find(s => s.id === selectedSessionId) || currentSession) ?? null;
+  // Filter stored sessions by active carrier
+  const carrierFilteredSessions = React.useMemo(() => {
+    if (!activeCarrierId) return allStoredSessions;
+    const target = activeCarrierId.toLowerCase();
+    return allStoredSessions.filter(s => {
+      const sCarrier = (s.carrierId || '').toLowerCase();
+      const sCarrierName = (s.carrierName || '').toLowerCase();
+      if (target === 'ghn' || target.includes('ghn') || target.includes('nhanh')) {
+        return sCarrier === 'ghn' || sCarrier.includes('ghn') || sCarrierName.includes('nhanh') || sCarrierName.includes('ghn');
+      }
+      if (target === 'jnt' || target.includes('jnt') || target.includes('j&t')) {
+        return sCarrier === 'jnt' || sCarrier.includes('jnt') || sCarrierName.includes('j&t') || sCarrierName.includes('jnt');
+      }
+      if (target === 'ghtk' || target.includes('ghtk') || target.includes('tiet_kiem')) {
+        return sCarrier === 'ghtk' || sCarrier.includes('ghtk') || sCarrierName.includes('tiet kiem');
+      }
+      if (target === 'vtp' || target.includes('vtp') || target.includes('viettel')) {
+        return sCarrier === 'vtp' || sCarrier.includes('vtp') || sCarrierName.includes('viettel');
+      }
+      if (target === 'spx' || target.includes('spx') || target.includes('shopee')) {
+        return sCarrier === 'spx' || sCarrier.includes('spx') || sCarrierName.includes('shopee');
+      }
+      return sCarrier === target || sCarrier.includes(target) || target.includes(sCarrier);
+    });
+  }, [allStoredSessions, activeCarrierId]);
+
+  // Check if currentSession passed via props matches current active carrier
+  const isCurrentSessionMatchingCarrier = React.useMemo(() => {
+    if (!currentSession) return false;
+    if (!activeCarrierId) return true;
+    const target = activeCarrierId.toLowerCase();
+    const sCarrier = (currentSession.carrierId || '').toLowerCase();
+    const sCarrierName = (currentSession.carrierName || '').toLowerCase();
+    if (target === 'ghn' || target.includes('ghn') || target.includes('nhanh')) {
+      return sCarrier === 'ghn' || sCarrier.includes('ghn') || sCarrierName.includes('nhanh') || sCarrierName.includes('ghn');
+    }
+    if (target === 'jnt' || target.includes('jnt') || target.includes('j&t')) {
+      return sCarrier === 'jnt' || sCarrier.includes('jnt') || sCarrierName.includes('j&t') || sCarrierName.includes('jnt');
+    }
+    if (target === 'ghtk' || target.includes('ghtk')) {
+      return sCarrier === 'ghtk' || sCarrier.includes('ghtk') || sCarrierName.includes('tiet kiem');
+    }
+    if (target === 'vtp' || target.includes('vtp')) {
+      return sCarrier === 'vtp' || sCarrier.includes('vtp') || sCarrierName.includes('viettel');
+    }
+    return sCarrier === target;
+  }, [currentSession, activeCarrierId]);
+
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(() => {
+    if (isCurrentSessionMatchingCarrier && currentSession?.id) return currentSession.id;
+    return carrierFilteredSessions[0]?.id ?? '';
+  });
+
+  React.useEffect(() => {
+    if (isCurrentSessionMatchingCarrier && currentSession?.id) {
+      setSelectedSessionId(currentSession.id);
+    } else {
+      setSelectedSessionId(carrierFilteredSessions[0]?.id ?? '');
+    }
+  }, [activeCarrierId, currentSession, isCurrentSessionMatchingCarrier, carrierFilteredSessions]);
+
+  const activeSession = (carrierFilteredSessions.find(s => s.id === selectedSessionId) || (isCurrentSessionMatchingCarrier ? currentSession : null)) ?? null;
   const statements = activeSession?.statements || [];
   const hasUnmatchedOrders = (activeSession?.unmatchedOrdersCount || 0) > 0;
 
@@ -111,12 +169,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       setSelectedCarrierTab(activeCarrierId);
     }
   }, [activeCarrierId]);
-
-  React.useEffect(() => {
-    if (currentSession?.id) {
-      setSelectedSessionId(currentSession.id);
-    }
-  }, [currentSession?.id]);
 
   React.useEffect(() => {
     if (statements.length > 0 && (!selectedShopId || !statements.some(s => s.shopId === selectedShopId))) {
@@ -816,7 +868,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   ))}
                 </select>
               </div>
-            ) : allStoredSessions.length > 0 && (
+            ) : carrierFilteredSessions.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Xem kỳ khác:</span>
                 <select
@@ -825,7 +877,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   className="select-field"
                   style={{ width: 200, padding: '3px 6px', fontSize: 11 }}
                 >
-                  {allStoredSessions.map((ses, idx) => (
+                  {carrierFilteredSessions.map((ses, idx) => (
                     <option key={ses.id || idx} value={ses.id}>
                       {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop)
                     </option>
@@ -931,7 +983,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       </div>
 
       {/* 3. Queue Table: Shop List & Per-Shop Preview/Send Actions */}
-      {statements.length > 0 && (
+      {statements.length > 0 ? (
         <div className="glass-panel" style={{ padding: 24, borderRadius: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
             <div>
@@ -1155,6 +1207,34 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               })}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div className="glass-panel" style={{
+          padding: '36px 24px',
+          borderRadius: 16,
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, rgba(248,250,252,0.9) 0%, rgba(241,245,249,0.9) 100%)',
+          border: '1px dashed #cbd5e1'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'rgba(59, 130, 246, 0.1)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px'
+          }}>
+            <Mail size={28} />
+          </div>
+          <h3 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 8px', color: 'var(--text-main)' }}>
+            Chưa có kỳ đối soát nào của {activeCarrierName || 'hãng này'}
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 520, margin: '0 auto 16px', lineHeight: 1.5 }}>
+            Hệ thống chưa có dữ liệu bảng kê đối soát cho <strong>{activeCarrierName || 'hãng này'}</strong>. Bạn có thể xem trước mẫu email bên trên ngay bây giờ, hoặc vào mục <strong>"Đối Soát Kéo Thả"</strong> để tải file và chạy đối soát cho hãng này.
+          </p>
         </div>
       )}
 
