@@ -650,12 +650,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           {((shop.nameAliases?.length || 0) > 0 || (shop.phoneList?.length || 0) > 0) && (
                             <span style={{
                               fontSize: 10,
-                              fontWeight: 700,
-                              background: 'rgba(79, 70, 229, 0.1)',
-                              color: 'var(--primary)',
-                              padding: '1px 6px',
+                              fontWeight: 800,
+                              background: 'rgba(245, 158, 11, 0.14)',
+                              color: '#b45309',
+                              padding: '2px 7px',
                               borderRadius: 4,
-                              border: '1px solid rgba(79, 70, 229, 0.25)',
+                              border: '1px solid #f59e0b',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: 3,
@@ -666,10 +666,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>SĐT: {shop.phone || 'N/A'}</div>
                         {((shop.nameAliases?.length || 0) > 0 || (shop.phoneList?.length || 0) > 0) && (
-                          <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 600 }}>Gộp từ:</span>
+                          <div style={{ fontSize: 10.5, color: '#92400e', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, color: '#b45309' }}>Gộp từ:</span>
                             {[...(shop.nameAliases || []), ...(shop.phoneList || [])].map((alias, aIdx) => (
-                              <span key={aIdx} style={{ background: '#eef2ff', padding: '1px 5px', borderRadius: 3, border: '1px solid #c7d2fe', fontSize: 9.5 }}>
+                              <span key={aIdx} style={{ background: '#fef3c7', padding: '1px 6px', borderRadius: 4, border: '1px solid #fde68a', color: '#92400e', fontSize: 10, fontWeight: 600 }}>
                                 {alias}
                               </span>
                             ))}
@@ -918,12 +918,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                               {aliasesList.length > 0 && (
                                 <span style={{
                                   fontSize: 10,
-                                  fontWeight: 700,
-                                  background: 'rgba(79, 70, 229, 0.1)',
-                                  color: 'var(--primary)',
-                                  padding: '1px 6px',
+                                  fontWeight: 800,
+                                  background: 'rgba(245, 158, 11, 0.14)',
+                                  color: '#b45309',
+                                  padding: '2px 7px',
                                   borderRadius: 4,
-                                  border: '1px solid rgba(79, 70, 229, 0.25)',
+                                  border: '1px solid #f59e0b',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: 3,
@@ -934,10 +934,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
                             {aliasesList.length > 0 && (
-                              <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 600 }}>Gộp từ:</span>
+                              <div style={{ fontSize: 10.5, color: '#92400e', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, color: '#b45309' }}>Gộp từ:</span>
                                 {aliasesList.map((alias, aIdx) => (
-                                  <span key={aIdx} style={{ background: '#eef2ff', padding: '1px 5px', borderRadius: 3, border: '1px solid #c7d2fe', fontSize: 9.5 }}>
+                                  <span key={aIdx} style={{ background: '#fef3c7', padding: '1px 6px', borderRadius: 4, border: '1px solid #fde68a', color: '#92400e', fontSize: 10, fontWeight: 600 }}>
                                     {alias}
                                   </span>
                                 ))}
