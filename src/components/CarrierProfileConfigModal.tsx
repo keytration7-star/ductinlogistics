@@ -119,7 +119,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     <div className="modal-overlay" onClick={onClose}>
       <div 
         className="modal-content" 
-        style={{ maxWidth: 880 }}
+        style={{ maxWidth: 980 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
@@ -284,137 +284,150 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                   </div>
                 )}
 
-                {/* 🌟 UNIFIED SIDE-BY-SIDE MAPPING TABLE */}
+                {/* 🌟 UNIFIED SIDE-BY-SIDE MAPPING TABLE AS AN EXCEL GRID */}
                 <div style={{
-                  background: 'var(--bg-secondary)',
+                  background: '#fff',
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-color)',
+                  border: '1.5px solid #cbd5e1',
                   overflow: 'hidden',
-                  marginBottom: 16
+                  marginBottom: 16,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
                 }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: requireAppMapping ? '210px 1fr 1fr 150px' : '210px 1fr 150px',
-                    padding: '10px 14px',
-                    background: 'var(--bg-tertiary)',
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: 'var(--text-dim)',
-                    textTransform: 'uppercase',
-                    borderBottom: '1px solid var(--border-color)',
-                    gap: 12
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    tableLayout: 'fixed',
                   }}>
-                    <div>Trường Thông Tin Cần Lấy</div>
-                    <div>📄 Cột Trong File NVC (Hãng)</div>
-                    {requireAppMapping && <div>📱 Cột Trong File App</div>}
-                    <div>Trạng Thái Khớp AI</div>
-                  </div>
+                    <thead>
+                      <tr style={{
+                        background: '#f8fafc',
+                        borderBottom: '2px solid #cbd5e1',
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        color: '#334155',
+                        textTransform: 'uppercase',
+                      }}>
+                        <th style={{ width: '25%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
+                          Trường Thông Tin Cần Lấy
+                        </th>
+                        <th style={{ width: requireAppMapping ? '32%' : '50%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
+                          📄 Cột Trong File NVC (Hãng)
+                        </th>
+                        {requireAppMapping && (
+                          <th style={{ width: '32%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
+                            📱 Cột Trong File App
+                          </th>
+                        )}
+                        <th style={{ width: requireAppMapping ? '11%' : '25%', padding: '10px 8px', textAlign: 'center' }}>
+                          Trạng Thái AI
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {UNIFIED_FIELDS.map((f, idx) => {
+                        const nvcVal = f.keyNvc ? ((localNvcMapping[f.keyNvc] as string) || '') : '';
+                        const appVal = f.keyApp ? ((localAppMapping[f.keyApp] as string) || '') : '';
+                        
+                        const hasNvc = !!f.keyNvc;
+                        const hasApp = !!f.keyApp;
 
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {UNIFIED_FIELDS.map((f, idx) => {
-                      const nvcVal = f.keyNvc ? ((localNvcMapping[f.keyNvc] as string) || '') : '';
-                      const appVal = f.keyApp ? ((localAppMapping[f.keyApp] as string) || '') : '';
-                      
-                      const hasNvc = !!f.keyNvc;
-                      const hasApp = !!f.keyApp;
+                        const isNvcMatched = hasNvc && !!nvcVal;
+                        const isAppMatched = hasApp && !!appVal;
 
-                      const isNvcMatched = hasNvc && !!nvcVal;
-                      const isAppMatched = hasApp && !!appVal;
+                        const isFullyMatched = requireAppMapping && hasApp
+                          ? (isNvcMatched && isAppMatched) 
+                          : isNvcMatched;
 
-                      const isFullyMatched = requireAppMapping && hasApp
-                        ? (isNvcMatched && isAppMatched) 
-                        : isNvcMatched;
+                        return (
+                          <tr key={f.label} style={{
+                            background: f.isRequired ? 'rgba(79, 70, 229, 0.025)' : idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                            borderBottom: idx === UNIFIED_FIELDS.length - 1 ? 'none' : '1px solid #e2e8f0',
+                          }}>
+                            {/* Column 1: Field Title */}
+                            <td style={{ padding: '8px 12px', verticalAlign: 'middle', borderRight: '1.5px solid #cbd5e1' }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: f.isRequired ? 'var(--primary)' : 'var(--text-primary)' }}>
+                                <span>{f.emoji}</span>
+                                <span>{f.label}</span>
+                                {f.isRequired && <span style={{ color: 'var(--danger)', fontSize: 11, fontWeight: 800 }}>*</span>}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.3 }}>{f.hint}</div>
+                            </td>
 
-                      return (
-                        <div key={f.label} style={{
-                          display: 'grid',
-                          gridTemplateColumns: requireAppMapping ? '210px 1fr 1fr 150px' : '210px 1fr 150px',
-                          alignItems: 'center',
-                          padding: '10px 14px',
-                          borderBottom: idx === UNIFIED_FIELDS.length - 1 ? 'none' : '1px solid var(--border-color)',
-                          background: f.isRequired ? 'rgba(79, 70, 229, 0.03)' : 'transparent',
-                          gap: 12
-                        }}>
-                          {/* Column 1: Field Title */}
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: f.isRequired ? 'var(--primary)' : 'var(--text-primary)' }}>
-                              <span>{f.emoji}</span>
-                              <span>{f.label}</span>
-                              {f.isRequired && <span style={{ color: 'var(--danger)', fontSize: 11 }}>*</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{f.hint}</div>
-                          </div>
-
-                          {/* Column 2: Searchable Dropdown for File NVC */}
-                          <div>
-                            {hasNvc ? (
-                              <SearchableSelect
-                                options={nvcHeaders.map(h => ({ value: h, label: h, badge: 'NVC', badgeType: 'nvc' }))}
-                                value={nvcVal}
-                                onChange={(val) => updateNvcField(f.keyNvc!, val)}
-                                placeholder={nvcHeaders.length > 0 ? `🔍 Cột File NVC...` : '⚠️ Vui lòng tải file NVC'}
-                              />
-                            ) : (
-                              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>-- Không dùng NVC --</span>
-                            )}
-                          </div>
-
-                          {/* Column 3: Searchable Dropdown for File App */}
-                          {requireAppMapping && <div>
-                            {hasApp ? (
-                              appHeaders.length > 0 ? (
+                            {/* Column 2: Searchable Dropdown for File NVC */}
+                            <td style={{ padding: '6px 10px', verticalAlign: 'middle', borderRight: '1.5px solid #cbd5e1' }}>
+                              {hasNvc ? (
                                 <SearchableSelect
-                                  options={appHeaders.map(h => ({ value: h, label: h, badge: 'App', badgeType: 'app' }))}
-                                  value={appVal}
-                                  onChange={(val) => updateAppField(f.keyApp!, val)}
-                                  placeholder="🔍 Cột File App..."
+                                  options={nvcHeaders.map(h => ({ value: h, label: h, badge: 'NVC', badgeType: 'nvc' }))}
+                                  value={nvcVal}
+                                  onChange={(val) => updateNvcField(f.keyNvc!, val)}
+                                  placeholder={nvcHeaders.length > 0 ? `🔍 Cột File NVC...` : '⚠️ Vui lòng tải file NVC'}
                                 />
                               ) : (
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>⚡ Tự động đọc từ File NVC (Chế độ 1 File)</span>
-                              )
-                            ) : (
-                              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>-- Không dùng App --</span>
-                            )}
-                          </div>}
+                                <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>-- Không dùng NVC --</span>
+                              )}
+                            </td>
 
-                          {/* Column 4: AI Match Status Badge */}
-                          <div>
-                            {isFullyMatched ? (
-                              <span style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: 'var(--success)',
-                                background: 'rgba(34, 197, 94, 0.12)',
-                                border: '1px solid rgba(34, 197, 94, 0.3)',
-                                padding: '4px 10px',
-                                borderRadius: 12,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}>
-                                🟢 ✓ {requireAppMapping ? 'Khớp 2 file' : 'Đã chọn cột GHN'}
-                              </span>
-                            ) : (
-                              <span style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: '#b45309',
-                                background: 'rgba(245, 158, 11, 0.12)',
-                                border: '1px solid rgba(245, 158, 11, 0.3)',
-                                padding: '4px 10px',
-                                borderRadius: 12,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}>
-                                ⚠️ Cần chọn cột
-                              </span>
+                            {/* Column 3: Searchable Dropdown for File App */}
+                            {requireAppMapping && (
+                              <td style={{ padding: '6px 10px', verticalAlign: 'middle', borderRight: '1.5px solid #cbd5e1' }}>
+                                {hasApp ? (
+                                  appHeaders.length > 0 ? (
+                                    <SearchableSelect
+                                      options={appHeaders.map(h => ({ value: h, label: h, badge: 'App', badgeType: 'app' }))}
+                                      value={appVal}
+                                      onChange={(val) => updateAppField(f.keyApp!, val)}
+                                      placeholder="🔍 Cột File App..."
+                                    />
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>⚡ Tự động đọc từ File NVC (Chế độ 1 File)</span>
+                                  )
+                                ) : (
+                                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>-- Không dùng App --</span>
+                                )}
+                              </td>
                             )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+
+                            {/* Column 4: AI Match Status Badge */}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {isFullyMatched ? (
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: 'var(--success)',
+                                  background: 'rgba(34, 197, 94, 0.12)',
+                                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                                  padding: '3px 8px',
+                                  borderRadius: 12,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  ✓ Khớp
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  color: '#b45309',
+                                  background: 'rgba(245, 158, 11, 0.12)',
+                                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                                  padding: '3px 8px',
+                                  borderRadius: 12,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  ⚠️ Thiếu
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
                 <div style={{
                   background: 'rgba(245, 158, 11, 0.08)',
