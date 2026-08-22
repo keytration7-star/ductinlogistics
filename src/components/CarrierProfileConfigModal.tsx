@@ -2,9 +2,36 @@ import React, { useState, useRef } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
 import { Settings2, SlidersHorizontal, Check, X, Trash2, RotateCcw, AlertCircle, ShieldAlert, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ColumnMappingConfig, ExportColumnSettings, ExportColumnItem } from '../types';
-import { autoDetectColumns } from '../services/smartColumnDetector';
+import { autoDetectColumns, normalizeHeader } from '../services/smartColumnDetector';
 import { StorageService } from '../services/storage';
 import { SearchableSelect } from './SearchableSelect';
+
+function isLikelyFeeHeader(header: string, isSelected: boolean): boolean {
+  if (isSelected) return true; // Keep visible if already checked
+  const norm = normalizeHeader(header);
+  if (!norm) return false;
+
+  // Blacklist obvious non-fee metadata
+  const nonFeeKeywords = [
+    'ma_van_don', 'ma_don', 'tracking', 'waybill', 'ma_don_kh',
+    'ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach', 'receiver', 'sender', 'ten_shop', 'ten_gui',
+    'sdt', 'so_dien_thoai', 'phone', 'mobile', 'tel', 'so_dien_thoai_nguoi_nhan',
+    'dia_chi', 'address', 'tinh', 'huyen', 'xa', 'quan', 'dia_chi_nguoi_nhan',
+    'ngay_gui', 'ngay_tao', 'ngay_nhan', 'thoi_gian', 'date', 'time', 'created', 'ngay_gui_hang', 'thoi_gian_ky_nhan', 'thoi_gian_dieu_chinh',
+    'ghi_chu', 'note', 'mo_ta', 'noi_dung', 'san_pham', 'item', 'product',
+    'khoi_luong', 'trong_luong', 'can_nang', 'weight', 'kg', 'gram',
+    'trang_thai', 'status', 'tinh_trang',
+    'so_tien_phai_tra', 'tong_tien_thanh_toan', 'tien_cod_da_ky_nhan', 'tien_cod', 'so_tien_phai_tra_sau_can_tru'
+  ];
+
+  for (const kw of nonFeeKeywords) {
+    if (norm === kw || norm.startsWith(kw) || norm.endsWith(kw)) return false;
+  }
+
+  // Must contain fee/charge indicator
+  const feeKeywords = ['phi', 'cuoc', 'phu_thu', 'hoan', 'bao_hiem', 'khai_gia', 'dieu_chinh', 'giao_1_phan', 'giao_mot_phan', 'surcharge', 'fee', 'charge'];
+  return feeKeywords.some(kw => norm.includes(kw));
+}
 
 interface CarrierProfileConfigModalProps {
   isOpen: boolean;
@@ -464,35 +491,74 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                     </tbody>
                   </table>
                 </div>
-                <div style={{
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.28)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '12px 14px',
-                  fontSize: 12,
-                  color: 'var(--text-main)',
-                }}>
-                  <div style={{ fontWeight: 800, marginBottom: 8 }}>➕ Các cột phụ phí NVC cộng thêm</div>
-                  <div style={{ color: 'var(--text-muted)', marginBottom: 10 }}>Chọn tất cả cột phí độc lập (ví dụ phí thu hộ, chuyển hoàn, giao một phần). Hệ thống cộng các cột này vào chi phí NVC và dùng chúng để kiểm tra số tiền sau cấn trừ.</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {nvcHeaders.filter(header => header !== localNvcMapping.feeColumn && header !== localNvcMapping.otherFeeColumn).map(header => {
-                      const checked = (localNvcMapping.additionalFeeColumns || []).includes(header);
-                      return (
-                        <label key={header} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', border: '1px solid var(--border-color)', borderRadius: 6, background: checked ? 'rgba(79, 70, 229, 0.10)' : 'var(--bg-primary)', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={checked} onChange={() => {
-                            const additionalFeeColumns = checked
-                              ? (localNvcMapping.additionalFeeColumns || []).filter(column => column !== header)
-                              : [...(localNvcMapping.additionalFeeColumns || []), header];
-                            const updated = { ...localNvcMapping, additionalFeeColumns };
-                            setLocalNvcMapping(updated);
-                            triggerAutoSave(updated, localAppMapping);
-                          }} />
-                          <span>{header}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* ➕ Các cột phụ phí NVC cộng thêm - Smart filtered */}
+                {(() => {
+                  const candidateFeeHeaders = nvcHeaders.filter(header => 
+                    header !== localNvcMapping.feeColumn && 
+                    header !== localNvcMapping.otherFeeColumn &&
+                    isLikelyFeeHeader(header, (localNvcMapping.additionalFeeColumns || []).includes(header))
+                  );
+
+                  return (
+                    <div style={{
+                      background: 'rgba(245, 158, 11, 0.06)',
+                      border: '1.5px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '12px 16px',
+                      fontSize: 12,
+                      color: 'var(--text-main)',
+                    }}>
+                      <div style={{ fontWeight: 800, color: '#92400e', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>➕ Cột Phụ Phí NVC Cộng Thêm (Thu Hộ COD, Giao 1 Phần, Bảo Hiểm...)</span>
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: 10, fontSize: 11.5 }}>
+                        Tích chọn các khoản phí phát sinh của Hãng để hệ thống tự động cộng dồn vào Tổng Cước NVC khi tính lợi nhuận.
+                      </div>
+                      
+                      {candidateFeeHeaders.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {candidateFeeHeaders.map(header => {
+                            const checked = (localNvcMapping.additionalFeeColumns || []).includes(header);
+                            return (
+                              <label key={header} style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 12px',
+                                border: checked ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                                borderRadius: 8,
+                                background: checked ? 'rgba(79, 70, 229, 0.12)' : '#fff',
+                                color: checked ? 'var(--primary)' : 'var(--text-main)',
+                                fontWeight: checked ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                boxShadow: checked ? '0 1px 4px rgba(79,70,229,0.15)' : 'none',
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    const additionalFeeColumns = checked
+                                      ? (localNvcMapping.additionalFeeColumns || []).filter(column => column !== header)
+                                      : [...(localNvcMapping.additionalFeeColumns || []), header];
+                                    const updated = { ...localNvcMapping, additionalFeeColumns };
+                                    setLocalNvcMapping(updated);
+                                    triggerAutoSave(updated, localAppMapping);
+                                  }}
+                                />
+                                <span>{header}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          ✓ Không tìm thấy cột phụ phí riêng biệt nào khác trong File NVC đang tải.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}
