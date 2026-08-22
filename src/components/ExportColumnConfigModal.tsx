@@ -14,12 +14,12 @@ import {
   Plus, 
   Trash2, 
   Search, 
-  FileText
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import type { ExportColumnSettings, ExportColumnItem } from '../types';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
-
-import { useConfirm } from './UIFeedback';
+import { useConfirm, useToast } from './UIFeedback';
 
 interface ExportColumnConfigModalProps {
   isOpen: boolean;
@@ -47,6 +47,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
   availableFileHeaders,
 }) => {
   const { showConfirm } = useConfirm();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'shop' | 'master'>('shop');
   const [settings, setSettings] = useState<ExportColumnSettings>(() => {
     if (carrierId) {
@@ -60,8 +61,9 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
   const [searchKeyword, setSearchKeyword] = useState('');
   const [fileFilter, setFileFilter] = useState<'all' | 'nvc' | 'app'>('all');
 
-  // Drag & drop state for export column reordering
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  // Drag & drop state for column reordering and moving across panels
+  const [draggingSourceCol, setDraggingSourceCol] = useState<string | null>(null);
+  const [draggedRightIndex, setDraggedRightIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const currentColumns = activeTab === 'shop' ? settings.shopColumns : settings.masterColumns;
@@ -113,8 +115,22 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     );
   };
 
-  const handleAddFileColumn = (fileCol: ActualFileColumn) => {
-    if (isColumnAdded(fileCol.name)) return;
+  const handleAddFileColumn = (fileCol: ActualFileColumn, targetIndex?: number) => {
+    const norm = fileCol.name.toLowerCase().trim();
+    const existingIdx = currentColumns.findIndex(
+      c => c.label.toLowerCase().trim() === norm || (c.sourceHeader && c.sourceHeader.toLowerCase().trim() === norm)
+    );
+
+    if (existingIdx >= 0) {
+      // If already present but disabled, enable it!
+      const updated = currentColumns.map((c, i) => i === existingIdx ? { ...c, enabled: true } : c);
+      setSettings({
+        ...settings,
+        [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updated,
+      });
+      showToast(`Cột "${fileCol.name}" đã được bật trong danh sách xuất!`, 'info');
+      return;
+    }
 
     const newCol: ExportColumnItem = {
       id: `file_col_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -124,12 +140,49 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
       sourceHeader: fileCol.name,
     };
 
-    const updatedCols = [...currentColumns, newCol];
+    const updatedCols = [...currentColumns];
+    if (typeof targetIndex === 'number' && targetIndex >= 0 && targetIndex <= updatedCols.length) {
+      updatedCols.splice(targetIndex, 0, newCol);
+    } else {
+      updatedCols.push(newCol);
+    }
+
     const newSettings: ExportColumnSettings = {
       ...settings,
       [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
     };
     setSettings(newSettings);
+    showToast(`Đã thêm cột "${fileCol.name}" vào danh sách xuất!`, 'success');
+  };
+
+  const handleAddAllSourceColumns = () => {
+    const existingSourceHeaders = new Set(
+      currentColumns.map(c => (c.sourceHeader || c.label).toLowerCase().trim())
+    );
+
+    const newItems: ExportColumnItem[] = [];
+    filteredFileColumns.forEach(item => {
+      const norm = item.name.toLowerCase().trim();
+      if (!existingSourceHeaders.has(norm)) {
+        newItems.push({
+          id: `file_col_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          label: item.name,
+          enabled: true,
+          category: item.origin === 'nvc' ? 'carrier' : 'basic',
+          sourceHeader: item.name,
+        });
+      }
+    });
+
+    const updatedCurrent = currentColumns.map(c => ({ ...c, enabled: true }));
+    const combined = [...updatedCurrent, ...newItems];
+
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: combined,
+    };
+    setSettings(newSettings);
+    showToast(`Đã thêm toàn bộ ${newItems.length} cột mới vào danh sách xuất!`, 'success');
   };
 
   const handleRemoveColumn = (colId: string) => {
@@ -142,6 +195,23 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     setSettings(newSettings);
   };
 
+  const handleRemoveAllCustomColumns = async () => {
+    const ok = await showConfirm({
+      title: 'Xóa Toàn Bộ Cột Xuất',
+      message: 'Bạn có chắc chắn muốn xóa toàn bộ các cột tùy chọn và chỉ giữ lại STT và Mã Vận Đơn?',
+      warning: true,
+    });
+    if (!ok) return;
+
+    const baseCols = currentColumns.filter(c => c.id === 'stt' || c.id === 'waybill');
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: baseCols,
+    };
+    setSettings(newSettings);
+    showToast('Đã dọn dẹp danh sách cột xuất!', 'info');
+  };
+
   if (!isOpen) return null;
 
   const handleToggleColumn = (colId: string) => {
@@ -150,6 +220,21 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     const updatedCols = currentColumns.map(col => {
       if (col.id === colId) {
         return { ...col, enabled: !col.enabled };
+      }
+      return col;
+    });
+
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setSettings(newSettings);
+  };
+
+  const handleUpdateColumnLabel = (colId: string, newLabel: string) => {
+    const updatedCols = currentColumns.map(col => {
+      if (col.id === colId) {
+        return { ...col, label: newLabel };
       }
       return col;
     });
@@ -176,27 +261,6 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
       [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
     };
     setSettings(newSettings);
-  };
-
-  const handleDropColumn = (targetIdx: number) => {
-    if (draggedIndex === null || draggedIndex === targetIdx) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    const updatedCols = [...currentColumns];
-    const [movedCol] = updatedCols.splice(draggedIndex, 1);
-    updatedCols.splice(targetIdx, 0, movedCol);
-
-    const newSettings: ExportColumnSettings = {
-      ...settings,
-      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
-    };
-    setSettings(newSettings);
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
   };
 
   const handleSelectAll = (enabled: boolean) => {
@@ -227,6 +291,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
       } else {
         StorageService.saveExportColumnSettings(defaultClone);
       }
+      showToast('Đã khôi phục danh sách cột xuất mặc định!', 'success');
     }
   };
 
@@ -238,10 +303,11 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     }
     if (onSave) onSave(settings);
     setSavedSuccess(true);
+    showToast('Đã lưu cấu hình cột xuất file Excel thành công!', 'success');
     setTimeout(() => {
       setSavedSuccess(false);
       onClose();
-    }, 400);
+    }, 300);
   };
 
   const enabledCount = currentColumns.filter(c => c.enabled).length;
@@ -250,17 +316,18 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     <div className="modal-overlay" onClick={onClose}>
       <div 
         className="modal-content" 
-        style={{ maxWidth: 780 }}
+        style={{ maxWidth: 1060, width: '95vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
         <div style={{
-          padding: '20px 24px',
+          padding: '16px 24px',
           borderBottom: '1px solid var(--border-color)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+          flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
@@ -272,13 +339,14 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
             }}>
               <Settings2 size={22} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
-                  Tùy Chọn Cột Khi Xuất File Excel
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  Cấu Hình & Kéo Thả Cột Xuất File Excel
                 </h3>
                 {carrierName && (
                   <span className="badge badge-primary" style={{ fontSize: 12, padding: '2px 8px' }}>
@@ -286,10 +354,8 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                   </span>
                 )}
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {carrierName
-                  ? `Cấu hình cột xuất này áp dụng riêng cho hồ sơ ${carrierName}!`
-                  : 'Tự do bật/tắt các cột dữ liệu theo nhu cầu quản lý hoặc bảo mật thông tin gửi khách hàng.'}
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                Kéo thả các cột từ <strong>bên Trái (File Excel)</strong> sang <strong>bên Phải (Danh Sách Xuất)</strong> để tùy chỉnh mẫu file xuất.
               </p>
             </div>
           </div>
@@ -305,6 +371,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
           borderBottom: '1px solid var(--border-color)',
           background: 'var(--bg-tertiary)',
           padding: '0 20px',
+          flexShrink: 0,
         }}>
           <button
             type="button"
@@ -317,7 +384,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
               fontWeight: 700,
               cursor: 'pointer',
               color: activeTab === 'shop' ? 'var(--primary)' : 'var(--text-muted)',
-              borderBottom: activeTab === 'shop' ? '2px solid var(--primary)' : '2px solid transparent',
+              borderBottom: activeTab === 'shop' ? '3px solid var(--primary)' : '3px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -338,7 +405,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
               fontWeight: 700,
               cursor: 'pointer',
               color: activeTab === 'master' ? 'var(--primary)' : 'var(--text-muted)',
-              borderBottom: activeTab === 'master' ? '2px solid var(--primary)' : '2px solid transparent',
+              borderBottom: activeTab === 'master' ? '3px solid var(--primary)' : '3px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -350,60 +417,14 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
         </div>
 
         {/* Scrollable Content Body */}
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: 18, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
           
-          {/* Quick Actions Banner */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'var(--bg-secondary)',
-            padding: '10px 16px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
-              Đang chọn: <strong style={{ color: 'var(--primary)', fontSize: 14 }}>{enabledCount} cột</strong> sẽ xuất ra Excel
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => handleSelectAll(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11, padding: '4px 8px' }}
-              >
-                Chọn Tất Cả
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectAll(false)}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11, padding: '4px 8px' }}
-              >
-                Bỏ Chọn Hết
-              </button>
-              <button
-                type="button"
-                onClick={handleResetDefaults}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11, padding: '4px 8px' }}
-                title="Khôi phục mặc định"
-              >
-                <RotateCcw size={12} />
-                <span>Mặc định</span>
-              </button>
-            </div>
-          </div>
-
           {activeTab === 'shop' && (
             <div style={{
               background: 'rgba(79, 70, 229, 0.05)',
               border: '1px dashed var(--primary)',
               borderRadius: 'var(--radius-md)',
-              padding: '10px 14px',
+              padding: '8px 14px',
               fontSize: 12,
               color: 'var(--text-main)',
               display: 'flex',
@@ -412,332 +433,552 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
             }}>
               <ShieldAlert size={16} color="var(--primary)" />
               <span>
-                <strong>Lưu ý bảo mật:</strong> Các cột <em>Cước gốc NVC</em> và <em>Lợi nhuận gom đơn</em> tự động ẩn khỏi file của Shop để bảo mật biên lợi nhuận của bạn.
+                <strong>Bảo mật biên lợi nhuận:</strong> Các cột <em>Cước gốc NVC</em> và <em>Lợi nhuận gom đơn</em> tự động ẩn khỏi bảng kê của Shop.
               </span>
             </div>
           )}
 
-          {/* 🌟 SECTION 1: DANH SÁCH CÁC CỘT ĐÃ CHỌN SẼ XUẤT RA EXCEL */}
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <FileText size={15} color="var(--primary)" />
-                <span>Danh Sách Cột Sẽ Xuất Ra File ({currentColumns.length} cột):</span>
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 500 }}>
-                (Giữ và kéo chuột để đổi thứ tự cột xuất)
-              </span>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-              gap: 8,
-            }}>
-              {currentColumns.map((col, idx) => {
-                const isMandatory = col.id === 'stt' || col.id === 'waybill';
-                return (
-                  <div
-                    key={col.id}
-                    draggable={true}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', String(idx));
-                      setDraggedIndex(idx);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragOverIndex !== idx) setDragOverIndex(idx);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedIndex(null);
-                      setDragOverIndex(null);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleDropColumn(idx);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 10px',
-                      borderRadius: 'var(--radius-md)',
-                      background: draggedIndex === idx
-                        ? 'var(--bg-tertiary)'
-                        : dragOverIndex === idx
-                        ? 'rgba(79, 70, 229, 0.12)'
-                        : col.enabled ? '#f0fdf4' : '#ffffff',
-                      border: dragOverIndex === idx
-                        ? '2px dashed var(--primary)'
-                        : col.enabled ? '1.5px solid #86efac' : '1px solid var(--border-color)',
-                      cursor: 'grab',
-                      transition: 'all 0.15s ease',
-                      opacity: draggedIndex === idx ? 0.4 : isMandatory ? 0.9 : 1,
-                    }}
-                  >
-                    {/* Drag Handle */}
-                    <div
-                      style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex', alignItems: 'center', flexShrink: 0 }}
-                      title="Giữ và kéo thả để đổi thứ tự cột"
-                    >
-                      <GripVertical size={14} />
-                    </div>
-
-                    <input
-                      type="checkbox"
-                      checked={col.enabled}
-                      disabled={isMandatory}
-                      onChange={() => handleToggleColumn(col.id)}
-                      style={{ width: 16, height: 16, accentColor: '#10b981', cursor: isMandatory ? 'not-allowed' : 'pointer' }}
-                    />
-
-                    <div style={{ flex: 1, minWidth: 0, cursor: isMandatory ? 'not-allowed' : 'pointer' }} onClick={() => !isMandatory && handleToggleColumn(col.id)}>
-                      <div style={{
-                        fontSize: 12.5,
-                        fontWeight: col.enabled ? 700 : 500,
-                        color: col.enabled ? '#14532d' : 'var(--text-muted)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>#{idx + 1}</span>
-                        {col.label}
-                      </div>
-                      <div style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                        {isMandatory ? (
-                          <span style={{ color: 'var(--primary)', fontWeight: 700 }}>Cột bắt buộc</span>
-                        ) : col.sourceHeader ? (
-                          <span style={{ color: '#047857', fontWeight: 600 }}>Cột gốc trong file: {col.sourceHeader}</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-dim)' }}>Hệ thống Gom Đơn</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Up & Down & Remove Buttons */}
-                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        disabled={idx === 0}
-                        onClick={(e) => { e.stopPropagation(); handleMoveColumn(col.id, 'up'); }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '2px 4px', opacity: idx === 0 ? 0.3 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
-                        title="Đẩy lên trước"
-                      >
-                        <ArrowUp size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={idx === currentColumns.length - 1}
-                        onClick={(e) => { e.stopPropagation(); handleMoveColumn(col.id, 'down'); }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '2px 4px', opacity: idx === currentColumns.length - 1 ? 0.3 : 1, cursor: idx === currentColumns.length - 1 ? 'not-allowed' : 'pointer' }}
-                        title="Đẩy xuống sau"
-                      >
-                        <ArrowDown size={12} />
-                      </button>
-                      {!isMandatory && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleRemoveColumn(col.id); }}
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '2px 4px', marginLeft: 2 }}
-                          title="Bỏ cột này khỏi danh sách xuất"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 🌟 SECTION 2: TÌM KIẾM & THÊM CỘT THỰC TẾ TỪ 2 FILE (FILE NVC & FILE APP) */}
+          {/* 🌟 2-COLUMN SIDE-BY-SIDE VERTICAL WORKSPACE */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
-            border: '1.5px solid rgba(79, 70, 229, 0.25)',
-            borderRadius: 'var(--radius-md)',
-            padding: 16,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.2fr',
+            gap: 16,
+            alignItems: 'stretch',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Search size={16} />
-                <span>Tìm Kiếm & Thêm Cột Thực Tế Từ 2 File (File NVC & File App)</span>
-              </div>
-
-              {/* Filter Tabs */}
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => setFileFilter('all')}
-                  className={`btn btn-sm ${fileFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ fontSize: 11, padding: '3px 8px' }}
-                >
-                  Tất cả ({actualFileColumns.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFileFilter('nvc')}
-                  className={`btn btn-sm ${fileFilter === 'nvc' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ fontSize: 11, padding: '3px 8px' }}
-                >
-                  📦 File NVC ({actualFileColumns.filter(c => c.origin === 'nvc' || c.origin === 'both').length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFileFilter('app')}
-                  className={`btn btn-sm ${fileFilter === 'app' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ fontSize: 11, padding: '3px 8px' }}
-                >
-                  📱 File App ({actualFileColumns.filter(c => c.origin === 'app' || c.origin === 'both').length})
-                </button>
-              </div>
-            </div>
-
-            {/* Search Input Box */}
-            <div style={{ position: 'relative', marginBottom: 12 }}>
-              <Search size={15} color="var(--text-dim)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                placeholder="Nhập từ khóa tìm cột trong 2 File (ví dụ: ngày, mã, cước, phí, trọng lượng, người nhận, sđt, trạng thái...)"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                className="input-field"
-                style={{ width: '100%', paddingLeft: 34, paddingRight: 30, fontSize: 12.5, background: '#fff' }}
-              />
-              {searchKeyword && (
-                <button
-                  type="button"
-                  onClick={() => setSearchKeyword('')}
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)' }}
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* List of matching columns from the 2 files */}
-            {actualFileColumns.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px 12px', fontSize: 12, color: 'var(--text-muted)', background: '#fff', borderRadius: 8, border: '1px dashed var(--border-color)' }}>
-                Chưa có file nào được nạp trong phiên làm việc. Hãy kéo thả file đối soát ở Bước 1 để hiển thị đầy đủ tất cả các cột thực tế của file!
-              </div>
-            ) : filteredFileColumns.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '14px 12px', fontSize: 12, color: 'var(--text-muted)', background: '#fff', borderRadius: 8 }}>
-                Không tìm thấy cột nào khớp với từ khóa "{searchKeyword}".
-              </div>
-            ) : (
+            
+            {/* ═══════════════════════════════════════════ */}
+            {/* CỘT TRÁI (LEFT PANEL): CÁC CỘT CÓ TRONG FILE EXCEL */}
+            {/* ═══════════════════════════════════════════ */}
+            <div style={{
+              background: 'var(--bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}>
+              {/* Header Left Panel */}
               <div style={{
-                maxHeight: 180,
-                overflowY: 'auto',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                gap: 6,
-                padding: 4,
+                padding: '12px 14px',
+                background: 'var(--bg-tertiary)',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}>
-                {filteredFileColumns.map((col) => {
-                  const added = isColumnAdded(col.name);
-                  return (
-                    <div
-                      key={col.name}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        background: added ? '#f0fdf4' : '#ffffff',
-                        border: added ? '1px solid #86efac' : '1px solid var(--border-color)',
-                        gap: 6,
-                      }}
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FileSpreadsheet size={16} />
+                  <span>CỘT CÓ TRONG FILE EXCEL ({actualFileColumns.length})</span>
+                </div>
+
+                {filteredFileColumns.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleAddAllSourceColumns}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '3px 8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Thêm tất cả các cột này vào danh sách xuất"
+                  >
+                    <Zap size={12} color="var(--warning)" />
+                    <span>Thêm Hết</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Search & Origin Filter Bar */}
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Tìm kiếm cột trong file..."
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    style={{ paddingLeft: 30, fontSize: 12, padding: '6px 10px 6px 30px' }}
+                  />
+                  {searchKeyword && (
+                    <button
+                      onClick={() => setSearchKeyword('')}
+                      style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFileFilter('all')}
+                    className={`btn btn-sm ${fileFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: 10, padding: '2px 7px' }}
+                  >
+                    Tất cả ({actualFileColumns.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFileFilter('nvc')}
+                    className={`btn btn-sm ${fileFilter === 'nvc' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: 10, padding: '2px 7px' }}
+                  >
+                    📦 File NVC ({actualFileColumns.filter(c => c.origin === 'nvc' || c.origin === 'both').length})
+                  </button>
+                  {actualFileColumns.some(c => c.origin === 'app' || c.origin === 'both') && (
+                    <button
+                      type="button"
+                      onClick={() => setFileFilter('app')}
+                      className={`btn btn-sm ${fileFilter === 'app' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ fontSize: 10, padding: '2px 7px' }}
+                    >
+                      📱 File App ({actualFileColumns.filter(c => c.origin === 'app' || c.origin === 'both').length})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Source Column Draggable List */}
+              <div 
+                style={{ 
+                  padding: 10, 
+                  maxHeight: 460, 
+                  overflowY: 'auto', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 6 
+                }}
+              >
+                {filteredFileColumns.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: 20, textAlign: 'center' }}>
+                    {actualFileColumns.length === 0 
+                      ? '⚠️ Chưa có cột nào từ File Excel. Hãy tải file đối soát lên để quét cột tự động!'
+                      : 'Không tìm thấy cột phù hợp với từ khóa.'}
+                  </div>
+                ) : (
+                  filteredFileColumns.map(item => {
+                    const alreadyAdded = isColumnAdded(item.name);
+                    const isDragging = draggingSourceCol === item.name;
+
+                    return (
+                      <div
+                        key={item.name}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'from-left',
+                            name: item.name,
+                            origin: item.origin,
+                          }));
+                          setDraggingSourceCol(item.name);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingSourceCol(null);
+                          setDragOverIndex(null);
+                        }}
+                        onDoubleClick={() => handleAddFileColumn(item)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '7px 10px',
+                          background: alreadyAdded ? 'rgba(16, 185, 129, 0.05)' : '#ffffff',
+                          border: alreadyAdded ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
                           fontSize: 12,
-                          fontWeight: added ? 700 : 500,
-                          color: added ? '#047857' : 'var(--text-main)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }} title={col.name}>
-                          {col.name}
+                          cursor: 'grab',
+                          opacity: isDragging ? 0.4 : 1,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                          transition: 'all 0.15s ease',
+                          gap: 6,
+                        }}
+                        title="Giữ chuột và kéo sang cột bên phải (hoặc bấm nút +)"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                          <GripVertical size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.name}
+                          </span>
                         </div>
-                        <div style={{ fontSize: 9.5, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          {col.origin === 'nvc' ? (
-                            <span style={{ color: '#2563eb' }}>📦 File NVC</span>
-                          ) : col.origin === 'app' ? (
-                            <span style={{ color: '#059669' }}>📱 File App</span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          {item.origin === 'nvc' && (
+                            <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                              NVC
+                            </span>
+                          )}
+                          {item.origin === 'app' && (
+                            <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: '#e0e7ff', color: '#3730a3', fontWeight: 700 }}>
+                              App
+                            </span>
+                          )}
+                          {item.origin === 'both' && (
+                            <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: '#dcfce7', color: '#166534', fontWeight: 700 }}>
+                              2 File
+                            </span>
+                          )}
+
+                          {alreadyAdded ? (
+                            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Check size={13} />
+                              <span>Đã có</span>
+                            </span>
                           ) : (
-                            <span style={{ color: '#7c3aed' }}>🔗 Cả 2 File</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddFileColumn(item)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 10.5, padding: '2px 6px', fontWeight: 700 }}
+                              title="Thêm cột này vào file xuất"
+                            >
+                              <Plus size={12} />
+                              <span>Thêm</span>
+                            </button>
                           )}
                         </div>
                       </div>
-
-                      {added ? (
-                        <span style={{
-                          fontSize: 10,
-                          color: '#059669',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          background: '#d1fae5',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                        }}>
-                          <Check size={10} /> Đã có
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleAddFileColumn(col)}
-                          className="btn btn-primary btn-sm"
-                          style={{ fontSize: 11, padding: '3px 8px', fontWeight: 700 }}
-                          title={`Thêm cột "${col.name}" vào danh sách xuất`}
-                        >
-                          <Plus size={11} />
-                          <span>Thêm</span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
-            )}
+            </div>
+
+            {/* ═══════════════════════════════════════════ */}
+            {/* CỘT PHẢI (RIGHT PANEL): DANH SÁCH CỘT SẼ XUẤT RA FILE */}
+            {/* ═══════════════════════════════════════════ */}
+            <div 
+              style={{
+                background: '#ffffff',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const rawData = e.dataTransfer.getData('application/json');
+                if (!rawData) return;
+                try {
+                  const data = JSON.parse(rawData);
+                  if (data.type === 'from-left') {
+                    handleAddFileColumn({ name: data.name, origin: data.origin });
+                  } else if (data.type === 'reorder-right' && typeof data.fromIndex === 'number') {
+                    const targetIdx = currentColumns.length - 1;
+                    const updated = [...currentColumns];
+                    const [moved] = updated.splice(data.fromIndex, 1);
+                    updated.splice(targetIdx, 0, moved);
+                    setSettings({
+                      ...settings,
+                      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updated,
+                    });
+                  }
+                } catch {
+                  // Ignore
+                }
+                setDragOverIndex(null);
+              }}
+            >
+              {/* Header Right Panel */}
+              <div style={{
+                padding: '12px 14px',
+                background: 'var(--bg-tertiary)',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Sparkles size={16} color="var(--primary)" />
+                  <span>CỘT SẼ XUẤT RA FILE ({enabledCount}/{currentColumns.length} cột)</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAll(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '2px 6px' }}
+                    title="Bật tất cả cột"
+                  >
+                    Chọn Hết
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAll(false)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '2px 6px' }}
+                    title="Bỏ chọn tất cả cột"
+                  >
+                    Bỏ Chọn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetDefaults}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '2px 6px' }}
+                    title="Khôi phục mặc định"
+                  >
+                    <RotateCcw size={11} />
+                    <span>Mặc Định</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveAllCustomColumns}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '2px 6px', color: 'var(--danger)' }}
+                    title="Xóa toàn bộ các cột tùy chỉnh"
+                  >
+                    <Trash2 size={11} />
+                    <span>Xóa Hết</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Subtitle guidance */}
+              <div style={{ padding: '6px 14px', background: 'rgba(59, 130, 246, 0.04)', borderBottom: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-muted)' }}>
+                💡 <em>Giữ chuột và kéo lên/xuống để đổi thứ tự cột xuất. Đổi tên cột trực tiếp bằng cách gõ vào ô chữ.</em>
+              </div>
+
+              {/* Selected Columns Reorderable List */}
+              <div 
+                style={{ 
+                  padding: 10, 
+                  maxHeight: 460, 
+                  overflowY: 'auto', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 6 
+                }}
+              >
+                {currentColumns.length === 0 ? (
+                  <div style={{
+                    padding: 36,
+                    textAlign: 'center',
+                    border: '2px dashed var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-muted)',
+                    fontSize: 13,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <Plus size={24} color="var(--primary)" />
+                    <span>Kéo thả các cột từ <strong>bên Trái</strong> sang đây để cấu hình file xuất!</span>
+                  </div>
+                ) : (
+                  currentColumns.map((col, idx) => {
+                    const isMandatory = col.id === 'stt' || col.id === 'waybill';
+                    const isOver = dragOverIndex === idx;
+
+                    return (
+                      <div
+                        key={col.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'reorder-right',
+                            fromIndex: idx,
+                          }));
+                          setDraggedRightIndex(idx);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (dragOverIndex !== idx) setDragOverIndex(idx);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverIndex === idx) setDragOverIndex(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const rawData = e.dataTransfer.getData('application/json');
+                          if (!rawData) return;
+                          try {
+                            const data = JSON.parse(rawData);
+                            if (data.type === 'from-left') {
+                              handleAddFileColumn({ name: data.name, origin: data.origin }, idx);
+                            } else if (data.type === 'reorder-right' && typeof data.fromIndex === 'number') {
+                              if (data.fromIndex !== idx) {
+                                const updatedCols = [...currentColumns];
+                                const [moved] = updatedCols.splice(data.fromIndex, 1);
+                                updatedCols.splice(idx, 0, moved);
+                                setSettings({
+                                  ...settings,
+                                  [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+                                });
+                              }
+                            }
+                          } catch {
+                            // Ignore
+                          }
+                          setDragOverIndex(null);
+                          setDraggedRightIndex(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 10px',
+                          background: col.enabled ? '#ffffff' : '#f8fafc',
+                          border: isOver ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
+                          opacity: draggedRightIndex === idx ? 0.35 : col.enabled ? 1 : 0.55,
+                          cursor: 'grab',
+                          boxShadow: isOver ? '0 4px 12px rgba(79, 70, 229, 0.15)' : '0 1px 3px rgba(0,0,0,0.02)',
+                          transition: 'border 0.15s ease',
+                        }}
+                      >
+                        {/* Drag Handle & Order Badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          <GripVertical size={14} style={{ color: 'var(--text-muted)' }} />
+                          <span style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            color: col.enabled ? 'var(--primary)' : 'var(--text-muted)',
+                            background: col.enabled ? 'rgba(79, 70, 229, 0.08)' : 'rgba(0,0,0,0.05)',
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            minWidth: 26,
+                            textAlign: 'center',
+                          }}>
+                            #{idx + 1}
+                          </span>
+                        </div>
+
+                        {/* Enable Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={col.enabled}
+                          disabled={isMandatory}
+                          onChange={() => handleToggleColumn(col.id)}
+                          style={{ cursor: isMandatory ? 'not-allowed' : 'pointer', width: 15, height: 15 }}
+                          title={isMandatory ? 'Cột bắt buộc' : 'Bật/tắt xuất cột này'}
+                        />
+
+                        {/* Editable Label Input */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <input
+                            type="text"
+                            value={col.label}
+                            onChange={(e) => handleUpdateColumnLabel(col.id, e.target.value)}
+                            className="input-field"
+                            style={{
+                              padding: '3px 7px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              background: col.enabled ? '#ffffff' : '#f1f5f9',
+                              border: '1px solid var(--border-color)',
+                            }}
+                            title="Nhấp để đổi tên cột xuất ra trong Excel"
+                          />
+                          {col.sourceHeader && col.sourceHeader !== col.label && (
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, paddingLeft: 2 }}>
+                              Cột gốc: <span style={{ fontFamily: 'monospace' }}>{col.sourceHeader}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action buttons (Up, Down, Delete) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveColumn(col.id, 'up')}
+                            disabled={idx === 0}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                              padding: 2,
+                              color: idx === 0 ? '#cbd5e1' : 'var(--text-muted)',
+                            }}
+                            title="Di chuyển lên trên"
+                          >
+                            <ArrowUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveColumn(col.id, 'down')}
+                            disabled={idx === currentColumns.length - 1}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: idx === currentColumns.length - 1 ? 'not-allowed' : 'pointer',
+                              padding: 2,
+                              color: idx === currentColumns.length - 1 ? '#cbd5e1' : 'var(--text-muted)',
+                            }}
+                            title="Di chuyển xuống dưới"
+                          >
+                            <ArrowDown size={13} />
+                          </button>
+                          {!isMandatory && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColumn(col.id)}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                padding: 2,
+                                color: 'var(--danger)',
+                                opacity: 0.8,
+                              }}
+                              title="Xóa cột khỏi danh sách xuất"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Preview Row Header */}
-          <div style={{ paddingTop: 10, borderTop: '1px solid var(--border-color)' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Eye size={14} /> Xem trước hàng tiêu đề cột trong file Excel:
+          {/* 🌟 LIVE PREVIEW STRIP: HÀNG TIÊU ĐỀ EXCEL */}
+          <div style={{
+            background: 'var(--bg-secondary)',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)',
+          }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Eye size={13} color="var(--primary)" />
+              <span>Xem trước thứ tự hàng tiêu đề trong file Excel xuất ra:</span>
             </div>
             <div style={{
               display: 'flex',
-              flexWrap: 'wrap',
               gap: 6,
-              background: 'var(--bg-tertiary)',
-              padding: 10,
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              maxHeight: 90,
-              overflowY: 'auto',
+              overflowX: 'auto',
+              paddingBottom: 4,
             }}>
-              {currentColumns.filter(c => c.enabled).map((c, idx) => (
-                <span
-                  key={c.id}
+              {currentColumns.filter(c => c.enabled).map((col, idx) => (
+                <div
+                  key={col.id}
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 4,
                     padding: '3px 8px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 4,
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--text-main)',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  {idx + 1}. {c.label}
-                </span>
+                  {idx + 1}. {col.label}
+                </div>
               ))}
             </div>
           </div>
@@ -755,7 +996,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
           flexShrink: 0,
         }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Cấu hình này sẽ được lưu tự động cho mọi lần xuất file Excel sau này.
+            Đã bật <strong>{enabledCount}/{currentColumns.length}</strong> cột xuất cho {activeTab === 'shop' ? 'Bảng Kê Shop' : 'Báo Cáo Tổng Hợp'}.
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
