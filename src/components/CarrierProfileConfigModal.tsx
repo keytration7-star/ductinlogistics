@@ -137,16 +137,11 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     ...(localAppMapping.customColumns || []).map(c => c.excelColumn),
   ].filter(Boolean)));
 
-
-
-
-
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div 
         className="modal-content" 
-        style={{ maxWidth: 980 }}
+        style={{ maxWidth: requireAppMapping ? 980 : 820 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
@@ -174,15 +169,17 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
                   Cài Đặt Hồ Sơ Hãng Vận Chuyển
                 </h3>
                 <span className="badge badge-primary" style={{ fontSize: 12, padding: '3px 9px', fontWeight: 700 }}>
-                  📦 {carrierName}
+                  {requireAppMapping ? '📦 J&T Express (2 File)' : `🚚 ${carrierName} (1 File)`}
                 </span>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                Chỉ cấu hình cách đọc file đầu vào của hãng <strong>{carrierName}</strong>. Mẫu cột file xuất được chọn ở bước xuất bảng kê.
+                {requireAppMapping 
+                  ? 'Cấu hình ánh xạ cột cho File Đối Soát J&T và File Đơn Hàng App.' 
+                  : `Cấu hình ánh xạ cột cho File Đối Soát ${carrierName} (Chế độ 1 File duy nhất).`}
               </p>
             </div>
           </div>
@@ -217,7 +214,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             }}
           >
             <SlidersHorizontal size={17} />
-            <span>Ánh Xạ Cột File Nhập</span>
+            <span>{requireAppMapping ? 'Ánh Xạ Cột J&T & App (2 File)' : `Ánh Xạ Cột ${carrierName} (1 File)`}</span>
           </button>
         </div>
 
@@ -225,11 +222,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
         <div style={{ padding: 22, maxHeight: 480, overflowY: 'auto' }}>
           
           {/* ═══════════════════════════════════════════ */}
-          {/* TAB 1: ÁNH XẠ CỘT (UNIFIED 2-FILES SIDE-BY-SIDE MAPPING TABLE) */}
-          {/* ═══════════════════════════════════════════ */}
-
-          {/* ═══════════════════════════════════════════ */}
-          {/* TAB 1: ÁNH XẠ CỘT (UNIFIED 2-FILES SIDE-BY-SIDE MAPPING TABLE) */}
+          {/* TAB 1: ÁNH XẠ CỘT (UNIFIED MAPPING TABLE) */}
           {/* ═══════════════════════════════════════════ */}
           {mainTab === 'mapping' && (() => {
             const UNIFIED_FIELDS: {
@@ -240,15 +233,16 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
               hint: string;
               isRequired?: boolean;
             }[] = [
-              { keyNvc: 'waybillColumn',   keyApp: 'waybillColumn',   label: 'Mã Vận Đơn',           emoji: '🔑', hint: 'Khóa chính bắt buộc ghép 2 file', isRequired: true },
-              { keyNvc: 'codColumn',       keyApp: 'codColumn',       label: 'Tiền COD Thu Hộ',       emoji: '💰', hint: 'COD NVC thu hộ vs COD App' },
+              { keyNvc: 'waybillColumn',   keyApp: 'waybillColumn',   label: 'Mã Vận Đơn',           emoji: '🔑', hint: requireAppMapping ? 'Khóa chính bắt buộc ghép 2 file' : 'Mã vận đơn đối soát', isRequired: true },
+              { keyNvc: 'codColumn',       keyApp: 'codColumn',       label: 'Tiền COD Thu Hộ',       emoji: '💰', hint: requireAppMapping ? 'COD NVC thu hộ vs COD App' : 'Tiền COD thu hộ NVC' },
               { keyNvc: 'feeColumn',       keyApp: 'feeColumn',       label: 'Cước Phí Gốc NVC (Giá Sỉ)', emoji: '🚚', hint: 'Cước sỉ trả NVC để tính lãi' },
               { keyNvc: 'otherFeeColumn',  keyApp: 'otherFeeColumn',  label: 'Phụ Phí / Hoàn / Bảo Hiểm', emoji: '➕', hint: 'Phụ phí phát sinh' },
               { keyNvc: 'adjustmentColumn', label: 'Điều Chỉnh NVC', emoji: '↕️', hint: 'Khoản tăng/giảm để kiểm tra số đối soát cuối' },
               { keyNvc: 'settlementAmountColumn', label: 'Số Tiền NVC Trả Sau Cấn Trừ', emoji: '✅', hint: 'Bắt buộc kiểm tra công thức nếu file có cột này' },
-              { keyNvc: 'weightColumn',    keyApp: 'weightColumn',    label: 'Trọng Lượng (kg/g)',   emoji: '⚖️', hint: 'Cân nặng NVC vs App' },
+              { keyNvc: 'shopNameColumn',  keyApp: 'shopNameColumn',  label: 'Tên Shop / Khách Hàng', emoji: '🏪', hint: 'Tên shop hoặc tên kho gửi hàng' },
+              { keyNvc: 'shopPhoneColumn', keyApp: 'shopPhoneColumn', label: 'Số Điện Thoại Shop',    emoji: '📞', hint: 'SĐT shop / kho gửi' },
+              { keyNvc: 'weightColumn',    keyApp: 'weightColumn',    label: 'Trọng Lượng (kg/g)',   emoji: '⚖️', hint: requireAppMapping ? 'Cân nặng NVC vs App' : 'Trọng lượng đơn hàng' },
               { keyNvc: 'statusColumn',    keyApp: 'statusColumn',    label: 'Trạng Thái Đơn Hàng',   emoji: '📋', hint: 'Phân loại đơn giao / hoàn' },
-              { keyNvc: 'shopPhoneColumn', keyApp: 'shopPhoneColumn', label: 'Số Điện Thoại Shop',    emoji: '📞', hint: 'Khớp shop theo SĐT phụ' },
               { keyNvc: 'receiverNameColumn',    keyApp: 'receiverNameColumn',    label: 'Tên Người Nhận',       emoji: '👤', hint: 'Dữ liệu xuất bảng kê' },
               { keyNvc: 'receiverPhoneColumn',   keyApp: 'receiverPhoneColumn',   label: 'SĐT Người Nhận',       emoji: '📱', hint: 'Dữ liệu xuất bảng kê' },
               { keyNvc: 'receiverAddressColumn', keyApp: 'receiverAddressColumn', label: 'Địa Chỉ Người Nhận',   emoji: '🏠', hint: 'Dữ liệu xuất bảng kê' },
@@ -284,8 +278,8 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                 {!requireAppMapping && (
                   <div style={{
                     marginBottom: 12,
-                    background: 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-md)',
                     fontSize: 12,
@@ -294,9 +288,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                     alignItems: 'center',
                     gap: 8,
                   }}>
-                    <Zap size={15} color="var(--primary)" />
+                    <Zap size={15} color="var(--success)" />
                     <span>
-                      💡 <strong>Chế Độ 1-File (GHN)</strong>: Đọc trực tiếp cước & shop từ File NVC, không cần File App.
+                      💡 <strong>Chế Độ 1-File ({carrierName})</strong>: Đọc trực tiếp tiền cước & tên Shop từ File NVC, không cần File App.
                     </span>
                   </div>
                 )}
@@ -324,10 +318,10 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         color: '#334155',
                         textTransform: 'uppercase',
                       }}>
-                        <th style={{ width: '25%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
+                        <th style={{ width: requireAppMapping ? '25%' : '35%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
                           Trường Thông Tin Cần Lấy
                         </th>
-                        <th style={{ width: requireAppMapping ? '32%' : '50%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
+                        <th style={{ width: requireAppMapping ? '32%' : '47%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
                           📄 CỘT FILE NVC (HÃNG) · <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{nvcHeaders.length} CỘT</span>
                         </th>
                         {requireAppMapping && (
@@ -335,7 +329,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                             📱 CỘT FILE APP · <span style={{ color: 'var(--success)', fontWeight: 800 }}>{appHeaders.length} CỘT</span>
                           </th>
                         )}
-                        <th style={{ width: requireAppMapping ? '11%' : '25%', padding: '10px 8px', textAlign: 'center' }}>
+                        <th style={{ width: requireAppMapping ? '11%' : '18%', padding: '10px 8px', textAlign: 'center' }}>
                           Trạng Thái AI
                         </th>
                       </tr>
