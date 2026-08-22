@@ -576,14 +576,14 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const label = allFullyMatched
         ? 'Shop đã có hồ sơ (Đã ghép chuẩn từng Shop độc lập)'
         : items.length === 1
-        ? (items[0].existing ? 'Shop đã có hồ sơ' : 'Shop mới cần xác nhận')
-        : `Xung đột định danh: ${names.size} tên · ${phones.size} SĐT`;
+        ? (items[0].existing ? 'Shop đã có hồ sơ' : 'Shop mới cần thêm vào hệ thống')
+        : `Nhóm định danh: ${names.size} tên nhãn · ${phones.size} SĐT (${items.reduce((s, e) => s + e.count, 0)} đơn)`;
 
       return {
         id: `identity-group-${groupIndex}`,
         label,
         entries: items,
-        decision: (allFullyMatched || (items.length === 1 && items[0].existing) ? 'separate' : 'pending') as ShopProposalDecision,
+        decision: (allFullyMatched ? 'separate' : items.length > 1 ? 'merge' : 'separate') as ShopProposalDecision,
         targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined,
         pricingPlan: createOnboardingPricingPlan(),
         testWeight: 1.5,
@@ -2690,10 +2690,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
               <div>
                 <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🏪 Xác Nhận & Phân Nhóm Shop Đọc Từ File
+                  🏪 Thêm & Cấu Hình Danh Sách Shop Từ File Excel
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Kiểm tra số liệu dự tính và danh sách định danh shop đọc từ file trước khi tiến hành tính cước.
+                  Hệ thống quét được các Shop mới trong file. Bạn hãy kiểm tra tên gộp/tách và biểu giá cước để <strong>Lưu vào Quản Lý Shop</strong>.
                 </p>
               </div>
               <button onClick={() => setShowShopProposal(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }}>
@@ -2763,6 +2763,67 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </div>
               )}
 
+              {/* BATCH ACTIONS TOOLBAR */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+                background: 'rgba(79, 70, 229, 0.06)',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(79, 70, 229, 0.2)',
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ⚡ <strong>Thao tác nhanh cho tất cả nhóm shop:</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700 }}
+                    onClick={() => {
+                      setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: g.entries.length > 1 ? 'merge' : 'separate' })));
+                      showToast('Đã đặt mặc định: Gộp các tên gửi chung 1 SĐT vào 1 Shop chính!', 'info');
+                    }}
+                  >
+                    🤝 Gộp theo SĐT (Khuyên dùng)
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700 }}
+                    onClick={() => {
+                      setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: 'separate' })));
+                      showToast('Đã đặt: Tách tất cả tên gửi thành Shop riêng biệt!', 'info');
+                    }}
+                  >
+                    ✂️ Tách tất cả Shop riêng
+                  </button>
+
+                  {shopProposalGroups.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700, borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                      onClick={() => {
+                        const basePricing = shopProposalGroups[0]?.pricingPlan;
+                        if (!basePricing) return;
+                        setShopProposalGroups(groups => groups.map(g => ({
+                          ...g,
+                          pricingPlan: JSON.parse(JSON.stringify(basePricing)),
+                        })));
+                        showToast('Đã sao chép biểu giá của nhóm đầu tiên cho TẤT CẢ các nhóm shop mới!', 'success');
+                      }}
+                    >
+                      📋 Áp dụng biểu giá nhóm 1 cho tất cả Shop
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 💡 <strong>Hướng dẫn:</strong> Danh sách dưới đây hiển thị toàn bộ định danh Shop dưới dạng bảng Excel kẻ ô rõ ràng. Nhãn xanh là shop đã có hồ sơ; nhãn vàng là shop mới. Bạn có thể chọn menu góc phải để <strong>Gộp tùy chỉnh</strong> hoặc <strong>Tách độc lập</strong>.
               </div>
@@ -2786,7 +2847,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                         className="select-field"
                         style={{ width: 340, padding: '6px 8px', fontSize: 12, fontWeight: 700, borderColor: group.decision === 'custom_merge' ? 'var(--primary)' : 'var(--border-color)' }}
                       >
-                        <option value="pending">-- Admin chọn cách xử lý --</option>
                         <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
                         <option value="merge">Gộp tất cả vào một shop (thêm tên/SĐT phụ)</option>
                         <option value="custom_merge">🎨 Gộp shop tùy chỉnh (Tích chọn gom từng nhóm)</option>
@@ -2951,11 +3011,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                               setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [] });
                               setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: '' });
                               setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: '' });
-                              showToast(`Đã gom thành công nhóm shop "${customName}"!`, 'success');
+                              showToast(`Đã gom ${selectedKeys.length} tên gửi thành công vào nhóm shop "${customName}"!`, 'success');
                             }}
-                            style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700 }}
                           >
-                            ➕ Tạo Shop từ {(selectedEntryKeysMap[group.id] || []).length} tên đã chọn
+                            + Tạo Nhóm Gộp Này
                           </button>
                         </div>
                       </div>
@@ -3049,9 +3108,34 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </div>
               ))}
             </div>
-            <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowShopProposal(false)}>Để sau</button>
-              <button type="button" className="btn btn-primary" disabled={!isAdmin} onClick={saveShopProposals}>Xác nhận danh sách shop</button>
+            <div style={{
+              padding: '16px 22px',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--bg-secondary)',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                💡 Bấm nút bên phải để <strong>Lưu vĩnh viễn danh sách Shop vào hệ thống</strong> và bắt đầu đối soát.
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowShopProposal(false)}>
+                  Để sau
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}
+                  disabled={!isAdmin}
+                  onClick={saveShopProposals}
+                >
+                  💾 LƯU TOÀN BỘ SHOP VÀO QUẢN LÝ SHOP & TIẾP TỤC ĐỐI SOÁT →
+                </button>
+              </div>
             </div>
           </div>
         </div>
