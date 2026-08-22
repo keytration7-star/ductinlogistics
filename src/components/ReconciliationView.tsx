@@ -18,10 +18,6 @@ import {
   UserCheck,
   RotateCcw,
   Settings2,
-  Plus,
-  Trash2,
-  Sliders,
-  Calculator,
   ArrowLeft,
   ArrowRight,
   Store
@@ -37,8 +33,8 @@ import type {
   ShopPricingPlan
 } from '../types';
 import { ExcelService } from '../services/excelService';
-import { autoDetectColumns, normalizeHeader, isSummaryOrInvalidWaybill, parseNumber, parseWeightToKg } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, normalizePhone, getShopPhones, extractRowField, type DuplicateCheckResult } from '../services/reconciliationService';
+import { autoDetectColumns, isSummaryOrInvalidWaybill, parseNumber, parseWeightToKg } from '../services/smartColumnDetector';
+import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, extractRowField, type DuplicateCheckResult } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
@@ -237,19 +233,6 @@ export type CustomShopSubGroup = {
   targetShopId?: string;
 };
 
-type ShopProposalEntry = { name: string; phone: string; address: string; count: number; existing: boolean; existingShopId?: string };
-type ShopProposalDecision = 'pending' | 'merge' | 'separate' | 'custom_merge';
-type ShopProposalGroup = {
-  id: string;
-  label: string;
-  entries: ShopProposalEntry[];
-  decision: ShopProposalDecision;
-  targetShopId?: string;
-  customMainName?: string;
-  customSubGroups?: CustomShopSubGroup[];
-  pricingPlan: ShopPricingPlan;
-  testWeight: number;
-};
 
 const createOnboardingPricingPlan = (): ShopPricingPlan => ({
   id: `plan_onboarding_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -398,14 +381,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Unmatched manual assign map
   const [selectedAssignShops, setSelectedAssignShops] = useState<Record<string, string>>({});
   const [unmatchedSearchTerm, setUnmatchedSearchTerm] = useState('');
-  const [shopProposalGroups, setShopProposalGroups] = useState<ShopProposalGroup[]>([]);
-  const [showShopProposal, setShowShopProposal] = useState(false);
-  const [shopReviewConfirmed, setShopReviewConfirmed] = useState(false);
-
-  // Custom merge checkbox states per group
-  const [selectedEntryKeysMap, setSelectedEntryKeysMap] = useState<Record<string, string[]>>({});
-  const [customGroupInputMap, setCustomGroupInputMap] = useState<Record<string, string>>({});
-  const [customGroupTargetShopMap, setCustomGroupTargetShopMap] = useState<Record<string, string>>({});
 
   const filteredUnmatchedOrders = useMemo(() => {
     if (!currentSession) return [];
@@ -653,350 +628,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     showToast(`Đã thêm thành công ${createdShops.length} Shop mới vào Danh Mục Shop!`, 'success');
   };
 
-  const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
-    setShopProposalGroups(groups => groups.map(group => group.id === groupId
-      ? { ...group, pricingPlan: updater({ ...group.pricingPlan, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }) }
-      : group
-    ));
-  };
-
-  const addProposalWeightRule = (group: ShopProposalGroup) => {
-    updateProposalPricing(group.id, pricingPlan => {
-      const lastRule = pricingPlan.weightRules[pricingPlan.weightRules.length - 1];
-      const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
-      const newMax = lastRule ? Math.ceil(newMin) : 1;
-      const newPrice = lastRule ? lastRule.price + 5000 : 0;
-      return { ...pricingPlan, weightRules: [...pricingPlan.weightRules, { minWeight: newMin, maxWeight: newMax, price: newPrice }] };
-    });
-  };
-
-  const removeProposalWeightRule = (group: ShopProposalGroup, index: number) => {
-    if (group.pricingPlan.weightRules.length <= 1) return;
-    updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, weightRules: pricingPlan.weightRules.filter((_, ruleIndex) => ruleIndex !== index) }));
-  };
-
-  const prepareShopProposals = (rows: Record<string, any>[], mapping: ColumnMappingConfig) => {
-    const entries = new Map<string, ShopProposalEntry>();
-    rows.forEach(row => {
-      const name = String(mapping.shopNameColumn ? row[mapping.shopNameColumn] || '' : '').trim();
-      const phone = String(mapping.shopPhoneColumn ? row[mapping.shopPhoneColumn] || '' : '').trim();
-      const address = String(mapping.shopAddressColumn ? row[mapping.shopAddressColumn] || '' : '').trim();
-      if (!name && !phone) return;
-      const matched = findRegisteredShop(shops, { name, phone });
-      const existing = matched.matched;
-      const key = `${name.toLocaleLowerCase('vi-VN')}|${phone.replace(/\D/g, '')}`;
-      const item = entries.get(key) || {
-        name: name || 'Chưa có tên', phone, address, count: 0, existing,
-        existingShopId: matched.matched ? matched.shop.id : undefined,
-      };
-      item.count += 1;
-      if (!item.address && address) item.address = address;
-      entries.set(key, item);
-    });
-    const values = [...entries.values()];
-    // Build connected identity groups. This keeps a chain such as
-    // Name A + Phone 1, Name A + Phone 2, Name B + Phone 2 in one review
-    // block instead of silently splitting it into misleading subgroups.
-    const parent = values.map((_, index) => index);
-    const find = (index: number): number => parent[index] === index ? index : (parent[index] = find(parent[index]));
-    const union = (a: number, b: number) => { const pa = find(a); const pb = find(b); if (pa !== pb) parent[pb] = pa; };
-    values.forEach((item, index) => values.slice(index + 1).forEach((other, offset) => {
-      const otherIndex = index + offset + 1;
-      const samePhone = Boolean(item.phone) && item.phone.replace(/\D/g, '') === other.phone.replace(/\D/g, '');
-      const sameName = Boolean(item.name) && item.name.toLocaleLowerCase('vi-VN') === other.name.toLocaleLowerCase('vi-VN');
-      if (samePhone || sameName) union(index, otherIndex);
-    }));
-    const grouped = new Map<number, ShopProposalEntry[]>();
-    values.forEach((item, index) => grouped.set(find(index), [...(grouped.get(find(index)) || []), item]));
-    const proposals = [...grouped.values()].map((items, groupIndex) => {
-      const names = new Set(items.map(item => item.name));
-      const phones = new Set(items.map(item => item.phone).filter(Boolean));
-      const existingShopIds = [...new Set(items.map(item => item.existingShopId).filter(Boolean))] as string[];
-      const allFullyMatched = items.every(item => item.existing && item.existingShopId) && existingShopIds.length === items.length;
-
-      const label = allFullyMatched
-        ? 'Shop đã có hồ sơ (Đã ghép chuẩn từng Shop độc lập)'
-        : items.length === 1
-        ? (items[0].existing ? 'Shop đã có hồ sơ' : 'Shop mới cần thêm vào hệ thống')
-        : `Nhóm định danh: ${names.size} tên nhãn · ${phones.size} SĐT (${items.reduce((s, e) => s + e.count, 0)} đơn)`;
-
-      return {
-        id: `identity-group-${groupIndex}`,
-        label,
-        entries: items,
-        decision: (allFullyMatched ? 'separate' : items.length > 1 ? 'merge' : 'separate') as ShopProposalDecision,
-        targetShopId: existingShopIds.length === 1 ? existingShopIds[0] : undefined,
-        pricingPlan: createOnboardingPricingPlan(),
-        testWeight: 1.5,
-      };
-    });
-    const hasUnresolvedProposals = proposals.some(group => {
-      const allFullyMatched = group.entries.every(item => item.existing && item.existingShopId)
-        && new Set(group.entries.map(item => item.existingShopId)).size === group.entries.length;
-      return !allFullyMatched && (group.entries.some(entry => !entry.existing) || group.entries.length > 1);
-    });
-
-    setShopProposalGroups(proposals);
-    setShopReviewConfirmed(!hasUnresolvedProposals);
-    setShowShopProposal(hasUnresolvedProposals);
-  };
-
-  // Covers drafts preserved while navigating tabs or after a hot update: the
-  // review is not tied only to the original file-input event.
-  React.useEffect(() => {
-    if (appRows.length > 0 && appMapping.shopNameColumn) {
-      prepareShopProposals(appRows, appMapping);
-    }
-  // Re-run only when the loaded App file or its identity mapping changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appRows, appMapping.shopNameColumn, appMapping.shopPhoneColumn, appMapping.shopAddressColumn]);
-
-  const saveShopProposals = () => {
-    if (!isAdmin) return;
-    const unresolved = shopProposalGroups.filter(group =>
-      (group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && group.decision === 'pending'
-    );
-    if (unresolved.length > 0) {
-      showToast(`Còn ${unresolved.length} nhóm shop xung đột/mới chưa được Admin chọn cách xử lý (Tách hoặc Gộp).`, 'warning');
-      return;
-    }
-    const missingCustomMerge = shopProposalGroups.filter(group => group.decision === 'custom_merge' && (!group.customSubGroups || group.customSubGroups.length === 0));
-    if (missingCustomMerge.length > 0) {
-      showToast('Vui lòng tích chọn các shop và bấm nút "Tạo Shop" cho nhóm gộp tùy chỉnh.', 'warning');
-      return;
-    }
-    const additions: Shop[] = [];
-    const updates = new Map<string, Shop>();
-    shopProposalGroups.forEach((group, groupIndex) => {
-      if (group.decision === 'custom_merge') {
-        if (group.customSubGroups?.length) {
-          group.customSubGroups.forEach((subGroup, subIndex) => {
-            const subEntries = group.entries.filter(e => subGroup.entryKeys.includes(`${e.name.toLocaleLowerCase('vi-VN')}|${e.phone.replace(/\D/g, '')}`));
-            if (subEntries.length === 0) return;
-
-            const targetShop = subGroup.targetShopId
-              ? shops.find(s => s.id === subGroup.targetShopId)
-              : shops.find(s => s.active && subEntries.some(e => normalizeHeader(s.name) === normalizeHeader(e.name)));
-
-            if (targetShop) {
-              const target = updates.get(targetShop.id) || { ...targetShop, phoneList: [...(targetShop.phoneList || [])], nameAliases: [...(targetShop.nameAliases || [])] };
-              if (subGroup.name && subGroup.name.trim()) {
-                target.name = subGroup.name.trim();
-              }
-              const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
-              const aliasList = new Set((target.nameAliases || []).filter(Boolean));
-              subEntries.forEach(entry => {
-                if (entry.phone) phoneList.add(entry.phone);
-                if (entry.name && normalizeHeader(entry.name) !== normalizeHeader(target.name)) aliasList.add(entry.name);
-              });
-              target.phoneList = [...phoneList];
-              target.nameAliases = [...aliasList];
-              updates.set(target.id, target);
-              return;
-            }
-
-            const primaryPhone = subEntries.find(e => e.phone)?.phone || '';
-            const normalizedEntryPhone = normalizePhone(primaryPhone);
-            const existingShopWithSamePhone = shops.find(s =>
-              s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
-            );
-            const pricingPlanToUse = existingShopWithSamePhone
-              ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
-              : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_custom_${subIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
-            const bankAccountToUse = existingShopWithSamePhone
-              ? { ...existingShopWithSamePhone.bankAccount }
-              : { bankName: '', accountNumber: '', accountHolder: subGroup.name };
-
-            const aliasList = subEntries.map(e => e.name).filter(n => normalizeHeader(n) !== normalizeHeader(subGroup.name));
-            const allPhones = [...new Set(subEntries.map(e => e.phone).filter(Boolean))];
-
-            additions.push({
-              id: `shop_import_custom_${Date.now()}_${groupIndex}_${subIndex}`,
-              code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${subIndex}`,
-              name: subGroup.name,
-              phone: primaryPhone,
-              phoneList: allPhones,
-              nameAliases: aliasList,
-              email: '',
-              address: subEntries[0]?.address || '',
-              bankAccount: bankAccountToUse,
-              pricingPlan: pricingPlanToUse,
-              notes: `Gộp shop tùy chỉnh từ ${subEntries.length} tên shop (${subEntries.map(e => e.name).join(', ')})`,
-              createdAt: new Date().toISOString(),
-              active: true
-            });
-          });
-        }
-
-        const mergedKeys = new Set((group.customSubGroups || []).flatMap(sg => sg.entryKeys));
-        const unmergedEntries = group.entries.filter(e => !mergedKeys.has(`${e.name.toLocaleLowerCase('vi-VN')}|${e.phone.replace(/\D/g, '')}`));
-        
-        unmergedEntries.forEach((entry, setIndex) => {
-          const exactMatchShop = shops.find(s => s.active && normalizeHeader(s.name) === normalizeHeader(entry.name));
-          if (exactMatchShop) {
-            shops.forEach(s => {
-              if (s.id !== exactMatchShop.id && s.nameAliases) {
-                const updatedAliases = s.nameAliases.filter(alias => normalizeHeader(alias) !== normalizeHeader(entry.name));
-                if (updatedAliases.length !== s.nameAliases.length) {
-                  const existing = updates.get(s.id) || { ...s };
-                  existing.nameAliases = updatedAliases;
-                  updates.set(s.id, existing);
-                }
-              }
-            });
-            return;
-          }
-
-          shops.forEach(s => {
-            if (s.nameAliases) {
-              const updatedAliases = s.nameAliases.filter(alias => normalizeHeader(alias) !== normalizeHeader(entry.name));
-              if (updatedAliases.length !== s.nameAliases.length) {
-                const existing = updates.get(s.id) || { ...s };
-                existing.nameAliases = updatedAliases;
-                updates.set(s.id, existing);
-              }
-            }
-          });
-
-          const normalizedEntryPhone = normalizePhone(entry.phone || '');
-          const existingShopWithSamePhone = shops.find(s =>
-            s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
-          );
-          const pricingPlanToUse = existingShopWithSamePhone
-            ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
-            : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_rem_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
-          const bankAccountToUse = existingShopWithSamePhone
-            ? { ...existingShopWithSamePhone.bankAccount }
-            : { bankName: '', accountNumber: '', accountHolder: entry.name };
-
-          additions.push({
-            id: `shop_import_rem_${Date.now()}_${groupIndex}_${setIndex}`,
-            code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`,
-            name: entry.name,
-            phone: entry.phone,
-            phoneList: [entry.phone].filter(Boolean),
-            nameAliases: [],
-            email: '',
-            address: entry.address,
-            bankAccount: bankAccountToUse,
-            pricingPlan: pricingPlanToUse,
-            notes: `Tách shop riêng từ tên chưa gộp`,
-            createdAt: new Date().toISOString(),
-            active: true
-          });
-        });
-
-        return;
-      }
-
-      if (group.decision === 'merge') {
-        const original = shops.find(shop => shop.id === group.targetShopId);
-        if (original) {
-          const target = updates.get(original.id) || { ...original, phoneList: [...(original.phoneList || [])], nameAliases: [...(original.nameAliases || [])] };
-          if (group.customMainName && group.customMainName.trim()) {
-            target.name = group.customMainName.trim();
-          }
-          const phoneList = new Set([target.phone, ...(target.phoneList || [])].filter(Boolean));
-          const aliasList = new Set((target.nameAliases || []).filter(Boolean));
-          group.entries.forEach(entry => {
-            if (entry.phone) phoneList.add(entry.phone);
-            if (entry.name && entry.name !== target.name) aliasList.add(entry.name);
-          });
-          target.phoneList = [...phoneList];
-          target.nameAliases = [...aliasList];
-          updates.set(target.id, target);
-          return;
-        }
-
-        // If no existing shop targeted, create a new merged shop profile from all group entries!
-        let targetIndex = 0;
-        if (group.targetShopId && group.targetShopId.startsWith('entry_')) {
-          targetIndex = parseInt(group.targetShopId.replace('entry_', ''), 10) || 0;
-        }
-        const selectedMainName = (group.customMainName && group.customMainName.trim())
-          || (group.entries[targetIndex] ? group.entries[targetIndex].name : group.entries[0].name);
-        
-        const primaryPhone = group.entries[0]?.phone || '';
-        const normalizedEntryPhone = normalizePhone(primaryPhone);
-        const existingShopWithSamePhone = shops.find(s =>
-          s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
-        );
-        const pricingPlanToUse = existingShopWithSamePhone
-          ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
-          : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_merge`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
-        const bankAccountToUse = existingShopWithSamePhone
-          ? { ...existingShopWithSamePhone.bankAccount }
-          : { bankName: '', accountNumber: '', accountHolder: selectedMainName };
-
-        const aliasList = group.entries.map(e => e.name).filter(n => normalizeHeader(n) !== normalizeHeader(selectedMainName));
-        const allPhones = [...new Set(group.entries.map(e => e.phone).filter(Boolean))];
-
-        additions.push({
-          id: `shop_import_merge_${Date.now()}_${groupIndex}`,
-          code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}`,
-          name: selectedMainName,
-          phone: primaryPhone,
-          phoneList: allPhones,
-          nameAliases: aliasList,
-          email: '',
-          address: group.entries[0]?.address || '',
-          bankAccount: bankAccountToUse,
-          pricingPlan: pricingPlanToUse,
-          notes: `Gộp tất cả ${group.entries.length} tên shop (${group.entries.map(e => e.name).join(', ')})`,
-          createdAt: new Date().toISOString(),
-          active: true
-        });
-        return;
-      }
-      const entriesToCreate = group.entries.filter(entry => {
-        const exactMatchShop = shops.find(s => s.active && normalizeHeader(s.name) === normalizeHeader(entry.name));
-        return !exactMatchShop;
-      });
-      if (entriesToCreate.length === 0) return;
-
-      entriesToCreate.forEach((entry, setIndex) => {
-        const normalizedEntryPhone = normalizePhone(entry.phone || '');
-        const existingShopWithSamePhone = shops.find(s =>
-          s.active && s.phone && normalizedEntryPhone && getShopPhones(s).includes(normalizedEntryPhone)
-        );
-        const pricingPlanToUse = existingShopWithSamePhone
-          ? JSON.parse(JSON.stringify(existingShopWithSamePhone.pricingPlan))
-          : { ...group.pricingPlan, id: `${group.pricingPlan.id}_${groupIndex}_${setIndex}`, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) };
-        const bankAccountToUse = existingShopWithSamePhone
-          ? { ...existingShopWithSamePhone.bankAccount }
-          : { bankName: '', accountNumber: '', accountHolder: entry.name };
-
-        if (existingShopWithSamePhone && existingShopWithSamePhone.nameAliases?.length) {
-          const target = updates.get(existingShopWithSamePhone.id) || { ...existingShopWithSamePhone, nameAliases: [...(existingShopWithSamePhone.nameAliases || [])] };
-          target.nameAliases = (target.nameAliases || []).filter(alias => normalizeHeader(alias) !== normalizeHeader(entry.name));
-          updates.set(target.id, target);
-        }
-
-        additions.push({
-          id: `shop_import_${Date.now()}_${groupIndex}_${setIndex}`,
-          code: `SHOP_${Date.now().toString().slice(-6)}_${groupIndex}_${setIndex}`,
-          name: entry.name,
-          phone: entry.phone,
-          phoneList: [entry.phone].filter(Boolean),
-          nameAliases: [],
-          email: '',
-          address: entry.address,
-          bankAccount: bankAccountToUse,
-          pricingPlan: pricingPlanToUse,
-          notes: `Tách shop riêng từ nhóm xung đột (${entry.count} đơn)${existingShopWithSamePhone ? ` - Kế thừa biểu giá & ngân hàng của ${existingShopWithSamePhone.name}` : ''}`,
-          createdAt: new Date().toISOString(),
-          active: true
-        });
-      });
-    });
-    const updatedShops = shops.map(shop => updates.get(shop.id) || shop);
-    onSaveShops([...additions, ...updatedShops]);
-    setShopReviewConfirmed(true);
-    setShowShopProposal(false);
-    const mergedCount = updates.size;
-    showToast(`Đã xác nhận: thêm ${additions.length} shop mới${mergedCount ? `, cập nhật ${mergedCount} hồ sơ shop` : ''}. Biểu giá cơ bản đã được lưu cùng hồ sơ shop.`, 'success');
-  };
-
   // Zip Download Progress State
   const [zipProgress, setZipProgress] = useState<{ active: boolean; percent: number; currentShop: string }>({
     active: false,
@@ -1097,7 +728,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const saved = StorageService.getCarrierMapping(selectedCarrierId);
         const detectedMapping = autoDetectColumns(headers, 'app', saved.app, rows);
         setAppMapping(detectedMapping);
-        prepareShopProposals(rows, detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
       } else {
@@ -1169,7 +799,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           statusColumn: canonicalHeaders.status,
         };
         setAppMapping(normalizedMapping);
-        prepareShopProposals(combinedRows, normalizedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, normalizedHeaders);
 
@@ -1344,9 +973,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setSelectedGhnSheet('');
       setIsMappingConfirmed(false);
       setSelectedAssignShops({});
-      setShopProposalGroups([]);
-      setShopReviewConfirmed(false);
-      setShowShopProposal(false);
       setCurrentSession(null);
       setWizardStep(1);
     }
@@ -2014,9 +1640,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       e.stopPropagation();
                       setAppFile(null);
                       setAppRows([]);
-                      setShopProposalGroups([]);
-                      setShopReviewConfirmed(false);
-                      setShowShopProposal(false);
                     }}
                     className="btn btn-secondary btn-sm"
                     style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
@@ -2052,13 +1675,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </p>
 
                 {appFile && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
                       ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
                     </div>
-                    <button type="button" className={shopReviewConfirmed ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'} style={{ fontSize: 11, padding: '4px 8px' }} onClick={event => { event.stopPropagation(); prepareShopProposals(appRows, appMapping); }}>
-                      {shopReviewConfirmed ? 'Xem lại shop từ file App' : `Xác nhận ${shopProposalGroups.reduce((sum, group) => sum + group.entries.length, 0)} định danh shop`}
-                    </button>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Tự động đối chiếu với {shops.length} Shop trong hệ thống
+                    </div>
                   </div>
                 )}
               </div>
@@ -2189,15 +1812,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                     <strong className="mono">[{appMapping.shopPhoneColumn || appMapping.receiverPhoneColumn || 'Mặc định'}]</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Định danh Shop:</span>
-                    <button
-                      type="button"
-                      className="btn btn-warning btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px' }}
-                      onClick={() => prepareShopProposals(appRows, appMapping)}
-                    >
-                      Kiểm tra Shop File App
-                    </button>
+                    <span style={{ color: 'var(--text-muted)' }}>Đối chiếu Shop:</span>
+                    <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>
+                      ✓ Tự động khớp theo Danh mục Shop
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2248,12 +1866,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                if (reconcileMode === '2files' && appRows.length > 0) {
-                  prepareShopProposals(appRows, appMapping);
-                }
-                setWizardStep(3);
-              }}
+              onClick={() => setWizardStep(3)}
               className="btn btn-primary btn-lg"
               style={{ minWidth: 310, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
             >
@@ -3219,465 +2832,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               <CheckCircle2 size={18} />
               <span>✓ Hoàn Tất & Làm Mới Phiên Đối Soát</span>
             </button>
-          </div>
-
-        </div>
-      )}
-
-      {/* Unified Carrier Profile Config Modal */}
-      {showShopProposal && (
-        <div className="modal-overlay" onClick={() => setShowShopProposal(false)}>
-          <div className="modal-content" style={{ maxWidth: 1020, maxHeight: '90vh', overflowY: 'auto' }} onClick={event => event.stopPropagation()}>
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🏪 Thêm & Cấu Hình Danh Sách Shop Từ File Excel
-                </h3>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Hệ thống quét được các Shop mới trong file. Bạn hãy kiểm tra tên gộp/tách và biểu giá cước để <strong>Lưu vào Quản Lý Shop</strong>.
-                </p>
-              </div>
-              <button onClick={() => setShowShopProposal(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }}>
-                ✕ Đóng
-              </button>
-            </div>
-
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* TOP KPI STATS PREVIEW INSIDE POPUP */}
-              {quickPreviewStats && (
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
-                  border: '1.5px solid var(--primary-glow)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '14px 16px',
-                }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    📊 SỐ LIỆU DỰ TÍNH NHANH TỪ FILE (BƯỚC 2)
-                  </div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-                    gap: 10,
-                  }}>
-                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', margin: '3px 0' }}>
-                        {quickPreviewStats.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500 }}>đơn</span>
-                      </div>
-                    </div>
-
-                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--info)', margin: '3px 0' }}>
-                        {formatVND(quickPreviewStats.totalCod)}
-                      </div>
-                    </div>
-
-                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC GỐC NVC</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--warning)', margin: '3px 0' }}>
-                        {formatVND(quickPreviewStats.totalNvcFee)}
-                      </div>
-                    </div>
-
-                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC THU SHOP</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
-                        {formatVND(quickPreviewStats.totalShopFee)}
-                      </div>
-                    </div>
-
-                    <div style={{ background: quickPreviewStats.estimatedProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${quickPreviewStats.estimatedProfit >= 0 ? '#10b981' : '#ef4444'}` }}>
-                      <div style={{ fontSize: 10.5, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', fontWeight: 800 }}>LỢI NHUẬN RÒNG</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', margin: '3px 0' }}>
-                        {quickPreviewStats.estimatedProfit >= 0 ? '+' : ''}{formatVND(quickPreviewStats.estimatedProfit)}
-                      </div>
-                    </div>
-
-                    <div style={{ background: 'rgba(79, 70, 229, 0.08)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--primary)' }}>
-                      <div style={{ fontSize: 10.5, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN SHOP</div>
-                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
-                        {formatVND(quickPreviewStats.estimatedShopPayout)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* BATCH ACTIONS TOOLBAR */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                flexWrap: 'wrap',
-                background: 'rgba(79, 70, 229, 0.06)',
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid rgba(79, 70, 229, 0.2)',
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  ⚡ <strong>Thao tác nhanh cho tất cả nhóm shop:</strong>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700 }}
-                    onClick={() => {
-                      setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: g.entries.length > 1 ? 'merge' : 'separate' })));
-                      showToast('Đã đặt mặc định: Gộp các tên gửi chung 1 SĐT vào 1 Shop chính!', 'info');
-                    }}
-                  >
-                    🤝 Gộp theo SĐT (Khuyên dùng)
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700 }}
-                    onClick={() => {
-                      setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: 'separate' })));
-                      showToast('Đã đặt: Tách tất cả tên gửi thành Shop riêng biệt!', 'info');
-                    }}
-                  >
-                    ✂️ Tách tất cả Shop riêng
-                  </button>
-
-                  {shopProposalGroups.length > 1 && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: 11, padding: '5px 10px', fontWeight: 700, borderColor: 'var(--primary)', color: 'var(--primary)' }}
-                      onClick={() => {
-                        const basePricing = shopProposalGroups[0]?.pricingPlan;
-                        if (!basePricing) return;
-                        setShopProposalGroups(groups => groups.map(g => ({
-                          ...g,
-                          pricingPlan: JSON.parse(JSON.stringify(basePricing)),
-                        })));
-                        showToast('Đã sao chép biểu giá của nhóm đầu tiên cho TẤT CẢ các nhóm shop mới!', 'success');
-                      }}
-                    >
-                      📋 Áp dụng biểu giá nhóm 1 cho tất cả Shop
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                💡 <strong>Hướng dẫn:</strong> Danh sách dưới đây hiển thị toàn bộ định danh Shop dưới dạng bảng Excel kẻ ô rõ ràng. Nhãn xanh là shop đã có hồ sơ; nhãn vàng là shop mới. Bạn có thể chọn menu góc phải để <strong>Gộp tùy chỉnh</strong> hoặc <strong>Tách độc lập</strong>.
-              </div>
-
-              {shopProposalGroups.map((group, gIdx) => (
-                <div key={group.id} style={{ border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 14, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.02)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
-                        {group.entries.length > 1 ? `🔴 Nhóm xung đột #${gIdx + 1}:` : `🟢 Nhóm shop độc lập #${gIdx + 1}:`} {group.label}
-                      </span>
-                      <span style={{ fontSize: 11, background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>
-                        {group.entries.reduce((sum, e) => sum + e.count, 0)} đơn
-                      </span>
-                    </div>
-
-                    {(group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && (
-                      <select
-                        value={group.decision}
-                        onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))}
-                        className="select-field"
-                        style={{ width: 340, padding: '6px 8px', fontSize: 12, fontWeight: 700, borderColor: group.decision === 'custom_merge' ? 'var(--primary)' : 'var(--border-color)' }}
-                      >
-                        <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
-                        <option value="merge">Gộp tất cả vào một shop (thêm tên/SĐT phụ)</option>
-                        <option value="custom_merge">🎨 Gộp shop tùy chỉnh (Tích chọn gom từng nhóm)</option>
-                      </select>
-                    )}
-                  </div>
-
-                  {/* BẢNG DANH SÁCH SHOP DẠNG EXCEL KẺ Ô */}
-                  <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
-                    <table className="data-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1.5px solid var(--border-color)' }}>
-                          {group.decision === 'custom_merge' && (
-                            <th style={{ width: 45, textAlign: 'center', padding: '8px 4px' }}>Chọn</th>
-                          )}
-                          <th style={{ width: 45, textAlign: 'center', padding: '8px 4px' }}>STT</th>
-                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>TÊN SHOP TRONG FILE</th>
-                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>SỐ ĐIỆN THOẠI</th>
-                          <th style={{ textAlign: 'center', padding: '8px 6px', width: 75 }}>SỐ ĐƠN</th>
-                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>ĐỊA CHỈ KHO GỬI</th>
-                          <th style={{ textAlign: 'center', padding: '8px 10px', width: 190 }}>TRẠNG THÁI HỒ SƠ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.entries.map((entry, eIdx) => {
-                          const entryKey = `${entry.name.toLocaleLowerCase('vi-VN')}|${entry.phone.replace(/\D/g, '')}`;
-                          const mergedSubGroup = (group.customSubGroups || []).find(sg => sg.entryKeys.includes(entryKey));
-                          const isSelected = (selectedEntryKeysMap[group.id] || []).includes(entryKey);
-
-                          return (
-                            <tr key={entryKey} style={{
-                              background: mergedSubGroup ? 'rgba(37, 99, 235, 0.05)' : isSelected ? 'rgba(79, 70, 229, 0.08)' : eIdx % 2 === 0 ? '#fff' : 'var(--bg-secondary)',
-                              borderBottom: '1px solid var(--border-color)',
-                            }}>
-                              {group.decision === 'custom_merge' && (
-                                <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                                  <input
-                                    type="checkbox"
-                                    disabled={!!mergedSubGroup}
-                                    checked={!!mergedSubGroup || isSelected}
-                                    onChange={(e) => {
-                                      const prev = selectedEntryKeysMap[group.id] || [];
-                                      if (e.target.checked) {
-                                        setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [...prev, entryKey] });
-                                      } else {
-                                        setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: prev.filter(k => k !== entryKey) });
-                                      }
-                                    }}
-                                    style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: mergedSubGroup ? 'not-allowed' : 'pointer' }}
-                                  />
-                                </td>
-                              )}
-                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{eIdx + 1}</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{entry.name}</td>
-                              <td className="mono" style={{ color: 'var(--primary)', fontWeight: 600 }}>{entry.phone || 'Chưa có SĐT'}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-main)' }}>{entry.count}</td>
-                              <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{entry.address || '—'}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                {mergedSubGroup ? (
-                                  <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd', fontSize: 11 }}>
-                                    ✓ Đã gộp vào: <strong>{mergedSubGroup.name}</strong>
-                                  </span>
-                                ) : (
-                                  <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 11 }}>
-                                    {entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {group.decision === 'custom_merge' && (
-                    <div style={{ marginTop: 14, background: 'rgba(79, 70, 229, 0.05)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid rgba(79, 70, 229, 0.25)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {(group.customSubGroups || []).length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <strong style={{ fontSize: 12, color: 'var(--primary)' }}>Các nhóm shop đã gom tạo thành công:</strong>
-                          {group.customSubGroups?.map(sg => (
-                            <div key={sg.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>
-                                🏪 Shop mới: <strong style={{ color: 'var(--primary)' }}>{sg.name}</strong> ({sg.entryKeys.length} tên nhãn gửi gộp)
-                              </span>
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: 11, padding: '2px 8px', color: 'var(--danger)' }}
-                                onClick={() => {
-                                  setShopProposalGroups(groups => groups.map(g => g.id === group.id ? { ...g, customSubGroups: (g.customSubGroups || []).filter(item => item.id !== sg.id) } : g));
-                                }}
-                              >
-                                🗑️ Hủy gộp nhóm này
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--primary)' }}>
-                            ✨ Tích chọn các ô shop ở trên để gom thành 1 nhóm shop riêng:
-                          </label>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            Đã tích: <strong>{(selectedEntryKeysMap[group.id] || []).length}</strong> shop
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <div style={{ flex: 1, minWidth: 200 }}>
-                            <input
-                              type="text"
-                              className="input-field"
-                              placeholder="Nhập tên Shop mới (Ví dụ: Shop Kiều Nhung)..."
-                              value={customGroupInputMap[group.id] || ''}
-                              onChange={(e) => setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: e.target.value })}
-                              style={{ width: '100%', padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
-                            />
-                          </div>
-
-                          <div style={{ width: 220 }}>
-                            <select
-                              value={customGroupTargetShopMap[group.id] || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: val });
-                                if (val && !customGroupInputMap[group.id]) {
-                                  const targetShop = shops.find(s => s.id === val);
-                                  if (targetShop) setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: targetShop.name });
-                                }
-                              }}
-                              className="select-field"
-                              style={{ width: '100%', padding: '7px 9px', fontSize: 11.5 }}
-                            >
-                              <option value="">-- Hoặc chọn shop chính có sẵn --</option>
-                              {shops.filter(s => s.active).map(s => (
-                                <option key={s.id} value={s.id}>{s.name} ({s.phone})</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={(selectedEntryKeysMap[group.id] || []).length === 0 || !(customGroupInputMap[group.id] || '').trim()}
-                            onClick={() => {
-                              const selectedKeys = selectedEntryKeysMap[group.id] || [];
-                              const customName = (customGroupInputMap[group.id] || '').trim();
-                              const targetShopId = customGroupTargetShopMap[group.id] || undefined;
-                              if (selectedKeys.length === 0 || !customName) return;
-
-                              const newSubGroup: CustomShopSubGroup = {
-                                id: `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                                name: customName,
-                                entryKeys: [...selectedKeys],
-                                targetShopId,
-                              };
-
-                              setShopProposalGroups(groups => groups.map(g => g.id === group.id ? { ...g, customSubGroups: [...(g.customSubGroups || []), newSubGroup] } : g));
-                              setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [] });
-                              setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: '' });
-                              setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: '' });
-                              showToast(`Đã gom ${selectedKeys.length} tên gửi thành công vào nhóm shop "${customName}"!`, 'success');
-                            }}
-                          >
-                            + Tạo Nhóm Gộp Này
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && (
-                    <div style={{ marginTop: 12, background: '#fffbeb', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 4 }}>
-                          ✏️ Tên Shop gộp đại diện (In trên Bảng Kê Excel & Báo cáo):
-                        </label>
-                        <input
-                          type="text"
-                          placeholder={`Ví dụ: ${group.entries[0]?.name || 'Shop Gộp Mới'} (Bỏ trống sẽ tự lấy tên đầu tiên)`}
-                          value={group.customMainName || ''}
-                          onChange={event => {
-                            const val = event.target.value;
-                            setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, customMainName: val } : item));
-                          }}
-                          className="input-field"
-                          style={{ width: '100%', padding: '7px 10px', fontSize: 13, fontWeight: 700, borderColor: '#f59e0b', background: '#fff' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
-                          Chọn shop chính để gộp tất cả các tên/SĐT trong nhóm này về 1 Bảng kê:
-                        </label>
-                        <select
-                          value={group.targetShopId || ''}
-                          onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, targetShopId: event.target.value } : item))}
-                          className="select-field"
-                          style={{ width: '100%', padding: '7px 9px', fontSize: 12, fontWeight: 600 }}
-                        >
-                          <optgroup label="Tên shop đại diện (Trong nhóm này)">
-                            {group.entries.map((entry, idx) => (
-                              <option key={`entry_${idx}`} value={`entry_${idx}`}>
-                                {entry.name} ({entry.count} đơn - SĐT: {entry.phone || 'Không SĐT'})
-                              </option>
-                            ))}
-                          </optgroup>
-                          {shops.filter(shop => shop.active).length > 0 && (
-                            <optgroup label="Hồ sơ Shop đã có sẵn trong danh mục">
-                              {shops.filter(shop => shop.active).map(shop => (
-                                <option key={shop.id} value={shop.id}>
-                                  {shop.code} · {shop.name} · {shop.phone}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {group.entries.some(entry => !entry.existing) && !(group.decision === 'merge' && group.targetShopId) && (
-                    <div style={{ marginTop: 16, padding: 15, borderRadius: 'var(--radius-md)', background: 'rgba(79, 70, 229, 0.045)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}><Sliders size={16} /> Biểu giá cước bậc thang theo cân nặng</div>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => addProposalWeightRule(group)} style={{ fontSize: 11, padding: '4px 9px' }}><Plus size={13} /> Thêm nấc cân nặng</button>
-                      </div>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Áp dụng cho shop mới tạo từ nhóm này. Cước 0–1kg là bắt buộc; các nấc sau giúp app tính đúng theo biểu giá riêng.</p>
-                      <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {group.pricingPlan.weightRules.map((rule, index) => <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                          <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>{index === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}</div>
-                          <input type="number" min="0.1" step="0.1" value={rule.maxWeight} className="input-field" style={{ width: 82, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                            const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, maxWeight: Number(event.target.value || 0) } : item);
-                            return { ...pricingPlan, weightRules };
-                          })} />
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
-                          <input type="number" min="0" step="500" value={rule.price === 0 ? '' : rule.price} placeholder={index === 0 ? 'Bắt buộc nhập' : '0'} className="input-field" style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                            const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, price: Number(event.target.value || 0) } : item);
-                            return { ...pricingPlan, weightRules };
-                          })} />
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
-                          {group.pricingPlan.weightRules.length > 1 && <button type="button" className="btn btn-danger btn-sm" style={{ padding: '4px 6px' }} onClick={() => removeProposalWeightRule(group, index)} title="Xóa nấc cân"><Trash2 size={12} /></button>}
-                        </div>)}
-                        <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vượt cân: mỗi thêm<input type="number" min="0.1" step="0.1" value={group.pricingPlan.extraStepWeight} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepWeight: Number(event.target.value || 1) }))} /></label>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước cộng thêm (đ)<input type="number" min="0" step="500" value={group.pricingPlan.extraStepPrice === 0 ? '' : group.pricingPlan.extraStepPrice} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepPrice: Number(event.target.value || 0) }))} /></label>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)<input type="number" min="0" max="100" value={group.pricingPlan.returnFeePercent} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, returnFeePercent: Number(event.target.value || 0) }))} /></label>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phụ thu cố định (đ)<input type="number" min="0" step="500" value={group.pricingPlan.fixedSurcharge === 0 ? '' : group.pricingPlan.fixedSurcharge} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, fixedSurcharge: Number(event.target.value || 0) }))} /></label>
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 10, background: 'rgba(79, 70, 229, 0.06)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calculator size={15} color="var(--primary)" /><span style={{ fontSize: 12, fontWeight: 700 }}>Thử tính cước:</span><input type="number" min="0.1" step="0.1" value={group.testWeight} className="input-field" style={{ width: 72, padding: '4px 7px', fontSize: 12 }} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, testWeight: Number(event.target.value || 0.1) } : item))} /><span style={{ fontSize: 12 }}>kg</span></div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước tính ra: <strong className="mono" style={{ fontSize: 15, color: 'var(--success)' }}>{new Intl.NumberFormat('vi-VN').format(calculateWeightFee(group.testWeight, group.pricingPlan))} đ</strong></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div style={{
-              padding: '16px 22px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'var(--bg-secondary)',
-              flexWrap: 'wrap',
-              gap: 12,
-            }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                💡 Bấm nút bên phải để <strong>Lưu vĩnh viễn danh sách Shop vào hệ thống</strong> và bắt đầu đối soát.
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowShopProposal(false)}>
-                  Để sau
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}
-                  disabled={!isAdmin}
-                  onClick={saveShopProposals}
-                >
-                  💾 LƯU TOÀN BỘ SHOP VÀO QUẢN LÝ SHOP & TIẾP TỤC ĐỐI SOÁT →
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

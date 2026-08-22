@@ -1263,7 +1263,24 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 </button>
               </div>
             ) : (
-              filteredShops.map((shop) => {
+              [...filteredShops].sort((a, b) => {
+                const ga = shopGroupColorMap.get(a.id);
+                const gb = shopGroupColorMap.get(b.id);
+                // Shops in a color group come first, ungrouped shops last
+                if (ga && !gb) return -1;
+                if (!ga && gb) return 1;
+                if (ga && gb) {
+                  // Same group: keep together (sort by groupId, then by name within group)
+                  if (ga.groupId !== gb.groupId) return ga.groupId.localeCompare(gb.groupId);
+                  return a.name.localeCompare(b.name, 'vi');
+                }
+                // Both ungrouped: merged shops first, then by name
+                const aMerged = Boolean(a.nameAliases && a.nameAliases.length > 0);
+                const bMerged = Boolean(b.nameAliases && b.nameAliases.length > 0);
+                if (aMerged && !bMerged) return -1;
+                if (!aMerged && bMerged) return 1;
+                return a.name.localeCompare(b.name, 'vi');
+              }).map((shop) => {
                 const isSelected = selectedShopId === shop.id;
                 const isBatchChecked = selectedBatchShopIds.includes(shop.id);
                 const isMergeChecked = selectedMergeShopIds.includes(shop.id);
