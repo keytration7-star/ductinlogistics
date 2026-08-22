@@ -645,8 +645,36 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       <td>{idx + 1}</td>
                       <td><strong className="mono" style={{ color: 'var(--primary)' }}>{shop.code}</strong></td>
                       <td>
-                        <strong>{shop.name}</strong>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {shop.phone || 'N/A'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <strong style={{ color: 'var(--text-main)' }}>{shop.name}</strong>
+                          {((shop.nameAliases?.length || 0) > 0 || (shop.phoneList?.length || 0) > 0) && (
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              background: 'rgba(79, 70, 229, 0.1)',
+                              color: 'var(--primary)',
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              border: '1px solid rgba(79, 70, 229, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                            }}>
+                              🔗 Đã gộp {(shop.nameAliases?.length || 0) + (shop.phoneList?.length || 0)} nhánh
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>SĐT: {shop.phone || 'N/A'}</div>
+                        {((shop.nameAliases?.length || 0) > 0 || (shop.phoneList?.length || 0) > 0) && (
+                          <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600 }}>Gộp từ:</span>
+                            {[...(shop.nameAliases || []), ...(shop.phoneList || [])].map((alias, aIdx) => (
+                              <span key={aIdx} style={{ background: '#eef2ff', padding: '1px 5px', borderRadius: 3, border: '1px solid #c7d2fe', fontSize: 9.5 }}>
+                                {alias}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td>
                         {shop.bankAccount?.bankName ? (
@@ -878,12 +906,43 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       const { paidAmount, remainingDebt, shopOwes, status } = getStatementPayoutInfo(activeDetailSession.id, stmt);
                       const statementSettlement = calculateStatementSettlement(stmt);
 
+                      const matchedShopObj = shops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode || s.name.toLowerCase() === stmt.shopName.toLowerCase());
+                      const aliasesList = [...(matchedShopObj?.nameAliases || []), ...(matchedShopObj?.phoneList || [])];
+
                       return (
                         <tr key={stmt.shopId}>
                           <td><strong className="mono" style={{ color: 'var(--primary)', fontSize: 12 }}>{stmt.shopCode}</strong></td>
                           <td>
-                            <strong style={{ fontSize: 13 }}>{stmt.shopName}</strong>
-                            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>{stmt.shopName}</strong>
+                              {aliasesList.length > 0 && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  background: 'rgba(79, 70, 229, 0.1)',
+                                  color: 'var(--primary)',
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  border: '1px solid rgba(79, 70, 229, 0.25)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 3,
+                                }}>
+                                  🔗 Đã gộp {aliasesList.length} nhánh
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
+                            {aliasesList.length > 0 && (
+                              <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 600 }}>Gộp từ:</span>
+                                {aliasesList.map((alias, aIdx) => (
+                                  <span key={aIdx} style={{ background: '#eef2ff', padding: '1px 5px', borderRadius: 3, border: '1px solid #c7d2fe', fontSize: 9.5 }}>
+                                    {alias}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td>
                             {stmt.bankInfo?.bankName ? (
