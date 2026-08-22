@@ -489,7 +489,7 @@ export function App() {
                 sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
                 shops={carrierShops}
                 onSelectSession={(session) => {
-                  setCurrentSession(session);
+                  handleSetCurrentSession({ ...session });
                   setActiveTab('reconciliation');
                 }}
                 onNavigateToEmail={(session) => {
