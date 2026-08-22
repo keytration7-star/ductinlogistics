@@ -229,47 +229,37 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
             return (
               <div>
-                {/* Header status bar */}
+                {/* Header Action Toolbar */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: 14,
-                  background: 'var(--bg-secondary)',
-                  padding: '10px 16px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-color)',
+                  marginBottom: 12,
                   flexWrap: 'wrap',
                   gap: 10
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>📄 File NVC: <strong>{nvcHeaders.length} cột</strong></span>
-                    {requireAppMapping ? <>
-                      <span>•</span>
-                      <span>📱 File App: <strong>{appHeaders.length} cột</strong></span>
-                    </> : (
-                      <span style={{ color: 'var(--success)' }}>• GHN dùng 1 file, không cần File App</span>
-                    )}
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    💡 Hệ thống tự động nhận diện các cột. Bạn có thể chọn lại nếu file có cấu trúc thay đổi.
                   </div>
 
                   <button
                     type="button"
                     onClick={handleAutoRedetect}
                     className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11, padding: '4px 12px' }}
+                    style={{ fontSize: 11.5, padding: '5px 12px', fontWeight: 600 }}
                     title="Tự động quét lại toàn bộ cột khớp nhau"
                   >
-                    <RotateCcw size={12} />
+                    <RotateCcw size={13} />
                     <span>🤖 Tự Động Khớp Lại (AI Auto-Match)</span>
                   </button>
                 </div>
 
                 {!requireAppMapping && (
                   <div style={{
-                    marginBottom: 14,
+                    marginBottom: 12,
                     background: 'rgba(59, 130, 246, 0.08)',
                     border: '1px solid rgba(59, 130, 246, 0.25)',
-                    padding: '10px 14px',
+                    padding: '8px 12px',
                     borderRadius: 'var(--radius-md)',
                     fontSize: 12,
                     color: 'var(--text-main)',
@@ -277,9 +267,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                     alignItems: 'center',
                     gap: 8,
                   }}>
-                    <Zap size={16} color="var(--primary)" />
+                    <Zap size={15} color="var(--primary)" />
                     <span>
-                      💡 <strong>Hệ thống đang chạy ở Chế Độ 1-File</strong>: Bạn chỉ cần chọn các cột trong <strong>File NVC (Hãng Gốc)</strong>. Hệ thống sẽ tự động bóc tách thông tin Shop (Tên kho/SĐT gửi) trực tiếp từ file này!
+                      💡 <strong>Chế Độ 1-File (GHN)</strong>: Đọc trực tiếp cước & shop từ File NVC, không cần File App.
                     </span>
                   </div>
                 )}
@@ -311,11 +301,11 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                           Trường Thông Tin Cần Lấy
                         </th>
                         <th style={{ width: requireAppMapping ? '32%' : '50%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
-                          📄 Cột Trong File NVC (Hãng)
+                          📄 CỘT FILE NVC (HÃNG) · <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{nvcHeaders.length} CỘT</span>
                         </th>
                         {requireAppMapping && (
                           <th style={{ width: '32%', padding: '10px 12px', textAlign: 'left', borderRight: '1.5px solid #cbd5e1' }}>
-                            📱 Cột Trong File App
+                            📱 CỘT FILE APP · <span style={{ color: 'var(--success)', fontWeight: 800 }}>{appHeaders.length} CỘT</span>
                           </th>
                         )}
                         <th style={{ width: requireAppMapping ? '11%' : '25%', padding: '10px 8px', textAlign: 'center' }}>
