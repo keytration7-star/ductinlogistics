@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
-import type { ExportColumnSettings } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Settings2, Check, X, RotateCcw, FileSpreadsheet, Layers, Eye, ShieldAlert, ArrowUp, ArrowDown, GripVertical, Plus, Trash2, Sparkles } from 'lucide-react';
+import type { ExportColumnSettings, ExportColumnItem } from '../types';
 import { StorageService, DEFAULT_EXPORT_COLUMNS } from '../services/storage';
 
 import { useConfirm } from './UIFeedback';
@@ -11,6 +11,10 @@ interface ExportColumnConfigModalProps {
   onSave?: (settings: ExportColumnSettings) => void;
   carrierId?: string;
   carrierName?: string;
+  availableFileHeaders?: {
+    nvcHeaders?: string[];
+    appHeaders?: string[];
+  };
 }
 
 export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = ({
@@ -19,6 +23,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
   onSave,
   carrierId,
   carrierName,
+  availableFileHeaders,
 }) => {
   const { showConfirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'shop' | 'master'>('shop');
@@ -29,13 +34,56 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
     return StorageService.getExportColumnSettings();
   });
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [customInputName, setCustomInputName] = useState('');
   // Drag & drop state for export column reordering
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  if (!isOpen) return null;
-
   const currentColumns = activeTab === 'shop' ? settings.shopColumns : settings.masterColumns;
+
+  // Extract all unique headers from loaded NVC & App files
+  const fileHeaders = useMemo(() => {
+    const set = new Set<string>();
+    (availableFileHeaders?.nvcHeaders || []).forEach(h => { if (h && h.trim()) set.add(h.trim()); });
+    (availableFileHeaders?.appHeaders || []).forEach(h => { if (h && h.trim()) set.add(h.trim()); });
+    return Array.from(set);
+  }, [availableFileHeaders]);
+
+  const unaddedHeaders = useMemo(() => {
+    const existingLabels = new Set(currentColumns.map(c => c.label.toLowerCase().trim()));
+    const existingSources = new Set(currentColumns.map(c => (c.sourceHeader || '').toLowerCase().trim()));
+    return fileHeaders.filter(h => !existingLabels.has(h.toLowerCase().trim()) && !existingSources.has(h.toLowerCase().trim()));
+  }, [fileHeaders, currentColumns]);
+
+  const handleAddCustomColumn = (headerName: string) => {
+    if (!headerName.trim()) return;
+    const name = headerName.trim();
+    const newCol: ExportColumnItem = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      label: name,
+      enabled: true,
+      category: 'custom',
+      sourceHeader: name,
+    };
+    const updatedCols = [...currentColumns, newCol];
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setSettings(newSettings);
+    setCustomInputName('');
+  };
+
+  const handleRemoveCustomColumn = (colId: string) => {
+    const updatedCols = currentColumns.filter(c => c.id !== colId);
+    const newSettings: ExportColumnSettings = {
+      ...settings,
+      [activeTab === 'shop' ? 'shopColumns' : 'masterColumns']: updatedCols,
+    };
+    setSettings(newSettings);
+  };
+
+  if (!isOpen) return null;
 
   const handleToggleColumn = (colId: string) => {
     if (colId === 'stt' || colId === 'waybill') return; // Cannot disable primary key
@@ -389,7 +437,7 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                     )}
                   </div>
 
-                  {/* Up & Down Reorder Buttons */}
+                  {/* Up & Down Reorder & Delete Buttons */}
                   <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
                     <button
                       type="button"
@@ -411,10 +459,103 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
                     >
                       <ArrowDown size={13} />
                     </button>
+                    {col.category === 'custom' && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveCustomColumn(col.id); }}
+                        className="btn btn-danger btn-sm"
+                        style={{ padding: '2px 5px', marginLeft: 2 }}
+                        title="Xóa cột tùy chỉnh này"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
+          </div>
+
+          {/* CỘT QUÉT ĐƯỢC TỪ FILE NVC VÀ FILE APP */}
+          {unaddedHeaders.length > 0 && (
+            <div style={{
+              marginTop: 16,
+              background: 'rgba(16, 185, 129, 0.05)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+            }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: '#047857', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={14} color="#059669" />
+                <span>Cột Quét Được Từ 2 File (NVC & App) Có Thể Thêm Vào Bảng Xuất:</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {unaddedHeaders.map((header) => (
+                  <button
+                    key={header}
+                    type="button"
+                    onClick={() => handleAddCustomColumn(header)}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      fontSize: 11,
+                      padding: '3px 8px',
+                      background: '#fff',
+                      border: '1px solid #10b981',
+                      color: '#047857',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                    title={`Thêm cột "${header}" vào danh sách xuất`}
+                  >
+                    <Plus size={11} />
+                    <span>{header}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* THÊM CỘT TÙY CHỈNH THỦ CÔNG */}
+          <div style={{
+            marginTop: 12,
+            background: 'var(--bg-secondary)',
+            border: '1px dashed var(--border-color)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Plus size={14} color="var(--primary)" />
+              <span>Thêm Cột Tùy Chỉnh Khác:</span>
+            </div>
+            <input
+              type="text"
+              placeholder="Nhập tên cột trong file Excel (ví dụ: Ghi chú, Lý do hoàn...)"
+              value={customInputName}
+              onChange={(e) => setCustomInputName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddCustomColumn(customInputName);
+                }
+              }}
+              className="input-field"
+              style={{ flex: 1, minWidth: 200, padding: '5px 10px', fontSize: 12 }}
+            />
+            <button
+              type="button"
+              onClick={() => handleAddCustomColumn(customInputName)}
+              disabled={!customInputName.trim()}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: 12, padding: '5px 12px', fontWeight: 700 }}
+            >
+              + Thêm Cột
+            </button>
           </div>
 
           {/* Preview Row Header */}

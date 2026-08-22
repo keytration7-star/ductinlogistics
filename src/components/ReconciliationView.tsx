@@ -1481,6 +1481,30 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 <Settings2 size={14} color={isJntCarrier ? '#dc2626' : '#059669'} />
                 <span>⚙️ Ánh xạ cột</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setShowExportModal(true)}
+                style={{
+                  fontSize: 11.5,
+                  padding: '6px 12px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: '#fff',
+                  border: '1.5px solid var(--primary)',
+                  color: 'var(--primary)',
+                  borderRadius: 8,
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Cài đặt và tùy chọn cột khi xuất file Excel cho Shop và Báo cáo tổng"
+              >
+                <Settings2 size={14} color="var(--primary)" />
+                <span>⚙️ Cài đặt xuất file</span>
+              </button>
             </div>
           </div>
 
@@ -2644,6 +2668,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <button
+                type="button"
+                onClick={() => setShowExportModal(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
+                title="Tùy chọn bật/tắt cột xuất file Excel cho Shop và Báo cáo tổng"
+              >
+                <Settings2 size={15} color="var(--primary)" />
+                <span>⚙️ Cài đặt cột xuất</span>
+              </button>
+
+              <button
                 onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
                 disabled={currentSession.unmatchedOrdersCount > 0}
                 className="btn btn-secondary btn-sm"
@@ -3268,6 +3303,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           onClose={() => setShowExportModal(false)}
           carrierId={selectedCarrierId}
           carrierName={selectedCarrierTier?.carrierName}
+          availableFileHeaders={{
+            nvcHeaders,
+            appHeaders,
+          }}
         />
       )}
 
