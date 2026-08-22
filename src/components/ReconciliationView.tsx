@@ -2056,8 +2056,28 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                     <tr key={item.shop.id}>
                       <td>{idx + 1}</td>
                       <td>
-                        <strong style={{ color: 'var(--primary)' }}>{item.shop.name}</strong>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>[{item.shop.code}]</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <strong style={{ color: 'var(--primary)' }}>{item.shop.name}</strong>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 2 }}>[{item.shop.code}]</span>
+                        </div>
+                        {item.shop.nameAliases && item.shop.nameAliases.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: 20,
+                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                              color: '#fff',
+                              letterSpacing: '0.02em',
+                            }}>
+                              🔗 ĐÃ GỘP ({item.shop.nameAliases.length})
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
