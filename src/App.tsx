@@ -519,25 +519,70 @@ export function App() {
               />
             )}
           </main>
+        </div>
 
-          {/* Bottom Footer */}
-          <footer style={{
-            borderTop: '1px solid var(--border-color)',
-            padding: '16px 32px',
-            fontSize: 12,
-            color: 'var(--text-dim)',
-            background: 'var(--bg-secondary)',
-          }}>
-            <div style={{ maxWidth: 1500, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-              <div>
-                <strong>KẾ TOÁN PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD cho Nhà gom đơn.
+        {/* 🌟 100% FIXED ENTERPRISE FOOTER DOCKED AT BOTTOM (KHÔNG BỊ CUỘN) */}
+        <footer style={{
+          borderTop: '1px solid var(--border-color)',
+          padding: '8px 24px',
+          fontSize: 11.5,
+          color: 'var(--text-dim)',
+          background: 'var(--bg-secondary)',
+          flexShrink: 0,
+          zIndex: 80,
+          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.04)',
+        }}>
+          <div style={{ maxWidth: 1540, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            {/* Left Info: System and user */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ color: 'var(--text-main)', fontSize: 12 }}>
+                <strong style={{ color: 'var(--primary)' }}>KẾ TOÁN PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD
               </div>
-              <div>
-                Đang đăng nhập: <strong>{currentUser.fullName}</strong> ({currentUser.username})
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Đang đăng nhập: <strong style={{ color: 'var(--text-main)' }}>{currentUser.fullName}</strong> ({currentUser.username}) • Trạng thái: <span style={{ color: 'var(--success)', fontWeight: 600 }}>● Hoạt động</span>
               </div>
             </div>
-          </footer>
-        </div>
+
+            {/* Right Info: TQ Digital Developer branding */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '4px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(79, 70, 229, 0.04)',
+              border: '1px solid rgba(79, 70, 229, 0.16)',
+              fontSize: 11,
+              lineHeight: 1.35,
+            }}>
+              <div style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 900,
+                fontSize: 10,
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+              }}>
+                TQ
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Phát triển & hoàn thiện bởi: </span>
+                  <strong style={{ color: 'var(--text-main)' }}>CÔNG TY TNHH MTV CÔNG NGHỆ VÀ THƯƠNG MẠI TQ DIGITAL</strong>
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>
+                  Địa chỉ: Thôn Đại Lai 1, Phường Trần Hưng Đạo, Tỉnh Hưng Yên (TQ DIGITAL CO., LTD) | Hotline: <a href="tel:0936833319" style={{ color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}>09368.333.19</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Database Backup / Restore Modal */}
