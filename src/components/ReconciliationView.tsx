@@ -531,6 +531,128 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     };
   }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops, selectedCarrierTier]);
 
+  // Scan and categorize shops in uploaded files into (1) Existing Registered Shops vs (2) Unregistered New Shops
+  const scannedShopAnalysis = useMemo(() => {
+    const rowsToScan = reconcileMode === '2files' ? appRows : nvcRows;
+    const nameCol = reconcileMode === '2files' ? appMapping.shopNameColumn : (nvcMapping.shopNameColumn || 'ten_shop');
+    const phoneCol = reconcileMode === '2files' ? (appMapping.shopPhoneColumn || appMapping.receiverPhoneColumn) : (nvcMapping.shopPhoneColumn || 'sdt_shop');
+    const codCol = nvcMapping.codColumn;
+
+    const existingMap = new Map<string, {
+      shop: Shop;
+      aliasesInFile: Set<string>;
+      phonesInFile: Set<string>;
+      orderCount: number;
+      totalCod: number;
+    }>();
+
+    const newMap = new Map<string, {
+      name: string;
+      phone: string;
+      orderCount: number;
+      totalCod: number;
+      pricingPlan: ShopPricingPlan;
+    }>();
+
+    // Map nvc rows by waybill for COD lookup
+    const nvcCodByWaybill = new Map<string, number>();
+    if (codCol && nvcRows.length > 0) {
+      const wbCol = nvcMapping.waybillColumn;
+      for (const row of nvcRows) {
+        const wb = row[wbCol];
+        if (wb) {
+          nvcCodByWaybill.set(wb.toString().trim().toUpperCase(), parseNumber(row[codCol]));
+        }
+      }
+    }
+
+    rowsToScan.forEach(row => {
+      let rawName = '';
+      let rawPhone = '';
+      if (reconcileMode === '1file') {
+        rawName = extractRowField(undefined, row, nvcMapping.shopNameColumn, ['ten_shop', 'ten_cua_hang', 'shop']) || '';
+        rawPhone = extractRowField(undefined, row, nvcMapping.shopPhoneColumn, ['sdt_shop', 'phone_shop', 'sdt_gui']) || '';
+      } else {
+        rawName = String(nameCol ? row[nameCol] || '' : '').trim();
+        rawPhone = String(phoneCol ? row[phoneCol] || '' : '').trim();
+      }
+
+      if (!rawName && !rawPhone) return;
+
+      const wb = row[reconcileMode === '2files' ? appMapping.waybillColumn : nvcMapping.waybillColumn];
+      const cod = wb ? (nvcCodByWaybill.get(wb.toString().trim().toUpperCase()) || 0) : 0;
+
+      const matchRes = findRegisteredShop(shops, { name: rawName, phone: rawPhone });
+
+      if (matchRes.matched) {
+        const s = matchRes.shop;
+        const current = existingMap.get(s.id) || {
+          shop: s,
+          aliasesInFile: new Set<string>(),
+          phonesInFile: new Set<string>(),
+          orderCount: 0,
+          totalCod: 0,
+        };
+        if (rawName) current.aliasesInFile.add(rawName);
+        if (rawPhone) current.phonesInFile.add(rawPhone);
+        current.orderCount += 1;
+        current.totalCod += cod;
+        existingMap.set(s.id, current);
+      } else {
+        const key = `${rawName.toLowerCase()}|${rawPhone.replace(/\D/g, '')}`;
+        const current = newMap.get(key) || {
+          name: rawName || 'Shop Chưa Đặt Tên',
+          phone: rawPhone,
+          orderCount: 0,
+          totalCod: 0,
+          pricingPlan: createOnboardingPricingPlan(),
+        };
+        current.orderCount += 1;
+        current.totalCod += cod;
+        newMap.set(key, current);
+      }
+    });
+
+    const existingList = Array.from(existingMap.values()).map(item => ({
+      ...item,
+      aliasesInFile: Array.from(item.aliasesInFile),
+      phonesInFile: Array.from(item.phonesInFile),
+    })).sort((a, b) => b.orderCount - a.orderCount);
+
+    const newList = Array.from(newMap.values()).sort((a, b) => b.orderCount - a.orderCount);
+
+    return {
+      existingShops: existingList,
+      newShops: newList,
+      hasNewShops: newList.length > 0,
+    };
+  }, [reconcileMode, appRows, nvcRows, appMapping, nvcMapping, shops]);
+
+  const handleAddNewScannedShops = (newShopsList: { name: string; phone: string; pricingPlan: ShopPricingPlan }[]) => {
+    if (!isAdmin) {
+      showToast('Chỉ Admin mới có quyền thêm Shop mới.', 'error');
+      return;
+    }
+    const createdShops: Shop[] = newShopsList.map((item, idx) => ({
+      id: `shop_${Date.now()}_${idx}`,
+      code: `SHOP-${String(shops.length + idx + 1).padStart(3, '0')}`,
+      name: item.name,
+      phone: item.phone,
+      email: '',
+      address: '',
+      bankAccount: { bankName: '', accountNumber: '', accountHolder: '' },
+      active: true,
+      createdAt: new Date().toISOString(),
+      pricingPlan: item.pricingPlan || createOnboardingPricingPlan(),
+      nameAliases: [],
+      phoneAliases: [],
+    }));
+
+    const updatedShops = [...shops, ...createdShops];
+    onSaveShops(updatedShops);
+    showToast(`Đã thêm thành công ${createdShops.length} Shop mới vào Danh Mục Shop!`, 'success');
+  };
+
   const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
     setShopProposalGroups(groups => groups.map(group => group.id === groupId
       ? { ...group, pricingPlan: updater({ ...group.pricingPlan, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }) }
@@ -1458,12 +1580,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         };
 
         const getStep3Desc = () => {
-          if (shopProposalGroups.length > 0) {
-            const newCount = shopProposalGroups.filter(g => g.entries.some(e => !e.existing)).length;
-            if (newCount > 0) return `⚠️ Có ${newCount} Shop mới cần duyệt`;
-            return `✓ Đã khớp ${shopProposalGroups.length} Shop`;
+          if (scannedShopAnalysis.hasNewShops) {
+            return `⚠️ Có ${scannedShopAnalysis.newShops.length} Shop mới cần thêm`;
           }
-          return 'Duyệt & Cấu hình Shop';
+          if (scannedShopAnalysis.existingShops.length > 0) {
+            return `✓ Khớp 100% (${scannedShopAnalysis.existingShops.length} Shop)`;
+          }
+          return 'Kiểm tra danh sách Shop';
         };
 
         const getStep4Desc = () => {
@@ -1475,7 +1598,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const steps = [
           { step: '01', stepNum: 1, title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: wizardStep === 1, done: wizardStep > 1 || step1Done },
           { step: '02', stepNum: 2, title: 'KHỚP NỐI & KIỂM TRA', desc: getStep2Desc(), active: wizardStep === 2, done: wizardStep > 2 },
-          { step: '03', stepNum: 3, title: 'PHÁT HIỆN & DUYỆT SHOP MỚI', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || (shopReviewConfirmed && !!currentSession) },
+          { step: '03', stepNum: 3, title: 'KIỂM TRA & DUYỆT SHOP MỚI', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || (!scannedShopAnalysis.hasNewShops && !!currentSession) },
           { step: '04', stepNum: 4, title: 'BẢNG KÊ & XUẤT BÁO CÁO', desc: getStep4Desc(), active: wizardStep === 4, done: false },
         ];
 
@@ -2140,7 +2263,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         </div>
       )}
 
-      {/* 🚀 BƯỚC 3: PHÁT HIỆN & DUYỆT CẤU HÌNH SHOP MỚI */}
+      {/* 🚀 BƯỚC 3: KIỂM TRA & XÁC NHẬN SHOP MỚI PHÁT HIỆN */}
       {wizardStep === 3 && (
         <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Header Step 3 */}
@@ -2148,25 +2271,27 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <div>
               <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Store size={22} />
-                <span>BƯỚC 3: PHÁT HIỆN & CẤU HÌNH DANH SÁCH SHOP TỪ FILE EXCEL</span>
+                <span>BƯỚC 3: KIỂM TRA & XÁC NHẬN DANH SÁCH SHOP TRONG KỲ</span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                Hệ thống quét các Shop trong file đơn hàng. Bạn hãy kiểm tra tên gộp/tách và biểu giá cước để lưu vào hệ thống trước khi tính cước đối soát.
+                Hệ thống tự động đối chiếu các Shop trong file với Danh mục Shop & Cấu hình gộp shop đã lưu trong hệ thống.
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowShopProposal(true)}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Sliders size={15} />
-              <span>🏪 Mở Popup Cấu Hình Shop Chi Tiết</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {scannedShopAnalysis.hasNewShops ? (
+                <span className="badge badge-warning" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
+                  ⚠️ Phát hiện {scannedShopAnalysis.newShops.length} Shop mới
+                </span>
+              ) : (
+                <span className="badge badge-success" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
+                  ✓ 100% Shop đã có hồ sơ
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* KPI Preview Strip */}
+          {/* Quick Preview KPIs */}
           {quickPreviewStats && (
             <div style={{
               background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
@@ -2227,105 +2352,130 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
 
-          {/* Shop Proposal Summary Content */}
-          {shopProposalGroups.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* TRƯỜNG HỢP A: PHÁT HIỆN SHOP MỚI CẦN THÊM */}
+          {scannedShopAnalysis.hasNewShops && (
+            <div style={{ background: 'rgba(245, 158, 11, 0.06)', border: '1.5px solid #f59e0b', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)' }}>
-                  📋 Danh Sách Nhóm Shop Phát Hiện ({shopProposalGroups.length} nhóm định danh):
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#b45309', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={18} />
+                    <span>PHÁT HIỆN {scannedShopAnalysis.newShops.length} SHOP MỚI CHƯA CÓ TRONG HỆ THỐNG</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>
+                    Vui lòng bấm nút <strong>"Thêm Shop Mới Vào Danh Mục"</strong> để hệ thống tạo hồ sơ và tính cước.
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: g.entries.length > 1 ? 'merge' : 'separate' })))}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11.5 }}
-                  >
-                    ⚡ Gộp tự động theo SĐT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: 'separate' })))}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: 11.5 }}
-                  >
-                    ✂️ Tách riêng tất cả
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowShopProposal(true)}
-                    className="btn btn-primary btn-sm"
-                    style={{ fontSize: 11.5 }}
-                  >
-                    🔍 Mở bảng duyệt đầy đủ ({shopProposalGroups.reduce((s, g) => s + g.entries.length, 0)} shop)
-                  </button>
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddNewScannedShops(scannedShopAnalysis.newShops)}
+                  className="btn btn-warning"
+                  style={{ fontWeight: 800, fontSize: 13, padding: '8px 18px', background: '#f59e0b', color: '#fff', border: 'none' }}
+                >
+                  💾 Thêm {scannedShopAnalysis.newShops.length} Shop Mới Vào Danh Mục Shop
+                </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
-                {shopProposalGroups.map((group, idx) => {
-                  const hasNew = group.entries.some(e => !e.existing);
-                  return (
-                    <div key={group.id} style={{
-                      background: 'var(--bg-secondary)',
-                      borderRadius: 12,
-                      padding: '14px 16px',
-                      border: hasNew ? '1.5px solid #f59e0b' : '1px solid var(--border-color)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
-                            {idx + 1}. {group.label}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                            {group.entries.map(e => e.name).join(', ')}
-                          </div>
-                        </div>
-                        <span className={hasNew ? 'badge badge-warning' : 'badge badge-success'} style={{ fontSize: 10, padding: '2px 6px' }}>
-                          {hasNew ? 'Shop Mới' : 'Đã có hồ sơ'}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px dashed var(--border-color)', fontSize: 11.5 }}>
-                        <span style={{ color: 'var(--text-dim)' }}>
-                          Xử lý: <strong>{group.decision === 'merge' ? 'Gộp shop' : group.decision === 'separate' ? 'Tách riêng' : 'Tùy chỉnh'}</strong>
-                        </span>
-                        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                          {group.entries.reduce((s, e) => s + e.count, 0)} đơn hàng
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: '1.5px solid #10b981',
-              borderRadius: 14,
-              padding: '24px 20px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckCircle2 size={24} />
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>
-                Tất Cả Shop Đã Khớp Hồ Sơ Hệ Thống!
-              </div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-dim)', maxWidth: 500 }}>
-                Hệ thống đã nhận diện chính xác toàn bộ các Shop có trong file. Bấm nút dưới đây để tiến hành đối soát và lập bảng kê chi tiết!
+              <div className="table-responsive" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                <table className="data-table" style={{ fontSize: 12.5 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 50 }}>STT</th>
+                      <th>TÊN SHOP MỚI TRONG FILE</th>
+                      <th>SỐ ĐIỆN THOẠI</th>
+                      <th style={{ textAlign: 'right' }}>SỐ ĐƠN HÀNG</th>
+                      <th style={{ textAlign: 'right' }}>TỔNG COD THU HỘ</th>
+                      <th>TRẠNG THÁI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scannedShopAnalysis.newShops.map((newShop, idx) => (
+                      <tr key={idx}>
+                        <td>{idx + 1}</td>
+                        <td><strong>{newShop.name}</strong></td>
+                        <td className="mono">{newShop.phone || 'Chưa có SĐT'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">{newShop.orderCount.toLocaleString('vi-VN')} đơn</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">{formatVND(newShop.totalCod)}</td>
+                        <td>
+                          <span className="badge badge-warning" style={{ fontSize: 11 }}>Chưa có hồ sơ</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
+
+          {/* TRƯỜNG HỢP B: DANH SÁCH SHOP ĐÃ CÓ HỒ SƠ & TỰ ĐỘNG KHỚP THEO CẤU HÌNH GỘP SHOP */}
+          <div style={{ background: 'var(--bg-secondary)', border: '1.5px solid var(--border-color)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <CheckCircle2 size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--text-main)' }}>
+                    DANH SÁCH {scannedShopAnalysis.existingShops.length} SHOP ĐÃ CÓ HỒ SƠ (TỰ ĐỘNG KHỚP THEO CẤU HÌNH GỘP SHOP)
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                    Tất cả các tên phụ, SĐT phụ trong file sẽ tự động được gom về đúng Shop chính đã thiết lập trong Quản Lý Shop.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="table-responsive" style={{ maxHeight: 380, overflowY: 'auto' }}>
+              <table className="data-table" style={{ fontSize: 12.5 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 50 }}>STT</th>
+                    <th>SHOP CHÍNH (MÃ SHOP)</th>
+                    <th>TÊN / SĐT NHẬN DIỆN TỪ FILE (ĐÃ GỘP)</th>
+                    <th>BIỂU PHÍ CƯỚC ÁP DỤNG</th>
+                    <th style={{ textAlign: 'right' }}>SỐ ĐƠN</th>
+                    <th style={{ textAlign: 'right' }}>TỔNG COD</th>
+                    <th>TRẠNG THÁI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scannedShopAnalysis.existingShops.map((item, idx) => (
+                    <tr key={item.shop.id}>
+                      <td>{idx + 1}</td>
+                      <td>
+                        <strong style={{ color: 'var(--primary)' }}>{item.shop.name}</strong>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>[{item.shop.code}]</span>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
+                          {item.aliasesInFile.join(', ')}
+                        </div>
+                        {item.phonesInFile.length > 0 && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            📞 {item.phonesInFile.join(', ')}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                          {item.shop.pricingPlan?.name || 'Biểu cước chuẩn'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">
+                        {item.orderCount.toLocaleString('vi-VN')} đơn
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">
+                        {formatVND(item.totalCod)}
+                      </td>
+                      <td>
+                        <span className="badge badge-success" style={{ fontSize: 11 }}>✓ Đã Khớp</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           {/* Action Bar of Step 3 */}
           <div style={{
@@ -2350,8 +2500,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <button
               type="button"
               onClick={async () => {
-                if (shopProposalGroups.length > 0 && isAdmin) {
-                  saveShopProposals();
+                if (scannedShopAnalysis.hasNewShops) {
+                  handleAddNewScannedShops(scannedShopAnalysis.newShops);
                 }
                 await handleRunReconciliation();
                 setWizardStep(4);
@@ -2368,7 +2518,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               ) : (
                 <>
                   <Sparkles size={18} />
-                  <span>TIẾN HÀNH ĐỐI SOÁT & XUẤT BẢNG KÊ (BƯỚC 4) ➔</span>
+                  <span>TIẾN HÀNH ĐỐI SOÁT & TÍNH CƯỚC (BƯỚC 4) ➔</span>
                 </>
               )}
             </button>
