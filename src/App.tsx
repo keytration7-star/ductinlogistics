@@ -222,7 +222,7 @@ export function App() {
 
   return (
     <UIFeedbackProvider>
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
+    <div style={{ display: 'flex', height: '100vh', maxHeight: '100vh', overflow: 'hidden', background: 'var(--bg-primary)' }}>
       {/* Vertical Sidebar on Left */}
       <Sidebar
         activeTab={activeTab}
@@ -241,22 +241,24 @@ export function App() {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
+        height: '100vh',
         minWidth: 0,
-        overflowY: 'auto',
+        overflow: 'hidden',
       }}>
-        {/* Minimal Enterprise Top Header */}
+        {/* Minimal Enterprise Top Header - 100% FIXED STICKY AT TOP */}
         <header style={{
-          height: 54,
-          minHeight: 54,
+          height: 56,
+          minHeight: 56,
+          maxHeight: 56,
           background: 'var(--bg-secondary)',
           borderBottom: '1px solid var(--border-color)',
           padding: '0 28px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          position: 'sticky',
-          top: 0,
-          zIndex: 40,
+          flexShrink: 0,
+          zIndex: 90,
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
         }}>
           {/* Breadcrumb with Active Carrier */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
@@ -376,120 +378,130 @@ export function App() {
           </div>
         </header>
 
-        {/* Main Content Body */}
-        <main style={{
+        {/* Scrollable Container underneath the Fixed Top Header */}
+        <div style={{
           flex: 1,
-          maxWidth: 1540,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
           width: '100%',
-          margin: '0 auto',
-          padding: '24px 28px 60px',
         }}>
-          <div style={{ display: activeTab === 'reconciliation' ? 'block' : 'none' }}>
-            <ReconciliationView
-              shops={shops}
-              carriers={carriers}
-              currentSession={currentSession}
-              setCurrentSession={handleSetCurrentSession}
-              currentUser={currentUser}
-              onSaveShops={handleSaveShops}
-              activeCarrierId={activeCarrierId}
-              onNavigateToEmail={(session) => {
-                handleSetCurrentSession(session);
-                setActiveTab('emails');
-              }}
-            />
-          </div>
-
-          {activeTab === 'shops' && (
-            <ShopManagementView
-              shops={shops}
-              onSaveShops={handleSaveShops}
-              currentUser={currentUser}
-              sourceSession={currentSession}
-            />
-          )}
-
-          {activeTab === 'debt' && (
-            <DebtAndPayoutView
-              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-              shops={shops}
-              currentUser={currentUser}
-              onRefreshSessions={() => {
-                const updatedSessions = StorageService.getSessions();
-                setSessions(updatedSessions);
-              }}
-            />
-          )}
-
-          {activeTab === 'audit' && (
-            <DataAuditView
-              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-              shops={shops}
-              currentUser={currentUser}
-              onRefreshSessions={() => {
-                const updatedSessions = StorageService.getSessions();
-                setSessions(updatedSessions);
-              }}
-              onNavigateToPayout={() => setActiveTab('debt')}
-            />
-          )}
-
-          {activeTab === 'carriers' && (
-            <CarriersPricingView
-              carriers={carriers}
-              onSaveCarriers={handleSaveCarriers}
-              currentUser={currentUser}
-              activeCarrierId={activeCarrierId}
-            />
-          )}
-
-          {activeTab === 'emails' && (
-            <BulkEmailView
-              currentSession={currentSession}
-              emailSettings={emailSettings}
-              onSaveEmailSettings={handleSaveEmailSettings}
-              activeCarrierId={activeCarrierId}
-              activeCarrierName={activeCarrierObj.carrierName}
-            />
-          )}
-
-          {activeTab === 'history' && (
-            <HistoryAndAnalyticsView
-              sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-              shops={shops}
-              onSelectSession={(session) => {
-                setCurrentSession(session);
-                setActiveTab('reconciliation');
-              }}
-              onNavigateToEmail={(session) => {
-                setCurrentSession(session);
-                setActiveTab('emails');
-              }}
-            />
-          )}
-
-          {activeTab === 'ctv' && (
-            <CtvManagementView />
-          )}
-        </main>
-
-        {/* Bottom Footer */}
-        <footer style={{
-          borderTop: '1px solid var(--border-color)',
-          padding: '16px 32px',
-          fontSize: 12,
-          color: 'var(--text-dim)',
-          background: 'var(--bg-secondary)',
-        }}>
-          <div style={{ maxWidth: 1500, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <strong>GOMDON PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD cho Nhà gom đơn.
+          {/* Main Content Body */}
+          <main style={{
+            flex: 1,
+            maxWidth: 1540,
+            width: '100%',
+            margin: '0 auto',
+            padding: '24px 28px 60px',
+          }}>
+            <div style={{ display: activeTab === 'reconciliation' ? 'block' : 'none' }}>
+              <ReconciliationView
+                shops={shops}
+                carriers={carriers}
+                currentSession={currentSession}
+                setCurrentSession={handleSetCurrentSession}
+                currentUser={currentUser}
+                onSaveShops={handleSaveShops}
+                activeCarrierId={activeCarrierId}
+                onNavigateToEmail={(session) => {
+                  handleSetCurrentSession(session);
+                  setActiveTab('emails');
+                }}
+              />
             </div>
-            <div>
-              Đang đăng nhập: <strong>{currentUser.fullName}</strong> ({currentUser.username})
+
+            {activeTab === 'shops' && (
+              <ShopManagementView
+                shops={shops}
+                onSaveShops={handleSaveShops}
+                currentUser={currentUser}
+                sourceSession={currentSession}
+              />
+            )}
+
+            {activeTab === 'debt' && (
+              <DebtAndPayoutView
+                sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
+                shops={shops}
+                currentUser={currentUser}
+                onRefreshSessions={() => {
+                  const updatedSessions = StorageService.getSessions();
+                  setSessions(updatedSessions);
+                }}
+              />
+            )}
+
+            {activeTab === 'audit' && (
+              <DataAuditView
+                sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
+                shops={shops}
+                currentUser={currentUser}
+                onRefreshSessions={() => {
+                  const updatedSessions = StorageService.getSessions();
+                  setSessions(updatedSessions);
+                }}
+                onNavigateToPayout={() => setActiveTab('debt')}
+              />
+            )}
+
+            {activeTab === 'carriers' && (
+              <CarriersPricingView
+                carriers={carriers}
+                onSaveCarriers={handleSaveCarriers}
+                currentUser={currentUser}
+                activeCarrierId={activeCarrierId}
+              />
+            )}
+
+            {activeTab === 'emails' && (
+              <BulkEmailView
+                currentSession={currentSession}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={handleSaveEmailSettings}
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
+              />
+            )}
+
+            {activeTab === 'history' && (
+              <HistoryAndAnalyticsView
+                sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
+                shops={shops}
+                onSelectSession={(session) => {
+                  setCurrentSession(session);
+                  setActiveTab('reconciliation');
+                }}
+                onNavigateToEmail={(session) => {
+                  setCurrentSession(session);
+                  setActiveTab('emails');
+                }}
+              />
+            )}
+
+            {activeTab === 'ctv' && (
+              <CtvManagementView />
+            )}
+          </main>
+
+          {/* Bottom Footer */}
+          <footer style={{
+            borderTop: '1px solid var(--border-color)',
+            padding: '16px 32px',
+            fontSize: 12,
+            color: 'var(--text-dim)',
+            background: 'var(--bg-secondary)',
+          }}>
+            <div style={{ maxWidth: 1500, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <strong>GOMDON PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD cho Nhà gom đơn.
+              </div>
+              <div>
+                Đang đăng nhập: <strong>{currentUser.fullName}</strong> ({currentUser.username})
+              </div>
             </div>
-          </div>
-        </footer>
+          </footer>
+        </div>
       </div>
 
       {/* Database Backup / Restore Modal */}
