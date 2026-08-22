@@ -67,6 +67,9 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
   const [isScanning, setIsScanning] = useState(false);
   const [expandedShopIndexes, setExpandedShopIndexes] = useState<Set<number>>(new Set());
 
+  // Batch Multi-Select State (Xóa hàng loạt, Gán biểu giá hàng loạt, Gộp hàng loạt)
+  const [selectedBatchShopIds, setSelectedBatchShopIds] = useState<string[]>([]);
+
   // In-List Merge Shop Mode & Confirmation Modal
   const [isMergeMode, setIsMergeMode] = useState(false);
   const [selectedMergeShopIds, setSelectedMergeShopIds] = useState<string[]>([]);
@@ -680,8 +683,81 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     setIsMergeConfirmModalOpen(false);
     setIsMergeMode(false);
     setSelectedMergeShopIds([]);
+    setSelectedBatchShopIds([]);
     setCustomMergeName('');
     showToast(`Đã gộp thành công ${targetShops.length} Shop thành Shop chính "${mergedShop.name}"!`, 'success');
+  };
+
+  // Batch Delete Selected Shops
+  const handleBatchDeleteShops = async () => {
+    if (selectedBatchShopIds.length === 0) return;
+    if (!isAdmin) {
+      showToast('Chỉ Quản trị viên (Admin) mới có quyền xóa Shop.', 'warning');
+      return;
+    }
+
+    const shopsToDelete = shops.filter(s => selectedBatchShopIds.includes(s.id));
+    const ok = await showConfirm({
+      title: `Xác Nhận Xóa ${shopsToDelete.length} Shop`,
+      message: `Bạn có chắc chắn muốn xóa vĩnh viễn ${shopsToDelete.length} Shop (${shopsToDelete.slice(0, 3).map(s => s.name).join(', ')}${shopsToDelete.length > 3 ? '...' : ''}) khỏi hệ thống?`,
+      danger: true,
+    });
+
+    if (!ok) return;
+
+    const deleteIds = new Set(selectedBatchShopIds);
+    const remainingShops = shops.filter(s => !deleteIds.has(s.id));
+    onSaveShops(remainingShops);
+    setSelectedBatchShopIds([]);
+    setSelectedMergeShopIds([]);
+
+    if (remainingShops.length > 0) {
+      setSelectedShopId(remainingShops[0].id);
+      setEditingShop(JSON.parse(JSON.stringify(remainingShops[0])));
+    } else {
+      setSelectedShopId(null);
+      setEditingShop(null);
+    }
+
+    showToast(`Đã xóa thành công ${shopsToDelete.length} Shop khỏi hệ thống.`, 'success');
+  };
+
+  // Batch Apply Template Pricing to Selected Shops
+  const handleBatchApplyTemplatePricing = async () => {
+    if (selectedBatchShopIds.length === 0) return;
+    if (!isAdmin) {
+      showToast('Chỉ Admin mới có quyền cập nhật biểu giá hàng loạt.', 'warning');
+      return;
+    }
+
+    const ok = await showConfirm({
+      title: 'Áp Dụng Biểu Giá Tiêu Chuẩn',
+      message: `Bạn có muốn áp dụng Biểu giá Tiêu chuẩn (0-1kg: 20k, 1-3kg: 28k, 3-5kg: 35k, vượt cân: 5k/kg) cho ${selectedBatchShopIds.length} Shop đã chọn không?`,
+    });
+
+    if (!ok) return;
+
+    const batchIds = new Set(selectedBatchShopIds);
+    const updated = shops.map(shop => {
+      if (batchIds.has(shop.id)) {
+        return {
+          ...shop,
+          pricingPlan: {
+            ...JSON.parse(JSON.stringify(batchPricingPlan)),
+            id: `plan_${shop.id}_${Date.now()}`,
+            name: `Biểu giá ${shop.name}`,
+          },
+        };
+      }
+      return shop;
+    });
+
+    onSaveShops(updated);
+    if (editingShop && batchIds.has(editingShop.id)) {
+      const updatedEditing = updated.find(s => s.id === editingShop.id);
+      if (updatedEditing) setEditingShop(JSON.parse(JSON.stringify(updatedEditing)));
+    }
+    showToast(`Đã cập nhật Biểu giá Tiêu chuẩn cho ${selectedBatchShopIds.length} Shop thành công!`, 'success');
   };
 
   // Register All Detected Shops
@@ -927,20 +1003,61 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-              Danh Sách Shop ({filteredShops.length})
-            </div>
-            {isMergeMode && (
-              <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>
-                Đã chọn: {selectedMergeShopIds.length} shop
-              </span>
+          {/* Master Checkbox Header (Chọn 1 hoặc tất cả) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '4px 2px',
+            borderBottom: '1px solid var(--border-color)',
+            paddingBottom: 6,
+          }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--text-main)',
+              userSelect: 'none',
+            }}>
+              <input
+                type="checkbox"
+                checked={filteredShops.length > 0 && filteredShops.every(s => selectedBatchShopIds.includes(s.id))}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    const allFilteredIds = filteredShops.map(s => s.id);
+                    setSelectedBatchShopIds(Array.from(new Set([...selectedBatchShopIds, ...allFilteredIds])));
+                  } else {
+                    const filteredIds = new Set(filteredShops.map(s => s.id));
+                    setSelectedBatchShopIds(selectedBatchShopIds.filter(id => !filteredIds.has(id)));
+                  }
+                }}
+                style={{ accentColor: 'var(--primary)', cursor: 'pointer', width: 16, height: 16 }}
+              />
+              <span>Danh Sách Shop ({filteredShops.length})</span>
+            </label>
+
+            {selectedBatchShopIds.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 800 }}>
+                  Đã chọn {selectedBatchShopIds.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatchShopIds([])}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 10.5, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Bỏ chọn
+                </button>
+              </div>
             )}
           </div>
 
           {/* Scrollable Shop List */}
           <div style={{
-            maxHeight: isMergeMode ? 'calc(100vh - 350px)' : 'calc(100vh - 240px)',
+            maxHeight: (isMergeMode || selectedBatchShopIds.length > 0) ? 'calc(100vh - 360px)' : 'calc(100vh - 240px)',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
@@ -975,7 +1092,9 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             ) : (
               filteredShops.map((shop) => {
                 const isSelected = selectedShopId === shop.id;
-                const isChecked = selectedMergeShopIds.includes(shop.id);
+                const isBatchChecked = selectedBatchShopIds.includes(shop.id);
+                const isMergeChecked = selectedMergeShopIds.includes(shop.id);
+                const isChecked = isMergeMode ? isMergeChecked : isBatchChecked;
                 const groupInfo = shopGroupColorMap.get(shop.id);
 
                 return (
@@ -983,7 +1102,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                     key={shop.id}
                     onClick={() => {
                       if (isMergeMode) {
-                        if (isChecked) {
+                        if (isMergeChecked) {
                           setSelectedMergeShopIds(selectedMergeShopIds.filter(id => id !== shop.id));
                         } else {
                           setSelectedMergeShopIds([...selectedMergeShopIds, shop.id]);
@@ -993,72 +1112,67 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       }
                     }}
                     style={{
-                      padding: isMergeMode ? '9px 12px' : '11px 14px',
+                      padding: '10px 12px',
                       borderRadius: 12,
-                      border: isMergeMode
-                        ? (isChecked
-                            ? '2px solid var(--primary)'
-                            : groupInfo
-                              ? `2px solid ${groupInfo.color.border}`
-                              : '1.5px solid rgba(226, 232, 240, 0.9)')
-                        : (isSelected
-                            ? '1.5px solid var(--primary)'
-                            : '1.5px solid rgba(226, 232, 240, 0.9)'),
-                      borderLeft: isMergeMode
-                        ? (isChecked
-                            ? '6px solid var(--primary)'
-                            : groupInfo
-                              ? `6px solid ${groupInfo.color.border}`
-                              : '1.5px solid rgba(226, 232, 240, 0.9)')
-                        : (isSelected
-                            ? '5px solid var(--primary)'
-                            : '1.5px solid rgba(226, 232, 240, 0.9)'),
-                      background: isMergeMode
-                        ? (isChecked
-                            ? 'rgba(79, 70, 229, 0.10)'
-                            : groupInfo
-                              ? groupInfo.color.bg
-                              : '#ffffff')
-                        : (isSelected
-                            ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)'
-                            : '#ffffff'),
+                      border: isChecked
+                        ? '2px solid var(--primary)'
+                        : groupInfo
+                          ? `1.5px solid ${groupInfo.color.border}`
+                          : (isSelected
+                              ? '1.5px solid var(--primary)'
+                              : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                      borderLeft: isChecked
+                        ? '6px solid var(--primary)'
+                        : groupInfo
+                          ? `6px solid ${groupInfo.color.border}`
+                          : (isSelected
+                              ? '5px solid var(--primary)'
+                              : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                      background: isChecked
+                        ? 'rgba(79, 70, 229, 0.08)'
+                        : groupInfo
+                          ? groupInfo.color.bg
+                          : (isSelected
+                              ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)'
+                              : '#ffffff'),
                       boxShadow: (isSelected || isChecked) ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
+                      gap: 8,
                     }}
                   >
-                    {/* Checkbox when in Merge Mode */}
-                    {isMergeMode && (
-                      <div style={{
+                    {/* Checkbox per shop (Hỗ trợ chọn 1 hoặc nhiều shop để thao tác hàng loạt) */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isMergeMode) {
+                          if (isMergeChecked) {
+                            setSelectedMergeShopIds(selectedMergeShopIds.filter(id => id !== shop.id));
+                          } else {
+                            setSelectedMergeShopIds([...selectedMergeShopIds, shop.id]);
+                          }
+                        } else {
+                          if (isBatchChecked) {
+                            setSelectedBatchShopIds(selectedBatchShopIds.filter(id => id !== shop.id));
+                          } else {
+                            setSelectedBatchShopIds([...selectedBatchShopIds, shop.id]);
+                          }
+                        }
+                      }}
+                      style={{
+                        padding: '4px 2px',
                         color: isChecked ? 'var(--primary)' : groupInfo ? groupInfo.color.border : 'var(--text-dim)',
-                        flexShrink: 0,
+                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                      }}>
-                        {isChecked ? <CheckSquare size={18} /> : <Square size={18} />}
-                      </div>
-                    )}
-
-                    {!isMergeMode && (
-                      <div style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 'var(--radius-sm)',
-                        background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
-                        color: isSelected ? '#fff' : 'var(--primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                        fontSize: 13,
                         flexShrink: 0,
-                      }}>
-                        {shop.code.slice(0, 4)}
-                      </div>
-                    )}
+                      }}
+                      title={isChecked ? 'Bỏ chọn shop này' : 'Tick chọn shop này để thao tác'}
+                    >
+                      {isChecked ? <CheckSquare size={17} color="var(--primary)" /> : <Square size={17} />}
+                    </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
@@ -1109,6 +1223,106 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               })
             )}
           </div>
+
+          {/* ⚡ BATCH ACTIONS TOOLBAR WHEN SHOPS ARE SELECTED */}
+          {!isMergeMode && selectedBatchShopIds.length > 0 && (
+            <div style={{
+              padding: 10,
+              borderRadius: 'var(--radius-md)',
+              border: '1.5px solid var(--primary)',
+              background: '#fff',
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                  ⚡ Thao tác {selectedBatchShopIds.length} Shop đã chọn:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatchShopIds([])}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={handleBatchDeleteShops}
+                  className="btn btn-sm"
+                  disabled={!isAdmin}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.10)',
+                    color: '#dc2626',
+                    border: '1px solid #ef4444',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    justifyContent: 'center',
+                    padding: '6px 8px',
+                  }}
+                  title="Xóa vĩnh viễn các shop đã chọn"
+                >
+                  <Trash2 size={13} />
+                  <span>Xóa ({selectedBatchShopIds.length}) Shop</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBatchApplyTemplatePricing}
+                  className="btn btn-sm"
+                  disabled={!isAdmin}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.10)',
+                    color: '#047857',
+                    border: '1px solid #10b981',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    justifyContent: 'center',
+                    padding: '6px 8px',
+                  }}
+                  title="Gán biểu giá chuẩn cho các shop đã chọn"
+                >
+                  <Zap size={13} />
+                  <span>Gán biểu giá chuẩn</span>
+                </button>
+              </div>
+
+              {selectedBatchShopIds.length >= 2 && (() => {
+                const selectedShops = shops.filter(s => selectedBatchShopIds.includes(s.id));
+                const validation = validateMergeSelection(selectedShops);
+
+                if (validation.eligible) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMergeShopIds(selectedBatchShopIds);
+                        setTargetMainShopId(selectedShops[0].id);
+                        setCustomMergeName(selectedShops[0].name);
+                        setIsMergeConfirmModalOpen(true);
+                      }}
+                      className="btn btn-primary btn-sm"
+                      style={{ width: '100%', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, padding: '7px 10px' }}
+                    >
+                      <GitMerge size={14} />
+                      <span>Gộp {selectedBatchShopIds.length} Shop này thành 1 →</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <div style={{ fontSize: 10.5, color: '#b91c1c', display: 'flex', alignItems: 'center', gap: 4, background: '#fef2f2', padding: '4px 8px', borderRadius: 4 }}>
+                    <AlertCircle size={12} color="#ef4444" style={{ flexShrink: 0 }} />
+                    <span>Để gộp, các shop được tick chọn phải cùng SĐT hoặc cùng Tên (cùng màu).</span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Sticky action bar when in Merge Mode */}
           {isMergeMode && (
