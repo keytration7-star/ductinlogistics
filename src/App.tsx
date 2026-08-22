@@ -68,7 +68,8 @@ export function App() {
   // Synchronize currentSession with activeCarrierId: When switching carrier, load the matching carrier session or reset to null
   useEffect(() => {
     if (activeCarrierId) {
-      if (currentSession && (currentSession.carrierId || 'jnt') !== activeCarrierId) {
+      const isMatching = currentSession && (currentSession.carrierId || 'jnt') === activeCarrierId;
+      if (!isMatching) {
         const matchingSessions = sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId);
         setCurrentSession(matchingSessions.length > 0 ? matchingSessions[0] : null);
       }
