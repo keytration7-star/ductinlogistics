@@ -11,6 +11,7 @@ import {
   Layers,
   Search,
   Trash2,
+  Store,
 } from 'lucide-react';
 import type { 
   CarrierWholesaleTier, 
@@ -141,10 +142,12 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
 
   // Compute live statistics per carrier
   const carrierStats = useMemo(() => {
-    const statsMap = new Map<string, { sessionCount: number; orderCount: number; totalCod: number; totalProfit: number; lastSessionDate?: string }>();
+    const statsMap = new Map<string, { shopCount: number; sessionCount: number; orderCount: number; totalCod: number; totalProfit: number; lastSessionDate?: string }>();
 
     carriers.forEach(c => {
+      const cShops = shops.filter(s => (s.carrierId || 'jnt') === c.carrierId);
       statsMap.set(c.carrierId, {
+        shopCount: cShops.length,
         sessionCount: 0,
         orderCount: 0,
         totalCod: 0,
@@ -155,6 +158,7 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
     sessions.forEach(sess => {
       const cId = sess.carrierId || 'jnt';
       const existing = statsMap.get(cId) || {
+        shopCount: shops.filter(s => (s.carrierId || 'jnt') === cId).length,
         sessionCount: 0,
         orderCount: 0,
         totalCod: 0,
@@ -172,7 +176,7 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
     });
 
     return statsMap;
-  }, [carriers, sessions]);
+  }, [carriers, sessions, shops]);
 
   // Filtered carriers
   const filteredCarriers = useMemo(() => {
@@ -478,7 +482,7 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
         }}>
           {filteredCarriers.map(carrier => {
             const theme = CARRIER_THEMES[carrier.carrierId] || DEFAULT_THEME;
-            const stats = carrierStats.get(carrier.carrierId) || { sessionCount: 0, orderCount: 0, totalCod: 0, totalProfit: 0 };
+            const stats = carrierStats.get(carrier.carrierId) || { shopCount: 0, sessionCount: 0, orderCount: 0, totalCod: 0, totalProfit: 0, lastSessionDate: undefined };
             
             // Format weight tiers summary
             const weightTiersSummary = carrier.weightRules && carrier.weightRules.length > 0
@@ -592,34 +596,44 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
                   {/* Summary Metric Stats */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 10,
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 8,
                     marginTop: 16,
                     background: 'var(--bg-secondary)',
                     borderRadius: 12,
                     padding: 12,
                   }}>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <FileSpreadsheet size={12} />
-                        <span>Kỳ đối soát:</span>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <Store size={12} />
+                        <span>Shop:</span>
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-                        {stats.sessionCount} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-dim)' }}>kỳ</span>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
+                        {stats.shopCount} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>shop</span>
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Package size={12} />
-                        <span>Tổng đơn:</span>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <FileSpreadsheet size={12} />
+                        <span>Kỳ ĐS:</span>
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-                        {stats.orderCount.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-dim)' }}>đơn</span>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
+                        {stats.sessionCount} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>kỳ</span>
                       </div>
                     </div>
 
-                    <div style={{ gridColumn: 'span 2', borderTop: '1px solid var(--border-color)', paddingTop: 8, marginTop: 2 }}>
+                    <div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <Package size={12} />
+                        <span>Tổng đơn:</span>
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
+                        {stats.orderCount.toLocaleString('vi-VN')} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>đơn</span>
+                      </div>
+                    </div>
+
+                    <div style={{ gridColumn: 'span 3', borderTop: '1px solid var(--border-color)', paddingTop: 8, marginTop: 2 }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
                         Biểu cước gốc: <strong style={{ color: 'var(--text-main)' }}>{weightTiersSummary}</strong>
                       </div>

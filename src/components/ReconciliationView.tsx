@@ -675,6 +675,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         active: true,
         createdAt: new Date().toISOString(),
         pricingPlan,
+        carrierId: activeCarrierId || selectedCarrierId || 'jnt',
         nameAliases: [],
         phoneAliases: [],
       };

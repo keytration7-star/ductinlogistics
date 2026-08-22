@@ -259,7 +259,11 @@ export const StorageService = {
     const data = localStorage.getItem(SHOPS_KEY);
     if (!data) return [];
     try {
-      return JSON.parse(data);
+      const parsed: Shop[] = JSON.parse(data);
+      return parsed.map(s => ({
+        ...s,
+        carrierId: s.carrierId || 'jnt',
+      }));
     } catch {
       return [];
     }

@@ -34,6 +34,8 @@ interface ShopManagementViewProps {
   onSaveShops: (shops: Shop[]) => void;
   currentUser?: UserAccount;
   sourceSession?: ReconciliationSession | null;
+  activeCarrierId?: string;
+  activeCarrierName?: string;
 }
 
 import { VIETNAM_BANKS as FULL_VIETNAM_BANKS } from '../constants/banks';
@@ -52,7 +54,14 @@ const GROUP_COLORS = [
   { bg: 'rgba(99, 102, 241, 0.08)', border: '#6366f1', text: '#4338ca', badge: '#e0e7ff', dot: '#4f46e5', label: 'Chàm' },
 ];
 
-export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops, currentUser, sourceSession }) => {
+export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ 
+  shops, 
+  onSaveShops, 
+  currentUser, 
+  sourceSession,
+  activeCarrierId,
+  activeCarrierName,
+}) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -162,6 +171,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
         accountHolder: '',
       },
       pricingPlan: defaultPricingPlan,
+      carrierId: activeCarrierId || 'jnt',
       notes: '',
       createdAt: new Date().toISOString(),
       active: true,
@@ -791,6 +801,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
           accountHolder: d.accountHolder || d.name,
         },
         pricingPlan: finalPricing,
+        carrierId: activeCarrierId || 'jnt',
         notes: `Đã nhập tự động từ file Excel (${d.orderCount} đơn)`,
         createdAt: new Date().toISOString(),
         active: true,
@@ -863,12 +874,21 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       {/* Top Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Store size={24} color="var(--primary)" />
-            Quản Lý Danh Sách Shop & Biểu Giá Riêng
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Giao diện 2 bảng trực quan: Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết live ở bảng bên phải.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+              <Store size={24} color="var(--primary)" />
+              Quản Lý Danh Sách Shop & Biểu Giá Riêng
+            </h2>
+            {activeCarrierName && (
+              <span className="badge badge-primary" style={{ fontSize: 12, padding: '4px 10px', fontWeight: 800, letterSpacing: '0.02em' }}>
+                HÃNG: {activeCarrierName.toUpperCase()}
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            {activeCarrierName
+              ? `Không gian quản lý độc lập danh sách Shop, SĐT & Biểu cước bậc thang riêng cho đơn vị ${activeCarrierName}.`
+              : 'Giao diện 2 bảng trực quan: Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết live ở bảng bên phải.'}
           </p>
         </div>
       </div>

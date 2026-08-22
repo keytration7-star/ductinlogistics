@@ -82,6 +82,7 @@ export interface Shop {
   previousDebt?: number; // Công nợ cũ còn tồn (-/+)
   ctvId?: string;        // ID Cộng tác viên phụ trách shop
   ctvName?: string;      // Tên Cộng tác viên phụ trách shop
+  carrierId?: string;    // Mã Đơn vị vận chuyển quản lý shop này (e.g. 'jnt', 'ghn', 'vtp')
   notes?: string;
   createdAt: string;
   active: boolean;

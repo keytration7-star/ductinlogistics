@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ReconciliationView } from './components/ReconciliationView';
 import { ShopManagementView } from './components/ShopManagementView';
@@ -101,9 +101,27 @@ export function App() {
     sessionStorage.removeItem('gomdon_active_carrier_id');
   };
 
-  const handleSaveShops = (updatedShops: Shop[]) => {
-    setShops(updatedShops);
-    StorageService.saveShops(updatedShops);
+  // Filter shops strictly belonging to the currently selected Carrier workspace
+  const carrierShops = useMemo(() => {
+    if (!activeCarrierId) return shops;
+    return shops.filter(s => (s.carrierId || 'jnt') === activeCarrierId);
+  }, [shops, activeCarrierId]);
+
+  const handleSaveShops = (updatedCarrierShops: Shop[]) => {
+    if (!activeCarrierId) {
+      setShops(updatedCarrierShops);
+      StorageService.saveShops(updatedCarrierShops);
+      return;
+    }
+    // Isolate by carrier: Preserve shops of other carriers, replace/update shops for this carrier
+    const otherShops = shops.filter(s => (s.carrierId || 'jnt') !== activeCarrierId);
+    const taggedCarrierShops = updatedCarrierShops.map(s => ({
+      ...s,
+      carrierId: s.carrierId || activeCarrierId,
+    }));
+    const newAllShops = [...otherShops, ...taggedCarrierShops];
+    setShops(newAllShops);
+    StorageService.saveShops(newAllShops);
   };
 
   const handleSaveCarriers = (updatedCarriers: CarrierWholesaleTier[]) => {
@@ -397,7 +415,7 @@ export function App() {
           }}>
             <div style={{ display: activeTab === 'reconciliation' ? 'block' : 'none' }}>
               <ReconciliationView
-                shops={shops}
+                shops={carrierShops}
                 carriers={carriers}
                 currentSession={currentSession}
                 setCurrentSession={handleSetCurrentSession}
@@ -413,17 +431,19 @@ export function App() {
 
             {activeTab === 'shops' && (
               <ShopManagementView
-                shops={shops}
+                shops={carrierShops}
                 onSaveShops={handleSaveShops}
                 currentUser={currentUser}
                 sourceSession={currentSession}
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
               />
             )}
 
             {activeTab === 'debt' && (
               <DebtAndPayoutView
                 sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-                shops={shops}
+                shops={carrierShops}
                 currentUser={currentUser}
                 onRefreshSessions={() => {
                   const updatedSessions = StorageService.getSessions();
@@ -435,7 +455,7 @@ export function App() {
             {activeTab === 'audit' && (
               <DataAuditView
                 sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-                shops={shops}
+                shops={carrierShops}
                 currentUser={currentUser}
                 onRefreshSessions={() => {
                   const updatedSessions = StorageService.getSessions();
@@ -467,7 +487,7 @@ export function App() {
             {activeTab === 'history' && (
               <HistoryAndAnalyticsView
                 sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-                shops={shops}
+                shops={carrierShops}
                 onSelectSession={(session) => {
                   setCurrentSession(session);
                   setActiveTab('reconciliation');
