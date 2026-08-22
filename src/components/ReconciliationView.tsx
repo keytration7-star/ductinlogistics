@@ -493,7 +493,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const effectiveNvcFee = feeCol ? nvcFee : calculateWeightFee(weight, carrierPricing);
       totalNvcFee += (effectiveNvcFee + nvcOther);
 
-      const sFee = calculateWeightFee(weight, plan) + (plan.fixedSurcharge || 0);
+      // 🔑 J&T CORE RULE: Only charge Shop shipping fee if the NVC carrier actually charged a fee for this order (nvcFee > 0 or nvcOther > 0). If NVC fee is 0đ, Shop fee is strictly 0đ!
+      const nvcHasFee = !feeCol || (effectiveNvcFee > 0 || nvcOther > 0);
+      const sFee = nvcHasFee ? (calculateWeightFee(weight, plan) + (plan.fixedSurcharge || 0)) : 0;
       totalShopFee += sFee;
     }
 
