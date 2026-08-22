@@ -1525,11 +1525,41 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </div>
               </div>
             </div>
-            {reconcileMode === '2files' && (
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Check size={14} strokeWidth={3} />
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const jnt = carriers.find(c => c.carrierId === 'jnt' || c.id === 'jnt') || carriers[0];
+                  if (isAdmin) setConfigCarrier(jnt);
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: 12,
+                  padding: '6px 12px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#fff',
+                  border: '1.5px solid var(--primary)',
+                  color: 'var(--primary)',
+                  borderRadius: 8,
+                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.15)',
+                  cursor: 'pointer'
+                }}
+                title="Cài đặt ánh xạ cột cho File Đối Soát J&T và File App"
+              >
+                <Settings2 size={15} color="var(--primary)" />
+                <span>⚙️ Cài đặt ánh xạ cột</span>
+              </button>
+
+              {reconcileMode === '2files' && (
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Check size={14} strokeWidth={3} />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Module Tab 2: Other Carriers (1 Single File: GHN, GHTK, Viettel Post...) */}
