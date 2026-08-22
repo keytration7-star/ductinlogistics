@@ -15,6 +15,8 @@ import { CompanySettingsModal } from './components/CompanySettingsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
+import { CarrierHubDashboard } from './components/CarrierHubDashboard';
+import { Truck } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -34,6 +36,12 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() =>
     AuthService.getAccessToken() ? AuthService.getCurrentUser() : null
   );
+  
+  // Active Carrier Workspace Context (null = Carrier Hub Dashboard)
+  const [activeCarrierId, setActiveCarrierId] = useState<string | null>(() => {
+    return sessionStorage.getItem('gomdon_active_carrier_id') || null;
+  });
+
   const [activeTab, setActiveTab] = useState<string>('reconciliation');
 
   const [shops, setShops] = useState<Shop[]>([]);
@@ -90,6 +98,8 @@ export function App() {
   const handleLogout = () => {
     AuthService.logout();
     setCurrentUser(null);
+    setActiveCarrierId(null);
+    sessionStorage.removeItem('gomdon_active_carrier_id');
   };
 
   const handleSaveShops = (updatedShops: Shop[]) => {
@@ -124,6 +134,93 @@ export function App() {
     );
   }
 
+  // 🚚 CARRIER HUB DASHBOARD: Render when no specific carrier is selected
+  if (!activeCarrierId) {
+    return (
+      <UIFeedbackProvider>
+        <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+          {/* Top Bar for Hub */}
+          <header style={{
+            height: 56,
+            background: 'var(--bg-secondary)',
+            borderBottom: '1px solid var(--border-color)',
+            padding: '0 32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 40,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: 'var(--primary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: 13,
+              }}>
+                KT
+              </div>
+              <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-main)' }}>
+                KẾ TOÁN PRO ENTERPRISE
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11 }}>
+                {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700 }}>
+                <span>{currentUser.fullName}</span>
+                <span className="badge badge-primary" style={{ fontSize: 10 }}>{currentUser.role}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="btn btn-secondary btn-sm"
+                style={{ color: '#ef4444', fontWeight: 700 }}
+              >
+                Đăng Xuất
+              </button>
+            </div>
+          </header>
+
+          <CarrierHubDashboard
+            carriers={carriers}
+            shops={shops}
+            sessions={sessions}
+            currentUser={currentUser}
+            onSelectCarrier={(carrierId) => {
+              setActiveCarrierId(carrierId);
+              sessionStorage.setItem('gomdon_active_carrier_id', carrierId);
+            }}
+            onSaveCarriers={handleSaveCarriers}
+            onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
+            onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+          />
+        </div>
+      </UIFeedbackProvider>
+    );
+  }
+
+  const activeCarrierObj = carriers.find(c => c.carrierId === activeCarrierId) || {
+    id: activeCarrierId,
+    carrierId: activeCarrierId,
+    carrierName: activeCarrierId.toUpperCase(),
+    weightRules: [],
+    extraStepWeight: 1,
+    extraStepPrice: 5000,
+    returnFeePercent: 50,
+  };
+
   return (
     <UIFeedbackProvider>
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
@@ -138,8 +235,12 @@ export function App() {
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
+        activeCarrierName={activeCarrierObj.carrierName}
+        onBackToHub={() => {
+          setActiveCarrierId(null);
+          sessionStorage.removeItem('gomdon_active_carrier_id');
+        }}
       />
-
 
       {/* Main Right Content Panel */}
       <div style={{
@@ -151,8 +252,8 @@ export function App() {
       }}>
         {/* Minimal Enterprise Top Header */}
         <header style={{
-          height: 52,
-          minHeight: 52,
+          height: 54,
+          minHeight: 54,
           background: 'var(--bg-secondary)',
           borderBottom: '1px solid var(--border-color)',
           padding: '0 28px',
@@ -163,9 +264,32 @@ export function App() {
           top: 0,
           zIndex: 40,
         }}>
-          {/* Breadcrumb */}
+          {/* Breadcrumb with Active Carrier */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
             <span style={{ fontWeight: 600 }}>GOMDON PRO ENTERPRISE</span>
+            <span>/</span>
+            <span 
+              onClick={() => {
+                setActiveCarrierId(null);
+                sessionStorage.removeItem('gomdon_active_carrier_id');
+              }}
+              style={{
+                fontWeight: 800,
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '2px 8px',
+                borderRadius: 6,
+                background: 'rgba(79, 70, 229, 0.08)',
+                border: '1px solid rgba(79, 70, 229, 0.2)',
+              }}
+              title="Click để đổi đơn vị vận chuyển hoặc quay về Hub"
+            >
+              <Truck size={14} />
+              <span>{activeCarrierObj.carrierName}</span>
+            </span>
             <span>/</span>
             <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
               {activeTab === 'reconciliation' && 'Đối Soát Kéo Thả'}
@@ -180,10 +304,22 @@ export function App() {
             </span>
           </div>
 
-          {/* Data connection indicator: never claim the server is online without a successful sync. */}
+          {/* Right Header Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCarrierId(null);
+                sessionStorage.removeItem('gomdon_active_carrier_id');
+              }}
+              className="btn btn-secondary btn-sm"
+              style={{ fontWeight: 800, fontSize: 11.5, color: 'var(--primary)', borderColor: 'var(--primary)' }}
+            >
+              🔄 Đổi Hãng Vận Chuyển
+            </button>
+
             <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '3px 8px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
-              {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra dữ liệu'}
+              {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
             </span>
           </div>
         </header>

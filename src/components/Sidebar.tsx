@@ -29,10 +29,12 @@ interface SidebarProps {
   onOpenSettingsModal: () => void;
   currentUser: UserAccount;
   onLogout: () => void;
+  activeCarrierName?: string;
+  onBackToHub?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, onOpenCompanyModal, onOpenSettingsModal, currentUser, onLogout,
+  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, onOpenCompanyModal, onOpenSettingsModal, currentUser, onLogout, activeCarrierName, onBackToHub,
 }) => {
   const { showConfirm } = useConfirm();
   // Grouped Navigation Items per business domain
@@ -259,6 +261,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <LogOut size={13} />
             </button>
           </div>
+
+          {/* 3. ACTIVE CARRIER WORKSPACE CARD / SWITCHER */}
+          {activeCarrierName && onBackToHub && (
+            <div 
+              onClick={onBackToHub}
+              style={{
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                border: '1.5px solid var(--primary)',
+                borderRadius: 'var(--radius-md)',
+                padding: '8px 10px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                transition: 'all 0.15s ease',
+              }}
+              title="Bấm để đổi sang Hãng khác hoặc quay về Dashboard Đơn Vị Vận Chuyển"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Truck size={13} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 9.5, color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>Hãng đang chọn</div>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {activeCarrierName}
+                  </div>
+                </div>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 800, padding: '2px 6px', background: '#fff', borderRadius: 4, border: '1px solid var(--primary)', flexShrink: 0 }}>
+                Đổi Hãng ↻
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Grouped Navigation Menu */}
