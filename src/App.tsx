@@ -234,11 +234,6 @@ export function App() {
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
-        activeCarrierName={activeCarrierObj.carrierName}
-        onBackToHub={() => {
-          setActiveCarrierId(null);
-          sessionStorage.removeItem('gomdon_active_carrier_id');
-        }}
       />
 
       {/* Main Right Content Panel */}
@@ -304,19 +299,78 @@ export function App() {
 
           {/* Right Header Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
+            {/* Active Carrier Card / Switcher Widget */}
+            <div 
               onClick={() => {
                 setActiveCarrierId(null);
                 sessionStorage.removeItem('gomdon_active_carrier_id');
               }}
-              className="btn btn-secondary btn-sm"
-              style={{ fontWeight: 800, fontSize: 11.5, color: 'var(--primary)', borderColor: 'var(--primary)' }}
+              style={{
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)',
+                border: '1.5px solid var(--primary)',
+                borderRadius: 10,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.08)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Bấm để đổi sang Hãng khác hoặc quay về Dashboard Đơn Vị Vận Chuyển"
             >
-              🔄 Đổi Hãng Vận Chuyển
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Truck size={14} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    HÃNG ĐANG CHỌN
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 900, color: 'var(--primary)', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                    {activeCarrierObj.carrierName}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveCarrierId(null);
+                  sessionStorage.removeItem('gomdon_active_carrier_id');
+                }}
+                style={{
+                  fontSize: 11,
+                  color: 'var(--primary)',
+                  fontWeight: 800,
+                  padding: '3px 8px',
+                  background: '#fff',
+                  borderRadius: 6,
+                  border: '1.5px solid var(--primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                }}
+              >
+                <span>Đổi Hãng</span>
+                <span style={{ fontSize: 12 }}>↻</span>
+              </button>
+            </div>
 
-            <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '3px 8px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
+            <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '4px 9px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
               {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
             </span>
           </div>
