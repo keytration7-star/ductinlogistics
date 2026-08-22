@@ -34,8 +34,8 @@ import type {
   ShopPricingPlan
 } from '../types';
 import { ExcelService } from '../services/excelService';
-import { autoDetectColumns, normalizeHeader } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, normalizePhone, getShopPhones, type DuplicateCheckResult } from '../services/reconciliationService';
+import { autoDetectColumns, normalizeHeader, isSummaryOrInvalidWaybill, parseNumber, parseWeightToKg } from '../services/smartColumnDetector';
+import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, normalizePhone, getShopPhones, extractRowField, type DuplicateCheckResult } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
@@ -400,6 +400,191 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       (o.productName && o.productName.toLowerCase().includes(term))
     );
   }, [currentSession, unmatchedSearchTerm]);
+
+  // Step 2 Fast Preview KPI Stats
+  const quickPreviewStats = useMemo(() => {
+    if (nvcRows.length === 0) return null;
+
+    let totalOrders = 0;
+    let totalCod = 0;
+    let totalNvcFee = 0;
+    let totalShopFee = 0;
+
+    const waybillCol = nvcMapping.waybillColumn;
+    const codCol = nvcMapping.codColumn;
+    const feeCol = nvcMapping.feeColumn;
+    const otherFeeCol = nvcMapping.otherFeeColumn;
+    const weightCol = nvcMapping.weightColumn;
+
+    const fallbackPricing: ShopPricingPlan = {
+      id: 'plan_fallback',
+      name: 'Bảng giá Tiêu chuẩn',
+      weightRules: [
+        { minWeight: 0, maxWeight: 1, price: 22000 },
+        { minWeight: 1, maxWeight: 3, price: 28000 },
+        { minWeight: 3, maxWeight: 5, price: 35000 },
+      ],
+      extraStepWeight: 1,
+      extraStepPrice: 5000,
+      returnFeePercent: 50,
+      insuranceFeePercent: 0,
+      fixedSurcharge: 0,
+    };
+
+    const appByWaybill = new Map<string, Record<string, any>>();
+    if (reconcileMode === '2files' && appRows.length > 0) {
+      const appWbCol = appMapping.waybillColumn;
+      for (const row of appRows) {
+        const wb = row[appWbCol];
+        if (wb && !isSummaryOrInvalidWaybill(wb)) {
+          appByWaybill.set(wb.toString().trim().toUpperCase(), row);
+        }
+      }
+    }
+
+    for (const row of nvcRows) {
+      const rawWb = row[waybillCol];
+      if (isSummaryOrInvalidWaybill(rawWb)) continue;
+      totalOrders++;
+
+      const cod = codCol ? parseNumber(row[codCol]) : 0;
+      const nvcFee = feeCol ? parseNumber(row[feeCol]) : 0;
+      const nvcOther = otherFeeCol ? parseNumber(row[otherFeeCol]) : 0;
+      totalCod += cod;
+      totalNvcFee += (nvcFee + nvcOther);
+
+      const wbKey = rawWb.toString().trim().toUpperCase();
+      const appRow = reconcileMode === '1file' ? row : appByWaybill.get(wbKey);
+      
+      let shopName = '';
+      let shopPhone = '';
+      if (reconcileMode === '1file') {
+        shopName = extractRowField(undefined, row, nvcMapping.shopNameColumn, ['ten_shop', 'ten_cua_hang', 'shop']) || '';
+        shopPhone = extractRowField(undefined, row, nvcMapping.shopPhoneColumn, ['sdt_shop', 'phone_shop', 'sdt_gui']) || '';
+      } else if (appRow) {
+        shopName = String(appMapping.shopNameColumn ? appRow[appMapping.shopNameColumn] || '' : '').trim();
+        shopPhone = String(appMapping.shopPhoneColumn ? appRow[appMapping.shopPhoneColumn] || '' : '').trim();
+      }
+
+      const matchRes = findRegisteredShop(shops, { name: shopName, phone: shopPhone });
+      const plan = matchRes.matched ? matchRes.shop.pricingPlan : fallbackPricing;
+      
+      const weightVal = weightCol ? row[weightCol] : (appRow && appMapping.weightColumn ? appRow[appMapping.weightColumn] : 0.5);
+      const weight = parseWeightToKg(weightVal);
+      
+      const sFee = calculateWeightFee(weight, plan) + (plan.fixedSurcharge || 0);
+      totalShopFee += sFee;
+    }
+
+    const estimatedProfit = totalShopFee - totalNvcFee;
+    const estimatedShopPayout = totalCod - totalShopFee;
+
+    return {
+      totalOrders,
+      totalCod,
+      totalNvcFee,
+      totalShopFee,
+      estimatedProfit,
+      estimatedShopPayout,
+    };
+  }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops]);
+
+  // Step 2 Grouped Excel-style Shop Table Data
+  const fileShopGridData = useMemo(() => {
+    const rowsToScan = reconcileMode === '1file' ? nvcRows : appRows;
+    const nameCol = reconcileMode === '1file' ? nvcMapping.shopNameColumn : appMapping.shopNameColumn;
+    const phoneCol = reconcileMode === '1file' ? nvcMapping.shopPhoneColumn : appMapping.shopPhoneColumn;
+    const codCol = reconcileMode === '1file' ? nvcMapping.codColumn : undefined;
+
+    if (rowsToScan.length === 0) return null;
+
+    interface ShopGridItem {
+      name: string;
+      phone: string;
+      address?: string;
+      orderCount: number;
+      totalCod: number;
+      matchedShop?: Shop;
+    }
+
+    const map = new Map<string, ShopGridItem>();
+
+    for (const row of rowsToScan) {
+      let name = String(nameCol ? row[nameCol] || '' : '').trim();
+      let phone = String(phoneCol ? row[phoneCol] || '' : '').trim();
+      if (!name && !phone) continue;
+      name = name || 'Chưa đặt tên';
+
+      const key = `${name.toLowerCase()}|${phone.replace(/\D/g, '')}`;
+      let item = map.get(key);
+      if (!item) {
+        const matchRes = findRegisteredShop(shops, { name, phone });
+        item = {
+          name,
+          phone,
+          address: '',
+          orderCount: 0,
+          totalCod: 0,
+          matchedShop: matchRes.matched ? matchRes.shop : undefined,
+        };
+        map.set(key, item);
+      }
+      item.orderCount++;
+      if (codCol && row[codCol]) {
+        item.totalCod += parseNumber(row[codCol]);
+      }
+    }
+
+    const items = Array.from(map.values());
+    if (items.length === 0) return null;
+
+    const phoneToItems = new Map<string, ShopGridItem[]>();
+    const nameToItems = new Map<string, ShopGridItem[]>();
+
+    items.forEach(item => {
+      const normPhone = normalizePhone(item.phone);
+      if (normPhone) {
+        if (!phoneToItems.has(normPhone)) phoneToItems.set(normPhone, []);
+        phoneToItems.get(normPhone)!.push(item);
+      }
+
+      const normName = normalizeHeader(item.name);
+      if (normName) {
+        if (!nameToItems.has(normName)) nameToItems.set(normName, []);
+        nameToItems.get(normName)!.push(item);
+      }
+    });
+
+    const phoneConflictGroups: { phone: string; items: ShopGridItem[] }[] = [];
+    const nameConflictGroups: { name: string; items: ShopGridItem[] }[] = [];
+    const usedKeys = new Set<string>();
+
+    phoneToItems.forEach((groupItems, phone) => {
+      if (groupItems.length > 1) {
+        phoneConflictGroups.push({ phone, items: groupItems });
+        groupItems.forEach(it => usedKeys.add(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
+      }
+    });
+
+    nameToItems.forEach((groupItems, name) => {
+      if (groupItems.length > 1) {
+        const remaining = groupItems.filter(it => !usedKeys.has(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
+        if (remaining.length > 1) {
+          nameConflictGroups.push({ name, items: groupItems });
+          groupItems.forEach(it => usedKeys.add(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
+        }
+      }
+    });
+
+    const cleanShops = items.filter(it => !usedKeys.has(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
+
+    return {
+      totalDistinctIdentities: items.length,
+      phoneConflictGroups,
+      nameConflictGroups,
+      cleanShops,
+    };
+  }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops]);
 
   const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
     setShopProposalGroups(groups => groups.map(group => group.id === groupId
@@ -1835,6 +2020,262 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </div>
               )}
             </div>
+
+          </div>
+        )}
+
+        {/* STEP 2 PREVIEW: FAST KPI STATS & GROUPED EXCEL-STYLE SHOP TABLE */}
+        {quickPreviewStats && !currentSession && (
+          <div style={{ marginTop: 24, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            
+            {/* Top KPI Preview Header & Cards */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
+              border: '1.5px solid var(--primary-glow)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 18,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    📊 SỐ LIỆU DỰ TÍNH NHANH TỪ FILE (BƯỚC 2)
+                  </span>
+                  <span style={{ fontSize: 11, background: 'var(--primary)', color: '#fff', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                    Tự động quét từ file
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  * Số liệu dự tính theo dữ liệu thô và biểu giá hiện hành
+                </div>
+              </div>
+
+              {/* Grid 6 Thẻ KPI */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: 12,
+              }}>
+                {/* 1. Tổng đơn */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
+                    {quickPreviewStats.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 500 }}>đơn</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Đọc từ file đối soát</div>
+                </div>
+
+                {/* 2. Tổng COD */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG TIỀN COD THU HỘ</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', margin: '4px 0' }}>
+                    {formatVND(quickPreviewStats.totalCod)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tiền NVC đã thu từ khách</div>
+                </div>
+
+                {/* 3. Cước NVC gốc */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC GỐC TRẢ NVC</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warning)', margin: '4px 0' }}>
+                    {formatVND(quickPreviewStats.totalNvcFee)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước vận chuyển + phụ phí</div>
+                </div>
+
+                {/* 4. Doanh thu cước thu shop */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>DOANH THU CƯỚC SHOP</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
+                    {formatVND(quickPreviewStats.totalShopFee)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tạm tính theo biểu giá shop</div>
+                </div>
+
+                {/* 5. Lợi nhuận ròng */}
+                <div style={{ background: quickPreviewStats.estimatedProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${quickPreviewStats.estimatedProfit >= 0 ? '#10b981' : '#ef4444'}`, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', fontWeight: 800 }}>LỢI NHUẬN RÒNG (LÃI DỰ TÍNH)</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', margin: '4px 0' }}>
+                    {quickPreviewStats.estimatedProfit >= 0 ? '+' : ''}{formatVND(quickPreviewStats.estimatedProfit)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>= Cước thu shop - Cước NVC</div>
+                </div>
+
+                {/* 6. Thực chuyển trả shop */}
+                <div style={{ background: 'rgba(79, 70, 229, 0.08)', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--primary)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN TRẢ SHOP</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
+                    {formatVND(quickPreviewStats.estimatedShopPayout)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>= COD thu - Cước & phí shop</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Grouped Excel-style Shop Table */}
+            {fileShopGridData && (
+              <div style={{
+                background: '#fff',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '14px 18px',
+                  background: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase' }}>
+                      📋 DANH SÁCH & PHÂN NHÓM SHOP TỪ FILE EXCEL
+                    </span>
+                    <span style={{ fontSize: 11, background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '3px 9px', borderRadius: 12, fontWeight: 700 }}>
+                      {fileShopGridData.totalDistinctIdentities} Định Danh Shop Trong File
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {fileShopGridData.phoneConflictGroups.length > 0 && (
+                      <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                        🔴 {fileShopGridData.phoneConflictGroups.length} Nhóm 1 SĐT nhiều Tên
+                      </span>
+                    )}
+                    {fileShopGridData.nameConflictGroups.length > 0 && (
+                      <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                        🟠 {fileShopGridData.nameConflictGroups.length} Nhóm 1 Tên nhiều SĐT
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                      🟢 {fileShopGridData.cleanShops.length} Shop Chuẩn Độc Lập
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', maxHeight: 420 }}>
+                  <table className="data-table" style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '2px solid var(--border-color)', position: 'sticky', top: 0, zIndex: 2 }}>
+                        <th style={{ width: 50, textAlign: 'center', padding: '10px 8px' }}>STT</th>
+                        <th style={{ textAlign: 'left', padding: '10px 12px' }}>TÊN SHOP TRONG FILE</th>
+                        <th style={{ textAlign: 'left', padding: '10px 12px' }}>SỐ ĐIỆN THOẠI</th>
+                        <th style={{ textAlign: 'center', padding: '10px 8px', width: 90 }}>SỐ ĐƠN</th>
+                        <th style={{ textAlign: 'right', padding: '10px 12px' }}>TỔNG COD</th>
+                        <th style={{ textAlign: 'center', padding: '10px 12px' }}>TRẠNG THÁI HỒ SƠ</th>
+                        <th style={{ textAlign: 'center', padding: '10px 12px' }}>PHÂN LOẠI NHÓM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* KHỐI 1: 1 SĐT NHIỀU TÊN */}
+                      {fileShopGridData.phoneConflictGroups.map((group, gIdx) => (
+                        <React.Fragment key={`phone_grp_${gIdx}`}>
+                          <tr style={{ background: 'rgba(239, 68, 68, 0.06)', borderTop: '2px solid rgba(239, 68, 68, 0.3)' }}>
+                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#dc2626', fontSize: 12 }}>
+                              🔴 NHÓM TRÙNG SĐT: <span className="mono" style={{ textDecoration: 'underline' }}>{group.phone}</span> ({group.items.length} tên shop khác nhau)
+                            </td>
+                          </tr>
+                          {group.items.map((item, iIdx) => (
+                            <tr key={`p_item_${gIdx}_${iIdx}`} style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{gIdx + 1}.{iIdx + 1}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
+                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
+                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                {item.matchedShop ? (
+                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✨ Shop mới
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center', fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+                                1 SĐT nhiều tên
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      ))}
+
+                      {/* KHỐI 2: 1 TÊN NHIỀU SĐT */}
+                      {fileShopGridData.nameConflictGroups.map((group, gIdx) => (
+                        <React.Fragment key={`name_grp_${gIdx}`}>
+                          <tr style={{ background: 'rgba(245, 158, 11, 0.06)', borderTop: '2px solid rgba(245, 158, 11, 0.3)' }}>
+                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#d97706', fontSize: 12 }}>
+                              🟠 NHÓM TRÙNG TÊN: <strong>{group.name}</strong> ({group.items.length} số điện thoại khác nhau)
+                            </td>
+                          </tr>
+                          {group.items.map((item, iIdx) => (
+                            <tr key={`n_item_${gIdx}_${iIdx}`} style={{ borderBottom: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{gIdx + 1}.{iIdx + 1}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
+                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
+                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                {item.matchedShop ? (
+                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✨ Shop mới
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center', fontSize: 11, color: '#d97706', fontWeight: 600 }}>
+                                1 Tên nhiều SĐT
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      ))}
+
+                      {/* KHỐI 3: SHOP ĐỘC LẬP / CHUẨN */}
+                      {fileShopGridData.cleanShops.length > 0 && (
+                        <>
+                          <tr style={{ background: 'rgba(16, 185, 129, 0.06)', borderTop: '2px solid rgba(16, 185, 129, 0.3)' }}>
+                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#059669', fontSize: 12 }}>
+                              🟢 CÁC SHOP CHUẨN ĐỘC LẬP ({fileShopGridData.cleanShops.length} Shop)
+                            </td>
+                          </tr>
+                          {fileShopGridData.cleanShops.map((item, idx) => (
+                            <tr key={`c_item_${idx}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
+                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
+                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                {item.matchedShop ? (
+                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                                    ✨ Shop mới
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center', fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                                Chuẩn độc lập
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
           </div>
         )}
