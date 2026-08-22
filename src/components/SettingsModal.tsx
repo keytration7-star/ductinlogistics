@@ -144,7 +144,7 @@ const TabUI: React.FC<{ theme: 'dark' | 'light'; setTheme: (t: 'dark' | 'light')
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
         {[
-          ['Tên ứng dụng', 'GomDon Pro Enterprise'],
+          ['Tên ứng dụng', 'Kế Toán PRO Enterprise'],
           ['Phiên bản', 'v2.0 • 2026'],
           ['Môi trường', 'Production (VPS)'],
           ['Hỗ trợ trình duyệt', 'Chrome, Edge, Firefox, Safari'],
@@ -198,7 +198,7 @@ const TabEmail: React.FC = () => {
       smtpPort: form.smtpPort || 465,
       to: testEmail.trim(),
       subject: `【KIỂM TRA】Thử nghiệm kết nối Email từ ${form.senderName}`,
-      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống GomDon Pro.\nTài khoản gửi: ${form.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình đã hoàn toàn chính xác!`,
+      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống Kế Toán PRO.\nTài khoản gửi: ${form.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình đã hoàn toàn chính xác!`,
     });
     setTestStatus(res.success
       ? { type: 'success', msg: `✓ Thành công! Đã gửi email thử tới: ${testEmail}. Kiểm tra hộp thư đến.` }
@@ -418,7 +418,7 @@ const TabGuide: React.FC = () => {
       content: (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 12 }}>
-            <strong style={{ color: 'var(--text-main)' }}>GomDon Pro Enterprise</strong> là hệ thống quản lý đối soát COD & logistics dành riêng cho các nhà gom đơn vận chuyển. Hệ thống giúp bạn tự động tính tiền, gửi email đối soát và quản lý công nợ cho hàng chục Shop cùng lúc.
+            <strong style={{ color: 'var(--text-main)' }}>Kế Toán PRO Enterprise</strong> là hệ thống quản lý đối soát COD & logistics dành riêng cho các nhà gom đơn vận chuyển. Hệ thống giúp bạn tự động tính tiền, gửi email đối soát và quản lý công nợ cho hàng chục Shop cùng lúc.
           </p>
           <VisualDiagram arrows items={[
             { icon: '📁', label: 'File NVC', color: '#4f46e5' },
@@ -610,7 +610,7 @@ const TabGuide: React.FC = () => {
       <div style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.1),rgba(16,185,129,.07))', borderRadius: 'var(--radius-md)', padding: '16px', marginBottom: 16, border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ fontSize: 32 }}>📖</div>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-main)' }}>Hướng Dẫn Sử Dụng GomDon Pro</div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-main)' }}>Hướng Dẫn Sử Dụng Kế Toán PRO</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Bấm vào từng mục bên dưới để xem hướng dẫn chi tiết từng tính năng.</div>
         </div>
       </div>
@@ -690,7 +690,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-main)' }}>Cài Đặt Hệ Thống</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>GomDon Pro Enterprise</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Kế Toán PRO Enterprise</div>
             </div>
           </div>
           <button onClick={onClose} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>

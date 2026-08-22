@@ -73,8 +73,8 @@ export const EmailConfigModal: React.FC<EmailConfigModalProps> = ({
       smtpHost: formData.smtpHost,
       smtpPort: formData.smtpPort,
       to: testEmailInput.trim(),
-      subject: `【KIỂM TRA GOMDON PRO】Thử nghiệm kết nối Email từ ${formData.senderName}`,
-      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống Quản Trị Đối Soát GOMDON PRO.\n\nTài khoản gửi: ${formData.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình SMTP và Mật khẩu ứng dụng của bạn đã hoàn toàn chính xác 100%!`,
+      subject: `【KIỂM TRA KẾ TOÁN PRO】Thử nghiệm kết nối Email từ ${formData.senderName}`,
+      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống Quản Trị Đối Soát KẾ TOÁN PRO.\n\nTài khoản gửi: ${formData.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình SMTP và Mật khẩu ứng dụng của bạn đã hoàn toàn chính xác 100%!`,
     });
 
     if (res.success) {

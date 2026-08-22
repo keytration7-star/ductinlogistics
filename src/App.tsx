@@ -262,7 +262,7 @@ export function App() {
         }}>
           {/* Breadcrumb with Active Carrier */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-            <span style={{ fontWeight: 600 }}>GOMDON PRO ENTERPRISE</span>
+            <span style={{ fontWeight: 600 }}>KẾ TOÁN PRO ENTERPRISE</span>
             <span>/</span>
             <span 
               onClick={() => {
@@ -494,7 +494,7 @@ export function App() {
           }}>
             <div style={{ maxWidth: 1500, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
               <div>
-                <strong>GOMDON PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD cho Nhà gom đơn.
+                <strong>KẾ TOÁN PRO ENTERPRISE</strong> — Hệ thống quản trị, ghép mã vận đơn, tính cước bậc thang & đối soát dòng tiền COD cho Nhà gom đơn.
               </div>
               <div>
                 Đang đăng nhập: <strong>{currentUser.fullName}</strong> ({currentUser.username})
