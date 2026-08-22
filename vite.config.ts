@@ -120,8 +120,7 @@ export default defineConfig({
   // served by Express, while Vite serves the React interface.
   server: {
     proxy: {
-      '/api/db': 'http://127.0.0.1:3000',
-      '/api/send-telegram': 'http://127.0.0.1:3000',
+      '/api': 'http://127.0.0.1:3000',
     },
   },
 });
