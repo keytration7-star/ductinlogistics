@@ -414,7 +414,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     const codCol = nvcMapping.codColumn;
     const feeCol = nvcMapping.feeColumn;
     const otherFeeCol = nvcMapping.otherFeeColumn;
+    const additionalFeeCols = nvcMapping.additionalFeeColumns || [];
+    const otherFeeCols = Array.from(new Set([otherFeeCol, ...additionalFeeCols].filter(Boolean))) as string[];
     const weightCol = nvcMapping.weightColumn;
+
+    const carrierPricing: ShopPricingPlan = {
+      id: selectedCarrierTier?.carrierId || 'carrier_nvc',
+      name: selectedCarrierTier?.carrierName || 'Giá sỉ NVC',
+      weightRules: selectedCarrierTier?.weightRules && selectedCarrierTier.weightRules.length > 0 ? selectedCarrierTier.weightRules : [
+        { minWeight: 0, maxWeight: 1, price: 14000 },
+        { minWeight: 1, maxWeight: 3, price: 20000 },
+        { minWeight: 3, maxWeight: 5, price: 25000 },
+      ],
+      extraStepWeight: selectedCarrierTier?.extraStepWeight || 1,
+      extraStepPrice: selectedCarrierTier?.extraStepPrice || 3500,
+      returnFeePercent: selectedCarrierTier?.returnFeePercent !== undefined ? selectedCarrierTier.returnFeePercent : 50,
+      insuranceFeePercent: 0,
+      fixedSurcharge: 0,
+    };
 
     const fallbackPricing: ShopPricingPlan = {
       id: 'plan_fallback',
@@ -449,9 +466,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       const cod = codCol ? parseNumber(row[codCol]) : 0;
       const nvcFee = feeCol ? parseNumber(row[feeCol]) : 0;
-      const nvcOther = otherFeeCol ? parseNumber(row[otherFeeCol]) : 0;
+      const nvcOther = otherFeeCols.reduce((sum, col) => sum + parseNumber(row[col]), 0);
       totalCod += cod;
-      totalNvcFee += (nvcFee + nvcOther);
 
       const wbKey = rawWb.toString().trim().toUpperCase();
       const appRow = reconcileMode === '1file' ? row : appByWaybill.get(wbKey);
@@ -472,6 +488,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const weightVal = weightCol ? row[weightCol] : (appRow && appMapping.weightColumn ? appRow[appMapping.weightColumn] : 0.5);
       const weight = parseWeightToKg(weightVal);
       
+      // Calculate effective NVC fee (from file or carrier tier wholesale price)
+      const effectiveNvcFee = nvcFee > 0 ? nvcFee : calculateWeightFee(weight, carrierPricing);
+      totalNvcFee += (effectiveNvcFee + nvcOther);
+
       const sFee = calculateWeightFee(weight, plan) + (plan.fixedSurcharge || 0);
       totalShopFee += sFee;
     }
@@ -487,7 +507,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       estimatedProfit,
       estimatedShopPayout,
     };
-  }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops]);
+  }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops, selectedCarrierTier]);
 
   const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
     setShopProposalGroups(groups => groups.map(group => group.id === groupId
