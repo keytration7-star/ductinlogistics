@@ -1422,54 +1422,106 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
       {/* 🌟 4-Step Guided Workflow Stepper Header */}
-      <div className="glass-panel" style={{
-        padding: '14px 18px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-        gap: 10,
-        alignItems: 'center',
-      }}>
-        {[
-          { step: '01', title: 'CHỌN HÃNG & NẠP FILE', desc: selectedCarrierTier?.carrierName || 'Chọn NVC', active: !nvcFile, done: !!nvcFile },
-          { step: '02', title: 'KHỚP NỐI & KIỂM TRA', desc: nvcFile ? `${nvcRows.length} đơn sẵn sàng` : 'Chờ nạp file', active: !!nvcFile && !currentSession, done: !!currentSession },
-          { step: '03', title: 'ĐỐI SOÁT & BẢNG KÊ SHOP', desc: currentSession ? `${currentSession.statements.length} shop đối soát` : 'Chờ tính cước', active: !!currentSession && currentSession.unmatchedOrdersCount === 0, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
-          { step: '04', title: 'XÁC NHẬN & XUẤT BÁO CÁO', desc: currentSession ? 'Xuất Excel / ZIP / Email' : 'Chờ hoàn tất', active: !!currentSession && currentSession.unmatchedOrdersCount === 0, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
-        ].map((item) => (
-          <div key={item.step} style={{
-            display: 'flex',
-            alignItems: 'center',
+      {(() => {
+        const hasBothFiles = reconcileMode === '2files' ? (!!nvcFile && !!appFile) : (!!nvcFile);
+        const step1Done = hasBothFiles;
+        const step1Active = !hasBothFiles;
+
+        const step2Done = !!currentSession;
+        const step2Active = hasBothFiles && !currentSession;
+
+        const step3Done = !!currentSession && currentSession.unmatchedOrdersCount === 0;
+        const step3Active = !!currentSession && currentSession.unmatchedOrdersCount > 0;
+
+        const step4Done = !!currentSession && currentSession.unmatchedOrdersCount === 0;
+        const step4Active = !!currentSession && currentSession.unmatchedOrdersCount === 0;
+
+        const getStep1Desc = () => {
+          if (reconcileMode === '2files') {
+            if (hasBothFiles) return `✓ Đã nạp 2 file (${(nvcRows.length + appRows.length).toLocaleString('vi-VN')} dòng)`;
+            if (nvcFile && !appFile) return 'Đã có File J&T (Thiếu File App)';
+            if (!nvcFile && appFile) return 'Đã có File App (Thiếu File J&T)';
+            return 'Nạp File J&T + File App';
+          }
+          return nvcFile ? `✓ Đã nạp ${nvcRows.length.toLocaleString('vi-VN')} dòng` : 'Nạp File Excel NVC';
+        };
+
+        const getStep2Desc = () => {
+          if (currentSession) return `✓ Đã ghép ${currentSession.matchedOrdersCount}/${currentSession.totalOrders} đơn`;
+          if (hasBothFiles) return '👉 Bấm tính cước ngay';
+          return reconcileMode === '2files' ? 'Chờ nạp đủ 2 file' : 'Chờ nạp file';
+        };
+
+        const getStep3Desc = () => {
+          if (!currentSession) return 'Chờ tính cước';
+          if (currentSession.unmatchedOrdersCount > 0) return `⚠️ ${currentSession.unmatchedOrdersCount} đơn chưa khớp`;
+          return `✓ ${currentSession.statements.length} Shop đối soát`;
+        };
+
+        const getStep4Desc = () => {
+          if (currentSession && currentSession.unmatchedOrdersCount === 0) return 'Xuất Excel / ZIP / Email';
+          if (currentSession && currentSession.unmatchedOrdersCount > 0) return 'Cần xử lý đơn chưa khớp';
+          return 'Chờ hoàn tất';
+        };
+
+        const steps = [
+          { step: '01', title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: step1Active, done: step1Done },
+          { step: '02', title: 'KHỚP NỐI & TÍNH CƯỚC', desc: getStep2Desc(), active: step2Active, done: step2Done },
+          { step: '03', title: 'BẢNG KÊ & CÔNG NỢ', desc: getStep3Desc(), active: step3Active, done: step3Done },
+          { step: '04', title: 'XÁC NHẬN & BÁO CÁO', desc: getStep4Desc(), active: step4Active, done: step4Done },
+        ];
+
+        return (
+          <div className="glass-panel" style={{
+            padding: '14px 18px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
             gap: 10,
-            padding: '8px 12px',
-            borderRadius: 'var(--radius-md)',
-            background: item.done ? 'var(--success-bg)' : item.active ? 'rgba(79, 70, 229, 0.06)' : 'var(--bg-tertiary)',
-            border: item.done ? '1px solid var(--success-border)' : item.active ? '1px solid var(--primary-glow)' : '1px solid var(--border-color)',
+            alignItems: 'center',
           }}>
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              background: item.done ? 'var(--success)' : item.active ? 'var(--primary)' : 'var(--bg-secondary)',
-              color: item.done || item.active ? '#ffffff' : 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: 12,
-              flexShrink: 0,
-            }}>
-              {item.done ? <CheckCircle2 size={15} /> : item.step}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, color: item.done ? 'var(--success)' : item.active ? 'var(--primary)' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
-                STEP {item.step}
+            {steps.map((item) => (
+              <div key={item.step} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: item.done ? 'rgba(16, 185, 129, 0.08)' : item.active ? 'rgba(79, 70, 229, 0.08)' : 'var(--bg-tertiary)',
+                border: item.done ? '1.5px solid #10b981' : item.active ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                transition: 'all 0.2s ease',
+              }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: item.done ? '#10b981' : item.active ? 'var(--primary)' : 'var(--bg-secondary)',
+                  color: item.done || item.active ? '#ffffff' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  flexShrink: 0,
+                  boxShadow: item.active ? '0 0 10px rgba(79, 70, 229, 0.3)' : 'none',
+                }}>
+                  {item.done ? <CheckCircle2 size={17} /> : item.step}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: item.done ? '#10b981' : item.active ? 'var(--primary)' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                    STEP {item.step} {item.done ? '✓' : item.active ? '● ĐANG THỰC HIỆN' : ''}
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: item.done ? '#059669' : item.active ? 'var(--primary)' : 'var(--text-muted)', marginTop: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.desc}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {item.title}
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* Upload Dropzones */}
       <div className="glass-panel" style={{ padding: 20 }}>
@@ -1861,6 +1913,41 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* 🚀 Step 1 Completed Banner & Prompt for Step 2 */}
+        {reconcileMode === '2files' && nvcFile && appFile && !currentSession && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.06) 100%)',
+            border: '1.5px solid #10b981',
+            borderRadius: 12,
+            padding: '14px 18px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            animation: 'fadeIn 0.3s ease',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)' }}>
+                  Bước 1 Hoàn Tất: Đã nạp thành công 2 file (File Đối Soát J&T + File Đơn Hàng App)
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                  File J&T: <strong style={{ color: 'var(--text-main)' }}>{nvcRows.length.toLocaleString('vi-VN')} dòng</strong> • File App: <strong style={{ color: 'var(--text-main)' }}>{appRows.length.toLocaleString('vi-VN')} dòng</strong>. Hãy bấm <strong>"Tiến Hành Đối Soát & Tính Cước"</strong> để chuyển sang Bước 2!
+                </div>
+              </div>
+            </div>
+            <span style={{ fontSize: 11.5, background: '#10b981', color: '#fff', padding: '6px 14px', borderRadius: 20, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>Sẵn sàng Bước 2</span>
+              <span>→</span>
+            </span>
           </div>
         )}
 
