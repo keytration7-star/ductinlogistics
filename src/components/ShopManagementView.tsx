@@ -1179,9 +1179,31 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         <strong style={{ fontSize: 13, color: isChecked || isSelected ? 'var(--primary)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shop.name}
                         </strong>
-                        <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', flexShrink: 0 }}>
-                          {shop.code}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                          {shop.nameAliases && shop.nameAliases.length > 0 && (
+                            <span
+                              style={{
+                                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.10) 100%)',
+                                color: 'var(--primary)',
+                                border: '1px solid var(--primary)',
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}
+                              title={`Shop đã gộp ${shop.nameAliases.length} tên phụ: ${shop.nameAliases.join(', ')}`}
+                            >
+                              <GitMerge size={10} />
+                              <span>ĐÃ GỘP ({shop.nameAliases.length})</span>
+                            </span>
+                          )}
+                          <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)' }}>
+                            {shop.code}
+                          </span>
+                        </div>
                       </div>
 
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1428,8 +1450,30 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                   {editingShop.code.slice(0, 4)}
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
+                    {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
+                      <span
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.10) 100%)',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
+                      >
+                        <GitMerge size={12} />
+                        <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                     Mã Shop: <strong className="mono" style={{ color: 'var(--primary)' }}>{editingShop.code}</strong>
                   </div>
                 </div>
