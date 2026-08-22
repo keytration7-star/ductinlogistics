@@ -432,11 +432,12 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 12px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .data-table td {

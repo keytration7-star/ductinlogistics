@@ -2863,7 +2863,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* TAB 1: PER-SHOP STATEMENTS LIST WITH SORTING */}
           {activeResultTab === 'statements' && (
-            <div className="table-container glass-panel">
+            <div 
+              className="table-container glass-panel"
+              style={{
+                maxHeight: 'min(560px, calc(100vh - 290px))',
+                overflowY: 'auto',
+                border: '1.5px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+              }}
+            >
               <table className="data-table">
                 <thead>
                   <tr>
@@ -2991,7 +3000,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* TAB 2: ALL RECONCILED ORDERS */}
           {activeResultTab === 'allOrders' && (
-            <div className="table-container glass-panel" style={{ maxHeight: 600, overflowY: 'auto' }}>
+            <div 
+              className="table-container glass-panel" 
+              style={{ 
+                maxHeight: 'min(560px, calc(100vh - 290px))', 
+                overflowY: 'auto',
+                border: '1.5px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+              }}
+            >
               <table className="data-table">
                 <thead>
                   <tr>
@@ -3066,7 +3084,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* TAB 3: UNMATCHED ORDERS WITH MANUAL ASSIGN CAPABILITY */}
           {activeResultTab === 'unmatched' && (
-            <div className="table-container glass-panel">
+            <div 
+              className="table-container glass-panel"
+              style={{ 
+                maxHeight: 'min(560px, calc(100vh - 290px))', 
+                overflowY: 'auto',
+                border: '1.5px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+              }}
+            >
               <div style={{ padding: 16, background: 'var(--danger-bg)', borderBottom: '1px solid var(--danger-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)', fontWeight: 700 }}>
