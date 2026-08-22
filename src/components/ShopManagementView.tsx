@@ -425,56 +425,51 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
         const mapping = autoDetectColumns(headers, 'app');
 
+        const extractField = (r: Record<string, any>, col?: string, keywords: string[] = []): string => {
+          if (col && r[col] !== undefined && r[col] !== null) {
+            const val = String(r[col]).trim();
+            if (val) return val;
+          }
+          for (const k of Object.keys(r)) {
+            const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '_');
+            if (keywords.some(kw => norm.includes(kw) || kw.includes(norm))) {
+              const val = r[k];
+              if (val !== undefined && val !== null && String(val).trim() !== '') {
+                return String(val).trim();
+              }
+            }
+          }
+          return '';
+        };
+
         const orders = rows.map(r => {
-          const shopName = String(
-            (mapping.shopNameColumn ? r[mapping.shopNameColumn] : '') ||
-            r['Tên người gửi (chuẩn hóa đa file)'] ||
-            r['Tên người gửi'] ||
-            r['Người gửi'] ||
-            r['Tên Shop'] ||
-            r['Shop'] ||
-            r['Store'] ||
-            r['Tên cửa hàng'] ||
-            r['Tên Kho'] ||
-            ''
-          ).trim();
+          const shopName = extractField(r, mapping.shopNameColumn, [
+            'ten_shop', 'ten_cua_hang', 'cua_hang', 'shop', 'store', 'ten_nguoi_gui', 'nguoi_gui', 'sender_name', 'khach_hang', 'ten_khach_hang', 'chu_shop', 'ten_kho'
+          ]);
 
-          const shopPhone = String(
-            (mapping.shopPhoneColumn ? r[mapping.shopPhoneColumn] : '') ||
-            r['SĐT người gửi'] ||
-            r['Số điện thoại người gửi'] ||
-            r['SĐT Shop'] ||
-            r['SĐT'] ||
-            r['Phone'] ||
-            ''
-          ).trim();
+          const shopPhone = extractField(r, mapping.shopPhoneColumn, [
+            'sdt_shop', 'sdt_nguoi_gui', 'so_dien_thoai_nguoi_gui', 'so_dien_thoai', 'sdt', 'phone', 'sender_phone', 'phone_shop'
+          ]);
 
-          const shopAddress = String(
-            (mapping.shopAddressColumn ? r[mapping.shopAddressColumn] : '') ||
-            r['Địa chỉ người gửi'] ||
-            r['Địa chỉ kho'] ||
-            r['Địa Chỉ'] ||
-            r['Kho gửi'] ||
-            ''
-          ).trim();
+          const shopAddress = extractField(r, mapping.shopAddressColumn, [
+            'dia_chi_nguoi_gui', 'dia_chi_kho', 'dia_chi', 'kho_gui', 'address', 'sender_address'
+          ]);
 
-          const shopCode = String(
-            (mapping.shopCodeColumn ? r[mapping.shopCodeColumn] : '') ||
-            r['Mã Shop'] ||
-            r['Mã Kho'] ||
-            r['Store ID'] ||
-            ''
-          ).trim();
+          const shopCode = extractField(r, mapping.shopCodeColumn, [
+            'ma_shop', 'ma_shop_kho', 'ma_kho', 'ma_cua_hang', 'store_id', 'client_id', 'shop_code'
+          ]);
 
           const codVal = parseNumber(
             (mapping.codColumn ? r[mapping.codColumn] : '') ||
             r['Tiền COD'] ||
             r['COD'] ||
+            r['Tiền thu hộ'] ||
+            r['Tiền COD đã ký nhận'] ||
             0
           );
 
           return {
-            shopName,
+            shopName: shopName || (shopCode ? `Shop ${shopCode}` : (shopPhone ? `Shop ${shopPhone}` : '')),
             shopPhone,
             shopAddress,
             shopCode,
