@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  AlertTriangle,
   GitMerge,
   CheckSquare,
   Square
@@ -53,6 +54,89 @@ const GROUP_COLORS = [
   { bg: 'rgba(249, 115, 22, 0.08)', border: '#f97316', text: '#c2410c', badge: '#ffedd5', dot: '#ea580c', label: 'Cam Đậm' },
   { bg: 'rgba(99, 102, 241, 0.08)', border: '#6366f1', text: '#4338ca', badge: '#e0e7ff', dot: '#4f46e5', label: 'Chàm' },
 ];
+
+/**
+ * 🎨 Dynamic Field Styler:
+ * - Green soft background & border if filled
+ * - Amber warning background & border if important & empty
+ * - Clean white if optional & empty
+ */
+const getInputStyle = (value: any, isRequired: boolean = false, customStyle?: React.CSSProperties): React.CSSProperties => {
+  const isFilled = value !== undefined && value !== null && String(value).trim() !== '' && String(value).trim() !== '0';
+  if (isFilled) {
+    return {
+      background: 'rgba(16, 185, 129, 0.06)',
+      border: '1.5px solid #10b981',
+      color: '#065f46',
+      fontWeight: 600,
+      borderRadius: 'var(--radius-md)',
+      transition: 'all 0.2s ease',
+      ...customStyle,
+    };
+  }
+  if (isRequired) {
+    return {
+      background: 'rgba(245, 158, 11, 0.08)',
+      border: '1.5px solid #f59e0b',
+      color: '#92400e',
+      borderRadius: 'var(--radius-md)',
+      transition: 'all 0.2s ease',
+      ...customStyle,
+    };
+  }
+  return {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    color: 'var(--text-main)',
+    borderRadius: 'var(--radius-md)',
+    transition: 'all 0.2s ease',
+    ...customStyle,
+  };
+};
+
+const renderFieldAlert = (value: any, isRequired: boolean = false, customWarningText: string = 'Cần bổ sung') => {
+  const isFilled = value !== undefined && value !== null && String(value).trim() !== '' && String(value).trim() !== '0';
+  if (!isFilled && isRequired) {
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        fontSize: 10.5,
+        fontWeight: 800,
+        color: '#b45309',
+        background: '#fef3c7',
+        padding: '1px 6px',
+        borderRadius: 4,
+        border: '1px solid #fde68a',
+        letterSpacing: '0.01em',
+      }}>
+        <AlertTriangle size={11} color="#d97706" />
+        <span>{customWarningText}</span>
+      </span>
+    );
+  }
+  if (isFilled) {
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        fontSize: 10,
+        fontWeight: 800,
+        color: '#059669',
+        background: '#ecfdf5',
+        padding: '1px 5px',
+        borderRadius: 4,
+        border: '1px solid #a7f3d0',
+      }}>
+        <Check size={10} color="#059669" />
+        <span>Đã có</span>
+      </span>
+    );
+  }
+  return null;
+};
 
 export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ 
   shops, 
@@ -1524,7 +1608,16 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
         {/* 👉 RIGHT PANEL: BẢNG CHI TIẾT & SỬA TRỰC TIẾP (LIVE REVIEW & EDITOR) */}
         {editingShop ? (
-          <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="glass-panel" style={{
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            maxHeight: 'calc(100vh - 160px)',
+            overflowY: 'auto',
+            border: '1.5px solid rgba(226, 232, 240, 0.95)',
+            borderRadius: 16,
+          }}>
             
             {/* Top Toolbar Bar */}
             <div style={{
@@ -1641,7 +1734,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                 <div className="input-group">
-                  <label className="input-label">Tên Shop / Thương hiệu (*)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Tên Shop / Thương hiệu (*)</label>
+                    {renderFieldAlert(editingShop.name, true, 'Bắt buộc')}
+                  </div>
                   <input
                     type="text"
                     required
@@ -1649,14 +1745,15 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.name}
                     onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
                     className="input-field"
+                    style={getInputStyle(editingShop.name, true)}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Các tên nhãn gửi phụ (Gom đơn)</span>
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Cách nhau bằng dấu phẩy</span>
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Các tên nhãn gửi phụ (Gom đơn)</label>
+                    {renderFieldAlert(editingShop.nameAliases && editingShop.nameAliases.length > 0 ? 'filled' : '', false)}
+                  </div>
                   <input
                     type="text"
                     placeholder="VD: Kho Mina, Mina Official..."
@@ -1670,25 +1767,30 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                       });
                     }}
                     className="input-field"
+                    style={getInputStyle(editingShop.nameAliases && editingShop.nameAliases.length > 0 ? 'filled' : '', false)}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Mã Shop (Duy nhất)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Mã Shop (Duy nhất)</label>
+                    {renderFieldAlert(editingShop.code, true, 'Bắt buộc')}
+                  </div>
                   <input
                     type="text"
                     placeholder="SHOP_A, MINA..."
                     value={editingShop.code}
                     onChange={(e) => setEditingShop({ ...editingShop, code: e.target.value.toUpperCase() })}
-                    className="input-field"
+                    className="input-field mono"
+                    style={getInputStyle(editingShop.code, true)}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Số điện thoại gửi (*)</span>
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Nhập nhiều SĐT cách dấu phẩy ","</span>
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Số điện thoại gửi (*)</label>
+                    {renderFieldAlert(editingShop.phone, true, 'Bắt buộc')}
+                  </div>
                   <input
                     type="text"
                     required
@@ -1696,22 +1798,30 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.phone}
                     onChange={(e) => setEditingShop({ ...editingShop, phone: e.target.value })}
                     className="input-field"
+                    style={getInputStyle(editingShop.phone, true)}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Email nhận đối soát (có thể gõ nhiều mail cách phẩy)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Email nhận đối soát</label>
+                    {renderFieldAlert(editingShop.email, false)}
+                  </div>
                   <input
                     type="text"
                     placeholder="shop@gmail.com, ketoan@gmail.com..."
                     value={editingShop.email}
                     onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
                     className="input-field"
+                    style={getInputStyle(editingShop.email, false)}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Cộng Tác Viên (CTV) Quản Lý</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Cộng Tác Viên (CTV) Quản Lý</label>
+                    {renderFieldAlert(editingShop.ctvId, false)}
+                  </div>
                   <select
                     value={editingShop.ctvId || ''}
                     onChange={(e) => {
@@ -1725,6 +1835,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                       });
                     }}
                     className="input-field"
+                    style={getInputStyle(editingShop.ctvId, false)}
                   >
                     <option value="">-- Không phân công CTV --</option>
                     {StorageService.getCtvs().map(c => (
@@ -1736,25 +1847,33 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Công nợ cũ còn tồn (-/+ VNĐ)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label className="input-label" style={{ margin: 0 }}>Công nợ cũ còn tồn (-/+ VNĐ)</label>
+                    {renderFieldAlert(editingShop.previousDebt, false)}
+                  </div>
                   <input
                     type="number"
                     placeholder="0 (-500000 nếu Shop nợ)"
                     value={editingShop.previousDebt ?? ''}
                     onChange={(e) => setEditingShop({ ...editingShop, previousDebt: e.target.value === '' ? undefined : Number(e.target.value) })}
                     className="input-field"
+                    style={getInputStyle(editingShop.previousDebt, false)}
                   />
                 </div>
               </div>
 
               <div className="input-group" style={{ marginTop: 10 }}>
-                <label className="input-label">Địa chỉ kho gửi hàng</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label className="input-label" style={{ margin: 0 }}>Địa chỉ kho gửi hàng</label>
+                  {renderFieldAlert(editingShop.address, false)}
+                </div>
                 <input
                   type="text"
                   placeholder="Số 123 đường ABC, Quận XYZ, Hà Nội"
                   value={editingShop.address}
                   onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
                   className="input-field"
+                  style={getInputStyle(editingShop.address, false)}
                 />
               </div>
             </div>
@@ -1783,14 +1902,18 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                   <div className="input-group">
-                    <label className="input-label">Tên Ngân hàng</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label className="input-label" style={{ margin: 0 }}>Tên Ngân hàng (*)</label>
+                      {renderFieldAlert(editingShop.bankAccount?.bankName, true, 'Bắt buộc')}
+                    </div>
                     <select
-                      value={editingShop.bankAccount.bankName}
+                      value={editingShop.bankAccount?.bankName || ''}
                       onChange={(e) => setEditingShop({
                         ...editingShop,
                         bankAccount: { ...editingShop.bankAccount, bankName: e.target.value }
                       })}
                       className="select-field"
+                      style={getInputStyle(editingShop.bankAccount?.bankName, true)}
                     >
                       {VIETNAM_BANKS.map(b => (
                         <option key={b} value={b}>{b}</option>
@@ -1799,30 +1922,38 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Số tài khoản</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label className="input-label" style={{ margin: 0 }}>Số tài khoản (*)</label>
+                      {renderFieldAlert(editingShop.bankAccount?.accountNumber, true, 'Bắt buộc để bắn VietQR')}
+                    </div>
                     <input
                       type="text"
                       placeholder="091234567899"
-                      value={editingShop.bankAccount.accountNumber}
+                      value={editingShop.bankAccount?.accountNumber || ''}
                       onChange={(e) => setEditingShop({
                         ...editingShop,
                         bankAccount: { ...editingShop.bankAccount, accountNumber: e.target.value }
                       })}
                       className="input-field mono"
+                      style={getInputStyle(editingShop.bankAccount?.accountNumber, true)}
                     />
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Tên chủ tài khoản</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label className="input-label" style={{ margin: 0 }}>Tên chủ tài khoản (*)</label>
+                      {renderFieldAlert(editingShop.bankAccount?.accountHolder, true, 'Bắt buộc tên chủ thẻ')}
+                    </div>
                     <input
                       type="text"
                       placeholder="NGUYEN VAN A"
-                      value={editingShop.bankAccount.accountHolder}
+                      value={editingShop.bankAccount?.accountHolder || ''}
                       onChange={(e) => setEditingShop({
                         ...editingShop,
                         bankAccount: { ...editingShop.bankAccount, accountHolder: e.target.value.toUpperCase() }
                       })}
                       className="input-field"
+                      style={getInputStyle(editingShop.bankAccount?.accountHolder, true)}
                     />
                   </div>
                 </div>
@@ -1832,15 +1963,16 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                   {editingShop.bankAccount?.accountNumber ? (
                     <>
                       <img
-                        src={`https://img.vietqr.io/image/${editingShop.bankAccount.bankName.replace(/\s+/g, '')}-${editingShop.bankAccount.accountNumber}-compact.png?addInfo=Doi%20soat%20shop%20${editingShop.code}&accountName=${encodeURIComponent(editingShop.bankAccount.accountHolder || editingShop.name)}`}
+                        src={`https://img.vietqr.io/image/${(editingShop.bankAccount?.bankName || 'MBBank').replace(/\s+/g, '')}-${editingShop.bankAccount?.accountNumber}-compact.png?addInfo=Doi%20soat%20shop%20${editingShop.code}&accountName=${encodeURIComponent(editingShop.bankAccount?.accountHolder || editingShop.name)}`}
                         alt="VietQR Code"
                         style={{ width: 110, height: 110, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: '#fff', padding: 4 }}
                       />
                       <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Mã VietQR Chuyển Khoản</div>
                     </>
                   ) : (
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                      Gõ STK để xem VietQR Live
+                    <div style={{ fontSize: 11, color: '#d97706', fontStyle: 'italic', background: '#fffbeb', padding: '10px 6px', borderRadius: 8, border: '1px dashed #f59e0b' }}>
+                      <AlertTriangle size={14} color="#d97706" style={{ margin: '0 auto 4px', display: 'block' }} />
+                      Nhập STK để tạo VietQR Live
                     </div>
                   )}
                 </div>
@@ -1901,12 +2033,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleWeightRuleChange(idx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1)}
                         className="input-field"
-                        style={{ padding: '4px 8px', fontSize: 12 }}
+                        style={getInputStyle(rule.maxWeight, true, { padding: '4px 8px', fontSize: 12 })}
                       />
                     </div>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
                     
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input
                         type="number"
                         step="500"
@@ -1915,8 +2047,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleWeightRuleChange(idx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                         className="input-field"
-                        style={{ padding: '4px 8px', fontSize: 12 }}
+                        style={getInputStyle(rule.price, true, { padding: '4px 8px', fontSize: 12 })}
                       />
+                      {rule.price === 0 && (
+                        <span style={{ fontSize: 10.5, color: '#d97706', fontWeight: 700, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <AlertTriangle size={11} color="#d97706" /> Cần nhập giá
+                        </span>
+                      )}
                     </div>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
 
@@ -1948,15 +2085,17 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                         type="number"
                         step="0.5"
                         value={editingShop.pricingPlan.extraStepWeight}
-                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingShop({
                           ...editingShop,
-                          pricingPlan: { ...editingShop.pricingPlan, extraStepWeight: parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1 }
+                          pricingPlan: {
+                            ...editingShop.pricingPlan,
+                            extraStepWeight: parseFloat(e.target.value) || 0.5
+                          }
                         })}
                         className="input-field"
-                        style={{ padding: '4px 8px', fontSize: 12 }}
+                        style={getInputStyle(editingShop.pricingPlan.extraStepWeight, false, { padding: '4px 8px', fontSize: 12 })}
                       />
-                      <span style={{ fontSize: 11 }}>kg</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>kg</span>
                     </div>
                   </div>
 
@@ -1974,9 +2113,9 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                           pricingPlan: { ...editingShop.pricingPlan, extraStepPrice: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
                         })}
                         className="input-field"
-                        style={{ padding: '4px 8px', fontSize: 12 }}
+                        style={getInputStyle(editingShop.pricingPlan.extraStepPrice, false, { padding: '4px 8px', fontSize: 12 })}
                       />
-                      <span style={{ fontSize: 11 }}>đ</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>đ</span>
                     </div>
                   </div>
 
@@ -1994,7 +2133,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                           pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
                         })}
                         className="input-field"
-                        style={{ padding: '4px 8px', fontSize: 12, width: 60 }}
+                        style={getInputStyle(editingShop.pricingPlan.returnFeePercent, false, { padding: '4px 8px', fontSize: 12, width: 60 })}
                       />
                       <span style={{ fontSize: 11 }}>%</span>
                       
