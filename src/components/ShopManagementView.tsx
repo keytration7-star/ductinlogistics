@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast, useConfirm } from './UIFeedback';
 import { 
   Plus, 
@@ -40,6 +40,18 @@ import { VIETNAM_BANKS as FULL_VIETNAM_BANKS } from '../constants/banks';
 
 const VIETNAM_BANKS = FULL_VIETNAM_BANKS.map(b => b.shortName);
 
+// 🎨 Palette for visually distinguishing eligible merge shop groups (same phone / same name)
+const GROUP_COLORS = [
+  { bg: 'rgba(245, 158, 11, 0.08)', border: '#f59e0b', text: '#b45309', badge: '#fef3c7', dot: '#d97706', label: 'Cam' },
+  { bg: 'rgba(16, 185, 129, 0.08)', border: '#10b981', text: '#047857', badge: '#d1fae5', dot: '#059669', label: 'Xanh Lá' },
+  { bg: 'rgba(59, 130, 246, 0.08)', border: '#3b82f6', text: '#1d4ed8', badge: '#dbeafe', dot: '#2563eb', label: 'Xanh Dương' },
+  { bg: 'rgba(168, 85, 247, 0.08)', border: '#a855f7', text: '#7e22ce', badge: '#f3e8ff', dot: '#9333ea', label: 'Tím' },
+  { bg: 'rgba(236, 72, 153, 0.08)', border: '#ec4899', text: '#be185d', badge: '#fce7f3', dot: '#db2777', label: 'Hồng' },
+  { bg: 'rgba(20, 184, 166, 0.08)', border: '#14b8a6', text: '#0f766e', badge: '#ccfbf1', dot: '#0d9488', label: 'Ngọc' },
+  { bg: 'rgba(249, 115, 22, 0.08)', border: '#f97316', text: '#c2410c', badge: '#ffedd5', dot: '#ea580c', label: 'Cam Đậm' },
+  { bg: 'rgba(99, 102, 241, 0.08)', border: '#6366f1', text: '#4338ca', badge: '#e0e7ff', dot: '#4f46e5', label: 'Chàm' },
+];
+
 export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, onSaveShops, currentUser, sourceSession }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -55,12 +67,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
   const [isScanning, setIsScanning] = useState(false);
   const [expandedShopIndexes, setExpandedShopIndexes] = useState<Set<number>>(new Set());
 
-  // Merge Shop Modal State
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  // In-List Merge Shop Mode & Confirmation Modal
+  const [isMergeMode, setIsMergeMode] = useState(false);
   const [selectedMergeShopIds, setSelectedMergeShopIds] = useState<string[]>([]);
+  const [isMergeConfirmModalOpen, setIsMergeConfirmModalOpen] = useState(false);
   const [targetMainShopId, setTargetMainShopId] = useState<string>('');
   const [customMergeName, setCustomMergeName] = useState<string>('');
-  const [mergeSearchTerm, setMergeSearchTerm] = useState<string>('');
 
   const [batchPricingPlan] = useState<ShopPricingPlan>({
     id: `plan_batch_default`,
@@ -533,6 +545,27 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     return groups;
   };
 
+  // 🎨 Memoized color map for shops belonging to same-phone or same-name groups
+  const shopGroupColorMap = useMemo(() => {
+    const map = new Map<string, { color: typeof GROUP_COLORS[0]; groupName: string; matchKey: string; count: number; groupId: string }>();
+    const eligibleGroups = getEligibleMergeGroups();
+
+    eligibleGroups.forEach((group, gIdx) => {
+      const color = GROUP_COLORS[gIdx % GROUP_COLORS.length];
+      group.shops.forEach(s => {
+        map.set(s.id, {
+          color,
+          groupName: group.type === 'SAME_PHONE' ? `SĐT: ${group.matchKey}` : `Tên: ${group.matchKey}`,
+          matchKey: group.matchKey,
+          count: group.shops.length,
+          groupId: group.id,
+        });
+      });
+    });
+
+    return map;
+  }, [shops]);
+
   // Helper to validate whether selected shops satisfy merge condition
   const validateMergeSelection = (selectedShops: Shop[]): { eligible: boolean; reason: string; type?: 'SAME_PHONE' | 'SAME_NAME' } => {
     if (selectedShops.length < 2) {
@@ -644,7 +677,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     onSaveShops(updated);
     setSelectedShopId(mergedShop.id);
     setEditingShop(JSON.parse(JSON.stringify(mergedShop)));
-    setIsMergeModalOpen(false);
+    setIsMergeConfirmModalOpen(false);
+    setIsMergeMode(false);
     setSelectedMergeShopIds([]);
     setCustomMergeName('');
     showToast(`Đã gộp thành công ${targetShops.length} Shop thành Shop chính "${mergedShop.name}"!`, 'success');
@@ -835,16 +869,19 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedMergeShopIds([]);
-                  setTargetMainShopId('');
-                  setCustomMergeName('');
-                  setIsMergeModalOpen(true);
+                  if (isMergeMode) {
+                    setIsMergeMode(false);
+                    setSelectedMergeShopIds([]);
+                  } else {
+                    setIsMergeMode(true);
+                    setSelectedMergeShopIds([]);
+                  }
                 }}
                 className="btn btn-secondary btn-sm"
                 disabled={shops.length < 2 || !isAdmin}
                 style={{
-                  background: 'rgba(79, 70, 229, 0.10)',
-                  color: 'var(--primary)',
+                  background: isMergeMode ? 'var(--primary)' : 'rgba(79, 70, 229, 0.10)',
+                  color: isMergeMode ? '#fff' : 'var(--primary)',
                   border: '1.5px solid var(--primary)',
                   fontWeight: 700,
                   display: 'flex',
@@ -854,10 +891,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                   padding: '6px 8px',
                   fontSize: 11.5,
                 }}
-                title="Gộp các shop có cùng SĐT hoặc cùng Tên vào 1 Shop chính"
+                title="Bật/Tắt chế độ chọn các Shop cùng màu để gộp"
               >
                 <GitMerge size={14} />
-                <span>🤝 Gộp Shop</span>
+                <span>{isMergeMode ? '✕ Hủy Gộp' : '🤝 Gộp Shop'}</span>
               </button>
             </div>
 
@@ -875,13 +912,35 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             </div>
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-            Danh Sách Shop ({filteredShops.length})
+          {/* Merge Mode Explanatory Notice */}
+          {isMergeMode && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(245, 158, 11, 0.08) 100%)',
+              border: '1px solid var(--primary)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '8px 10px',
+              fontSize: 11,
+              color: 'var(--text-main)',
+              lineHeight: 1.4,
+            }}>
+              <strong>🎨 Chế độ Gộp Shop:</strong> Các shop có <strong>cùng màu viền/nhóm</strong> (chung SĐT hoặc chung Tên) có thể gộp với nhau. Tick chọn các shop để gộp:
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+              Danh Sách Shop ({filteredShops.length})
+            </div>
+            {isMergeMode && (
+              <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>
+                Đã chọn: {selectedMergeShopIds.length} shop
+              </span>
+            )}
           </div>
 
           {/* Scrollable Shop List */}
           <div style={{
-            maxHeight: 'calc(100vh - 240px)',
+            maxHeight: isMergeMode ? 'calc(100vh - 350px)' : 'calc(100vh - 240px)',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
@@ -916,43 +975,94 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
             ) : (
               filteredShops.map((shop) => {
                 const isSelected = selectedShopId === shop.id;
+                const isChecked = selectedMergeShopIds.includes(shop.id);
+                const groupInfo = shopGroupColorMap.get(shop.id);
+
                 return (
                   <div
                     key={shop.id}
-                    onClick={() => handleSelectShop(shop)}
+                    onClick={() => {
+                      if (isMergeMode) {
+                        if (isChecked) {
+                          setSelectedMergeShopIds(selectedMergeShopIds.filter(id => id !== shop.id));
+                        } else {
+                          setSelectedMergeShopIds([...selectedMergeShopIds, shop.id]);
+                        }
+                      } else {
+                        handleSelectShop(shop);
+                      }
+                    }}
                     style={{
-                      padding: '11px 14px',
+                      padding: isMergeMode ? '9px 12px' : '11px 14px',
                       borderRadius: 12,
-                      border: isSelected ? '1.5px solid var(--primary)' : '1.5px solid rgba(226, 232, 240, 0.9)',
-                      borderLeft: isSelected ? '5px solid var(--primary)' : '1.5px solid rgba(226, 232, 240, 0.9)',
-                      background: isSelected ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)' : '#ffffff',
-                      boxShadow: isSelected ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+                      border: isMergeMode
+                        ? (isChecked
+                            ? '2px solid var(--primary)'
+                            : groupInfo
+                              ? `2px solid ${groupInfo.color.border}`
+                              : '1.5px solid rgba(226, 232, 240, 0.9)')
+                        : (isSelected
+                            ? '1.5px solid var(--primary)'
+                            : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                      borderLeft: isMergeMode
+                        ? (isChecked
+                            ? '6px solid var(--primary)'
+                            : groupInfo
+                              ? `6px solid ${groupInfo.color.border}`
+                              : '1.5px solid rgba(226, 232, 240, 0.9)')
+                        : (isSelected
+                            ? '5px solid var(--primary)'
+                            : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                      background: isMergeMode
+                        ? (isChecked
+                            ? 'rgba(79, 70, 229, 0.10)'
+                            : groupInfo
+                              ? groupInfo.color.bg
+                              : '#ffffff')
+                        : (isSelected
+                            ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)'
+                            : '#ffffff'),
+                      boxShadow: (isSelected || isChecked) ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)',
                       cursor: 'pointer',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      transition: 'all 0.15s ease',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
                     }}
                   >
-                    <div style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 'var(--radius-sm)',
-                      background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
-                      color: isSelected ? '#fff' : 'var(--primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: 13,
-                      flexShrink: 0,
-                    }}>
-                      {shop.code.slice(0, 4)}
-                    </div>
+                    {/* Checkbox when in Merge Mode */}
+                    {isMergeMode && (
+                      <div style={{
+                        color: isChecked ? 'var(--primary)' : groupInfo ? groupInfo.color.border : 'var(--text-dim)',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}>
+                        {isChecked ? <CheckSquare size={18} /> : <Square size={18} />}
+                      </div>
+                    )}
+
+                    {!isMergeMode && (
+                      <div style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 'var(--radius-sm)',
+                        background: isSelected ? 'var(--primary)' : 'var(--bg-tertiary)',
+                        color: isSelected ? '#fff' : 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}>
+                        {shop.code.slice(0, 4)}
+                      </div>
+                    )}
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                        <strong style={{ fontSize: 13, color: isSelected ? 'var(--primary)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <strong style={{ fontSize: 13, color: isChecked || isSelected ? 'var(--primary)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shop.name}
                         </strong>
                         <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', flexShrink: 0 }}>
@@ -967,15 +1077,111 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         </span>
                       </div>
 
-                      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        📍 {shop.address || 'Toàn quốc'}
-                      </div>
+                      {/* Group color tag badge */}
+                      {groupInfo && (
+                        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{
+                            background: groupInfo.color.badge,
+                            color: groupInfo.color.text,
+                            border: `1px solid ${groupInfo.color.border}`,
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            padding: '1px 5px',
+                            borderRadius: 3,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: groupInfo.color.dot }} />
+                            {groupInfo.groupName}
+                          </span>
+                        </div>
+                      )}
+
+                      {!groupInfo && (
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          📍 {shop.address || 'Toàn quốc'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })
             )}
           </div>
+
+          {/* Sticky action bar when in Merge Mode */}
+          {isMergeMode && (
+            <div style={{
+              padding: 10,
+              borderRadius: 'var(--radius-md)',
+              border: '1.5px solid var(--primary)',
+              background: '#fff',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5 }}>
+                <span style={{ fontWeight: 800, color: 'var(--text-main)' }}>
+                  Đã chọn: <strong style={{ color: 'var(--primary)', fontSize: 13 }}>{selectedMergeShopIds.length}</strong> Shop
+                </span>
+                {selectedMergeShopIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMergeShopIds([])}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Bỏ chọn
+                  </button>
+                )}
+              </div>
+
+              {(() => {
+                const selectedShops = shops.filter(s => selectedMergeShopIds.includes(s.id));
+                if (selectedShops.length === 0) {
+                  return (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      💡 Tick chọn các shop <strong>cùng màu</strong> (cùng SĐT hoặc cùng Tên) ở trên.
+                    </div>
+                  );
+                }
+
+                const validation = validateMergeSelection(selectedShops);
+
+                if (validation.eligible) {
+                  return (
+                    <>
+                      <div style={{ fontSize: 11, color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={13} color="#10b981" />
+                        <span>{validation.reason}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetMainShopId(selectedShops[0].id);
+                          setCustomMergeName(selectedShops[0].name);
+                          setIsMergeConfirmModalOpen(true);
+                        }}
+                        className="btn btn-primary btn-sm"
+                        style={{ fontWeight: 800, justifyContent: 'center', padding: '7px 10px', fontSize: 12 }}
+                      >
+                        <GitMerge size={14} />
+                        <span>💾 XÁC NHẬN GỘP ({selectedShops.length}) →</span>
+                      </button>
+                    </>
+                  );
+                }
+
+                return (
+                  <div style={{ fontSize: 11, color: '#b91c1c', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertCircle size={13} color="#ef4444" style={{ flexShrink: 0 }} />
+                    <span>Chỉ được gộp các shop có CÙNG SĐT hoặc CÙNG TÊN (cùng màu).</span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
 
         {/* 👉 RIGHT PANEL: BẢNG CHI TIẾT & SỬA TRỰC TIẾP (LIVE REVIEW & EDITOR) */}
@@ -2115,341 +2321,178 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
         </div>
       )}
 
-      {/* 🌟 MODAL: GỘP NHIỀU SHOP THÀNH 1 SHOP CHÍNH */}
-      {isMergeModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsMergeModalOpen(false)}>
+      {/* 🌟 MODAL XÁC NHẬN GỘP SHOP & CHỌN LẤY GIÁ + THÔNG TIN CHUẨN */}
+      {isMergeConfirmModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsMergeConfirmModalOpen(false)}>
           <div
             className="modal-content"
-            style={{ maxWidth: 840, maxHeight: '92vh', overflowY: 'auto', padding: 0 }}
+            style={{ maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
+            {/* Header */}
             <div style={{
-              padding: '18px 24px',
+              padding: '16px 20px',
               borderBottom: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.10) 0%, rgba(245, 158, 11, 0.08) 100%)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 'var(--radius-md)',
+                  width: 38,
+                  height: 38,
+                  borderRadius: 'var(--radius-sm)',
                   background: 'var(--primary)',
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+                  boxShadow: '0 4px 10px rgba(79, 70, 229, 0.25)',
                 }}>
-                  <GitMerge size={22} />
+                  <GitMerge size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>
-                    🤝 Gộp Nhiều Shop Thành 1 Shop Chính
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+                    🤝 Cấu Hình Gộp Shop: Chọn Shop Chuẩn
                   </h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Gom các chi nhánh / tên gửi phụ về 1 Shop chính để tính chung 1 Bảng Kê Đối Soát.
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Chọn Shop nào để lấy Biểu giá cước & Thông tin tài khoản ngân hàng.
                   </div>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsMergeModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
-                <X size={16} />
+              <button type="button" onClick={() => setIsMergeConfirmModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '3px 6px' }}>
+                <X size={15} />
               </button>
             </div>
 
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* RULE CALLOUT */}
-              <div style={{
-                background: 'rgba(79, 70, 229, 0.05)',
-                border: '1.5px dashed var(--primary)',
-                padding: '12px 16px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12.5,
-                color: 'var(--text-main)',
-                lineHeight: 1.5,
-              }}>
-                <strong style={{ color: 'var(--primary)' }}>🔒 Quy tắc kiểm tra điều kiện gộp Shop:</strong>
-                <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
-                  <li><strong>Điều kiện 1:</strong> Các shop có <strong>CÙNG SỐ ĐIỆN THOẠI</strong> (1 chủ sở hữu / 1 SĐT dùng nhiều tên cửa hàng khác nhau).</li>
-                  <li><strong>Điều kiện 2:</strong> Các shop có <strong>CÙNG TÊN SHOP</strong> (1 shop có nhiều số điện thoại / nhiều chi nhánh).</li>
-                  <li style={{ color: 'var(--text-muted)' }}><em>Không cho phép gộp các shop hoàn toàn khác tên và khác SĐT để đảm bảo tính toàn vẹn dữ liệu.</em></li>
-                </ul>
-              </div>
+            {/* Body */}
+            {(() => {
+              const selectedShops = shops.filter(s => selectedMergeShopIds.includes(s.id));
+              const mainId = targetMainShopId || selectedShops[0]?.id;
 
-              {/* AUTO-SUGGESTIONS FROM SYSTEM */}
-              {(() => {
-                const suggestedGroups = getEligibleMergeGroups();
-                if (suggestedGroups.length === 0) return null;
-
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Zap size={16} color="var(--warning)" />
-                      <span>Phát hiện tự động {suggestedGroups.length} nhóm Shop đủ điều kiện gộp:</span>
-                    </div>
+              return (
+                <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 8 }}>
+                      1. Chọn Shop làm chuẩn (lấy Biểu Giá & Tài Khoản Ngân Hàng):
+                    </label>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {suggestedGroups.map(group => (
-                        <div
-                          key={group.id}
-                          style={{
-                            padding: '12px 14px',
-                            background: '#fff',
-                            border: '1.5px solid #fcd34d',
-                            borderRadius: 'var(--radius-md)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: 10,
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>
-                              {group.label} ({group.shops.length} Shop)
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                              Gồm: {group.shops.map(s => <strong key={s.id} style={{ color: 'var(--text-main)', marginRight: 8 }}>• {s.name} ({s.phone || 'Không SĐT'})</strong>)}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
+                      {selectedShops.map(shop => {
+                        const isMain = shop.id === mainId;
+                        return (
+                          <div
+                            key={shop.id}
                             onClick={() => {
-                              setSelectedMergeShopIds(group.shops.map(s => s.id));
-                              setTargetMainShopId(group.shops[0].id);
-                              setCustomMergeName(group.shops[0].name);
+                              setTargetMainShopId(shop.id);
+                              if (!customMergeName || selectedShops.some(s => s.name === customMergeName)) {
+                                setCustomMergeName(shop.name);
+                              }
                             }}
-                            className="btn btn-sm"
                             style={{
-                              background: '#fef3c7',
-                              color: '#92400e',
-                              border: '1px solid #f59e0b',
-                              fontWeight: 700,
-                              fontSize: 11.5,
+                              padding: '12px 14px',
+                              borderRadius: 'var(--radius-md)',
+                              border: isMain ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                              background: isMain ? 'rgba(79, 70, 229, 0.06)' : '#fff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              transition: 'all 0.15s ease',
                             }}
                           >
-                            ⚡ Chọn nhóm này để gộp
-                          </button>
-                        </div>
-                      ))}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <input
+                                type="radio"
+                                name="target_main_shop"
+                                checked={isMain}
+                                onChange={() => {
+                                  setTargetMainShopId(shop.id);
+                                  if (!customMergeName || selectedShops.some(s => s.name === customMergeName)) {
+                                    setCustomMergeName(shop.name);
+                                  }
+                                }}
+                                style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                              />
+                              <div>
+                                <strong style={{ fontSize: 13, color: isMain ? 'var(--primary)' : 'var(--text-main)' }}>{shop.name}</strong>
+                                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)', marginLeft: 6 }}>({shop.code})</span>
+                                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  📞 {shop.phone || 'Chưa có SĐT'} · 🏦 {shop.bankAccount?.bankName || 'MB Bank'} ({shop.bankAccount?.accountNumber || 'Chưa có STK'})
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'right', fontSize: 11.5 }}>
+                              <div style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                                {shop.pricingPlan?.name || 'Biểu giá chuẩn'}
+                              </div>
+                              <div style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
+                                {shop.pricingPlan?.weightRules?.[0] ? `0-1kg: ${shop.pricingPlan.weightRules[0].price.toLocaleString('vi-VN')} đ` : 'Chưa cài'}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })()}
 
-              {/* MANUAL SELECTION SECTION */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
-                  🎯 Chọn thủ công các Shop trong danh sách để gộp:
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 6 }}>
+                      2. Tên Shop Đại Diện (In trên Bảng Kê Excel):
+                    </label>
+                    <input
+                      type="text"
+                      value={customMergeName}
+                      onChange={(e) => setCustomMergeName(e.target.value)}
+                      placeholder="Nhập tên shop hiển thị..."
+                      className="input-field"
+                      style={{ width: '100%', padding: '8px 12px', fontSize: 13, fontWeight: 700 }}
+                    />
+                  </div>
+
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: 12,
+                    fontSize: 12,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.5,
+                  }}>
+                    <div>💡 <strong>Sau khi gộp:</strong></div>
+                    <div>• Tên phụ nhận diện tự động: <strong>{selectedShops.map(s => s.name).join(', ')}</strong></div>
+                    <div>• SĐT nhận diện tự động: <strong>{Array.from(new Set(selectedShops.map(s => s.phone))).join(', ')}</strong></div>
+                    <div>• Đơn hàng của tất cả các tên/SĐT trên sẽ tự gom về 1 bảng kê duy nhất mang tên <strong>"{customMergeName || 'Shop chính'}"</strong>.</div>
+                  </div>
                 </div>
+              );
+            })()}
 
-                {/* Search in modal */}
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
-                  <input
-                    type="text"
-                    placeholder="Tìm nhanh Shop theo tên, SĐT..."
-                    value={mergeSearchTerm}
-                    onChange={(e) => setMergeSearchTerm(e.target.value)}
-                    className="input-field"
-                    style={{ padding: '6px 10px 6px 30px', fontSize: 12, width: '100%' }}
-                  />
-                </div>
-
-                {/* Shop Checkbox List */}
-                <div style={{
-                  maxHeight: 220,
-                  overflowY: 'auto',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  background: '#fff',
-                  padding: 8,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                }}>
-                  {shops
-                    .filter(s =>
-                      s.name.toLowerCase().includes(mergeSearchTerm.toLowerCase()) ||
-                      s.phone.includes(mergeSearchTerm) ||
-                      s.code.toLowerCase().includes(mergeSearchTerm.toLowerCase())
-                    )
-                    .map(shop => {
-                      const isChecked = selectedMergeShopIds.includes(shop.id);
-                      return (
-                        <div
-                          key={shop.id}
-                          onClick={() => {
-                            if (isChecked) {
-                              setSelectedMergeShopIds(selectedMergeShopIds.filter(id => id !== shop.id));
-                            } else {
-                              setSelectedMergeShopIds([...selectedMergeShopIds, shop.id]);
-                            }
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 'var(--radius-sm)',
-                            background: isChecked ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
-                            border: isChecked ? '1px solid var(--primary)' : '1px solid transparent',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ color: isChecked ? 'var(--primary)' : 'var(--text-dim)' }}>
-                              {isChecked ? <CheckSquare size={16} /> : <Square size={16} />}
-                            </div>
-                            <div>
-                              <strong style={{ fontSize: 12.5, color: isChecked ? 'var(--primary)' : 'var(--text-main)' }}>{shop.name}</strong>
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>📞 SĐT: <strong>{shop.phone || 'Chưa có'}</strong></span>
-                              {shop.nameAliases && shop.nameAliases.length > 0 && (
-                                <span style={{ fontSize: 10.5, color: 'var(--text-dim)', marginLeft: 6 }}>
-                                  (Đã có {shop.nameAliases.length} tên phụ)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{shop.code}</span>
-                        </div>
-                      );
-                    })}
-                </div>
-
-                {/* REAL-TIME VALIDATION BANNER */}
-                {(() => {
-                  const selectedShops = shops.filter(s => selectedMergeShopIds.includes(s.id));
-                  if (selectedShops.length === 0) {
-                    return (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        Hãy tick chọn ít nhất 2 Shop ở danh sách trên để gộp.
-                      </div>
-                    );
-                  }
-
-                  const validation = validateMergeSelection(selectedShops);
-
-                  if (validation.eligible) {
-                    return (
-                      <div style={{
-                        background: '#ecfdf5',
-                        border: '1.5px solid #10b981',
-                        borderRadius: 'var(--radius-md)',
-                        padding: 14,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 12,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065f46', fontSize: 13, fontWeight: 800 }}>
-                          <CheckCircle2 size={18} color="#10b981" />
-                          <span>{validation.reason}</span>
-                        </div>
-
-                        {/* Configuration Form when Eligible */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#065f46', marginBottom: 4 }}>
-                              ✏️ Tên Shop Chính Đại Diện (In trên Bảng Kê Excel):
-                            </label>
-                            <input
-                              type="text"
-                              value={customMergeName || selectedShops[0]?.name || ''}
-                              onChange={(e) => setCustomMergeName(e.target.value)}
-                              placeholder="Nhập tên đại diện..."
-                              className="input-field"
-                              style={{ width: '100%', padding: '7px 10px', fontSize: 12.5, fontWeight: 700, borderColor: '#10b981', background: '#fff' }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#065f46', marginBottom: 4 }}>
-                              Chọn Shop giữ Biểu Giá & Thông tin Ngân hàng:
-                            </label>
-                            <select
-                              value={targetMainShopId || selectedShops[0]?.id || ''}
-                              onChange={(e) => setTargetMainShopId(e.target.value)}
-                              className="select-field"
-                              style={{ width: '100%', padding: '7px 10px', fontSize: 12, fontWeight: 600 }}
-                            >
-                              {selectedShops.map(s => (
-                                <option key={s.id} value={s.id}>
-                                  {s.name} ({s.code}) · Biểu giá: {s.pricingPlan?.name || 'Mặc định'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div style={{ fontSize: 11.5, color: '#047857' }}>
-                          💡 Sau khi gộp: Các tên <strong>{selectedShops.map(s => `"${s.name}"`).join(', ')}</strong> và các SĐT <strong>{Array.from(new Set(selectedShops.map(s => s.phone))).join(', ')}</strong> sẽ tự động nhận diện về 1 Shop duy nhất.
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Not eligible
-                  return (
-                    <div style={{
-                      background: '#fef2f2',
-                      border: '1.5px solid #ef4444',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      color: '#991b1b',
-                      fontSize: 12.5,
-                    }}>
-                      <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
-                      <div>
-                        <strong>{validation.reason}</strong>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
+            {/* Footer */}
             <div style={{
-              padding: '16px 24px',
+              padding: '14px 20px',
               background: 'var(--bg-tertiary)',
               borderTop: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12,
+              justifyContent: 'flex-end',
+              gap: 10,
             }}>
-              <button type="button" onClick={() => setIsMergeModalOpen(false)} className="btn btn-secondary">
-                Đóng
+              <button type="button" onClick={() => setIsMergeConfirmModalOpen(false)} className="btn btn-secondary">
+                Hủy
               </button>
-
-              {(() => {
-                const selectedShops = shops.filter(s => selectedMergeShopIds.includes(s.id));
-                const validation = validateMergeSelection(selectedShops);
-
-                return (
-                  <button
-                    type="button"
-                    onClick={() => handleExecuteMergeShops()}
-                    disabled={!validation.eligible || !isAdmin}
-                    className="btn btn-primary"
-                    style={{ fontWeight: 800, padding: '8px 22px', fontSize: 13 }}
-                  >
-                    <GitMerge size={16} />
-                    <span>💾 XÁC NHẬN GỘP {selectedShops.length} SHOP NÀY THÀNH 1 SHOP CHÍNH</span>
-                  </button>
-                );
-              })()}
+              <button
+                type="button"
+                onClick={() => handleExecuteMergeShops()}
+                className="btn btn-primary"
+                style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}
+              >
+                <Check size={16} />
+                <span>✓ HOÀN TẤT GỘP VÀO SHOP CHÍNH</span>
+              </button>
             </div>
           </div>
         </div>
