@@ -62,13 +62,13 @@ export const DEFAULT_CARRIER_TIERS: CarrierWholesaleTier[] = [
     carrierId: 'jnt',
     carrierName: 'J&T Express',
     weightRules: [
-      { minWeight: 0, maxWeight: 1, price: 20000 },
-      { minWeight: 1, maxWeight: 3, price: 25000 },
-      { minWeight: 3, maxWeight: 5, price: 30000 },
+      { minWeight: 0, maxWeight: 1, price: 11000 },
+      { minWeight: 1, maxWeight: 3, price: 17000 },
+      { minWeight: 3, maxWeight: 5, price: 25000 },
     ],
     extraStepWeight: 1,
     extraStepPrice: 5000,
-    returnFeePercent: 50,
+    returnFeePercent: 0,
   },
   {
     id: 'spx_tier',
