@@ -489,8 +489,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       const weightVal = weightCol ? row[weightCol] : (appRow && appMapping.weightColumn ? appRow[appMapping.weightColumn] : 0.5);
       const weight = parseWeightToKg(weightVal);
       
-      // Calculate effective NVC fee (from file or carrier tier wholesale price)
-      const effectiveNvcFee = nvcFee > 0 ? nvcFee : calculateWeightFee(weight, carrierPricing);
+      // If fee column is mapped in file, use the exact fee from file (including 0đ). Only calculate by weight if no fee column exists in file.
+      const effectiveNvcFee = feeCol ? nvcFee : calculateWeightFee(weight, carrierPricing);
       totalNvcFee += (effectiveNvcFee + nvcOther);
 
       const sFee = calculateWeightFee(weight, plan) + (plan.fixedSurcharge || 0);
