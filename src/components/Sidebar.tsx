@@ -10,7 +10,6 @@ import {
   Moon, 
   Database,
   ShieldCheck,
-  Users,
   LogOut,
   UserCheck,
   CreditCard,
@@ -94,14 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Award,
           badge: null,
           roles: ['ADMIN', 'ACCOUNTANT']
-        },
-        {
-          id: 'users',
-          label: 'Tài Khoản & Phân Quyền',
-          desc: 'Quản lý tài khoản nhân viên',
-          icon: Users,
-          badge: null,
-          roles: ['ADMIN']
         }
       ]
     },

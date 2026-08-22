@@ -7,7 +7,6 @@ import { BulkEmailView } from './components/BulkEmailView';
 import { HistoryAndAnalyticsView } from './components/HistoryAndAnalyticsView';
 import { DebtAndPayoutView } from './components/DebtAndPayoutView';
 import { DataAuditView } from './components/DataAuditView';
-import { UserManagementView } from './components/UserManagementView';
 import { CtvManagementView } from './components/CtvManagementView';
 import { LoginView } from './components/LoginView';
 import { BackupModal } from './components/BackupModal';
@@ -300,7 +299,6 @@ export function App() {
               {activeTab === 'ctv' && 'Cộng Tác Viên (CTV)'}
               {activeTab === 'emails' && 'Gửi Email Hàng Loạt'}
               {activeTab === 'history' && 'Lịch Sử & Lợi Nhuận'}
-              {activeTab === 'users' && 'Quản Lý Tài Khoản'}
             </span>
           </div>
 
@@ -416,10 +414,6 @@ export function App() {
 
           {activeTab === 'ctv' && (
             <CtvManagementView />
-          )}
-
-          {activeTab === 'users' && currentUser.role === 'ADMIN' && (
-            <UserManagementView currentUser={currentUser} />
           )}
         </main>
 

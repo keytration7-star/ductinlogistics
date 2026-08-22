@@ -647,7 +647,7 @@ const TabGuide: React.FC = () => {
 const TabAccounts: React.FC<{ currentUser?: UserAccount }> = ({ currentUser }) => {
   if (!currentUser) return null;
   return (
-    <div style={{ margin: '-20px -24px' }}>
+    <div style={{ padding: '16px 20px' }}>
       <UserManagementView currentUser={currentUser} />
     </div>
   );
@@ -671,7 +671,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content"
-        style={{ maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ 
+          maxWidth: activeTab === 'accounts' ? 1080 : 760, 
+          width: '95vw',
+          maxHeight: '90vh', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          overflow: 'hidden',
+          transition: 'max-width 0.25s ease',
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
