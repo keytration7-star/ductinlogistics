@@ -12,7 +12,6 @@ import {
   AlertCircle,
   Truck,
   Store,
-  FileText,
   Trash2,
   ClipboardList
 } from 'lucide-react';
@@ -165,22 +164,32 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
     setAppFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Process Dual-Zone Cross-Period Audit Engine
+  // Check if active carrier uses 2-file mode (J&T) or 1-file mode (GHN, SPX, ViettelPost...)
+  const isTwoFilesMode = !activeCarrierId || activeCarrierId === 'jnt';
+
+  // Process Cross-Period Audit Engine
   const handleRunAudit = async () => {
-    if (nvcFiles.length === 0 && appFiles.length === 0) {
-      showToast('Vui lòng chọn ít nhất 1 file Đối Soát NVC hoặc 1 file Đơn Xuất App.', 'warning');
-      return;
+    if (isTwoFilesMode) {
+      if (nvcFiles.length === 0 && appFiles.length === 0) {
+        showToast('Vui lòng chọn ít nhất 1 file Đối Soát J&T hoặc 1 file Đơn Xuất App.', 'warning');
+        return;
+      }
+    } else {
+      if (nvcFiles.length === 0) {
+        showToast(`Vui lòng chọn ít nhất 1 file Đối Soát ${activeCarrierName || 'NVC'}.`, 'warning');
+        return;
+      }
     }
 
     setIsProcessing(true);
-    showToast(`Đang rà soát đối chiếu dữ liệu giữa ${nvcFiles.length} file NVC và ${appFiles.length} file App...`, 'info');
+    showToast(`Đang rà soát đối chiếu dữ liệu ${nvcFiles.length} file Đối Soát ${activeCarrierName || 'NVC'}...`, 'info');
 
     try {
       const fileSummaryList: { name: string; type: 'nvc' | 'app'; size: number; orderCount: number }[] = [];
       const extractedOrders: AuditOrderItem[] = [];
       const seenTrackingCodes = new Set<string>();
 
-      // 1. Build lookup map from App Files (System Export Files)
+      // 1. Build lookup map from App Files (Only in 2-File Mode for J&T)
       const appOrdersMap = new Map<string, {
         shopCode: string;
         shopName: string;
@@ -190,41 +199,43 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
         weight: number;
       }>();
 
-      for (const file of appFiles) {
-        const { rows } = await ExcelService.parseExcelFile(file);
-        let appCount = 0;
+      if (isTwoFilesMode && appFiles.length > 0) {
+        for (const file of appFiles) {
+          const { rows } = await ExcelService.parseExcelFile(file);
+          let appCount = 0;
 
-        rows.forEach((row: Record<string, any>) => {
-          const trackingCode = String(
-            row['Mã vận đơn'] || row['MÃ VẬN ĐƠN'] || row['Ma_Van_Don'] || row['tracking_code'] || row['MaBD'] || row['Mã Đơn'] || ''
-          ).trim().toUpperCase();
+          rows.forEach((row: Record<string, any>) => {
+            const trackingCode = String(
+              row['Mã vận đơn'] || row['MÃ VẬN ĐƠN'] || row['Ma_Van_Don'] || row['tracking_code'] || row['MaBD'] || row['Mã Đơn'] || ''
+            ).trim().toUpperCase();
 
-          if (!trackingCode || trackingCode.length < 5) return;
-          appCount++;
+            if (!trackingCode || trackingCode.length < 5) return;
+            appCount++;
 
-          const shopCode = String(row['Mã Shop'] || row['Mã shop'] || row['MA_SHOP'] || row['Shop'] || '').trim();
-          const shopName = String(row['Tên Shop'] || row['Tên shop'] || row['TEN_SHOP'] || row['Shop Name'] || 'Shop ' + shopCode).trim();
-          const shopPhone = String(row['SĐT Shop'] || row['SĐT'] || row['Phone'] || '').trim();
-          const shopAddress = String(row['Địa Chỉ Shop'] || row['Địa chỉ'] || row['Address'] || '').trim();
-          const cod = parseFloat(String(row['Tiền COD'] || row['COD'] || row['Thu hộ'] || 0).replace(/[^0-9.]/g, '')) || 0;
-          const weight = parseFloat(String(row['Khối lượng'] || row['Trọng lượng'] || row['Weight'] || 0).replace(/[^0-9.]/g, '')) || 0;
+            const shopCode = String(row['Mã Shop'] || row['Mã shop'] || row['MA_SHOP'] || row['Shop'] || '').trim();
+            const shopName = String(row['Tên Shop'] || row['Tên shop'] || row['TEN_SHOP'] || row['Shop Name'] || 'Shop ' + shopCode).trim();
+            const shopPhone = String(row['SĐT Shop'] || row['SĐT'] || row['Phone'] || row['Số điện thoại di động của người gửi hàng'] || '').trim();
+            const shopAddress = String(row['Địa Chỉ Shop'] || row['Địa chỉ'] || row['Address'] || row['Địa chỉ người gửi'] || '').trim();
+            const cod = parseFloat(String(row['Tiền COD'] || row['COD'] || row['Thu hộ'] || row['COD thực thu'] || row['Tiền thu hộ COD'] || 0).replace(/[^0-9.]/g, '')) || 0;
+            const weight = parseFloat(String(row['Khối lượng'] || row['Trọng lượng'] || row['Weight'] || row['Trọng lượng tính phí'] || 0).replace(/[^0-9.]/g, '')) || 0;
 
-          appOrdersMap.set(trackingCode, {
-            shopCode,
-            shopName,
-            shopPhone,
-            shopAddress,
-            cod,
-            weight,
+            appOrdersMap.set(trackingCode, {
+              shopCode,
+              shopName,
+              shopPhone,
+              shopAddress,
+              cod,
+              weight,
+            });
           });
-        });
 
-        fileSummaryList.push({
-          name: file.name,
-          type: 'app',
-          size: file.size,
-          orderCount: appCount,
-        });
+          fileSummaryList.push({
+            name: file.name,
+            type: 'app',
+            size: file.size,
+            orderCount: appCount,
+          });
+        }
       }
 
       // 2. Build lookup map from saved sessions in system
@@ -241,11 +252,26 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
         });
       });
 
-      const shopCodeMap = new Map<string, Shop>();
-      shops.forEach(s => {
-        if (s.code) shopCodeMap.set(s.code.trim().toUpperCase(), s);
-        if (s.name) shopCodeMap.set(s.name.trim().toLowerCase(), s);
-      });
+      // Matcher helper for shop
+      const findShopMatch = (name: string, phone: string, code: string): Shop | undefined => {
+        const cName = (name || '').trim().toLowerCase();
+        const cPhone = (phone || '').replace(/[^0-9]/g, '');
+        const cCode = (code || '').trim().toUpperCase();
+
+        for (const shop of shops) {
+          if (cCode && shop.code && shop.code.trim().toUpperCase() === cCode) return shop;
+          if (cPhone) {
+            const sPhone = (shop.phone || '').replace(/[^0-9]/g, '');
+            if (sPhone && sPhone === cPhone) return shop;
+            if (shop.phoneList && shop.phoneList.some(p => (p || '').replace(/[^0-9]/g, '') === cPhone)) return shop;
+          }
+          if (cName) {
+            if (shop.name && shop.name.trim().toLowerCase() === cName) return shop;
+            if (shop.nameAliases && shop.nameAliases.some(a => (a || '').trim().toLowerCase() === cName)) return shop;
+          }
+        }
+        return undefined;
+      };
 
       // 3. Process Carrier NVC Files
       if (nvcFiles.length > 0) {
@@ -268,18 +294,36 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
 
             const appMatch = appOrdersMap.get(trackingCode);
 
-            let shopCodeRaw = appMatch?.shopCode || String(row['Mã Shop'] || row['Mã shop'] || row['MA_SHOP'] || row['Shop'] || '').trim();
-            let shopNameRaw = appMatch?.shopName || String(row['Tên Shop'] || row['Tên shop'] || row['TEN_SHOP'] || row['Shop Name'] || 'Shop ' + shopCodeRaw).trim();
+            // In 1-File Mode (GHN), read sender info directly from NVC row columns
+            const shopNameFromNvc = String(
+              row['Tên cửa hàng'] || row['Tên người gửi'] || row['Tên Shop'] || row['Tên shop'] || row['Cửa hàng'] || row['Sender Name'] || row['TEN_SHOP'] || row['Shop'] || ''
+            ).trim();
+            const shopPhoneFromNvc = String(
+              row['SĐT người gửi'] || row['SĐT Shop'] || row['Số điện thoại người gửi'] || row['SĐT'] || row['Phone'] || row['Sender Phone'] || ''
+            ).trim();
+            const shopCodeFromNvc = String(
+              row['Mã cửa hàng'] || row['Mã Shop'] || row['Mã shop'] || row['Store ID'] || row['MA_SHOP'] || ''
+            ).trim();
+
+            let shopCodeRaw = appMatch?.shopCode || shopCodeFromNvc || '';
+            let shopNameRaw = appMatch?.shopName || shopNameFromNvc || (shopCodeRaw ? 'Shop ' + shopCodeRaw : 'Shop Chưa Đặt Tên');
+            let shopPhoneRaw = appMatch?.shopPhone || shopPhoneFromNvc || '';
             
-            const codRaw = parseFloat(String(row['Tiền COD'] || row['COD'] || row['Thu hộ'] || appMatch?.cod || 0).replace(/[^0-9.]/g, '')) || 0;
-            const feeRaw = parseFloat(String(row['Cước'] || row['Tổng Cước'] || row['Cước Shop'] || 0).replace(/[^0-9.]/g, '')) || 0;
+            const codRaw = parseFloat(String(
+              row['Tiền COD đã ký nhận'] || row['Tiền COD'] || row['COD'] || row['Thu hộ'] || row['Tiền thu hộ'] || appMatch?.cod || 0
+            ).replace(/[^0-9.]/g, '')) || 0;
+            const feeRaw = parseFloat(String(
+              row['Tiền cước PP_PM'] || row['Cước'] || row['Tổng Cước'] || row['Cước Shop'] || row['Tổng phí'] || row['Cước phí'] || 0
+            ).replace(/[^0-9.]/g, '')) || 0;
             const netPayout = codRaw - feeRaw;
 
-            const matchedShop = shopCodeMap.get(shopCodeRaw.toUpperCase()) || shopCodeMap.get(shopNameRaw.toLowerCase());
+            const matchedShop = findShopMatch(shopNameRaw, shopPhoneRaw, shopCodeRaw);
             const existingSession = savedOrdersMap.get(trackingCode);
 
             let bucket: 'VALID' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' = 'MISSING';
-            let reason = appMatch ? `Khớp thông tin từ File Đơn Xuất App - Đơn bị sót thuộc ${customPeriod}` : `Đơn bị sót thuộc ${customPeriod} chưa đối soát & chưa đi tiền`;
+            let reason = isTwoFilesMode 
+              ? (appMatch ? `Khớp thông tin từ File Đơn Xuất App - Đơn bị sót thuộc ${customPeriod}` : `Đơn bị sót thuộc ${customPeriod} chưa đối soát & chưa đi tiền`)
+              : `Đơn thuộc kỳ ${customPeriod} chưa đối soát & chưa đi tiền`;
 
             if (seenTrackingCodes.has(trackingCode)) {
               bucket = 'DUPLICATE';
@@ -509,16 +553,20 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
               <ShieldCheck size={26} color="var(--primary)" />
-              Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả File)
+              {isTwoFilesMode 
+                ? 'Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả File)' 
+                : `Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (1 Vùng Kéo Thả File NVC)`}
             </h2>
             {activeCarrierName && (
               <span className="badge badge-primary" style={{ fontSize: 12, padding: '3px 10px', fontWeight: 800 }}>
-                📦 HÃNG: {activeCarrierName.toUpperCase()}
+                📦 HÃNG: {activeCarrierName.toUpperCase()} {isTwoFilesMode ? '(CHẾ ĐỘ 2 FILE)' : '(CHẾ ĐỘ 1 FILE)'}
               </span>
             )}
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-            Kéo thả hàng loạt File Đối Soát NVC và File Đơn Xuất App để khớp nối chuẩn xác 100% Khách Hàng, phát hiện đơn bị thiếu & lập Kỳ Bù.
+            {isTwoFilesMode
+              ? 'Kéo thả hàng loạt File Đối Soát J&T và File Đơn Xuất App để khớp nối chuẩn xác 100% Khách Hàng, phát hiện đơn bị thiếu & lập Kỳ Bù.'
+              : `Kéo thả hàng loạt File Đối Soát ${activeCarrierName || 'NVC'} các kỳ để rà soát đơn trùng lặp, phát hiện đơn bị thiếu/chưa đối soát và phân tách tự động theo từng Shop.`}
           </p>
         </div>
 
@@ -556,8 +604,8 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
         </div>
       )}
 
-      {/* DUAL DRAG & DROP ZONES (2 VÙNG KÉO THẢ GIỐNG ĐỐI SOÁT) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+      {/* DRAG & DROP ZONES (1 VÙNG CHO GHN/SPX HOẶC 2 VÙNG CHO J&T) */}
+      <div style={{ display: 'grid', gridTemplateColumns: isTwoFilesMode ? 'repeat(auto-fit, minmax(360px, 1fr))' : '1fr', gap: 16 }}>
         
         {/* ZONE 1: FILE ĐỐI SOÁT NVC */}
         <div 
@@ -578,8 +626,12 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                 <Truck size={20} />
               </div>
               <div>
-                <strong style={{ fontSize: 15, color: 'var(--primary)' }}>VÙNG 1: File Đối Soát NVC</strong>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>File Excel đối soát do hãng vận chuyển gửi</div>
+                <strong style={{ fontSize: 15, color: 'var(--primary)' }}>
+                  {isTwoFilesMode ? 'VÙNG 1: File Đối Soát J&T Express' : `VÙNG KÉO THẢ: File Đối Soát ${activeCarrierName?.toUpperCase() || 'NVC'}`}
+                </strong>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {isTwoFilesMode ? 'File Excel đối soát do J&T Express gửi' : `File Excel đối soát từ ${activeCarrierName || 'Hãng'} (đã có Tên Shop, SĐT, COD, Cước...)`}
+                </div>
               </div>
             </div>
             <span className="badge badge-primary">{nvcFiles.length} file</span>
@@ -597,7 +649,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
             htmlFor="nvc-batch-input" 
             style={{ 
               cursor: 'pointer', 
-              padding: '20px 16px', 
+              padding: '24px 16px', 
               borderRadius: 'var(--radius-md)', 
               border: '1px dashed var(--primary)', 
               background: 'rgba(79, 70, 229, 0.05)',
@@ -608,14 +660,20 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               gap: 8,
             }}
           >
-            <UploadCloud size={28} color="var(--primary)" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>+ Thêm/Kéo thả các File Đối Soát NVC</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>GHN, J&T Express, ViettelPost, SPX...</span>
+            <UploadCloud size={32} color="var(--primary)" />
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+              + Thêm / Kéo thả các File Đối Soát {activeCarrierName ? activeCarrierName.toUpperCase() : 'NVC'}
+            </span>
+            <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+              {isTwoFilesMode 
+                ? 'Hỗ trợ kéo thả đồng thời nhiều file đối soát J&T qua các kỳ'
+                : `Hỗ trợ kéo thả đồng thời nhiều file đối soát ${activeCarrierName || 'GHN'} qua các kỳ (tự động phân tách Shop)`}
+            </span>
           </label>
 
           {/* List of uploaded NVC files with editable Period Name */}
           {nvcFiles.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
               {nvcFiles.map((item, idx) => (
                 <div key={idx} style={{ 
                   display: 'flex', 
@@ -631,7 +689,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, minWidth: 140, flex: 1 }}>
                     <FileSpreadsheet size={16} color="var(--primary)" />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }} title={item.file.name}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }} title={item.file.name}>
                       {item.file.name}
                     </span>
                   </div>
@@ -644,7 +702,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                       onChange={(e) => updateNvcPeriodName(idx, e.target.value)}
                       placeholder="Nhập tên kỳ đối soát..."
                       className="input-field"
-                      style={{ padding: '3px 8px', fontSize: 11, width: 150, fontWeight: 700, color: 'var(--primary)' }}
+                      style={{ padding: '3px 8px', fontSize: 11, width: 160, fontWeight: 700, color: 'var(--primary)' }}
                     />
                   </div>
 
@@ -657,77 +715,90 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
           )}
         </div>
 
-        {/* ZONE 2: FILE ĐƠN XUẤT APP / HỆ THỐNG */}
-        <div 
-          className="glass-panel" 
-          style={{ 
-            padding: 24, 
-            border: '2px dashed var(--success)', 
-            borderRadius: 'var(--radius-lg)',
-            background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(16, 185, 129, 0.08) 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Store size={20} />
-              </div>
-              <div>
-                <strong style={{ fontSize: 15, color: 'var(--success)' }}>VÙNG 2: File Đơn Xuất App / Hệ Thống</strong>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>File đơn xuất từ phần mềm Shop (Pancake, TPOS, Nhanh...)</div>
-              </div>
-            </div>
-            <span className="badge badge-success">{appFiles.length} file</span>
-          </div>
-
-          <input 
-            type="file" 
-            multiple 
-            accept=".xlsx, .xls, .csv" 
-            onChange={handleAppFilesSelect} 
-            style={{ display: 'none' }} 
-            id="app-batch-input" 
-          />
-          <label 
-            htmlFor="app-batch-input" 
+        {/* ZONE 2: FILE ĐƠN XUẤT APP / HỆ THỐNG (CHỈ HIỆN KHI Ở CHẾ ĐỘ 2 FILE CỦA J&T) */}
+        {isTwoFilesMode && (
+          <div 
+            className="glass-panel" 
             style={{ 
-              cursor: 'pointer', 
-              padding: '20px 16px', 
-              borderRadius: 'var(--radius-md)', 
-              border: '1px dashed var(--success)', 
-              background: 'rgba(16, 185, 129, 0.05)',
-              textAlign: 'center',
+              padding: 24, 
+              border: '2px dashed var(--success)', 
+              borderRadius: 'var(--radius-lg)',
+              background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(16, 185, 129, 0.08) 100%)',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              gap: 8,
+              gap: 14,
             }}
           >
-            <UploadCloud size={28} color="var(--success)" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>+ Thêm/Kéo thả các File Đơn Xuất App</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>File Excel xuất danh sách đơn của Shop/Hệ thống</span>
-          </label>
-
-          {/* List of uploaded App files */}
-          {appFiles.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
-              {appFiles.map((f, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', background: 'var(--bg-card)', borderRadius: 6, fontSize: 12, border: '1px solid var(--border-color)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-                    <FileText size={14} color="var(--success)" />
-                    {f.name}
-                  </span>
-                  <button onClick={() => removeAppFile(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}>
-                    <Trash2 size={13} />
-                  </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Store size={20} />
                 </div>
-              ))}
+                <div>
+                  <strong style={{ fontSize: 15, color: 'var(--success)' }}>VÙNG 2: File Đơn Xuất App / Hệ Thống</strong>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>File đơn xuất từ phần mềm Shop (Pancake, TPOS, Nhanh...)</div>
+                </div>
+              </div>
+              <span className="badge badge-success">{appFiles.length} file</span>
             </div>
-          )}
-        </div>
+
+            <input 
+              type="file" 
+              multiple 
+              accept=".xlsx, .xls, .csv" 
+              onChange={handleAppFilesSelect} 
+              style={{ display: 'none' }} 
+              id="app-batch-input" 
+            />
+            <label 
+              htmlFor="app-batch-input" 
+              style={{ 
+                cursor: 'pointer', 
+                padding: '24px 16px', 
+                borderRadius: 'var(--radius-md)', 
+                border: '1px dashed var(--success)', 
+                background: 'rgba(16, 185, 129, 0.05)',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <UploadCloud size={32} color="var(--success)" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>+ Thêm/Kéo thả các File Đơn Xuất App</span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>File Excel xuất danh sách đơn của Shop/Hệ thống</span>
+            </label>
+
+            {/* List of uploaded App files */}
+            {appFiles.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                {appFiles.map((file, idx) => (
+                  <div key={idx} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    padding: '8px 12px', 
+                    background: 'var(--bg-card)', 
+                    borderRadius: 8, 
+                    fontSize: 12, 
+                    border: '1px solid var(--border-color)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                      <FileSpreadsheet size={16} color="var(--success)" />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }} title={file.name}>
+                        {file.name}
+                      </span>
+                    </div>
+                    <button onClick={() => removeAppFile(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Xóa file này">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ACTION BUTTON TO TRIGGER AUDIT */}
