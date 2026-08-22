@@ -18,13 +18,21 @@ import { VIETNAM_BANKS as FULL_VIETNAM_BANKS } from '../constants/banks';
 
 const VIETNAM_BANKS = FULL_VIETNAM_BANKS.map(b => b.shortName);
 
-export const CtvManagementView: React.FC = () => {
+interface CtvManagementViewProps {
+  activeCarrierId?: string;
+  activeCarrierName?: string;
+}
+
+export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
+  activeCarrierId,
+  activeCarrierName,
+}) => {
   const [ctvs, setCtvs] = useState<CtvProfile[]>(() => StorageService.getCtvs());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCtv, setEditingCtv] = useState<CtvProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [testWeight, setTestWeight] = useState<number>(1.5);
-  const [testCarrierId, setTestCarrierId] = useState<string>('jnt');
+  const [testCarrierId, setTestCarrierId] = useState<string>(activeCarrierId || 'jnt');
 
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -37,7 +45,7 @@ export const CtvManagementView: React.FC = () => {
       phone: '',
       email: '',
       notes: '',
-      assignedCarriers: ['ALL'],
+      assignedCarriers: activeCarrierId ? [activeCarrierId] : ['ALL'],
       bankAccount: {
         bankName: 'MB Bank',
         accountNumber: '',
@@ -160,23 +168,33 @@ export const CtvManagementView: React.FC = () => {
     });
   };
 
-  const filteredCtvs = ctvs.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone.includes(searchQuery)
-  );
+  const filteredCtvs = ctvs.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.phone && c.phone.includes(searchQuery));
+    
+    if (!matchesSearch) return false;
+
+    if (activeCarrierId) {
+      const assigned = c.assignedCarriers || ['ALL'];
+      return assigned.includes('ALL') || assigned.includes(activeCarrierId);
+    }
+    return true;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Award color="var(--primary)" size={24} />
-            <span>Quản Lý Cộng Tác Viên (CTV) & Phân Quyền Theo Hãng Vận Chuyển</span>
+            <span>Quản Lý Cộng Tác Viên (CTV) {activeCarrierName ? `Phụ Trách ${activeCarrierName}` : ''}</span>
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
-            Phân bổ CTV phụ trách từng bên vận chuyển (J&T, SPX, GHN...) hoặc toàn bộ các bên, cùng bảng tính hoa hồng bậc cân nặng riêng.
+            {activeCarrierName 
+              ? `Danh sách CTV và chính sách hoa hồng bậc cân nặng áp dụng cho các đơn hàng của hãng ${activeCarrierName}.`
+              : 'Phân bổ CTV phụ trách từng bên vận chuyển (J&T, SPX, GHN...) hoặc toàn bộ các bên, cùng bảng tính hoa hồng bậc cân nặng riêng.'}
           </p>
         </div>
 

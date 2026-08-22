@@ -480,7 +480,10 @@ export function App() {
             )}
 
             {activeTab === 'ctv' && (
-              <CtvManagementView />
+              <CtvManagementView
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
+              />
             )}
           </main>
 
