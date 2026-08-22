@@ -13,7 +13,11 @@ import {
   Phone, 
   Save,
   X,
-  Ban
+  Ban,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle
 } from 'lucide-react';
 import type { Shop, WeightStepRule, UserAccount, ReconciliationSession, ShopPricingPlan } from '../types';
 import { calculateWeightFee, detectUnregisteredShopsFromOrders } from '../services/reconciliationService';
@@ -46,7 +50,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
   const [detectedNewShops, setDetectedNewShops] = useState<DetectedNewShop[]>([]);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [batchPricingPlan, setBatchPricingPlan] = useState<ShopPricingPlan>({
+  const [expandedShopIndexes, setExpandedShopIndexes] = useState<Set<number>>(new Set());
+  const [batchPricingPlan] = useState<ShopPricingPlan>({
     id: `plan_batch_default`,
     name: 'Bảng giá Tiêu chuẩn cho Shop mới',
     weightRules: [
@@ -366,8 +371,20 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
         return;
       }
 
-      const detected = detectUnregisteredShopsFromOrders(allOrders, shops);
+      const detected = detectUnregisteredShopsFromOrders(allOrders, shops).map((shop, idx) => ({
+        ...shop,
+        pricingPlan: {
+          ...JSON.parse(JSON.stringify(batchPricingPlan)),
+          id: `plan_shop_detected_${Date.now()}_${idx}`,
+          name: `Biểu giá ${shop.name}`,
+        }
+      }));
+
       setDetectedNewShops(detected);
+      // Auto expand first shop if there are detected shops
+      if (detected.length > 0) {
+        setExpandedShopIndexes(new Set([0]));
+      }
       setIsScanModalOpen(true);
       if (detected.length === 0) {
         showToast(`Đã quét ${files.length} file: Tất cả Shop đều đã có sẵn trong hệ thống!`, 'info');
@@ -382,6 +399,60 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     }
   };
 
+  // Helper to check if a shop has full required information to reconcile (Green Tick)
+  const isShopReadyToReconcile = (shop: DetectedNewShop): boolean => {
+    const hasName = Boolean(shop.name && shop.name.trim());
+    const hasPhone = Boolean(shop.phone && shop.phone.trim());
+    const hasPricing = Boolean(
+      shop.pricingPlan &&
+      shop.pricingPlan.weightRules &&
+      shop.pricingPlan.weightRules.length > 0 &&
+      shop.pricingPlan.weightRules.some(r => r.price > 0)
+    );
+    return hasName && hasPhone && hasPricing;
+  };
+
+  const toggleExpandShop = (idx: number) => {
+    setExpandedShopIndexes(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const expandAllShops = () => {
+    setExpandedShopIndexes(new Set(detectedNewShops.map((_, idx) => idx)));
+  };
+
+  const collapseAllShops = () => {
+    setExpandedShopIndexes(new Set());
+  };
+
+  const applyTemplateToAllShops = () => {
+    setDetectedNewShops(prev => prev.map(shop => ({
+      ...shop,
+      pricingPlan: {
+        ...JSON.parse(JSON.stringify(batchPricingPlan)),
+        id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name: `Biểu giá ${shop.name}`,
+      }
+    })));
+    showToast(`Đã áp dụng biểu giá mẫu cho toàn bộ ${detectedNewShops.length} Shop! Tất cả đều đã sẵn sàng.`, 'success');
+  };
+
+  const updateShopPricingPlan = (idx: number, updater: (plan: ShopPricingPlan) => ShopPricingPlan) => {
+    setDetectedNewShops(prev => {
+      const updated = [...prev];
+      const currentPlan = updated[idx].pricingPlan || JSON.parse(JSON.stringify(batchPricingPlan));
+      updated[idx] = {
+        ...updated[idx],
+        pricingPlan: updater(currentPlan),
+      };
+      return updated;
+    });
+  };
+
   // Register All Detected Shops
   const handleRegisterAllDetectedShops = () => {
     if (detectedNewShops.length === 0) return;
@@ -390,34 +461,41 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
       return;
     }
 
-    const newShopsList: Shop[] = detectedNewShops.map((d, i) => ({
-      id: `shop_import_${Date.now()}_${i}`,
-      code: d.code || `SHOP_${Date.now().toString().slice(-4)}_${i}`,
-      name: d.name,
-      phone: d.phone,
-      phoneList: d.phoneList || (d.phone ? [d.phone] : []),
-      email: d.email || '',
-      address: d.address,
-      bankAccount: {
-        bankName: d.bankName || 'MB Bank',
-        accountNumber: d.accountNumber || '',
-        accountHolder: d.accountHolder || d.name,
-      },
-      pricingPlan: {
-        ...JSON.parse(JSON.stringify(batchPricingPlan)),
-        id: `plan_shop_${Date.now()}_${i}`,
-        name: `Biểu giá ${d.name}`,
-      },
-      notes: `Đã nhập tự động từ file Excel (${d.orderCount} đơn)`,
-      createdAt: new Date().toISOString(),
-      active: true,
-    }));
+    const newShopsList: Shop[] = detectedNewShops.map((d, i) => {
+      const finalPricing = (d.pricingPlan && d.pricingPlan.weightRules && d.pricingPlan.weightRules.some(r => r.price > 0))
+        ? d.pricingPlan
+        : {
+            ...JSON.parse(JSON.stringify(batchPricingPlan)),
+            id: `plan_shop_${Date.now()}_${i}`,
+            name: `Biểu giá ${d.name}`,
+          };
+
+      return {
+        id: `shop_import_${Date.now()}_${i}`,
+        code: d.code || `SHOP_${Date.now().toString().slice(-4)}_${i}`,
+        name: d.name,
+        phone: d.phone,
+        phoneList: d.phoneList || (d.phone ? [d.phone] : []),
+        email: d.email || '',
+        address: d.address,
+        bankAccount: {
+          bankName: d.bankName || 'MB Bank',
+          accountNumber: d.accountNumber || '',
+          accountHolder: d.accountHolder || d.name,
+        },
+        pricingPlan: finalPricing,
+        notes: `Đã nhập tự động từ file Excel (${d.orderCount} đơn)`,
+        createdAt: new Date().toISOString(),
+        active: true,
+      };
+    });
 
     const updated = [...newShopsList, ...shops];
     onSaveShops(updated);
     showToast(`Đã thêm thành công ${newShopsList.length} Shop mới vào Quản Lý Shop!`, 'success');
     setIsScanModalOpen(false);
     setDetectedNewShops([]);
+    setExpandedShopIndexes(new Set());
     if (newShopsList.length > 0) {
       setSelectedShopId(newShopsList[0].id);
       setEditingShop(JSON.parse(JSON.stringify(newShopsList[0])));
@@ -1264,258 +1342,508 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 </div>
               ) : (
                 <>
-                  {/* BATCH PRICING PLAN CONFIGURATION FOR IMPORTED SHOPS */}
+                  {/* BATCH ACTION & SUMMARY STATS TOOLBAR */}
                   <div style={{
-                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    padding: '12px 16px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'rgba(79, 70, 229, 0.045)',
-                    border: '1px solid rgba(79, 70, 229, 0.2)',
+                    background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(16, 185, 129, 0.06) 100%)',
+                    border: '1.5px solid rgba(79, 70, 229, 0.18)',
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}>
-                        <Sliders size={17} />
-                        <span>Biểu Giá Cước Bậc Thang Cân Nặng (Áp dụng cho tất cả Shop mới được nhập)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#ecfdf5',
+                        border: '1px solid #10b981',
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        fontSize: 12.5,
+                        fontWeight: 800,
+                        color: '#065f46',
+                      }}>
+                        <CheckCircle2 size={16} color="#10b981" />
+                        <span>Đủ điều kiện đối soát: {detectedNewShops.filter(isShopReadyToReconcile).length} / {detectedNewShops.length} Shop</span>
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => {
-                          const currentRules = batchPricingPlan.weightRules;
-                          const lastRule = currentRules[currentRules.length - 1];
-                          const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
-                          const newMax = lastRule ? Math.ceil(newMin) : 1;
-                          const newPrice = lastRule ? lastRule.price + 5000 : 25000;
-                          setBatchPricingPlan({
-                            ...batchPricingPlan,
-                            weightRules: [...currentRules, { minWeight: newMin, maxWeight: newMax, price: newPrice }],
-                          });
-                        }}
-                        style={{ fontSize: 11, padding: '4px 9px' }}
-                      >
-                        <Plus size={13} /> Thêm nấc cân nặng
-                      </button>
+
+                      {detectedNewShops.some(s => !isShopReadyToReconcile(s)) && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#fffbeb',
+                          border: '1px solid #f59e0b',
+                          padding: '5px 12px',
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: '#92400e',
+                        }}>
+                          <AlertCircle size={15} color="#f59e0b" />
+                          <span>Cần cài biểu giá: {detectedNewShops.filter(s => !isShopReadyToReconcile(s)).length} Shop</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ background: '#fff', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {batchPricingPlan.weightRules.map((rule, index) => (
-                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                          <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>
-                            {index === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}
-                          </div>
-                          <input
-                            type="number"
-                            min="0.1"
-                            step="0.1"
-                            value={rule.maxWeight}
-                            className="input-field"
-                            style={{ width: 82, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => {
-                              const updated = batchPricingPlan.weightRules.map((item, rIdx) => rIdx === index ? { ...item, maxWeight: Number(e.target.value || 0) } : item);
-                              setBatchPricingPlan({ ...batchPricingPlan, weightRules: updated });
-                            }}
-                          />
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="500"
-                            value={rule.price === 0 ? '' : rule.price}
-                            placeholder={index === 0 ? 'Bắt buộc nhập' : '0'}
-                            className="input-field"
-                            style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => {
-                              const updated = batchPricingPlan.weightRules.map((item, rIdx) => rIdx === index ? { ...item, price: Number(e.target.value || 0) } : item);
-                              setBatchPricingPlan({ ...batchPricingPlan, weightRules: updated });
-                            }}
-                          />
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
-                          {batchPricingPlan.weightRules.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn btn-danger btn-sm"
-                              style={{ padding: '4px 6px' }}
-                              onClick={() => {
-                                const updated = batchPricingPlan.weightRules.filter((_, rIdx) => rIdx !== index);
-                                setBatchPricingPlan({ ...batchPricingPlan, weightRules: updated });
-                              }}
-                              title="Xóa nấc cân"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={applyTemplateToAllShops}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          background: '#fff',
+                          color: 'var(--primary)',
+                          borderColor: 'var(--primary)',
+                          fontWeight: 700,
+                          fontSize: 11.5,
+                        }}
+                        title="Tự động áp dụng biểu giá chuẩn (0-1kg: 20k, 1-3kg: 28k...) cho toàn bộ shop để đạt tích xanh hàng loạt"
+                      >
+                        <Zap size={14} color="var(--primary)" />
+                        <span>⚡ Áp dụng biểu giá chuẩn cho TẤT CẢ Shop</span>
+                      </button>
 
-                      <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          Vượt cân: mỗi thêm
-                          <input
-                            type="number"
-                            min="0.1"
-                            step="0.1"
-                            value={batchPricingPlan.extraStepWeight}
-                            className="input-field"
-                            style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => setBatchPricingPlan({ ...batchPricingPlan, extraStepWeight: Number(e.target.value || 1) })}
-                          />
-                        </label>
-
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          Cước cộng thêm (đ)
-                          <input
-                            type="number"
-                            min="0"
-                            step="500"
-                            value={batchPricingPlan.extraStepPrice === 0 ? '' : batchPricingPlan.extraStepPrice}
-                            placeholder="0"
-                            className="input-field"
-                            style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => setBatchPricingPlan({ ...batchPricingPlan, extraStepPrice: Number(e.target.value || 0) })}
-                          />
-                        </label>
-
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          Phí chuyển hoàn (%)
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={batchPricingPlan.returnFeePercent}
-                            className="input-field"
-                            style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => setBatchPricingPlan({ ...batchPricingPlan, returnFeePercent: Number(e.target.value || 0) })}
-                          />
-                        </label>
-
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          Phụ thu cố định (đ)
-                          <input
-                            type="number"
-                            min="0"
-                            step="500"
-                            value={batchPricingPlan.fixedSurcharge === 0 ? '' : batchPricingPlan.fixedSurcharge}
-                            placeholder="0"
-                            className="input-field"
-                            style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
-                            onChange={(e) => setBatchPricingPlan({ ...batchPricingPlan, fixedSurcharge: Number(e.target.value || 0) })}
-                          />
-                        </label>
-                      </div>
+                      {expandedShopIndexes.size === detectedNewShops.length ? (
+                        <button
+                          type="button"
+                          onClick={collapseAllShops}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 11.5 }}
+                        >
+                          <ChevronUp size={14} />
+                          <span>Thu gọn tất cả</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={expandAllShops}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 11.5 }}
+                        >
+                          <ChevronDown size={14} />
+                          <span>Mở rộng tất cả</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* SHOP LIST TABLE */}
+                  {/* SHOP LIST TABLE WITH PER-SHOP ACCORDION */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
-                      📋 Danh Sách Shop Được Quét Từ File Excel ({detectedNewShops.length} Shop):
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>📋 Danh Sách Shop Đọc Từ File Excel ({detectedNewShops.length} Shop):</span>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
+                        💡 Click vào từng Shop để mở rộng và tùy chỉnh Biểu giá cước riêng. Khi đủ thông tin sẽ hiện <strong>Tích Xanh</strong>.
+                      </span>
                     </div>
 
-                    <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: '#fff' }}>
                       <table className="data-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1.5px solid var(--border-color)' }}>
-                            <th style={{ width: 40, textAlign: 'center' }}>STT</th>
-                            <th style={{ textAlign: 'left', minWidth: 160 }}>Tên Shop</th>
-                            <th style={{ textAlign: 'left', minWidth: 120 }}>SĐT Shop</th>
-                            <th style={{ textAlign: 'left', minWidth: 140 }}>Địa Chỉ Kho Gửi</th>
+                            <th style={{ width: 45, textAlign: 'center' }}>STT</th>
+                            <th style={{ width: 145, textAlign: 'center' }}>Điều Kiện Đối Soát</th>
+                            <th style={{ textAlign: 'left', minWidth: 150 }}>Tên Shop</th>
+                            <th style={{ textAlign: 'left', minWidth: 110 }}>SĐT Shop</th>
+                            <th style={{ textAlign: 'left', minWidth: 130 }}>Địa Chỉ Kho Gửi</th>
                             <th style={{ textAlign: 'left', minWidth: 110 }}>Ngân Hàng</th>
                             <th style={{ textAlign: 'left', minWidth: 110 }}>Số Tài Khoản</th>
-                            <th style={{ textAlign: 'left', minWidth: 130 }}>Tên Chủ TK</th>
+                            <th style={{ textAlign: 'left', minWidth: 120 }}>Tên Chủ TK</th>
                             <th style={{ textAlign: 'center', width: 75 }}>Số Đơn</th>
+                            <th style={{ width: 105, textAlign: 'center' }}>Biểu Giá</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {detectedNewShops.map((item, idx) => (
-                            <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.name}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], name: e.target.value };
-                                    setDetectedNewShops(updated);
+                          {detectedNewShops.map((item, idx) => {
+                            const isReady = isShopReadyToReconcile(item);
+                            const isExpanded = expandedShopIndexes.has(idx);
+                            const pricing = item.pricingPlan || batchPricingPlan;
+
+                            return (
+                              <React.Fragment key={idx}>
+                                <tr
+                                  style={{
+                                    background: isExpanded ? 'rgba(79, 70, 229, 0.04)' : idx % 2 === 0 ? '#fff' : 'var(--bg-secondary)',
+                                    borderBottom: isExpanded ? 'none' : '1px solid var(--border-color)',
+                                    transition: 'background 0.15s ease',
                                   }}
-                                  className="input-field"
-                                  style={{ padding: '4px 7px', fontSize: 11.5, fontWeight: 700, width: '100%' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.phone || ''}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], phone: e.target.value };
-                                    setDetectedNewShops(updated);
-                                  }}
-                                  className="input-field mono"
-                                  style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.address || ''}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], address: e.target.value };
-                                    setDetectedNewShops(updated);
-                                  }}
-                                  className="input-field"
-                                  style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
-                                />
-                              </td>
-                              <td>
-                                <select
-                                  value={item.bankName || 'MB Bank'}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], bankName: e.target.value };
-                                    setDetectedNewShops(updated);
-                                  }}
-                                  className="select-field"
-                                  style={{ padding: '4px 6px', fontSize: 11, width: '100%' }}
                                 >
-                                  {VIETNAM_BANKS.map(b => (
-                                    <option key={b} value={b}>{b}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  placeholder="STK..."
-                                  value={item.accountNumber || ''}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], accountNumber: e.target.value };
-                                    setDetectedNewShops(updated);
-                                  }}
-                                  className="input-field mono"
-                                  style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  placeholder="Tên chủ tài khoản..."
-                                  value={item.accountHolder || item.name}
-                                  onChange={(e) => {
-                                    const updated = [...detectedNewShops];
-                                    updated[idx] = { ...updated[idx], accountHolder: e.target.value };
-                                    setDetectedNewShops(updated);
-                                  }}
-                                  className="input-field"
-                                  style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
-                                {item.orderCount} đơn
-                              </td>
-                            </tr>
-                          ))}
+                                  {/* STT & Expand Toggle */}
+                                  <td
+                                    style={{ textAlign: 'center', cursor: 'pointer' }}
+                                    onClick={() => toggleExpandShop(idx)}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontWeight: 700, color: 'var(--text-muted)' }}>
+                                      {idx + 1}
+                                      {isExpanded ? <ChevronUp size={13} color="var(--primary)" /> : <ChevronDown size={13} />}
+                                    </div>
+                                  </td>
+
+                                  {/* TRẠNG THÁI TÍCH XANH */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    {isReady ? (
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          background: '#ecfdf5',
+                                          color: '#047857',
+                                          border: '1.5px solid #10b981',
+                                          padding: '3px 8px',
+                                          borderRadius: 20,
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          boxShadow: '0 1px 3px rgba(16, 185, 129, 0.15)',
+                                        }}
+                                        title="Shop đã đủ tên, SĐT và biểu giá cước riêng để tính toán đối soát chuẩn xác!"
+                                      >
+                                        <CheckCircle2 size={13} color="#10b981" />
+                                        <span>✓ ĐỦ ĐIỀU KIỆN</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpandShop(idx)}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          background: '#fffbeb',
+                                          color: '#b45309',
+                                          border: '1.5px solid #f59e0b',
+                                          padding: '3px 8px',
+                                          borderRadius: 20,
+                                          fontSize: 10.5,
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Bấm vào để cài đặt biểu giá cước cho shop này"
+                                      >
+                                        <AlertCircle size={12} color="#f59e0b" />
+                                        <span>Cài Biểu Giá</span>
+                                      </button>
+                                    )}
+                                  </td>
+
+                                  {/* TÊN SHOP */}
+                                  <td>
+                                    <input
+                                      type="text"
+                                      value={item.name}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], name: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="input-field"
+                                      style={{ padding: '4px 7px', fontSize: 11.5, fontWeight: 700, width: '100%' }}
+                                    />
+                                  </td>
+
+                                  {/* SĐT SHOP */}
+                                  <td>
+                                    <input
+                                      type="text"
+                                      value={item.phone || ''}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], phone: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="input-field mono"
+                                      style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
+                                    />
+                                  </td>
+
+                                  {/* ĐỊA CHỈ */}
+                                  <td>
+                                    <input
+                                      type="text"
+                                      value={item.address || ''}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], address: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="input-field"
+                                      style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
+                                    />
+                                  </td>
+
+                                  {/* NGÂN HÀNG */}
+                                  <td>
+                                    <select
+                                      value={item.bankName || 'MB Bank'}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], bankName: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="select-field"
+                                      style={{ padding: '4px 6px', fontSize: 11, width: '100%' }}
+                                    >
+                                      {VIETNAM_BANKS.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* SỐ TÀI KHOẢN */}
+                                  <td>
+                                    <input
+                                      type="text"
+                                      placeholder="STK..."
+                                      value={item.accountNumber || ''}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], accountNumber: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="input-field mono"
+                                      style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
+                                    />
+                                  </td>
+
+                                  {/* CHỦ TÀI KHOẢN */}
+                                  <td>
+                                    <input
+                                      type="text"
+                                      placeholder="Chủ TK..."
+                                      value={item.accountHolder || item.name}
+                                      onChange={(e) => {
+                                        const updated = [...detectedNewShops];
+                                        updated[idx] = { ...updated[idx], accountHolder: e.target.value };
+                                        setDetectedNewShops(updated);
+                                      }}
+                                      className="input-field"
+                                      style={{ padding: '4px 7px', fontSize: 11, width: '100%' }}
+                                    />
+                                  </td>
+
+                                  {/* SỐ ĐƠN */}
+                                  <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
+                                    {item.orderCount} đơn
+                                  </td>
+
+                                  {/* ACTION: MỞ RỘNG BIỂU GIÁ */}
+                                  <td style={{ textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpandShop(idx)}
+                                      className={`btn btn-sm ${isExpanded ? 'btn-primary' : 'btn-secondary'}`}
+                                      style={{ fontSize: 11, padding: '4px 8px' }}
+                                    >
+                                      <Sliders size={12} />
+                                      <span>{isExpanded ? 'Thu Gọn' : 'Biểu Giá'}</span>
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* 🌟 EXPANDED ROW: ACCORDION CHỈNH SỬA BIỂU GIÁ RIÊNG CHO TỪNG SHOP */}
+                                {isExpanded && (
+                                  <tr style={{ background: 'rgba(79, 70, 229, 0.035)', borderBottom: '1.5px solid rgba(79, 70, 229, 0.25)' }}>
+                                    <td colSpan={10} style={{ padding: '14px 20px' }}>
+                                      <div style={{
+                                        background: '#fff',
+                                        padding: 16,
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1.5px solid rgba(79, 70, 229, 0.25)',
+                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.04)',
+                                      }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--primary)', fontSize: 13.5, fontWeight: 800 }}>
+                                            <Sliders size={16} />
+                                            <span>💎 Biểu Phí Cước Cân Nặng Riêng Của Shop: <strong style={{ color: 'var(--text-main)' }}>{item.name}</strong></span>
+                                          </div>
+
+                                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            <button
+                                              type="button"
+                                              className="btn btn-secondary btn-sm"
+                                              onClick={() => {
+                                                const currentRules = pricing.weightRules;
+                                                const lastRule = currentRules[currentRules.length - 1];
+                                                const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
+                                                const newMax = lastRule ? Math.ceil(newMin) : 1;
+                                                const newPrice = lastRule ? lastRule.price + 5000 : 25000;
+                                                updateShopPricingPlan(idx, plan => ({
+                                                  ...plan,
+                                                  weightRules: [...currentRules, { minWeight: newMin, maxWeight: newMax, price: newPrice }],
+                                                }));
+                                              }}
+                                              style={{ fontSize: 11, padding: '4px 9px' }}
+                                            >
+                                              <Plus size={13} /> Thêm nấc cân nặng
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                toggleExpandShop(idx);
+                                                showToast(`Đã lưu biểu giá cho shop "${item.name}"!`, 'success');
+                                              }}
+                                              className="btn btn-primary btn-sm"
+                                              style={{ fontSize: 11, padding: '4px 12px', fontWeight: 700 }}
+                                            >
+                                              <Check size={13} /> Hoàn tất Shop này
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Nấc cân nặng */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-secondary)', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                                          {pricing.weightRules.map((rule, rIdx) => (
+                                            <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                                              <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>
+                                                {rIdx === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}
+                                              </div>
+                                              <input
+                                                type="number"
+                                                min="0.1"
+                                                step="0.1"
+                                                value={rule.maxWeight}
+                                                className="input-field"
+                                                style={{ width: 82, padding: '5px 8px', fontSize: 12 }}
+                                                onChange={(e) => {
+                                                  const val = Number(e.target.value || 0);
+                                                  updateShopPricingPlan(idx, plan => ({
+                                                    ...plan,
+                                                    weightRules: plan.weightRules.map((r, i) => i === rIdx ? { ...r, maxWeight: val } : r),
+                                                  }));
+                                                }}
+                                              />
+                                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                step="500"
+                                                value={rule.price === 0 ? '' : rule.price}
+                                                placeholder={rIdx === 0 ? 'Bắt buộc nhập cước' : '0'}
+                                                className="input-field"
+                                                style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12, fontWeight: 700 }}
+                                                onChange={(e) => {
+                                                  const val = Number(e.target.value || 0);
+                                                  updateShopPricingPlan(idx, plan => ({
+                                                    ...plan,
+                                                    weightRules: plan.weightRules.map((r, i) => i === rIdx ? { ...r, price: val } : r),
+                                                  }));
+                                                }}
+                                              />
+                                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
+                                              {pricing.weightRules.length > 1 && (
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-danger btn-sm"
+                                                  style={{ padding: '4px 6px' }}
+                                                  onClick={() => {
+                                                    updateShopPricingPlan(idx, plan => ({
+                                                      ...plan,
+                                                      weightRules: plan.weightRules.filter((_, i) => i !== rIdx),
+                                                    }));
+                                                  }}
+                                                  title="Xóa nấc cân này"
+                                                >
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+
+                                          <div style={{ marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
+                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                              Vượt cân: mỗi thêm
+                                              <input
+                                                type="number"
+                                                min="0.1"
+                                                step="0.1"
+                                                value={pricing.extraStepWeight}
+                                                className="input-field"
+                                                style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
+                                                onChange={(e) => updateShopPricingPlan(idx, plan => ({ ...plan, extraStepWeight: Number(e.target.value || 1) }))}
+                                              />
+                                            </label>
+
+                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                              Cước cộng thêm (đ)
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                step="500"
+                                                value={pricing.extraStepPrice === 0 ? '' : pricing.extraStepPrice}
+                                                placeholder="0"
+                                                className="input-field"
+                                                style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
+                                                onChange={(e) => updateShopPricingPlan(idx, plan => ({ ...plan, extraStepPrice: Number(e.target.value || 0) }))}
+                                              />
+                                            </label>
+
+                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                              Phí chuyển hoàn (%)
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={pricing.returnFeePercent}
+                                                className="input-field"
+                                                style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
+                                                onChange={(e) => updateShopPricingPlan(idx, plan => ({ ...plan, returnFeePercent: Number(e.target.value || 0) }))}
+                                              />
+                                            </label>
+
+                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                              Phụ thu cố định (đ)
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                step="500"
+                                                value={pricing.fixedSurcharge === 0 ? '' : pricing.fixedSurcharge}
+                                                placeholder="0"
+                                                className="input-field"
+                                                style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }}
+                                                onChange={(e) => updateShopPricingPlan(idx, plan => ({ ...plan, fixedSurcharge: Number(e.target.value || 0) }))}
+                                              />
+                                            </label>
+                                          </div>
+                                        </div>
+
+                                        {/* Test cước live */}
+                                        <div style={{ marginTop: 10, background: 'rgba(79, 70, 229, 0.05)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                            <Calculator size={15} color="var(--primary)" />
+                                            <span style={{ fontSize: 12, fontWeight: 700 }}>Thử tính cước cho {item.name}:</span>
+                                            <input
+                                              type="number"
+                                              min="0.1"
+                                              step="0.1"
+                                              defaultValue={1.5}
+                                              className="input-field"
+                                              style={{ width: 72, padding: '4px 7px', fontSize: 12 }}
+                                              id={`test_weight_${idx}`}
+                                              onChange={(e) => {
+                                                const w = Number(e.target.value || 0.1);
+                                                const calculated = calculateWeightFee(w, pricing);
+                                                const el = document.getElementById(`calc_result_${idx}`);
+                                                if (el) el.innerText = `${new Intl.NumberFormat('vi-VN').format(calculated)} đ`;
+                                              }}
+                                            />
+                                            <span style={{ fontSize: 12 }}>kg</span>
+                                          </div>
+                                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                            Cước tính ra: <strong id={`calc_result_${idx}`} className="mono" style={{ fontSize: 15, color: 'var(--success)' }}>{new Intl.NumberFormat('vi-VN').format(calculateWeightFee(1.5, pricing))} đ</strong>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1535,7 +1863,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
               gap: 12,
             }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                💡 Khi bấm lưu, tất cả <strong>{detectedNewShops.length} Shop</strong> sẽ được tạo hồ sơ vĩnh viễn kèm biểu giá vừa thiết lập.
+                💡 Khi bấm lưu, tất cả <strong>{detectedNewShops.length} Shop</strong> sẽ được tạo hồ sơ vĩnh viễn với đúng biểu giá riêng của từng shop.
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>

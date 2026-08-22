@@ -768,6 +768,7 @@ export interface DetectedNewShop {
   accountHolder?: string;
   orderCount: number;
   totalCod: number;
+  pricingPlan?: ShopPricingPlan;
 }
 
 export function detectUnregisteredShopsFromOrders(
