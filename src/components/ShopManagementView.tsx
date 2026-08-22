@@ -304,23 +304,6 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       emailList: parsedEmails.length > 0 ? parsedEmails : (rawEmails ? [rawEmails] : []),
     };
 
-    const normalizePhone = (value: string) => {
-      const digits = value.replace(/\D/g, '');
-      return digits.startsWith('84') && digits.length >= 10 ? `0${digits.slice(2)}` : digits;
-    };
-    const candidatePhones = new Set(shopToSave.phoneList?.map(normalizePhone).filter(Boolean));
-    const candidateNames = new Set([shopToSave.name, ...(shopToSave.nameAliases || [])].map(normalizeHeader).filter(Boolean));
-    const conflictingShop = shops.find(shop => {
-      if (shop.id === shopToSave.id || !shop.active) return false;
-      const existingPhones = [shop.phone, ...(shop.phoneList || [])].map(normalizePhone);
-      const existingNames = [shop.name, ...(shop.nameAliases || [])].map(normalizeHeader);
-      return existingPhones.some(phone => candidatePhones.has(phone)) || existingNames.some(name => candidateNames.has(name));
-    });
-    if (conflictingShop) {
-      showToast(`Không thể lưu: SĐT hoặc tên/alias này đã thuộc shop “${conflictingShop.name}”. Gộp vào cùng hồ sơ hoặc dùng định danh riêng.`, 'error');
-      return;
-    }
-
     const index = shops.findIndex(s => s.id === shopToSave.id);
     let updatedShops: Shop[];
 
@@ -332,7 +315,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
     }
 
     onSaveShops(updatedShops);
-    showToast(`Đã lưu thay đổi cho Shop "${shopToSave.name}"!`, 'success');
+    showToast(`Đã lưu thành công thông tin Shop "${shopToSave.name}"!`, 'success');
   };
 
   // Keep financial references stable: a shop is deactivated, never removed.
