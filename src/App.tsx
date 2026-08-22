@@ -65,6 +65,16 @@ export function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Synchronize currentSession with activeCarrierId: When switching carrier, load the matching carrier session or reset to null
+  useEffect(() => {
+    if (activeCarrierId) {
+      if (currentSession && (currentSession.carrierId || 'jnt') !== activeCarrierId) {
+        const matchingSessions = sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId);
+        setCurrentSession(matchingSessions.length > 0 ? matchingSessions[0] : null);
+      }
+    }
+  }, [activeCarrierId, sessions]);
+
   // Single Device Session Protection for non-admin accounts
   useEffect(() => {
     if (!currentUser || currentUser.role === 'ADMIN') return;

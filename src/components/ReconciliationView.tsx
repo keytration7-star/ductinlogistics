@@ -273,16 +273,23 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const isAdmin = currentUser.role === 'ADMIN';
+  const initialCarrierId = activeCarrierId || localStorage.getItem('gomdon_last_selected_carrier') || 'jnt';
+  const [selectedCarrierId, setSelectedCarrierIdState] = useState<string>(initialCarrierId);
+
+  // Check if current session strictly matches the active carrier workspace
+  const isSessionForCarrier = !!currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId);
 
   // 4-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Nhận Diện Shop, 4 = Kết Quả Đối Soát & Bảng Kê Chi Tiết
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(currentSession ? 4 : 1);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(isSessionForCarrier ? 4 : 1);
 
-  // Sync wizard step to Step 4 whenever currentSession is loaded or reopened from History
+  // Sync wizard step to Step 4 ONLY when a matching session for this carrier is loaded or reopened
   useEffect(() => {
-    if (currentSession) {
+    if (currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId)) {
       setWizardStep(4);
+    } else if (!currentSession || (currentSession.carrierId || 'jnt') !== (activeCarrierId || selectedCarrierId)) {
+      setWizardStep(1);
     }
-  }, [currentSession]);
+  }, [currentSession, activeCarrierId, selectedCarrierId]);
 
   // Upload States
   const [nvcFile, setNvcFile] = useState<File | null>(null);
@@ -302,14 +309,31 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [appHeaders, setAppHeaders] = useState<string[]>([]);
   const [appRows, setAppRows] = useState<Record<string, any>[]>([]);
   const [appMapping, setAppMapping] = useState<ColumnMappingConfig>(savedMappings.app || { waybillColumn: '' });
-  
-  const initialCarrierId = activeCarrierId || localStorage.getItem('gomdon_last_selected_carrier') || 'jnt';
-  const [selectedCarrierId, setSelectedCarrierIdState] = useState<string>(initialCarrierId);
 
-  // Sync when activeCarrierId changes from Hub
+  // Sync when activeCarrierId changes from Hub / Header Switcher
   React.useEffect(() => {
     if (activeCarrierId) {
       setSelectedCarrierIdState(activeCarrierId);
+      // Reset upload files and state when switching carrier workspace
+      setNvcFile(null);
+      setAppFile(null);
+      setNvcRows([]);
+      setAppRows([]);
+      setNvcHeaders([]);
+      setAppHeaders([]);
+      setGhnSheets([]);
+      setSelectedGhnSheet('');
+      setIsMappingConfirmed(false);
+      setSelectedAssignShops({});
+      
+      const isJnt = /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b/i.test(activeCarrierId);
+      setReconcileMode(isJnt ? '2files' : '1file');
+
+      if (!currentSession || (currentSession.carrierId || 'jnt') !== activeCarrierId) {
+        setWizardStep(1);
+      } else {
+        setWizardStep(4);
+      }
     }
   }, [activeCarrierId]);
 
@@ -2521,7 +2545,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       )}
 
       {/* 🚀 BƯỚC 4: KẾT QUẢ ĐỐI SOÁT & BẢNG KÊ CHI TIẾT TỪNG SHOP */}
-      {wizardStep === 4 && currentSession && (
+      {wizardStep === 4 && currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {currentSession.unmatchedOrdersCount > 0 && (
             <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
