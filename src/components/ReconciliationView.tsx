@@ -3297,18 +3297,33 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       )}
 
       {/* Export Columns Config Modal */}
-      {showExportModal && (
-        <ExportColumnConfigModal
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          carrierId={selectedCarrierId}
-          carrierName={selectedCarrierTier?.carrierName}
-          availableFileHeaders={{
-            nvcHeaders,
-            appHeaders,
-          }}
-        />
-      )}
+      {showExportModal && (() => {
+        const savedH = selectedCarrierId ? StorageService.getCarrierHeaders(selectedCarrierId) : { nvcHeaders: [], appHeaders: [] };
+        const nvcSet = new Set<string>(nvcHeaders.length > 0 ? nvcHeaders : savedH.nvcHeaders);
+        const appSet = new Set<string>(appHeaders.length > 0 ? appHeaders : savedH.appHeaders);
+        
+        if (currentSession?.statements) {
+          currentSession.statements.slice(0, 20).forEach(stmt => {
+            (stmt.orders || []).slice(0, 10).forEach(ord => {
+              if (ord.rawNvcData) Object.keys(ord.rawNvcData).forEach(k => { if (k && !k.startsWith('__')) nvcSet.add(k); });
+              if (ord.rawAppData) Object.keys(ord.rawAppData).forEach(k => { if (k && !k.startsWith('__')) appSet.add(k); });
+            });
+          });
+        }
+
+        return (
+          <ExportColumnConfigModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            carrierId={selectedCarrierId}
+            carrierName={selectedCarrierTier?.carrierName}
+            availableFileHeaders={{
+              nvcHeaders: Array.from(nvcSet),
+              appHeaders: Array.from(appSet),
+            }}
+          />
+        );
+      })()}
 
       {/* Statement Preview Modal */}
       {previewStatement && (
