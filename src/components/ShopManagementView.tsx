@@ -2119,49 +2119,129 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={editingShop.pricingPlan.returnFeePercent}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setEditingShop({
+                  <div style={{ gridColumn: '1 / -1', background: 'var(--bg-tertiary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>
+                      🔄 Quy Định Phí Chuyển Hoàn Của Shop:
+                    </label>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingShop({
                           ...editingShop,
-                          pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
+                          pricingPlan: {
+                            ...editingShop.pricingPlan,
+                            returnFeeType: 'free',
+                            returnFeePercent: 0,
+                          }
                         })}
-                        className="input-field"
-                        style={getInputStyle(editingShop.pricingPlan.returnFeePercent, false, { padding: '4px 8px', fontSize: 12, width: 60 })}
-                      />
-                      <span style={{ fontSize: 11 }}>%</span>
-                      
-                      <div style={{ display: 'flex', gap: 2, marginLeft: 2 }}>
-                        <button
-                          type="button"
-                          onClick={() => setEditingShop({
-                            ...editingShop,
-                            pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 0 }
-                          })}
-                          className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 0 ? 'btn-success' : 'btn-secondary'}`}
-                          style={{ padding: '2px 5px', fontSize: 10 }}
-                        >
-                          0%
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingShop({
-                            ...editingShop,
-                            pricingPlan: { ...editingShop.pricingPlan, returnFeePercent: 50 }
-                          })}
-                          className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === 50 ? 'btn-primary' : 'btn-secondary'}`}
-                          style={{ padding: '2px 5px', fontSize: 10 }}
-                        >
-                          50%
-                        </button>
-                      </div>
+                        className={`btn btn-sm ${(editingShop.pricingPlan.returnFeeType === 'free' || (!editingShop.pricingPlan.returnFeeType && editingShop.pricingPlan.returnFeePercent === 0)) ? 'btn-success' : 'btn-secondary'}`}
+                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <span>🎁 Miễn phí hoàn (0 đ)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingShop({
+                          ...editingShop,
+                          pricingPlan: {
+                            ...editingShop.pricingPlan,
+                            returnFeeType: 'percent',
+                            returnFeePercent: editingShop.pricingPlan.returnFeePercent > 0 ? editingShop.pricingPlan.returnFeePercent : 50,
+                          }
+                        })}
+                        className={`btn btn-sm ${editingShop.pricingPlan.returnFeeType === 'percent' || (!editingShop.pricingPlan.returnFeeType && editingShop.pricingPlan.returnFeePercent > 0) ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <span>📊 Tính theo % cước gửi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingShop({
+                          ...editingShop,
+                          pricingPlan: {
+                            ...editingShop.pricingPlan,
+                            returnFeeType: 'fixed',
+                            returnFeeFixed: editingShop.pricingPlan.returnFeeFixed !== undefined ? editingShop.pricingPlan.returnFeeFixed : 10000,
+                          }
+                        })}
+                        className={`btn btn-sm ${editingShop.pricingPlan.returnFeeType === 'fixed' ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <span>💵 Số tiền cố định / đơn</span>
+                      </button>
                     </div>
+
+                    {(editingShop.pricingPlan.returnFeeType === 'percent' || (!editingShop.pricingPlan.returnFeeType && editingShop.pricingPlan.returnFeePercent > 0)) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(79, 70, 229, 0.05)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600 }}>Tỷ lệ cước hoàn:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={editingShop.pricingPlan.returnFeePercent || 50}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setEditingShop({
+                            ...editingShop,
+                            pricingPlan: { ...editingShop.pricingPlan, returnFeeType: 'percent', returnFeePercent: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
+                          })}
+                          className="input-field"
+                          style={{ padding: '4px 8px', fontSize: 12, width: 70 }}
+                        />
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>% cước gửi</span>
+                        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                          {[30, 50, 70, 100].map(pct => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setEditingShop({
+                                ...editingShop,
+                                pricingPlan: { ...editingShop.pricingPlan, returnFeeType: 'percent', returnFeePercent: pct }
+                              })}
+                              className={`btn btn-sm ${editingShop.pricingPlan.returnFeePercent === pct ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ padding: '2px 6px', fontSize: 10 }}
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {editingShop.pricingPlan.returnFeeType === 'fixed' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(79, 70, 229, 0.05)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600 }}>Số tiền thu mỗi đơn hoàn:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={editingShop.pricingPlan.returnFeeFixed !== undefined ? editingShop.pricingPlan.returnFeeFixed : 10000}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setEditingShop({
+                            ...editingShop,
+                            pricingPlan: { ...editingShop.pricingPlan, returnFeeType: 'fixed', returnFeeFixed: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 }
+                          })}
+                          className="input-field"
+                          style={{ padding: '4px 8px', fontSize: 12, width: 100 }}
+                        />
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>đ / đơn</span>
+                        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                          {[5000, 10000, 15000, 20000].map(amt => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => setEditingShop({
+                                ...editingShop,
+                                pricingPlan: { ...editingShop.pricingPlan, returnFeeType: 'fixed', returnFeeFixed: amt }
+                              })}
+                              className={`btn btn-sm ${editingShop.pricingPlan.returnFeeFixed === amt ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ padding: '2px 6px', fontSize: 10 }}
+                            >
+                              {amt / 1000}k
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

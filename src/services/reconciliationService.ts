@@ -549,8 +549,15 @@ export function performReconciliation(
       shopOtherFee = pricingPlan.fixedSurcharge || 0;
 
       if (status === 'returned' || status === 'returning') {
-        const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-        shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+        const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
+        if (returnFeeType === 'free') {
+          shopCalculatedFee = 0;
+        } else if (returnFeeType === 'fixed') {
+          shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
+        } else {
+          const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+          shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+        }
       }
 
       if (isPartialDelivery && pricingPlan.partialDeliveryFee) {

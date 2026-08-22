@@ -60,7 +60,9 @@ export interface ShopPricingPlan {
   weightRules: WeightStepRule[];
   extraStepWeight: number; // e.g. every 0.5kg or 1kg above max rule
   extraStepPrice: number;  // e.g. +5000 VND
-  returnFeePercent: number; // e.g. 50% of shipping fee or 0%
+  returnFeeType?: 'free' | 'percent' | 'fixed'; // 3 kiểu hoàn: 'free' (miễn phí), 'percent' (theo % cước gửi), 'fixed' (số tiền cố định)
+  returnFeeFixed?: number; // Số tiền hoàn cố định (VND) nếu returnFeeType === 'fixed'
+  returnFeePercent: number; // Tỷ lệ % cước hoàn nếu returnFeeType === 'percent'
   insuranceFeePercent: number; // e.g. 0.5% of COD
   declaredFeePercent?: number; // e.g. 0.5% of declared value
   partialDeliveryFee?: number; // e.g. 15000 VND per partial order (GH1P)
