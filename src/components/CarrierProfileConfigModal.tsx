@@ -334,9 +334,38 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                         const isNvcMatched = hasNvc && !!nvcVal;
                         const isAppMatched = hasApp && !!appVal;
 
-                        const isFullyMatched = requireAppMapping && hasApp
-                          ? (isNvcMatched && isAppMatched) 
-                          : isNvcMatched;
+                        // Smart check if the field has sufficient data:
+                        let statusText = '⚠️ Cần chọn';
+                        let badgeType: 'success' | 'warning' | 'optional' = 'warning';
+
+                        if (f.keyNvc === 'waybillColumn') {
+                          // Key identifier
+                          if (requireAppMapping ? (isNvcMatched && isAppMatched) : isNvcMatched) {
+                            statusText = requireAppMapping ? '🟢 Khớp 2 file' : '🟢 Đã chọn';
+                            badgeType = 'success';
+                          } else {
+                            statusText = '🔴 Thiếu mã đơn';
+                            badgeType = 'warning';
+                          }
+                        } else if (isNvcMatched && isAppMatched) {
+                          statusText = '🟢 Khớp 2 file';
+                          badgeType = 'success';
+                        } else if (isNvcMatched) {
+                          statusText = '🟢 Lấy từ NVC';
+                          badgeType = 'success';
+                        } else if (isAppMatched) {
+                          statusText = '🟢 Lấy từ App';
+                          badgeType = 'success';
+                        } else {
+                          // Neither file mapped
+                          if (f.isRequired) {
+                            statusText = '⚠️ Cần chọn';
+                            badgeType = 'warning';
+                          } else {
+                            statusText = '⚪ Tùy chọn';
+                            badgeType = 'optional';
+                          }
+                        }
 
                         return (
                           <tr key={f.label} style={{
@@ -389,7 +418,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
                             {/* Column 4: AI Match Status Badge */}
                             <td style={{ padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
-                              {isFullyMatched ? (
+                              {badgeType === 'success' ? (
                                 <span style={{
                                   fontSize: 11,
                                   fontWeight: 700,
@@ -403,9 +432,9 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                   gap: 4,
                                   whiteSpace: 'nowrap'
                                 }}>
-                                  ✓ Khớp
+                                  {statusText}
                                 </span>
-                              ) : (
+                              ) : badgeType === 'warning' ? (
                                 <span style={{
                                   fontSize: 11,
                                   fontWeight: 700,
@@ -419,7 +448,23 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
                                   gap: 4,
                                   whiteSpace: 'nowrap'
                                 }}>
-                                  ⚠️ Thiếu
+                                  {statusText}
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  color: 'var(--text-muted)',
+                                  background: 'var(--bg-tertiary)',
+                                  border: '1px solid var(--border-color)',
+                                  padding: '3px 8px',
+                                  borderRadius: 12,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {statusText}
                                 </span>
                               )}
                             </td>
