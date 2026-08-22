@@ -100,7 +100,13 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
     }, 400);
   };
 
-  // Mapping handlers — auto-save on every change
+  const handleCloseModal = () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    StorageService.saveCarrierMapping(carrierId, localNvcMapping, localAppMapping);
+    onSaveMappings(localNvcMapping, localAppMapping);
+    onClose();
+  };
+
   const updateNvcField = (field: keyof ColumnMappingConfig, val: string) => {
     const updated = { ...localNvcMapping, [field]: val };
     setLocalNvcMapping(updated);
@@ -138,7 +144,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
   ].filter(Boolean)));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleCloseModal}>
       <div 
         className="modal-content" 
         style={{ maxWidth: requireAppMapping ? 980 : 820 }}
@@ -184,7 +190,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             </div>
           </div>
 
-          <button onClick={onClose} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
+          <button onClick={handleCloseModal} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
             <X size={16} />
           </button>
         </div>
@@ -993,7 +999,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
             )}
           </div>
 
-          <button type="button" onClick={onClose} className="btn btn-secondary">
+          <button type="button" onClick={handleCloseModal} className="btn btn-secondary">
             Đóng
           </button>
         </div>
