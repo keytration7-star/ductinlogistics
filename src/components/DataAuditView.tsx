@@ -27,6 +27,8 @@ interface DataAuditViewProps {
   currentUser: UserAccount;
   onRefreshSessions?: () => void;
   onNavigateToPayout?: () => void;
+  activeCarrierId?: string;
+  activeCarrierName?: string;
 }
 
 export interface AuditOrderItem {
@@ -57,6 +59,8 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   currentUser,
   onRefreshSessions,
   onNavigateToPayout,
+  activeCarrierId,
+  activeCarrierName,
 }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -71,6 +75,14 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const [selectedCarrierFilter, setSelectedCarrierFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const auditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogs().slice(0, 30) : [];
+
+  // Reset uploaded audit files whenever switching carrier workspace
+  React.useEffect(() => {
+    setNvcFiles([]);
+    setAppFiles([]);
+    setAuditFiles([]);
+    setAuditOrders([]);
+  }, [activeCarrierId]);
 
   // Helper format currency
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
@@ -494,10 +506,17 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
       {/* Top Header Title */}
       <div className="glass-panel" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldCheck size={26} color="var(--primary)" />
-            Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả File)
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+              <ShieldCheck size={26} color="var(--primary)" />
+              Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả File)
+            </h2>
+            {activeCarrierName && (
+              <span className="badge badge-primary" style={{ fontSize: 12, padding: '3px 10px', fontWeight: 800 }}>
+                📦 HÃNG: {activeCarrierName.toUpperCase()}
+              </span>
+            )}
+          </div>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
             Kéo thả hàng loạt File Đối Soát NVC và File Đơn Xuất App để khớp nối chuẩn xác 100% Khách Hàng, phát hiện đơn bị thiếu & lập Kỳ Bù.
           </p>

@@ -472,6 +472,8 @@ export function App() {
                   setSessions(updatedSessions);
                 }}
                 onNavigateToPayout={() => setActiveTab('debt')}
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
               />
             )}
 
