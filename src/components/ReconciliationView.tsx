@@ -550,6 +550,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     const rowsToScan = reconcileMode === '2files' ? appRows : nvcRows;
     const nameCol = reconcileMode === '2files' ? appMapping.shopNameColumn : (nvcMapping.shopNameColumn || 'ten_shop');
     const phoneCol = reconcileMode === '2files' ? (appMapping.shopPhoneColumn || appMapping.receiverPhoneColumn) : (nvcMapping.shopPhoneColumn || 'sdt_shop');
+    const codeCol = reconcileMode === '2files' ? appMapping.shopCodeColumn : nvcMapping.shopCodeColumn;
     const codCol = nvcMapping.codColumn;
 
     const existingMap = new Map<string, {
@@ -563,6 +564,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     const newMap = new Map<string, {
       name: string;
       phone: string;
+      code?: string;
       orderCount: number;
       totalCod: number;
       pricingPlan: ShopPricingPlan;
@@ -580,23 +582,45 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       }
     }
 
-    rowsToScan.forEach(row => {
-      let rawName = '';
-      let rawPhone = '';
-      if (reconcileMode === '1file') {
-        rawName = extractRowField(undefined, row, nvcMapping.shopNameColumn, ['ten_shop', 'ten_cua_hang', 'shop']) || '';
-        rawPhone = extractRowField(undefined, row, nvcMapping.shopPhoneColumn, ['sdt_shop', 'phone_shop', 'sdt_gui']) || '';
-      } else {
-        rawName = String(nameCol ? row[nameCol] || '' : '').trim();
-        rawPhone = String(phoneCol ? row[phoneCol] || '' : '').trim();
+    // Helper to safely extract value from row with fallback list of normalized keywords
+    const extractCell = (row: Record<string, any>, preferredCol?: string, fallbackKeywords: string[] = []): string => {
+      if (preferredCol && row[preferredCol] !== undefined && row[preferredCol] !== null) {
+        const val = String(row[preferredCol]).trim();
+        if (val) return val;
       }
+      const keys = Object.keys(row);
+      for (const k of keys) {
+        const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '_');
+        if (fallbackKeywords.some(kw => norm.includes(kw) || kw.includes(norm))) {
+          const val = row[k];
+          if (val !== undefined && val !== null && String(val).trim() !== '') {
+            return String(val).trim();
+          }
+        }
+      }
+      return '';
+    };
 
-      if (!rawName && !rawPhone) return;
+    rowsToScan.forEach(row => {
+      const rawName = extractCell(row, nameCol, [
+        'ten_shop', 'ten_cua_hang', 'cua_hang', 'shop', 'ten_nguoi_gui', 'sender_name', 'khach_hang', 'ten_khach_hang', 'chu_shop', 'shop_name'
+      ]);
+      const rawPhone = extractCell(row, phoneCol, [
+        'sdt_shop', 'phone_shop', 'sdt_nguoi_gui', 'sdt_gui', 'sender_phone', 'so_dien_thoai', 'sdt', 'phone', 'so_dt'
+      ]);
+      const rawCode = extractCell(row, codeCol, [
+        'ma_shop', 'ma_cua_hang', 'ma_kho', 'ma_shop_kho', 'store_id', 'shop_code', 'client_id'
+      ]);
 
-      const wb = row[reconcileMode === '2files' ? appMapping.waybillColumn : nvcMapping.waybillColumn];
+      if (!rawName && !rawPhone && !rawCode) return;
+
+      const effectiveName = rawName || (rawCode ? `Shop ${rawCode}` : (rawPhone ? `Shop ${rawPhone}` : 'Shop Chưa Đặt Tên'));
+
+      const wb = row[reconcileMode === '2files' ? appMapping.waybillColumn : nvcMapping.waybillColumn] ||
+        extractCell(row, undefined, ['ma_van_don', 'ma_don_ghn', 'ma_don', 'tracking_code', 'ma_don_hang']);
       const cod = wb ? (nvcCodByWaybill.get(wb.toString().trim().toUpperCase()) || 0) : 0;
 
-      const matchRes = findRegisteredShop(shops, { name: rawName, phone: rawPhone });
+      const matchRes = findRegisteredShop(shops, { name: effectiveName, phone: rawPhone, code: rawCode });
 
       if (matchRes.matched) {
         const s = matchRes.shop;
@@ -607,19 +631,20 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           orderCount: 0,
           totalCod: 0,
         };
-        if (rawName) current.aliasesInFile.add(rawName);
+        if (effectiveName) current.aliasesInFile.add(effectiveName);
         if (rawPhone) current.phonesInFile.add(rawPhone);
         current.orderCount += 1;
         current.totalCod += cod;
         existingMap.set(s.id, current);
       } else {
-        const key = `${rawName.toLowerCase()}|${rawPhone.replace(/\D/g, '')}`;
+        const key = `${(effectiveName || rawCode || rawPhone).toLowerCase()}|${rawPhone.replace(/\D/g, '')}`;
         const current = newMap.get(key) || {
-          name: rawName || 'Shop Chưa Đặt Tên',
+          name: effectiveName,
           phone: rawPhone,
+          code: rawCode,
           orderCount: 0,
           totalCod: 0,
-          pricingPlan: createOnboardingPricingPlan(),
+          pricingPlan: createOnboardingPricingPlan(effectiveName),
         };
         current.orderCount += 1;
         current.totalCod += cod;
@@ -680,17 +705,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }), shopName);
   };
 
-  const handleAddNewScannedShops = (newShopsList: { name: string; phone: string; pricingPlan: ShopPricingPlan }[]) => {
+  const handleAddNewScannedShops = (newShopsList: { name: string; phone: string; code?: string; pricingPlan: ShopPricingPlan }[]) => {
     if (!isAdmin) {
       showToast('Chỉ Admin mới có quyền thêm Shop mới.', 'error');
       return;
     }
     const createdShops: Shop[] = newShopsList.map((item, idx) => {
-      const key = `${item.name.toLowerCase()}|${item.phone.replace(/\D/g, '')}`;
+      const key = `${(item.name || item.code || item.phone).toLowerCase()}|${item.phone.replace(/\D/g, '')}`;
       const pricingPlan = newShopPricingMap[key] || getNewShopPricingPlan(key, item.name);
       return {
         id: `shop_${Date.now()}_${idx}`,
-        code: `SHOP-${String(shops.length + idx + 1).padStart(3, '0')}`,
+        code: item.code || `SHOP-${String(shops.length + idx + 1).padStart(3, '0')}`,
         name: item.name,
         phone: item.phone,
         email: '',
@@ -700,7 +725,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         createdAt: new Date().toISOString(),
         pricingPlan,
         carrierId: activeCarrierId || selectedCarrierId || 'jnt',
-        nameAliases: [],
+        nameAliases: item.code && item.code !== item.name ? [item.code] : [],
         phoneAliases: [],
       };
     });
@@ -741,20 +766,27 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       }
       if (isGhnCarrier && (parsed.format === 'ghn_settlement' || parsed.format === 'ghn_cod_transfer')) {
         if (!parsed.sheets?.length) throw new Error('Không tìm thấy sheet đối soát GHN hợp lệ');
-        // A workbook may contain several settlement periods. Never pick one automatically:
-        // mixing or settling the wrong period is a financial error.
         setGhnSheets(parsed.sheets);
-        setSelectedGhnSheet('');
-        setNvcHeaders([]);
-        setNvcRows([]);
+        const defaultSheet = parsed.sheets[0].name;
+        setSelectedGhnSheet(defaultSheet);
+
+        // Auto-load the sheet so headers, rows, and auto-mapping are immediately ready
+        const sheetParsed = await ExcelService.parseExcelFile(file, { sheetNames: [defaultSheet] });
+        setNvcHeaders(sheetParsed.headers);
+        setNvcRows(sheetParsed.rows);
         setIsMappingConfirmed(false);
-        setNvcMapping({ waybillColumn: '' });
+        const saved = StorageService.getCarrierMapping(selectedCarrierId);
+        const detectedMapping = autoDetectColumns(sheetParsed.headers, 'nvc', saved.nvc, sheetParsed.rows);
+        setNvcMapping(detectedMapping);
+        const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
+        StorageService.saveCarrierHeaders(selectedCarrierId, sheetParsed.headers, savedHeaders.appHeaders);
+
         const ignored = parsed.ignoredSheetNames?.length || 0;
         showToast(
-          ignored > 0
-            ? `Đã nhận diện ${parsed.sheets.length} sheet GHN đúng cấu trúc. ${ignored} sheet cũ/khác cấu trúc sẽ không được nhập. Hãy chọn chính xác sheet/kỳ cần đối soát.`
-            : `Đã nhận diện ${parsed.sheets.length} sheet GHN (${parsed.format === 'ghn_cod_transfer' ? 'Phiên chuyển tiền COD' : 'Biên bản COD + cước'}). Hãy chọn chính xác sheet/kỳ cần đối soát trước khi app nạp dữ liệu.`,
-          ignored > 0 ? 'warning' : 'success'
+          parsed.sheets.length > 1
+            ? `Đã nhận diện ${parsed.sheets.length} sheet GHN${ignored > 0 ? ` (${ignored} sheet khác bỏ qua)` : ''}. Tự động chọn sheet "${defaultSheet}" (${sheetParsed.rows.length} dòng).`
+            : `Đã nạp thành công sheet GHN "${defaultSheet}" (${sheetParsed.rows.length} dòng đơn).`,
+          'success'
         );
         return;
       }
