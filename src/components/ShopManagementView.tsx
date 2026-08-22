@@ -281,90 +281,98 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
     showToast(`Đã xóa hồ sơ shop chưa phát sinh “${shop.name}”.`, 'success');
   };
 
-  // File Scanning Handler for New Shop Auto-Detection
+  // File Scanning Handler for New Shop Auto-Detection (Supports MULTIPLE Excel files at once)
   const handleScanExcelFileForNewShops = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isAdmin) {
       showToast('Chỉ Admin được quét và đăng ký shop mới.', 'warning');
       return;
     }
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
 
     setIsScanning(true);
     try {
-      const { rows, headers } = await ExcelService.parseExcelFile(file);
-      if (rows.length === 0) {
-        showToast('File Excel trống hoặc không có dữ liệu.', 'warning');
+      const allOrders: { shopName: string; shopPhone: string; shopAddress: string; shopCode: string; nvcCod: number; codAmount: number }[] = [];
+
+      for (const file of files) {
+        const { rows, headers } = await ExcelService.parseExcelFile(file);
+        if (rows.length === 0) continue;
+
+        const mapping = autoDetectColumns(headers, 'app');
+
+        const orders = rows.map(r => {
+          const shopName = String(
+            (mapping.shopNameColumn ? r[mapping.shopNameColumn] : '') ||
+            r['Tên người gửi (chuẩn hóa đa file)'] ||
+            r['Tên người gửi'] ||
+            r['Người gửi'] ||
+            r['Tên Shop'] ||
+            r['Shop'] ||
+            r['Store'] ||
+            r['Tên cửa hàng'] ||
+            r['Tên Kho'] ||
+            ''
+          ).trim();
+
+          const shopPhone = String(
+            (mapping.shopPhoneColumn ? r[mapping.shopPhoneColumn] : '') ||
+            r['SĐT người gửi'] ||
+            r['Số điện thoại người gửi'] ||
+            r['SĐT Shop'] ||
+            r['SĐT'] ||
+            r['Phone'] ||
+            ''
+          ).trim();
+
+          const shopAddress = String(
+            (mapping.shopAddressColumn ? r[mapping.shopAddressColumn] : '') ||
+            r['Địa chỉ người gửi'] ||
+            r['Địa chỉ kho'] ||
+            r['Địa Chỉ'] ||
+            r['Kho gửi'] ||
+            ''
+          ).trim();
+
+          const shopCode = String(
+            (mapping.shopCodeColumn ? r[mapping.shopCodeColumn] : '') ||
+            r['Mã Shop'] ||
+            r['Mã Kho'] ||
+            r['Store ID'] ||
+            ''
+          ).trim();
+
+          const codVal = parseNumber(
+            (mapping.codColumn ? r[mapping.codColumn] : '') ||
+            r['Tiền COD'] ||
+            r['COD'] ||
+            0
+          );
+
+          return {
+            shopName,
+            shopPhone,
+            shopAddress,
+            shopCode,
+            nvcCod: codVal,
+            codAmount: codVal,
+          };
+        });
+
+        allOrders.push(...orders);
+      }
+
+      if (allOrders.length === 0) {
+        showToast('Không tìm thấy dữ liệu đơn hàng nào trong các file Excel đã chọn.', 'warning');
         return;
       }
 
-      const mapping = autoDetectColumns(headers, 'app');
-
-      const orders = rows.map(r => {
-        const shopName = String(
-          (mapping.shopNameColumn ? r[mapping.shopNameColumn] : '') ||
-          r['Tên người gửi (chuẩn hóa đa file)'] ||
-          r['Tên người gửi'] ||
-          r['Người gửi'] ||
-          r['Tên Shop'] ||
-          r['Shop'] ||
-          r['Store'] ||
-          r['Tên cửa hàng'] ||
-          r['Tên Kho'] ||
-          ''
-        ).trim();
-
-        const shopPhone = String(
-          (mapping.shopPhoneColumn ? r[mapping.shopPhoneColumn] : '') ||
-          r['SĐT người gửi'] ||
-          r['Số điện thoại người gửi'] ||
-          r['SĐT Shop'] ||
-          r['SĐT'] ||
-          r['Phone'] ||
-          ''
-        ).trim();
-
-        const shopAddress = String(
-          (mapping.shopAddressColumn ? r[mapping.shopAddressColumn] : '') ||
-          r['Địa chỉ người gửi'] ||
-          r['Địa chỉ kho'] ||
-          r['Địa Chỉ'] ||
-          r['Kho gửi'] ||
-          ''
-        ).trim();
-
-        const shopCode = String(
-          (mapping.shopCodeColumn ? r[mapping.shopCodeColumn] : '') ||
-          r['Mã Shop'] ||
-          r['Mã Kho'] ||
-          r['Store ID'] ||
-          ''
-        ).trim();
-
-        const codVal = parseNumber(
-          (mapping.codColumn ? r[mapping.codColumn] : '') ||
-          r['Tiền COD'] ||
-          r['COD'] ||
-          0
-        );
-
-        return {
-          shopName,
-          shopPhone,
-          shopAddress,
-          shopCode,
-          nvcCod: codVal,
-          codAmount: codVal,
-        };
-      });
-
-      const detected = detectUnregisteredShopsFromOrders(orders, shops);
+      const detected = detectUnregisteredShopsFromOrders(allOrders, shops);
       setDetectedNewShops(detected);
       setIsScanModalOpen(true);
       if (detected.length === 0) {
-        showToast('Tất cả Shop trong file Excel đã có sẵn trong hệ thống!', 'info');
+        showToast(`Đã quét ${files.length} file: Tất cả Shop đều đã có sẵn trong hệ thống!`, 'info');
       } else {
-        showToast(`Nhận diện thành công ${detected.length} Shop từ file Excel!`, 'success');
+        showToast(`Nhận diện thành công ${detected.length} Shop từ ${files.length} file Excel!`, 'success');
       }
     } catch (err: any) {
       showToast('Lỗi khi đọc file Excel: ' + (err.message || err), 'warning');
@@ -498,6 +506,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
         ref={fileInputRef}
         onChange={handleScanExcelFileForNewShops}
         accept=".xlsx,.xls,.csv"
+        multiple
         style={{ display: 'none' }}
       />
 
