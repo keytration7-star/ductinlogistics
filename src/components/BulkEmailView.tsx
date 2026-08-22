@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from './UIFeedback';
 import { 
   Mail, 
@@ -17,7 +17,9 @@ import {
   Edit2,
   Save,
   AlertCircle,
-  Info
+  Eye,
+  Timer,
+  Sparkles
 } from 'lucide-react';
 import type { ReconciliationSession, EmailSettings, ShopSettlementStatement } from '../types';
 import { EmailService } from '../services/emailService';
@@ -32,6 +34,33 @@ interface BulkEmailViewProps {
   activeCarrierName?: string;
 }
 
+const MOCK_DEMO_STATEMENT: ShopSettlementStatement = {
+  shopId: 'shop_mock_demo',
+  shopCode: 'SHOP_DEMO_01',
+  shopName: 'Shop Thời Trang Mẫu (Xem Trước)',
+  shopEmail: 'chushop.demo@gmail.com',
+  shopPhone: '0988.123.456',
+  shopAddress: 'Hà Nội',
+  periodName: 'Kỳ 16/08 - 22/08/2026',
+  totalOrders: 35,
+  deliveredOrders: 35,
+  returnedOrders: 0,
+  inTransitOrders: 0,
+  totalCod: 18500000,
+  totalShopFee: 805000,
+  totalShopOtherFee: 0,
+  totalNetPayout: 17695000,
+  totalNvcCost: 630000,
+  totalProfit: 175000,
+  emailStatus: 'idle',
+  bankInfo: {
+    bankName: 'MB Bank',
+    accountNumber: '999988886666',
+    accountHolder: 'NGUYỄN VĂN DEMO',
+  },
+  orders: [],
+};
+
 export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   currentSession,
   emailSettings,
@@ -40,14 +69,29 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   activeCarrierName,
 }) => {
   const { showToast } = useToast();
+  const previewRef = useRef<HTMLDivElement>(null);
+  
+  // All stored sessions for switching
+  const allStoredSessions = StorageService.getSessions();
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(
+    currentSession?.id || (allStoredSessions[0]?.id ?? '')
+  );
+
+  const activeSession = (allStoredSessions.find(s => s.id === selectedSessionId) || currentSession) ?? null;
+  const statements = activeSession?.statements || [];
+  const hasUnmatchedOrders = (activeSession?.unmatchedOrdersCount || 0) > 0;
+
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
   const [selectedShopId, setSelectedShopId] = useState<string>(
-    currentSession?.statements[0]?.shopId || ''
+    statements[0]?.shopId || ''
   );
   const [isSendingBatch, setIsSendingBatch] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ sent: number; total: number }>({ sent: 0, total: 0 });
   const [shopStatuses, setShopStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string }>>({});
   const [copiedBody, setCopiedBody] = useState(false);
+
+  // Sending Delay Interval State (Anti-spam / Rate limiting)
+  const [sendIntervalSec, setSendIntervalSec] = useState<number>(2);
 
   // Scheduling State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -67,6 +111,18 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       setSelectedCarrierTab(activeCarrierId);
     }
   }, [activeCarrierId]);
+
+  React.useEffect(() => {
+    if (currentSession?.id) {
+      setSelectedSessionId(currentSession.id);
+    }
+  }, [currentSession?.id]);
+
+  React.useEffect(() => {
+    if (statements.length > 0 && (!selectedShopId || !statements.some(s => s.shopId === selectedShopId))) {
+      setSelectedShopId(statements[0].shopId);
+    }
+  }, [statements, selectedShopId]);
 
   const CARRIER_TABS = [
     { id: 'default', label: '🌐 Mặc Định (Tất Cả)' },
@@ -112,18 +168,24 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     }
   };
 
-  const statements = currentSession?.statements || [];
-  const hasUnmatchedOrders = (currentSession?.unmatchedOrdersCount || 0) > 0;
-  const selectedStatement = statements.find(s => s.shopId === selectedShopId) || statements[0];
+  // Determine effective statement for preview
+  const isMockPreview = statements.length === 0;
+  const selectedStatement: ShopSettlementStatement = isMockPreview 
+    ? {
+        ...MOCK_DEMO_STATEMENT,
+        periodName: activeCarrierName ? `Kỳ Đối Soát ${activeCarrierName}` : 'Kỳ 16/08 - 22/08/2026'
+      }
+    : (statements.find(s => s.shopId === selectedShopId) || statements[0]);
+
   const missingShopEmailsCount = statements.filter(s => !s.shopEmail || !s.shopEmail.includes('@')).length;
 
   // Auto-populate missing emails from StorageService registered shops
   React.useEffect(() => {
-    if (!currentSession || !currentSession.statements.length) return;
+    if (!activeSession || !activeSession.statements.length) return;
     const registeredShops = StorageService.getShops();
     let hasChanges = false;
 
-    currentSession.statements.forEach(stmt => {
+    activeSession.statements.forEach(stmt => {
       if (!stmt.shopEmail || !stmt.shopEmail.includes('@')) {
         const normName = stmt.shopName.toLowerCase().trim();
         const found = registeredShops.find(s =>
@@ -139,9 +201,9 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     });
 
     if (hasChanges) {
-      StorageService.saveSession(currentSession);
+      StorageService.saveSession(activeSession);
     }
-  }, [currentSession]);
+  }, [activeSession]);
 
   const handleSaveShopEmail = (stmt: ShopSettlementStatement, newEmailInput: string) => {
     const cleanEmail = newEmailInput.trim();
@@ -161,11 +223,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       StorageService.saveShops(shops);
     }
 
-    // 3. Save to current session in StorageService if active
-    if (currentSession) {
-      const targetStmt = currentSession.statements.find(s => s.shopId === stmt.shopId);
+    // 3. Save to active session in StorageService if active
+    if (activeSession) {
+      const targetStmt = activeSession.statements.find(s => s.shopId === stmt.shopId);
       if (targetStmt) targetStmt.shopEmail = cleanEmail;
-      StorageService.saveSession(currentSession);
+      StorageService.saveSession(activeSession);
     }
 
     setEditingShopId(null);
@@ -185,7 +247,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       const diff = target - now;
 
       if (diff <= 0) {
-        // Time reached! Trigger automatic send
         clearInterval(interval);
         setScheduledTargetTime(null);
         setTimeRemainingStr('');
@@ -230,15 +291,62 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
     const newStatuses: Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string }> = {};
 
-    await EmailService.sendBatchEmails(statements, settings, currentSession?.carrierId, (shopId: string, status: 'sending' | 'sent' | 'failed', message?: string) => {
-      newStatuses[shopId] = { status, message };
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      newStatuses[stmt.shopId] = { status: 'sending' };
       setShopStatuses({ ...newStatuses });
-      if (status === 'sent' || status === 'failed') {
+
+      const recipientEmails = EmailService.getEmailsForStatement(stmt);
+      if (recipientEmails.length === 0) {
+        newStatuses[stmt.shopId] = { status: 'failed', message: 'Shop chưa có địa chỉ Email nhận hợp lệ' };
+        setShopStatuses({ ...newStatuses });
         setSendProgress(prev => ({ ...prev, sent: prev.sent + 1 }));
+        continue;
       }
-    });
+
+      if (!settings.senderEmail || !settings.emailPassword) {
+        newStatuses[stmt.shopId] = { status: 'failed', message: 'Chưa cài đặt Gmail gửi hoặc Mật khẩu ứng dụng trong Cài Đặt ⚙️' };
+        setShopStatuses({ ...newStatuses });
+        setSendProgress(prev => ({ ...prev, sent: prev.sent + 1 }));
+        continue;
+      }
+
+      const excelBase64 = EmailService.generateExcelBase64(stmt);
+      const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId);
+      const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId);
+
+      const res = await EmailService.sendRealEmail({
+        senderName: settings.senderName,
+        senderEmail: settings.senderEmail,
+        emailPassword: settings.emailPassword,
+        smtpHost: settings.smtpHost,
+        smtpPort: settings.smtpPort,
+        to: recipientEmails.join(', '),
+        subject,
+        text: body,
+        html: htmlBody,
+        attachments: excelBase64 ? [{
+          filename: `Bang_ke_doi_soat_${stmt.shopCode || stmt.shopName}.xlsx`,
+          content: excelBase64,
+        }] : undefined,
+      });
+
+      if (res.success) {
+        newStatuses[stmt.shopId] = { status: 'sent', message: `Đã gửi thành công tới ${recipientEmails.length} email` };
+      } else {
+        newStatuses[stmt.shopId] = { status: 'failed', message: res.error || 'Lỗi gửi mail' };
+      }
+      setShopStatuses({ ...newStatuses });
+      setSendProgress(prev => ({ ...prev, sent: prev.sent + 1 }));
+
+      // Delay interval between sending emails
+      if (i < statements.length - 1 && sendIntervalSec > 0) {
+        await new Promise(resolve => setTimeout(resolve, sendIntervalSec * 1000));
+      }
+    }
 
     setIsSendingBatch(false);
+    showToast('Đã hoàn tất tiến trình gửi email đối soát hàng loạt!', 'success');
   };
 
   // Schedule Helpers
@@ -250,6 +358,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
     setScheduledTargetTime(target);
     setIsScheduleModalOpen(false);
+    showToast(`Đã hẹn giờ tự động gửi sau ${minutesFromNow} phút!`, 'info');
   };
 
   const setSpecificTimeToday = (hour: number, minute: number) => {
@@ -260,11 +369,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     const target = new Date();
     target.setHours(hour, minute, 0, 0);
     if (target.getTime() <= Date.now()) {
-      // If time already passed today, set for tomorrow
       target.setDate(target.getDate() + 1);
     }
     setScheduledTargetTime(target);
     setIsScheduleModalOpen(false);
+    showToast(`Đã hẹn giờ tự động gửi vào lúc ${target.toLocaleTimeString('vi-VN')}!`, 'info');
   };
 
   const handleApplyCustomSchedule = () => {
@@ -280,20 +389,25 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     }
     setScheduledTargetTime(target);
     setIsScheduleModalOpen(false);
+    showToast(`Đã hẹn giờ tự động gửi vào ${target.toLocaleString('vi-VN')}!`, 'info');
   };
 
   const handleCancelSchedule = () => {
     setScheduledTargetTime(null);
     setTimeRemainingStr('');
+    showToast('Đã hủy lịch hẹn gửi email tự động.', 'info');
+  };
+
+  const handleSelectShopAndScroll = (shopId: string) => {
+    setSelectedShopId(shopId);
+    previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
-  const currentCarrierId = activeCarrierId || (selectedCarrierTab !== 'default' ? selectedCarrierTab : currentSession?.carrierId);
+  const currentCarrierId = activeCarrierId || (selectedCarrierTab !== 'default' ? selectedCarrierTab : activeSession?.carrierId);
 
-  const previewRendered = selectedStatement 
-    ? EmailService.renderEmail(selectedStatement, settings, currentCarrierId)
-    : { subject: '', body: '' };
+  const previewRendered = EmailService.renderEmail(selectedStatement, settings, currentCarrierId);
 
   const handleCopyBody = () => {
     navigator.clipboard.writeText(previewRendered.body);
@@ -304,56 +418,91 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       
-      {/* Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+      {/* Top Header & Action Controls Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 16,
+        background: '#ffffff',
+        padding: '18px 24px',
+        borderRadius: 16,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 15px -3px rgba(0,0,0,0.04)',
+      }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: 'var(--text-main)' }}>
             <Mail size={24} color="var(--primary)" />
             Gửi Email Đối Soát & Bảng Kê Tự Động Cho Từng Shop
           </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Hệ thống cá nhân hóa nội dung email (Tên Shop, tiền COD, tiền thực nhận) và tự động đính kèm file Excel bảng kê chi tiết.
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+            Hệ thống cá nhân hóa nội dung email (Tên Shop, tiền COD, tiền thực nhận, STK) và tự động đính kèm file Excel bảng kê chi tiết.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {/* Action Controls & Settings */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           
-          {/* Schedule Email Button */}
-          {statements.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsScheduleModalOpen(true)}
-              disabled={hasUnmatchedOrders}
-              className={`btn btn-lg ${scheduledTargetTime ? 'btn-warning' : 'btn-secondary'}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-              title="Hẹn giờ để hệ thống tự động gửi email"
+          {/* Send Interval / Rate Limit Control */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1px solid #cbd5e1' }}>
+            <Timer size={16} color="var(--primary)" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Giãn cách gửi:</span>
+            <select
+              value={sendIntervalSec}
+              onChange={(e) => setSendIntervalSec(Number(e.target.value))}
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--primary)',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+              title="Khoảng thời gian nghỉ giữa mỗi lượt gửi để chống bị Gmail khóa rate limit"
             >
-              <Clock size={18} />
-              <span>{scheduledTargetTime ? '⏰ Đang Hẹn Giờ' : 'Hẹn Giờ Tự Động Gửi'}</span>
-            </button>
-          )}
+              <option value={1}>1 giây / mail</option>
+              <option value={2}>2 giây / mail (Khuyên dùng)</option>
+              <option value={3}>3 giây / mail</option>
+              <option value={5}>5 giây / mail (An toàn nhất)</option>
+              <option value={10}>10 giây / mail</option>
+            </select>
+          </div>
+
+          {/* Schedule Email Button */}
+          <button
+            type="button"
+            onClick={() => setIsScheduleModalOpen(true)}
+            disabled={hasUnmatchedOrders || statements.length === 0}
+            className={`btn ${scheduledTargetTime ? 'btn-warning' : 'btn-secondary'}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', fontWeight: 700 }}
+            title="Hẹn giờ để hệ thống tự động gửi email"
+          >
+            <Clock size={16} />
+            <span>{scheduledTargetTime ? '⏰ Đang Hẹn Giờ' : 'Hẹn Giờ Gửi Tự Động'}</span>
+          </button>
 
           {/* Send Immediately Button */}
-          {statements.length > 0 && (
-            <button
-              onClick={handleStartBatchSend}
-              disabled={isSendingBatch || hasUnmatchedOrders}
-              className="btn btn-primary btn-lg"
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              {isSendingBatch ? (
-                <>
-                  <RotateCcw size={18} className="animate-spin" />
-                  <span>Đang gửi ({sendProgress.sent}/{sendProgress.total})...</span>
-                </>
-              ) : (
-                <>
-                  <Send size={18} />
-                  <span>GỬI EMAIL TẤT CẢ {statements.length} SHOP</span>
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleStartBatchSend}
+            disabled={isSendingBatch || hasUnmatchedOrders || statements.length === 0}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 18px', fontWeight: 800 }}
+          >
+            {isSendingBatch ? (
+              <>
+                <RotateCcw size={16} className="animate-spin" />
+                <span>Đang gửi ({sendProgress.sent}/{sendProgress.total})...</span>
+              </>
+            ) : (
+              <>
+                <Send size={16} />
+                <span>GỬI EMAIL {statements.length > 0 ? `TẤT CẢ ${statements.length} SHOP` : 'HÀNG LOẠT'}</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -364,7 +513,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           border: '1px solid var(--danger)',
           borderRadius: 'var(--radius-md)',
           padding: '12px 16px',
-          marginBottom: 16,
           display: 'flex',
           alignItems: 'center',
           gap: 10,
@@ -380,28 +528,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       {hasUnmatchedOrders && (
         <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)', fontSize: 13, fontWeight: 700 }}>
           <AlertCircle size={20} style={{ flexShrink: 0 }} />
-          <span>Kỳ này còn {currentSession?.unmatchedOrdersCount} đơn chưa khớp. Email, file Excel và lịch hẹn gửi bị khóa cho đến khi đối soát hoàn tất.</span>
-        </div>
-      )}
-
-      {/* MISSING SHOP RECEIVER EMAILS WARNING BANNER */}
-      {missingShopEmailsCount > 0 && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid var(--warning)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 14px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: 12.5,
-          color: 'var(--text-main)',
-        }}>
-          <Info size={16} color="var(--warning)" style={{ flexShrink: 0 }} />
-          <span>
-            Có <strong style={{ color: 'var(--warning)' }}>{missingShopEmailsCount} Shop</strong> chưa có địa chỉ Email nhận. Bạn có thể gõ nhập trực tiếp Email cho từng Shop ngay tại bảng bên dưới.
-          </span>
+          <span>Kỳ này còn {activeSession?.unmatchedOrdersCount} đơn chưa khớp. Email, file Excel và lịch hẹn gửi bị khóa cho đến khi đối soát hoàn tất.</span>
         </div>
       )}
 
@@ -418,7 +545,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           flexWrap: 'wrap',
           gap: 16,
           boxShadow: 'var(--shadow-md)',
-          animation: 'pulse 2s infinite',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
@@ -478,7 +604,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Template & Preview */}
+      {/* Main Grid: Template Editor & Live Preview */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
@@ -517,7 +643,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             )}
           </div>
 
-          {/* Carrier Template Tabs (Only shown if in global view without active carrier) */}
+          {/* Carrier Template Tabs */}
           {!activeCarrierId && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, background: '#f8fafc', padding: 6, borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
               {CARRIER_TABS.map(tab => {
@@ -615,19 +741,44 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Preview Panel */}
-        <div className="glass-panel" style={{
-          padding: 24,
-          background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
-          border: '1.5px solid rgba(16, 185, 129, 0.25)',
-          borderRadius: 16,
-          boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
-        }}>
+        {/* 2. Interactive Live Preview Panel */}
+        <div 
+          ref={previewRef}
+          id="email-preview-panel"
+          className="glass-panel" 
+          style={{
+            padding: 24,
+            background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
+            border: '1.5px solid rgba(16, 185, 129, 0.25)',
+            borderRadius: 16,
+            boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+          }}
+        >
+          {/* Preview Header & Controls */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Eye size={18} />
                 2. Xem Trước Email (Bản Shop Nhận)
               </h3>
+              
+              {isMockPreview && (
+                <span style={{
+                  fontSize: 11,
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  color: '#b45309',
+                  border: '1px solid #fde68a',
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  <Sparkles size={12} /> Mẫu Minh Họa Trực Quan
+                </span>
+              )}
+
               <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
                 <button
                   type="button"
@@ -648,132 +799,167 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               </div>
             </div>
 
-            {statements.length > 0 && (
-              <select
-                value={selectedShopId}
-                onChange={(e) => setSelectedShopId(e.target.value)}
-                className="select-field"
-                style={{ width: 220, padding: '4px 8px', fontSize: 12 }}
-              >
-                {statements.map(s => (
-                  <option key={s.shopId} value={s.shopId}>
-                    {s.shopName} ({formatVND(s.totalNetPayout)})
-                  </option>
-                ))}
-              </select>
+            {/* Shop Selector Dropdown */}
+            {statements.length > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Xem Shop:</span>
+                <select
+                  value={selectedShopId}
+                  onChange={(e) => setSelectedShopId(e.target.value)}
+                  className="select-field"
+                  style={{ width: 240, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
+                >
+                  {statements.map((s, idx) => (
+                    <option key={s.shopId || idx} value={s.shopId}>
+                      {idx + 1}. {s.shopName} ({formatVND(s.totalNetPayout)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : allStoredSessions.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Xem kỳ khác:</span>
+                <select
+                  value={selectedSessionId}
+                  onChange={(e) => setSelectedSessionId(e.target.value)}
+                  className="select-field"
+                  style={{ width: 200, padding: '3px 6px', fontSize: 11 }}
+                >
+                  {allStoredSessions.map((ses, idx) => (
+                    <option key={ses.id || idx} value={ses.id}>
+                      {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop)
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
-          {selectedStatement ? (
-            <div style={{
-              background: 'var(--bg-primary)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              overflow: 'hidden',
-            }}>
-              <div style={{ fontSize: 13, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', background: 'var(--bg-secondary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Gửi tới Shop <strong>{selectedStatement.shopName}</strong>:</span>
-                  {EmailService.getEmailsForStatement(selectedStatement).length === 0 ? (
-                    <span className="badge badge-warning" style={{ fontSize: 11 }}>Chưa có email</span>
-                  ) : (
-                    EmailService.getEmailsForStatement(selectedStatement).map(em => (
-                      <span key={em} className="badge badge-primary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
-                        ✉️ {em}
-                      </span>
-                    ))
-                  )}
-                </div>
-                <div style={{ fontWeight: 700, marginTop: 6, color: 'var(--primary)' }}>
-                  {previewRendered.subject}
-                </div>
+          {/* Email Preview Frame */}
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-color)',
+            overflow: 'hidden',
+          }}>
+            {/* Subject line header */}
+            <div style={{ fontSize: 13, borderBottom: '1px solid var(--border-color)', padding: '12px 16px', background: 'var(--bg-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Gửi tới Shop <strong>{selectedStatement.shopName}</strong>:</span>
+                {EmailService.getEmailsForStatement(selectedStatement).length === 0 ? (
+                  <span className="badge badge-warning" style={{ fontSize: 11 }}>Chưa có email</span>
+                ) : (
+                  EmailService.getEmailsForStatement(selectedStatement).map(em => (
+                    <span key={em} className="badge badge-primary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                      ✉️ {em}
+                    </span>
+                  ))
+                )}
               </div>
+              <div style={{ fontWeight: 700, marginTop: 6, color: 'var(--primary)' }}>
+                {previewRendered.subject}
+              </div>
+            </div>
 
-              {previewMode === 'html' ? (
-                <div style={{ padding: 10, background: '#f1f5f9', maxHeight: 420, overflowY: 'auto' }}>
-                  <iframe
-                    title="Email HTML Preview"
-                    srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings, activeCarrierId)}
-                    style={{
-                      width: '100%',
-                      height: 520,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: '#ffffff',
-                    }}
-                  />
-                </div>
-              ) : (
-                <div style={{
-                  fontSize: 12.5,
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: 'inherit',
-                  lineHeight: 1.6,
-                  color: 'var(--text-main)',
-                  padding: 16,
-                  maxHeight: 350,
-                  overflowY: 'auto',
-                }}>
-                  {previewRendered.body}
-                </div>
-              )}
-
+            {/* Email Body Preview */}
+            {previewMode === 'html' ? (
+              <div style={{ padding: 10, background: '#f1f5f9', maxHeight: 420, overflowY: 'auto' }}>
+                <iframe
+                  title="Email HTML Preview"
+                  srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings, currentCarrierId)}
+                  style={{
+                    width: '100%',
+                    height: 520,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                  }}
+                />
+              </div>
+            ) : (
               <div style={{
-                padding: '12px 16px',
-                background: 'var(--bg-secondary)',
-                borderTop: '1px dashed var(--border-color)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                fontSize: 12.5,
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'inherit',
+                lineHeight: 1.6,
+                color: 'var(--text-main)',
+                padding: 16,
+                maxHeight: 350,
+                overflowY: 'auto',
               }}>
-                <div style={{ fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <FileSpreadsheet size={15} />
-                  <span>Đính kèm: Bang_ke_doi_soat_{selectedStatement.shopCode}.xlsx</span>
-                </div>
+                {previewRendered.body}
+              </div>
+            )}
 
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={handleCopyBody}
-                    className="btn btn-secondary btn-sm"
-                    title="Sao chép nội dung email"
-                  >
-                    {copiedBody ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
-                    <span>{copiedBody ? 'Đã chép' : 'Sao chép'}</span>
-                  </button>
+            {/* Footer with actions */}
+            <div style={{
+              padding: '12px 16px',
+              background: 'var(--bg-secondary)',
+              borderTop: '1px dashed var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FileSpreadsheet size={15} />
+                <span>Đính kèm: Bang_ke_doi_soat_{selectedStatement.shopCode || selectedStatement.shopName}.xlsx</span>
+              </div>
 
-                  <a
-                    href={EmailService.generateMailtoUri(selectedStatement, settings)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    <Send size={13} />
-                    <span>Mở Ứng Dụng Mail</span>
-                  </a>
-                </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={handleCopyBody}
+                  className="btn btn-secondary btn-sm"
+                  title="Sao chép nội dung email"
+                >
+                  {copiedBody ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                  <span>{copiedBody ? 'Đã chép' : 'Sao chép'}</span>
+                </button>
+
+                <a
+                  href={EmailService.generateMailtoUri(selectedStatement, settings)}
+                  className="btn btn-primary btn-sm"
+                >
+                  <Send size={13} />
+                  <span>Mở Ứng Dụng Mail</span>
+                </a>
               </div>
             </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-              Chưa có dữ liệu kỳ đối soát. Vui lòng tiến hành đối soát ở tab "Đối Soát Kéo Thả" trước.
-            </div>
-          )}
+          </div>
         </div>
-
       </div>
 
-      {/* 3. Batch Queue Table */}
+      {/* 3. Queue Table: Shop List & Per-Shop Preview/Send Actions */}
       {statements.length > 0 && (
-        <div className="table-container glass-panel">
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h4 style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Layers size={16} color="var(--primary)" />
-              Danh Sách Hàng Đợi Gửi Mail ({statements.length} Shop)
-            </h4>
+        <div className="glass-panel" style={{ padding: 24, borderRadius: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                <Layers size={18} color="var(--primary)" />
+                Danh Sách Hàng Đợi Gửi Mail ({statements.length} Shop)
+              </h3>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Click nút <strong style={{ color: 'var(--primary)' }}>👁️ Xem Trước</strong> ở từng dòng để kiểm tra nội dung email và bảng kê riêng của Shop đó.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="badge badge-primary" style={{ fontSize: 12 }}>
+                ✉️ {statements.length - missingShopEmailsCount}/{statements.length} Shop đã có Email
+              </span>
+              {missingShopEmailsCount > 0 && (
+                <span className="badge badge-warning" style={{ fontSize: 12 }}>
+                  ⚠️ {missingShopEmailsCount} Shop chưa có Email
+                </span>
+              )}
+            </div>
           </div>
 
           <table className="data-table">
             <thead>
               <tr>
-                <th>STT</th>
+                <th style={{ width: 45 }}>STT</th>
                 <th>Shop Nhận Đối Soát</th>
                 <th>Địa Chỉ Email</th>
                 <th>Số Tiền Thực Trả</th>
@@ -784,20 +970,39 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             <tbody>
               {statements.map((stmt, idx) => {
                 const statusObj = shopStatuses[stmt.shopId] || { status: 'idle' };
+                const isSelected = stmt.shopId === selectedShopId;
+                const isEditing = editingShopId === stmt.shopId;
+
                 return (
-                  <tr key={stmt.shopId}>
+                  <tr 
+                    key={stmt.shopId || idx}
+                    style={{
+                      background: isSelected ? 'rgba(79, 70, 229, 0.05)' : undefined,
+                      borderLeft: isSelected ? '4px solid var(--primary)' : undefined,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
                     <td>{idx + 1}</td>
                     <td>
-                      <strong>{stmt.shopName}</strong>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Mã: {stmt.shopCode}</div>
+                      <div style={{ fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {stmt.shopName}
+                        {isSelected && (
+                          <span className="badge badge-success" style={{ fontSize: 10, padding: '1px 6px' }}>
+                            Đang xem
+                          </span>
+                        )}
+                      </div>
+                      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                        Mã: {stmt.shopCode}
+                      </div>
                     </td>
                     <td>
-                      {editingShopId === stmt.shopId || (!stmt.shopEmail && !stmt.shopEmail.includes('@')) ? (
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <input
-                            type="email"
+                            type="text"
                             className="input-field"
-                            style={{ padding: '3px 8px', fontSize: 12, width: 210 }}
+                            style={{ padding: '3px 8px', fontSize: 12, width: 220 }}
                             placeholder="Gõ email Shop (VD: shop@gmail.com)..."
                             value={tempEmailMap[stmt.shopId] ?? stmt.shopEmail ?? ''}
                             onChange={e => setTempEmailMap({ ...tempEmailMap, [stmt.shopId]: e.target.value })}
@@ -842,7 +1047,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>
+                    <td className="mono" style={{ fontWeight: 700, color: stmt.totalNetPayout >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {formatVND(stmt.totalNetPayout)}
                     </td>
                     <td>
@@ -865,6 +1070,19 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        
+                        {/* Preview This Shop's Email Button */}
+                        <button
+                          onClick={() => handleSelectShopAndScroll(stmt.shopId)}
+                          className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ padding: '5px 9px', fontSize: 11, fontWeight: 700 }}
+                          title="Xem trước nội dung email của Shop này"
+                        >
+                          <Eye size={12} />
+                          <span>{isSelected ? 'Đang xem' : 'Xem trước'}</span>
+                        </button>
+
+                        {/* Send Single Shop Immediately */}
                         <button
                           onClick={async () => {
                             if (hasUnmatchedOrders) {
@@ -899,8 +1117,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                             });
                             if (res.success) {
                               setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sent', message: `Đã gửi thành công tới ${recipientEmails.length} mail` } }));
+                              showToast(`Đã gửi mail thành công cho ${stmt.shopName}!`, 'success');
                             } else {
                               setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'failed', message: res.error } }));
+                              showToast(`Gửi thất bại cho ${stmt.shopName}: ${res.error}`, 'error');
                             }
                           }}
                           className="btn btn-primary btn-sm"
@@ -912,6 +1132,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                           <span>Gửi ngay</span>
                         </button>
 
+                        {/* Download Statement Excel */}
                         <button
                           onClick={() => {
                             if (hasUnmatchedOrders) {
@@ -923,7 +1144,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                           className="btn btn-secondary btn-sm"
                           disabled={hasUnmatchedOrders}
                           style={{ padding: '5px 8px' }}
-                          title="Tải file Excel"
+                          title="Tải file Excel bảng kê"
                         >
                           <Download size={13} />
                         </button>
