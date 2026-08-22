@@ -274,13 +274,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const { showConfirm } = useConfirm();
   const isAdmin = currentUser.role === 'ADMIN';
 
-  // 4-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Đối Soát & Bảng Kê, 4 = Xác Nhận & Xuất Báo Cáo
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(currentSession ? 3 : 1);
+  // 4-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Nhận Diện Shop, 4 = Kết Quả Đối Soát & Bảng Kê Chi Tiết
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(currentSession ? 4 : 1);
 
-  // Sync wizard step when currentSession changes from external sources (e.g. History click)
+  // Sync wizard step to Step 4 ONLY when a new/different session is loaded from external sources (e.g. History click)
+  const prevSessionIdRef = useRef<string | null>(currentSession?.id || null);
   useEffect(() => {
-    if (currentSession) {
-      setWizardStep(3);
+    if (currentSession && currentSession.id !== prevSessionIdRef.current) {
+      prevSessionIdRef.current = currentSession.id;
+      setWizardStep(4);
     }
   }, [currentSession]);
 
@@ -937,7 +939,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         session.createdAt = new Date(sessionPeriodDate + 'T12:00:00.000Z').toISOString();
       }
 
+      prevSessionIdRef.current = session.id;
       setCurrentSession(session);
+      setWizardStep(4);
       AuditService.logAction(
         currentUser.username,
         currentUser.role,
