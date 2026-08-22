@@ -1459,10 +1459,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         alignItems: 'center',
       }}>
         {[
-          { step: '01', title: 'CHỌN HÃNG & CHẾ ĐỘ', desc: selectedCarrierTier?.carrierName || 'Chọn NVC', active: true, done: !!selectedCarrierId },
-          { step: '02', title: 'TẢI FILE EXCEL', desc: nvcFile ? `${nvcFile.name.slice(0, 16)}...` : 'Kéo thả file', active: !!nvcFile, done: !!nvcFile },
-          { step: '03', title: 'KHỚP NỐI & KIỂM TRA', desc: currentSession ? `${currentSession.matchedOrdersCount} đơn đã khớp` : 'Chờ đối soát', active: !!currentSession, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
-          { step: '04', title: 'XÁC NHẬN & XUẤT FILE', desc: currentSession ? (currentSession.unmatchedOrdersCount > 0 ? `${currentSession.unmatchedOrdersCount} đơn cần xử lý` : `${currentSession.statements.length} shop sẵn sàng`) : 'Xuất Excel / ZIP', active: !!currentSession, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
+          { step: '01', title: 'CHỌN HÃNG & NẠP FILE', desc: selectedCarrierTier?.carrierName || 'Chọn NVC', active: !nvcFile, done: !!nvcFile },
+          { step: '02', title: 'KHỚP NỐI & KIỂM TRA', desc: nvcFile ? `${nvcRows.length} đơn sẵn sàng` : 'Chờ nạp file', active: !!nvcFile && !currentSession, done: !!currentSession },
+          { step: '03', title: 'ĐỐI SOÁT & BẢNG KÊ SHOP', desc: currentSession ? `${currentSession.statements.length} shop đối soát` : 'Chờ tính cước', active: !!currentSession && currentSession.unmatchedOrdersCount === 0, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
+          { step: '04', title: 'XÁC NHẬN & XUẤT BÁO CÁO', desc: currentSession ? 'Xuất Excel / ZIP / Email' : 'Chờ hoàn tất', active: !!currentSession && currentSession.unmatchedOrdersCount === 0, done: !!currentSession && currentSession.unmatchedOrdersCount === 0 },
         ].map((item) => (
           <div key={item.step} style={{
             display: 'flex',
