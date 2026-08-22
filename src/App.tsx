@@ -394,6 +394,8 @@ export function App() {
               currentSession={currentSession}
               emailSettings={emailSettings}
               onSaveEmailSettings={handleSaveEmailSettings}
+              activeCarrierId={activeCarrierId}
+              activeCarrierName={activeCarrierObj.carrierName}
             />
           )}
 

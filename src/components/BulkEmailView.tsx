@@ -28,12 +28,16 @@ interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
   emailSettings: EmailSettings;
   onSaveEmailSettings: (settings: EmailSettings) => void;
+  activeCarrierId?: string;
+  activeCarrierName?: string;
 }
 
 export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   currentSession,
   emailSettings,
   onSaveEmailSettings,
+  activeCarrierId,
+  activeCarrierName,
 }) => {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
@@ -55,7 +59,14 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   // Inline Shop Email Editing State
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [tempEmailMap, setTempEmailMap] = useState<Record<string, string>>({});
-  const [selectedCarrierTab, setSelectedCarrierTab] = useState<string>('default');
+  const initialCarrierTab = activeCarrierId || 'default';
+  const [selectedCarrierTab, setSelectedCarrierTab] = useState<string>(initialCarrierTab);
+
+  React.useEffect(() => {
+    if (activeCarrierId) {
+      setSelectedCarrierTab(activeCarrierId);
+    }
+  }, [activeCarrierId]);
 
   const CARRIER_TABS = [
     { id: 'default', label: '🌐 Mặc Định (Tất Cả)' },
@@ -278,10 +289,10 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
-  const activeCarrierId = selectedCarrierTab !== 'default' ? selectedCarrierTab : currentSession?.carrierId;
+  const currentCarrierId = activeCarrierId || (selectedCarrierTab !== 'default' ? selectedCarrierTab : currentSession?.carrierId);
 
   const previewRendered = selectedStatement 
-    ? EmailService.renderEmail(selectedStatement, settings, activeCarrierId)
+    ? EmailService.renderEmail(selectedStatement, settings, currentCarrierId)
     : { subject: '', body: '' };
 
   const handleCopyBody = () => {
@@ -482,43 +493,63 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>
-              1. Cấu Hình Mẫu Email Đối Soát
-            </h3>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-              Đang chỉnh: <strong style={{ color: 'var(--primary)' }}>{CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label}</strong>
-            </span>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)', margin: 0 }}>
+                1. Cấu Hình Mẫu Email Đối Soát {activeCarrierName ? `Cho ${activeCarrierName}` : ''}
+              </h3>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                {activeCarrierName 
+                  ? `Mẫu email đối soát tùy biến riêng cho các đơn hàng của hãng ${activeCarrierName}.`
+                  : 'Tùy biến nội dung email gửi cho khách hàng.'}
+              </div>
+            </div>
+            {activeCarrierName && (
+              <span style={{
+                fontSize: 11,
+                background: 'rgba(79, 70, 229, 0.1)',
+                color: 'var(--primary)',
+                padding: '3px 10px',
+                borderRadius: 20,
+                fontWeight: 700,
+              }}>
+                🚚 Mẫu Riêng: {activeCarrierName}
+              </span>
+            )}
           </div>
 
-          {/* Carrier Template Tabs */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, background: '#f8fafc', padding: 6, borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
-            {CARRIER_TABS.map(tab => {
-              const isSelected = selectedCarrierTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSelectedCarrierTab(tab.id)}
-                  className="btn btn-sm"
-                  style={{
-                    padding: '5px 10px',
-                    fontSize: 11,
-                    fontWeight: isSelected ? 800 : 600,
-                    background: isSelected ? 'var(--primary)' : '#ffffff',
-                    color: isSelected ? '#ffffff' : '#334155',
-                    border: isSelected ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
-                    boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Carrier Template Tabs (Only shown if in global view without active carrier) */}
+          {!activeCarrierId && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, background: '#f8fafc', padding: 6, borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
+              {CARRIER_TABS.map(tab => {
+                const isSelected = selectedCarrierTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSelectedCarrierTab(tab.id)}
+                    className="btn btn-sm"
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: 11,
+                      fontWeight: isSelected ? 800 : 600,
+                      background: isSelected ? 'var(--primary)' : '#ffffff',
+                      color: isSelected ? '#ffffff' : '#334155',
+                      border: isSelected ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
+                      boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="input-group">
-            <label className="input-label">Tiêu đề Email ({CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})</label>
+            <label className="input-label">
+              Tiêu đề Email {activeCarrierName ? `(${activeCarrierName})` : `(${CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})`}
+            </label>
             <input
               type="text"
               value={activeSubject}
