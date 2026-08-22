@@ -30,21 +30,23 @@ const ALIASES = {
     'tien_thu_ho', 'cod', 'tien_cod', 'thu_ho', 'so_tien_cod', 'tien_tra_nguoi_gui',
     'tien_cod_thuc_nhan', 'so_tien_thu_ho', 'tong_cod', 'cod_thu_ho', 'so_tien_thu',
     'cod_amount', 'collect_amount', 'tong_tien_thu_ho', 'cod_chuyen_khoan', 'tong_nhan',
-    'cod_giao_thanh_cong', 'tien_co_cod', 'cod_tra_shop', 'tien_cod_da_ky_nhan'
+    'cod_giao_thanh_cong', 'tien_co_cod', 'cod_tra_shop', 'tien_cod_da_ky_nhan',
+    'tien_cod_1'
   ],
   fee: [
     'cuoc_phi', 'tong_cuoc', 'cuoc_van_chuyen', 'phi_van_chuyen', 'cuoc_chinh',
-    'phi_dich_vu', 'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
-    'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh', 'phi_giao_hang',
+    'phi_dich_vu', 'phi_dich_vu_5', 'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
+    'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh', 'phi_giao_hang', 'phi_giao_hang_5_1',
     'cuoc_tru', 'phi_chinh', 'tong_phi_giao_hang', 'phi_dich_vu_chinh', 'tien_cuoc_pp_pm'
   ],
   otherFee: [
-    'phi_khac', 'phu_phi', 'phi_bao_hiem', 'phi_chuyen_hoan', 'phi_hoan',
-    'phi_giao_lai', 'phi_kiem_dem', 'phu_phi_vung_xa', 'other_fee', 'surcharge',
-    'phi_hoan_thanh_cong', 'phi_chuyen_tra'
+    'phi_khac', 'phu_phi', 'phi_bao_hiem', 'phi_chuyen_hoan', 'phi_hoan', 'phi_hoan_hang',
+    'phi_hoan_hang_5_4', 'phi_khai_gia_5_3', 'phi_giao_lai_5_2', 'phi_doi_dia_chi_hoan_5_5',
+    'phi_doi_dia_chi_giao_5_6', 'phi_giao_lai', 'phi_kiem_dem', 'phu_phi_vung_xa', 'other_fee',
+    'surcharge', 'phi_hoan_thanh_cong', 'phi_chuyen_tra'
   ],
-  adjustment: ['dieu_chinh', 'adjustment', 'phi_dieu_chinh'],
-  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat', 'tong_doi_soat'],
+  adjustment: ['dieu_chinh', 'adjustment', 'phi_dieu_chinh', 'khuyen_mai_4', 'khuyen_mai', 'da_thanh_toan_truoc_3', 'giao_that_bai_thu_tien_2'],
+  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat', 'tong_doi_soat', 'tong_doi_soat_3_4_5'],
   weight: [
     'khoi_luong', 'trong_luong', 'can_nang', 'khoi_luong_tinh_cuoc', 'kl_quy_doi',
     'weight', 'gross_weight', 'khoi_luong_kg', 'trong_luong_kg', 'can_nang_kg',

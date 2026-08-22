@@ -87,26 +87,8 @@ const GHN_SETTLEMENT_HEADERS = [
   'Sheet đối soát GHN',
 ];
 
-// GHN's "Phiên chuyển tiền COD" export is a different settlement document:
-// one ledger, two header rows, and an already-calculated settlement total.
-// Keep it separate from the historical side-by-side COD/fee ledger parser.
-const GHN_COD_TRANSFER_HEADERS = [
-  'Mã đơn GHN',
-  'Mã đơn khách hàng',
-  'Cửa hàng',
-  'Mã Shop/Kho',
-  'Người nhận',
-  'Địa chỉ nhận',
-  'Ngày tạo',
-  'Ngày giao/trả',
-  'Trạng thái',
-  'Tiền COD',
-  'Cước phí',
-  'Điều chỉnh',
-  'Tổng đối soát',
-  'Loại dòng đối soát',
-  'Sheet đối soát GHN',
-];
+// GHN's "Phiên chuyển tiền COD" export is a 2-tier header settlement document.
+// The parser dynamically merges Row 0 and Row 1 to discover all actual columns.
 
 const ghnShopCodeFrom = (value: any) => {
   const text = String(value || '').trim();
@@ -124,10 +106,12 @@ const ghnNumber = (value: any) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): Record<string, any>[] | null {
+function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { rows: Record<string, any>[]; headers: string[] } | null {
   for (let rowIndex = 1; rowIndex < Math.min(20, rawSheetData.length); rowIndex++) {
-    const headers = (rawSheetData[rowIndex] || []).map(cell => normalizeHeader(String(cell || '')));
-    const groupHeaders = (rawSheetData[rowIndex - 1] || []).map(cell => normalizeHeader(String(cell || '')));
+    const rawSubHeaders = rawSheetData[rowIndex] || [];
+    const rawSuperHeaders = rawSheetData[rowIndex - 1] || [];
+    const headers = rawSubHeaders.map(cell => normalizeHeader(String(cell || '')));
+    const groupHeaders = rawSuperHeaders.map(cell => normalizeHeader(String(cell || '')));
     const waybillIndex = headers.findIndex(header => header === 'ma_don_ghn');
     const shopIndex = headers.findIndex(header => header === 'cua_hang');
     const statusIndex = headers.findIndex(header => header === 'trang_thai');
@@ -144,6 +128,58 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): Rec
       return text.length >= 4 && !['ma_don_ghn', 'tong_cong', 'tong_doi_soat'].includes(normalizeHeader(text));
     };
 
+    // Construct full 2-tier column names from Row 0 (Super header) + Row 1 (Sub header)
+    const maxCols = Math.max(rawSuperHeaders.length, rawSubHeaders.length);
+    const colNameMap: { index: number; name: string }[] = [];
+    const discoveredHeadersSet = new Set<string>();
+
+    for (let c = 0; c < maxCols; c++) {
+      const h1 = String(rawSuperHeaders[c] || '').trim();
+      const h2 = String(rawSubHeaders[c] || '').trim();
+      let label = '';
+      if (h1 && h2) {
+        if (h1.toLowerCase().includes('danh sách đơn')) {
+          label = h2;
+        } else if (h2.startsWith('(') && (h2.endsWith(')') || h2.includes('+'))) {
+          label = `${h1} ${h2}`;
+        } else if (h1.toLowerCase() === h2.toLowerCase()) {
+          label = h1;
+        } else {
+          label = `${h1} - ${h2}`;
+        }
+      } else if (h2) {
+        label = h2;
+      } else if (h1) {
+        label = h1;
+      }
+
+      if (label) {
+        colNameMap.push({ index: c, name: label });
+        discoveredHeadersSet.add(label);
+      }
+    }
+
+    // Add standard normalized aliases so auto-mapping and matching works seamlessly
+    const standardAliases = [
+      'Mã đơn GHN',
+      'Mã đơn khách hàng',
+      'Cửa hàng',
+      'Tên Shop',
+      'Mã Shop/Kho',
+      'Người nhận',
+      'Địa chỉ nhận',
+      'Ngày tạo',
+      'Ngày giao/trả',
+      'Trạng thái',
+      'Tiền COD',
+      'Cước phí',
+      'Điều chỉnh',
+      'Tổng đối soát',
+      'Loại dòng đối soát',
+      'Sheet đối soát GHN',
+    ];
+    standardAliases.forEach(h => discoveredHeadersSet.add(h));
+
     const rows: Record<string, any>[] = [];
     for (let dataIndex = rowIndex + 1; dataIndex < rawSheetData.length; dataIndex++) {
       const row = rawSheetData[dataIndex] || [];
@@ -156,10 +192,12 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): Rec
       const fee = Math.abs(ghnNumber(row[feeIndexes[0]]));
       const cod = ghnNumber(row[codIndex]);
       const settlement = ghnNumber(row[settlementIndex]);
-      rows.push({
+
+      const rowObj: Record<string, any> = {
         'Mã đơn GHN': String(waybill).trim(),
         'Mã đơn khách hàng': row[waybillIndex + 1] ?? '',
         'Cửa hàng': ghnShopNameFrom(shopRaw),
+        'Tên Shop': ghnShopNameFrom(shopRaw),
         'Mã Shop/Kho': ghnShopCodeFrom(shopRaw),
         'Người nhận': row[shopIndex + 1] ?? '',
         'Địa chỉ nhận': row[shopIndex + 2] ?? '',
@@ -172,23 +210,38 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): Rec
         'Tổng đối soát': settlement,
         'Loại dòng đối soát': 'Phiên chuyển tiền COD GHN',
         'Sheet đối soát GHN': sheetName,
+      };
+
+      // Populate every raw 2-tier column value into rowObj
+      colNameMap.forEach(({ index, name }) => {
+        const val = row[index];
+        if (val !== undefined && val !== null) {
+          rowObj[name] = val;
+        }
       });
+
+      rows.push(rowObj);
     }
-    return rows;
+    return { rows, headers: Array.from(discoveredHeadersSet) };
   }
   return null;
 }
 
 export function parseGhnCodTransferWorkbook(workbook: XLSX.WorkBook, sheetNames?: string[]): ParsedExcelFile | null {
+  const allDiscoveredHeaders = new Set<string>();
   const ghnSheets = workbook.SheetNames.map(sheetName => {
     const rawSheetData: any[][] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
-    const rows = parseGhnCodTransferSheet(rawSheetData, sheetName);
-    return rows ? { name: sheetName, rows } : null;
+    const result = parseGhnCodTransferSheet(rawSheetData, sheetName);
+    if (result) {
+      result.headers.forEach(h => allDiscoveredHeaders.add(h));
+      return { name: sheetName, rows: result.rows };
+    }
+    return null;
   }).filter((sheet): sheet is { name: string; rows: Record<string, any>[] } => !!sheet);
   if (ghnSheets.length === 0) return null;
   const selectedSheets = sheetNames === undefined ? ghnSheets : ghnSheets.filter(sheet => sheetNames.includes(sheet.name));
   return {
-    headers: GHN_COD_TRANSFER_HEADERS,
+    headers: Array.from(allDiscoveredHeaders),
     rows: selectedSheets.flatMap(sheet => sheet.rows),
     format: 'ghn_cod_transfer',
     sheets: ghnSheets.map(sheet => ({ name: sheet.name, rowCount: sheet.rows.length })),
