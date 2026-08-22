@@ -427,19 +427,35 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
         const orders = rows.map(r => {
           const shopName = extractField(r, mapping.shopNameColumn, [
-            'ten_shop', 'ten_cua_hang', 'cua_hang', 'shop', 'store', 'ten_nguoi_gui', 'nguoi_gui', 'sender_name', 'khach_hang', 'ten_khach_hang', 'chu_shop', 'ten_kho'
+            'ten_shop', 'ten_cua_hang', 'cua_hang', 'shop', 'store', 'ten_nguoi_gui', 'nguoi_gui', 'sender_name', 'khach_hang', 'ten_khach_hang', 'chu_shop', 'ten_kho', 'ten'
           ]);
 
           const shopPhone = extractField(r, mapping.shopPhoneColumn, [
-            'sdt_shop', 'sdt_nguoi_gui', 'so_dien_thoai_nguoi_gui', 'so_dien_thoai', 'sdt', 'phone', 'sender_phone', 'phone_shop'
+            'sdt_shop', 'sdt_nguoi_gui', 'so_dien_thoai_nguoi_gui', 'so_dien_thoai', 'sdt', 'phone', 'sender_phone', 'phone_shop', 'dien_thoai'
           ]);
 
           const shopAddress = extractField(r, mapping.shopAddressColumn, [
-            'dia_chi_nguoi_gui', 'dia_chi_kho', 'dia_chi', 'kho_gui', 'address', 'sender_address'
+            'dia_chi_nguoi_gui', 'dia_chi_kho', 'dia_chi', 'kho_gui', 'address', 'sender_address', 'dia_chi_shop'
           ]);
 
           const shopCode = extractField(r, mapping.shopCodeColumn, [
-            'ma_shop', 'ma_shop_kho', 'ma_kho', 'ma_cua_hang', 'store_id', 'client_id', 'shop_code'
+            'ma_shop', 'ma_shop_kho', 'ma_kho', 'ma_cua_hang', 'store_id', 'client_id', 'shop_code', 'ma_khach_hang', 'ma_kh'
+          ]);
+
+          const email = extractField(r, undefined, [
+            'email', 'mail', 'email_shop', 'email_nhan_doi_soat', 'dia_chi_email'
+          ]);
+
+          const bankName = extractField(r, undefined, [
+            'ten_ngan_hang', 'ngan_hang', 'bank', 'bank_name'
+          ]);
+
+          const accountNumber = extractField(r, undefined, [
+            'so_tai_khoan', 'stk', 'so_tk', 'account_number', 'account_no', 'bank_account', 'tai_khoan'
+          ]);
+
+          const accountHolder = extractField(r, undefined, [
+            'chu_tai_khoan', 'chu_tk', 'ten_chu_tk', 'ten_chu_tai_khoan', 'account_holder', 'ten_tk', 'nguoi_thu_huong', 'ten_chu_tai_khoan_ngan_hang'
           ]);
 
           const codVal = parseNumber(
@@ -456,6 +472,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
             shopPhone,
             shopAddress,
             shopCode,
+            email,
+            bankName,
+            accountNumber,
+            accountHolder,
             nvcCod: codVal,
             codAmount: codVal,
           };
@@ -465,7 +485,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       }
 
       if (allOrders.length === 0) {
-        showToast('Không tìm thấy dữ liệu đơn hàng nào trong các file Excel đã chọn.', 'warning');
+        showToast('Không tìm thấy dữ liệu đơn hàng hoặc danh sách shop trong các file Excel đã chọn.', 'warning');
         return;
       }
 
@@ -840,6 +860,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       return;
     }
 
+    const existingCodes = new Set(shops.map(s => s.code.toUpperCase()));
+
     const newShopsList: Shop[] = detectedNewShops.map((d, i) => {
       const finalPricing = (d.pricingPlan && d.pricingPlan.weightRules && d.pricingPlan.weightRules.some(r => r.price > 0))
         ? d.pricingPlan
@@ -849,9 +871,15 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
             name: `Biểu giá ${d.name}`,
           };
 
+      let assignedCode = (d.code || `SHOP_${Date.now().toString().slice(-4)}_${i}`).toUpperCase();
+      if (existingCodes.has(assignedCode)) {
+        assignedCode = `${assignedCode}_${Date.now().toString().slice(-3)}_${i + 1}`;
+      }
+      existingCodes.add(assignedCode);
+
       return {
-        id: `shop_import_${Date.now()}_${i}`,
-        code: d.code || `SHOP_${Date.now().toString().slice(-4)}_${i}`,
+        id: `shop_import_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+        code: assignedCode,
         name: d.name,
         phone: d.phone,
         phoneList: d.phoneList || (d.phone ? [d.phone] : []),
@@ -872,7 +900,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
     const updated = [...newShopsList, ...shops];
     onSaveShops(updated);
-    showToast(`Đã thêm thành công ${newShopsList.length} Shop mới vào Quản Lý Shop!`, 'success');
+    showToast(`Đã thêm thành công ${newShopsList.length} Shop mới! (Giữ nguyên toàn bộ ${shops.length} shop cũ, tổng hiện có: ${updated.length} shop)`, 'success');
     setIsScanModalOpen(false);
     setDetectedNewShops([]);
     setExpandedShopIndexes(new Set());

@@ -779,7 +779,18 @@ export interface DetectedNewShop {
 }
 
 export function detectUnregisteredShopsFromOrders(
-  orders: { shopName?: string; shopCode?: string; shopPhone?: string; shopAddress?: string; nvcCod?: number; codAmount?: number }[],
+  orders: { 
+    shopName?: string; 
+    shopCode?: string; 
+    shopPhone?: string; 
+    shopAddress?: string; 
+    email?: string;
+    bankName?: string;
+    accountNumber?: string;
+    accountHolder?: string;
+    nvcCod?: number; 
+    codAmount?: number;
+  }[],
   registeredShops: Shop[]
 ): DetectedNewShop[] {
   const newShopMap = new Map<string, DetectedNewShop>();
@@ -789,6 +800,10 @@ export function detectUnregisteredShopsFromOrders(
     const rawCode = (o.shopCode || '').trim();
     const rawPhone = (o.shopPhone || '').trim();
     const rawAddress = (o.shopAddress || '').trim();
+    const rawEmail = (o.email || '').trim();
+    const rawBankName = (o.bankName || '').trim();
+    const rawAccountNumber = (o.accountNumber || '').trim();
+    const rawAccountHolder = (o.accountHolder || '').trim();
 
     if (!rawName && !rawCode && !rawPhone) return;
 
@@ -796,33 +811,51 @@ export function detectUnregisteredShopsFromOrders(
     const normCode = normalizeHeader(rawCode);
     const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
 
-    // Check if matches any existing shop
+    // Check if matches any existing shop (EXACT MATCH ONLY - Không so khớp substring lỏng lẻo làm mất shop mới!)
     const isMatched = registeredShops.some(s => {
       const sName = normalizeHeader(s.name);
       const sCode = normalizeHeader(s.code);
-      const sPhones = [s.phone, ...(s.phoneList || [])].flatMap(p => (p || '').split(/[,/;\s]+/)).map(p => p.replace(/[^0-9]/g, ''));
+      const sPhones = [s.phone, ...(s.phoneList || [])]
+        .flatMap(p => (p || '').split(/[,/;\s]+/))
+        .map(p => p.replace(/[^0-9]/g, ''))
+        .filter(p => p.length >= 8);
 
-      return (
-        (cleanPhone && sPhones.some(p => p === cleanPhone || cleanPhone.endsWith(p) || p.endsWith(cleanPhone))) ||
-        (normCode && sCode && normCode === sCode) ||
-        (normName && sName && (normName === sName || normName.includes(sName) || sName.includes(normName)))
-      );
+      // Match by phone (must have at least 8 digits)
+      const phoneMatch = Boolean(cleanPhone && cleanPhone.length >= 8 && sPhones.includes(cleanPhone));
+      // Match by exact code
+      const codeMatch = Boolean(normCode && sCode && normCode === sCode);
+      // Match by exact name or exact alias
+      const nameMatch = Boolean(normName && sName && normName === sName);
+      const aliasMatch = Boolean(s.nameAliases && s.nameAliases.some(a => normalizeHeader(a) === normName));
+
+      return phoneMatch || codeMatch || nameMatch || aliasMatch;
     });
 
     if (!isMatched) {
-      const key = normCode || normName || cleanPhone;
+      // Key for deduplicating new shops from the same file
+      const key = (cleanPhone && cleanPhone.length >= 8) 
+        ? `phone_${cleanPhone}` 
+        : (normCode ? `code_${normCode}` : `name_${normName}`);
+      
       const codVal = o.nvcCod || o.codAmount || 0;
 
       if (!newShopMap.has(key)) {
-        const generatedCode = rawCode ? rawCode.toUpperCase() : `SHOP_${rawName.substring(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, '') || Date.now().toString().slice(-4)}`;
+        let generatedCode = rawCode ? rawCode.toUpperCase() : `SHOP_${normalizeHeader(rawName).substring(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+        if (!generatedCode || generatedCode === 'SHOP_') {
+          generatedCode = `SHOP_${cleanPhone.slice(-6) || Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        }
         const initialPhones = rawPhone ? [rawPhone] : [];
 
         newShopMap.set(key, {
           code: generatedCode,
-          name: rawName || rawCode || 'Shop Mới Chưa Đặt Tên',
+          name: rawName || rawCode || (cleanPhone ? `Shop ${cleanPhone}` : 'Shop Mới'),
           phone: rawPhone,
           phoneList: initialPhones,
           address: rawAddress,
+          email: rawEmail,
+          bankName: rawBankName || 'MB Bank',
+          accountNumber: rawAccountNumber,
+          accountHolder: rawAccountHolder || rawName,
           orderCount: 1,
           totalCod: codVal,
         });
@@ -838,6 +871,10 @@ export function detectUnregisteredShopsFromOrders(
           item.phone = item.phoneList.join(', ');
         }
         if (!item.address && rawAddress) item.address = rawAddress;
+        if (!item.email && rawEmail) item.email = rawEmail;
+        if (!item.accountNumber && rawAccountNumber) item.accountNumber = rawAccountNumber;
+        if (!item.accountHolder && rawAccountHolder) item.accountHolder = rawAccountHolder;
+        if ((!item.bankName || item.bankName === 'MB Bank') && rawBankName) item.bankName = rawBankName;
       }
     }
   });
