@@ -21,7 +21,9 @@ import {
   Plus,
   Trash2,
   Sliders,
-  Calculator
+  Calculator,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -277,6 +279,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const isAdmin = currentUser.role === 'ADMIN';
+
+  // 4-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Đối Soát & Bảng Kê, 4 = Xác Nhận & Xuất Báo Cáo
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(currentSession ? 3 : 1);
+
+  // Sync wizard step when currentSession changes from external sources (e.g. History click)
+  useEffect(() => {
+    if (currentSession) {
+      setWizardStep(3);
+    }
+  }, [currentSession]);
+
   // Upload States
   const [nvcFile, setNvcFile] = useState<File | null>(null);
   const [appFile, setAppFile] = useState<File | null>(null);
@@ -1212,6 +1225,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setShopReviewConfirmed(false);
       setShowShopProposal(false);
       setCurrentSession(null);
+      setWizardStep(1);
     }
   };
 
@@ -1425,16 +1439,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       {(() => {
         const hasBothFiles = reconcileMode === '2files' ? (!!nvcFile && !!appFile) : (!!nvcFile);
         const step1Done = hasBothFiles;
-        const step1Active = !hasBothFiles;
-
         const step2Done = !!currentSession;
-        const step2Active = hasBothFiles && !currentSession;
-
         const step3Done = !!currentSession && currentSession.unmatchedOrdersCount === 0;
-        const step3Active = !!currentSession && currentSession.unmatchedOrdersCount > 0;
-
-        const step4Done = !!currentSession && currentSession.unmatchedOrdersCount === 0;
-        const step4Active = !!currentSession && currentSession.unmatchedOrdersCount === 0;
 
         const getStep1Desc = () => {
           if (reconcileMode === '2files') {
@@ -1465,10 +1471,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         };
 
         const steps = [
-          { step: '01', title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: step1Active, done: step1Done },
-          { step: '02', title: 'KHỚP NỐI & TÍNH CƯỚC', desc: getStep2Desc(), active: step2Active, done: step2Done },
-          { step: '03', title: 'BẢNG KÊ & CÔNG NỢ', desc: getStep3Desc(), active: step3Active, done: step3Done },
-          { step: '04', title: 'XÁC NHẬN & BÁO CÁO', desc: getStep4Desc(), active: step4Active, done: step4Done },
+          { step: '01', stepNum: 1, title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: wizardStep === 1, done: wizardStep > 1 || step1Done },
+          { step: '02', stepNum: 2, title: 'KHỚP NỐI & KIỂM TRA', desc: getStep2Desc(), active: wizardStep === 2, done: wizardStep > 2 || step2Done },
+          { step: '03', stepNum: 3, title: 'BẢNG KÊ & CÔNG NỢ', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || step3Done },
+          { step: '04', stepNum: 4, title: 'XÁC NHẬN & BÁO CÁO', desc: getStep4Desc(), active: wizardStep === 4, done: false },
         ];
 
         return (
@@ -1480,21 +1486,39 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             alignItems: 'center',
           }}>
             {steps.map((item) => (
-              <div key={item.step} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-md)',
-                background: item.done ? 'rgba(16, 185, 129, 0.08)' : item.active ? 'rgba(79, 70, 229, 0.08)' : 'var(--bg-tertiary)',
-                border: item.done ? '1.5px solid #10b981' : item.active ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
-                transition: 'all 0.2s ease',
-              }}>
+              <div 
+                key={item.step} 
+                onClick={() => {
+                  if (item.stepNum === 1) setWizardStep(1);
+                  else if (item.stepNum === 2) {
+                    if (hasBothFiles || currentSession) setWizardStep(2);
+                    else showToast(reconcileMode === '2files' ? 'Vui lòng nạp đủ 2 file ở Bước 1 trước!' : 'Vui lòng nạp file ở Bước 1 trước!', 'warning');
+                  } else if (item.stepNum === 3) {
+                    if (currentSession) setWizardStep(3);
+                    else if (hasBothFiles) { setWizardStep(2); showToast('Vui lòng bấm "Tiến Hành Đối Soát & Tính Cước" ở Bước 2 trước!', 'info'); }
+                    else showToast('Chưa có dữ liệu đối soát!', 'warning');
+                  } else if (item.stepNum === 4) {
+                    if (currentSession) setWizardStep(4);
+                    else showToast('Chưa có dữ liệu đối soát để xuất báo cáo!', 'warning');
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: item.active ? 'rgba(79, 70, 229, 0.10)' : item.done ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-tertiary)',
+                  border: item.active ? '2px solid var(--primary)' : item.done ? '1.5px solid #10b981' : '1px solid var(--border-color)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
                 <div style={{
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  background: item.done ? '#10b981' : item.active ? 'var(--primary)' : 'var(--bg-secondary)',
+                  background: item.active ? 'var(--primary)' : item.done ? '#10b981' : 'var(--bg-secondary)',
                   color: item.done || item.active ? '#ffffff' : 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1502,18 +1526,18 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   fontWeight: 800,
                   fontSize: 13,
                   flexShrink: 0,
-                  boxShadow: item.active ? '0 0 10px rgba(79, 70, 229, 0.3)' : 'none',
+                  boxShadow: item.active ? '0 0 12px rgba(79, 70, 229, 0.4)' : 'none',
                 }}>
-                  {item.done ? <CheckCircle2 size={17} /> : item.step}
+                  {item.done && !item.active ? <CheckCircle2 size={17} /> : item.step}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: item.done ? '#10b981' : item.active ? 'var(--primary)' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
-                    STEP {item.step} {item.done ? '✓' : item.active ? '● ĐANG THỰC HIỆN' : ''}
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: item.active ? 'var(--primary)' : item.done ? '#10b981' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                    STEP {item.step} {item.active ? '● ĐANG XEM' : item.done ? '✓ ĐÃ XONG' : ''}
                   </div>
                   <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: 11, color: item.done ? '#059669' : item.active ? 'var(--primary)' : 'var(--text-muted)', marginTop: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 11, color: item.active ? 'var(--primary)' : item.done ? '#059669' : 'var(--text-muted)', marginTop: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.desc}
                   </div>
                 </div>
@@ -1523,480 +1547,605 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         );
       })()}
 
-      {/* Upload Dropzones */}
-      <div className="glass-panel" style={{ padding: 20 }}>
-        {/* 🌟 CARRIER WORKSPACE HEADER BANNER WITH MERGED PERIOD CONTROLS */}
-        <div style={{
-          background: isJntCarrier
-            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%)'
-            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%)',
-          border: isJntCarrier ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1.5px solid rgba(16, 185, 129, 0.35)',
-          borderRadius: 14,
-          padding: '12px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}>
-          {/* Left: Carrier Icon & Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 42,
-              height: 42,
-              borderRadius: 10,
-              background: isJntCarrier ? '#dc2626' : '#059669',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-              flexShrink: 0,
-            }}>
-              {isJntCarrier ? '📦' : '🚚'}
+      {/* 🚀 BƯỚC 1: CHỌN HÃNG & NẠP FILE */}
+      {wizardStep === 1 && (
+        <div className="glass-panel" style={{ padding: 20 }}>
+          {/* CARRIER WORKSPACE HEADER BANNER */}
+          <div style={{
+            background: isJntCarrier
+              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%)'
+              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%)',
+            border: isJntCarrier ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1.5px solid rgba(16, 185, 129, 0.35)',
+            borderRadius: 14,
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}>
+            {/* Left: Carrier Icon & Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: isJntCarrier ? '#dc2626' : '#059669',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+                flexShrink: 0,
+              }}>
+                {isJntCarrier ? '📦' : '🚚'}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
+                    {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    background: isJntCarrier ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    color: isJntCarrier ? '#dc2626' : '#059669',
+                    padding: '2px 7px',
+                    borderRadius: 6,
+                    fontWeight: 800,
+                  }}>
+                    {isJntCarrier ? '2 FILE (ĐỐI SOÁT + APP)' : '1 FILE DUY NHẤT'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.2 }}>
+                  {isJntCarrier 
+                    ? 'Ghép File Đối Soát J&T + File App (tự động cước 0đ đơn chưa giao).' 
+                    : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier?.carrierName || 'NVC'}.`}
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14.5, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
-                  {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
-                </span>
-                <span style={{
-                  fontSize: 10,
-                  background: isJntCarrier ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+
+            {/* Right: Merged Controls (Ngày Chốt Kỳ + Tên Kỳ Đối Soát + Nút Ánh Xạ Cột) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#ffffff',
+                padding: '4px 10px',
+                borderRadius: 8,
+                border: '1.5px solid var(--border-color)',
+              }}>
+                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>🗓️ Ngày Chốt:</label>
+                <input
+                  type="date"
+                  value={sessionPeriodDate}
+                  onChange={(e) => setSessionPeriodDate(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '3px 8px', fontSize: 11.5, width: 130, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
+                />
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#ffffff',
+                padding: '4px 10px',
+                borderRadius: 8,
+                border: '1.5px solid var(--border-color)',
+              }}>
+                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>Tên Kỳ:</label>
+                <input
+                  type="text"
+                  value={sessionPeriodName}
+                  onChange={(e) => setSessionPeriodName(e.target.value)}
+                  className="input-field"
+                  placeholder="Nhập tên kỳ đối soát..."
+                  style={{ padding: '3px 8px', fontSize: 11.5, width: 230, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isAdmin) setConfigCarrier(selectedCarrierTier);
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: 11.5,
+                  padding: '6px 12px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: '#fff',
+                  border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
                   color: isJntCarrier ? '#dc2626' : '#059669',
-                  padding: '2px 7px',
-                  borderRadius: 6,
-                  fontWeight: 800,
-                }}>
-                  {isJntCarrier ? '2 FILE (ĐỐI SOÁT + APP)' : '1 FILE DUY NHẤT'}
-                </span>
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.2 }}>
-                {isJntCarrier 
-                  ? 'Ghép File Đối Soát J&T + File App (tự động cước 0đ đơn chưa giao).' 
-                  : `Đối soát trực tiếp từ File Excel đối soát của ${selectedCarrierTier?.carrierName || 'NVC'}.`}
-              </div>
+                  borderRadius: 8,
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Cài đặt ánh xạ cột cho file đối soát"
+              >
+                <Settings2 size={14} color={isJntCarrier ? '#dc2626' : '#059669'} />
+                <span>⚙️ Ánh xạ cột</span>
+              </button>
             </div>
           </div>
 
-          {/* Right: Merged Controls (Ngày Chốt Kỳ + Tên Kỳ Đối Soát + Nút Ánh Xạ Cột) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#ffffff',
-              padding: '4px 10px',
-              borderRadius: 8,
-              border: '1.5px solid var(--border-color)',
-            }}>
-              <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>🗓️ Ngày Chốt:</label>
-              <input
-                type="date"
-                value={sessionPeriodDate}
-                onChange={(e) => setSessionPeriodDate(e.target.value)}
-                className="input-field"
-                style={{ padding: '3px 8px', fontSize: 11.5, width: 130, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
-              />
+          {/* GHN Multiple Sheets Selector (If applicable) */}
+          {isGhnCarrier && ghnSheets.length > 0 && (
+            <div style={{ width: '100%', marginBottom: 14, padding: '8px 12px', background: 'rgba(79, 70, 229, 0.06)', border: '1px solid var(--primary-glow)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
+                <strong>Phiên GHN cần đối soát:</strong> File có {ghnSheets.length} sheet. Chọn đúng sheet cần đối soát:
+              </div>
+              <select value={selectedGhnSheet} onChange={(event) => handleGhnSheetChange(event.target.value)} className="select-field" style={{ minWidth: 190 }}>
+                <option value="" disabled>-- Chọn sheet/kỳ GHN --</option>
+                {ghnSheets.map(sheet => <option key={sheet.name} value={sheet.name}>{sheet.name} ({sheet.rowCount} dòng)</option>)}
+              </select>
             </div>
+          )}
 
+          {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
+          {reconcileMode === '1file' ? (
+            /* Single File Hero Dropzone Mode */
+            <div style={{ marginBottom: 20 }}>
+              <div 
+                onClick={() => nvcFileInputRef.current?.click()}
+                onDragOver={handleNvcDragOver}
+                onDragEnter={handleNvcDragOver}
+                onDragLeave={handleNvcDragLeave}
+                onDrop={handleNvcDrop}
+                style={{
+                  border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--primary)'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '36px 24px',
+                  background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  transform: isDraggingNvc ? 'scale(1.01)' : 'none',
+                  boxShadow: isDraggingNvc ? '0 0 20px var(--primary-glow)' : '0 4px 12px rgba(0,0,0,0.03)',
+                  position: 'relative',
+                }}
+              >
+                <input
+                  type="file"
+                  ref={nvcFileInputRef}
+                  accept=".xlsx, .xls, .csv"
+                  style={{ display: 'none' }}
+                  onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
+                />
+
+                {nvcFile && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNvcFile(null);
+                      setNvcRows([]);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ position: 'absolute', top: 14, right: 14, padding: '4px 8px' }}
+                    title="Đổi file khác"
+                  >
+                    <XCircle size={14} color="var(--danger)" />
+                    <span>Đổi File Khác</span>
+                  </button>
+                )}
+
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'rgba(79, 70, 229, 0.1)',
+                  color: nvcFile ? '#fff' : 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 14px',
+                }}>
+                  {nvcFile ? <CheckCircle2 size={30} /> : <FileSpreadsheet size={30} color="var(--primary)" />}
+                </div>
+
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
+                  {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : `📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT ${selectedCarrierTier?.carrierName.toUpperCase()}`}
+                </h3>
+                
+                <p style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 10px', lineHeight: 1.5 }}>
+                  {nvcFile ? (
+                    <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                      Đã đọc thành công <strong>{nvcRows.length.toLocaleString('vi-VN')} dòng đơn hàng</strong> từ file. Hệ thống sẽ tự động bóc tách phân loại Shop theo Tên cửa hàng & SĐT có sẵn trong file.
+                    </span>
+                  ) : (
+                    'Kéo và thả trực tiếp File Excel đối soát từ NVC vào đây. Ở Chế độ 1 File, hệ thống tự động bóc tách danh sách Shop theo cột Tên cửa hàng / SĐT mà không cần file App.'
+                  )}
+                </p>
+
+                {nvcFile && nvcMapping.waybillColumn && (
+                  <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', padding: '4px 12px', borderRadius: 20 }}>
+                    ✓ Đã tự động nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Dual Files 50-50 Grid Mode */
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#ffffff',
-              padding: '4px 10px',
-              borderRadius: 8,
-              border: '1.5px solid var(--border-color)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: 20,
+              marginBottom: 20,
             }}>
-              <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>Tên Kỳ:</label>
-              <input
-                type="text"
-                value={sessionPeriodName}
-                onChange={(e) => setSessionPeriodName(e.target.value)}
-                className="input-field"
-                placeholder="Nhập tên kỳ đối soát..."
-                style={{ padding: '3px 8px', fontSize: 11.5, width: 230, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
-              />
+              
+              {/* Dropzone 1: File NVC */}
+              <div 
+                onClick={() => nvcFileInputRef.current?.click()}
+                onDragOver={handleNvcDragOver}
+                onDragEnter={handleNvcDragOver}
+                onDragLeave={handleNvcDragLeave}
+                onDrop={handleNvcDrop}
+                style={{
+                  border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--border-color)'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 24,
+                  background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  transform: isDraggingNvc ? 'scale(1.02)' : 'none',
+                  boxShadow: isDraggingNvc ? '0 0 16px var(--primary-glow)' : 'none',
+                  position: 'relative',
+                }}
+              >
+                <input
+                  type="file"
+                  ref={nvcFileInputRef}
+                  accept=".xlsx, .xls, .csv"
+                  style={{ display: 'none' }}
+                  onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
+                />
+
+                {nvcFile && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNvcFile(null);
+                      setNvcRows([]);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
+                    title="Hủy chọn file này"
+                  >
+                    <XCircle size={14} color="var(--danger)" />
+                  </button>
+                )}
+
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'var(--bg-tertiary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px',
+                }}>
+                  {nvcFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingNvc ? '#fff' : 'var(--primary)'} />}
+                </div>
+
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                  {isDraggingNvc ? 'THẢ FILE ĐỐI SOÁT NVC VÀO ĐÂY' : '1. FILE ĐỐI SOÁT TỪ NVC'}
+                </h4>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  {nvcFile ? (
+                    <strong style={{ color: 'var(--text-main)' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
+                  ) : (
+                    'Kéo thả trực tiếp file Excel đối soát NVC vào đây (Có Mã đơn, COD, Cước...)'
+                  )}
+                </p>
+
+                {nvcFile && (
+                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                    ✓ Đã nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+                  </div>
+                )}
+              </div>
+
+              {/* Dropzone 2: File App */}
+              <div 
+                onClick={() => appFileInputRef.current?.click()}
+                onDragOver={handleAppDragOver}
+                onDragEnter={handleAppDragOver}
+                onDragLeave={handleAppDragLeave}
+                onDrop={handleAppDrop}
+                style={{
+                  border: `2px dashed ${isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 24,
+                  background: isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  transform: isDraggingApp ? 'scale(1.02)' : 'none',
+                  boxShadow: isDraggingApp ? '0 0 16px var(--primary-glow)' : 'none',
+                  position: 'relative',
+                }}
+              >
+                <input
+                  type="file"
+                  ref={appFileInputRef}
+                  accept=".xlsx, .xls, .csv"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => e.target.files && handleAppFilesChange(e.target.files)}
+                />
+
+                {appFile && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAppFile(null);
+                      setAppRows([]);
+                      setShopProposalGroups([]);
+                      setShopReviewConfirmed(false);
+                      setShowShopProposal(false);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
+                    title="Hủy chọn file này"
+                  >
+                    <XCircle size={14} color="var(--danger)" />
+                  </button>
+                )}
+
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: appFile ? 'var(--success)' : isDraggingApp ? 'var(--primary)' : 'var(--bg-tertiary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px',
+                }}>
+                  {appFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingApp ? '#fff' : 'var(--primary)'} />}
+                </div>
+
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                  {isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
+                </h4>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  {appFile ? (
+                    <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
+                  ) : (
+                    'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
+                  )}
+                </p>
+
+                {appFile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+                    <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                      ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
+                    </div>
+                    <button type="button" className={shopReviewConfirmed ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'} style={{ fontSize: 11, padding: '4px 8px' }} onClick={event => { event.stopPropagation(); prepareShopProposals(appRows, appMapping); }}>
+                      {shopReviewConfirmed ? 'Xem lại shop từ file App' : `Xác nhận ${shopProposalGroups.reduce((sum, group) => sum + group.entries.length, 0)} định danh shop`}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* Action Controls Bar for Step 1 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            paddingTop: 16,
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {(nvcFile || appFile || currentSession) && (
+                <button
+                  onClick={handleResetReconciliation}
+                  className="btn btn-danger btn-sm"
+                  title="Hủy file đã tải và kết quả đối soát hiện tại (Giữ nguyên Danh sách Shop & Cài đặt cước)"
+                >
+                  <RotateCcw size={15} />
+                  <span>Làm Mới / Hủy File</span>
+                </button>
+              )}
             </div>
 
             <button
               type="button"
-              onClick={() => {
-                if (isAdmin) setConfigCarrier(selectedCarrierTier);
-              }}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: 11.5,
-                padding: '6px 12px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                background: '#fff',
-                border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
-                color: isJntCarrier ? '#dc2626' : '#059669',
-                borderRadius: 8,
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-              title="Cài đặt ánh xạ cột cho file đối soát"
+              onClick={() => setWizardStep(2)}
+              className="btn btn-primary btn-lg"
+              disabled={reconcileMode === '2files' ? (!nvcFile || !appFile) : (!nvcFile)}
+              style={{ minWidth: 280, fontWeight: 800, padding: '12px 24px', fontSize: 13.5 }}
             >
-              <Settings2 size={14} color={isJntCarrier ? '#dc2626' : '#059669'} />
-              <span>⚙️ Ánh xạ cột</span>
+              <span>TIẾP THEO: KHỚP NỐI & KIỂM TRA (BƯỚC 2)</span>
+              <ArrowRight size={18} />
             </button>
           </div>
         </div>
+      )}
 
-        {/* GHN Multiple Sheets Selector (If applicable) */}
-        {isGhnCarrier && ghnSheets.length > 0 && (
-          <div style={{ width: '100%', marginBottom: 14, padding: '8px 12px', background: 'rgba(79, 70, 229, 0.06)', border: '1px solid var(--primary-glow)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
-              <strong>Phiên GHN cần đối soát:</strong> File có {ghnSheets.length} sheet. Chọn đúng sheet cần đối soát:
-            </div>
-            <select value={selectedGhnSheet} onChange={(event) => handleGhnSheetChange(event.target.value)} className="select-field" style={{ minWidth: 190 }}>
-              <option value="" disabled>-- Chọn sheet/kỳ GHN --</option>
-              {ghnSheets.map(sheet => <option key={sheet.name} value={sheet.name}>{sheet.name} ({sheet.rowCount} dòng)</option>)}
-            </select>
-          </div>
-        )}
-
-        {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
-        {reconcileMode === '1file' ? (
-          /* Single File Hero Dropzone Mode */
-          <div style={{ marginBottom: 20 }}>
-            <div 
-              onClick={() => nvcFileInputRef.current?.click()}
-              onDragOver={handleNvcDragOver}
-              onDragEnter={handleNvcDragOver}
-              onDragLeave={handleNvcDragLeave}
-              onDrop={handleNvcDrop}
-              style={{
-                border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--primary)'}`,
-                borderRadius: 'var(--radius-lg)',
-                padding: '36px 24px',
-                background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.2s ease',
-                transform: isDraggingNvc ? 'scale(1.01)' : 'none',
-                boxShadow: isDraggingNvc ? '0 0 20px var(--primary-glow)' : '0 4px 12px rgba(0,0,0,0.03)',
-                position: 'relative',
-              }}
-            >
-              <input
-                type="file"
-                ref={nvcFileInputRef}
-                accept=".xlsx, .xls, .csv"
-                style={{ display: 'none' }}
-                onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
-              />
-
-              {nvcFile && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setNvcFile(null);
-                    setNvcRows([]);
-                  }}
-                  className="btn btn-secondary btn-sm"
-                  style={{ position: 'absolute', top: 14, right: 14, padding: '4px 8px' }}
-                  title="Đổi file khác"
-                >
-                  <XCircle size={14} color="var(--danger)" />
-                  <span>Đổi File Khác</span>
-                </button>
-              )}
-
-              <div style={{
-                width: 56,
-                height: 56,
-                borderRadius: '50%',
-                background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'rgba(79, 70, 229, 0.1)',
-                color: nvcFile ? '#fff' : 'var(--primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 14px',
-              }}>
-                {nvcFile ? <CheckCircle2 size={30} /> : <FileSpreadsheet size={30} color="var(--primary)" />}
+      {/* 🚀 BƯỚC 2: KHỚP NỐI & KIỂM TRA DỮ LIỆU */}
+      {wizardStep === 2 && (
+        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Header Step 2 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Sparkles size={22} />
+                <span>BƯỚC 2: KHỚP NỐI & KIỂM TRA DỮ LIỆU ĐƠN HÀNG</span>
               </div>
-
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
-                {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : `📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT ${selectedCarrierTier?.carrierName.toUpperCase()}`}
-              </h3>
-              
-              <p style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 10px', lineHeight: 1.5 }}>
-                {nvcFile ? (
-                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>
-                    Đã đọc thành công <strong>{nvcRows.length.toLocaleString('vi-VN')} dòng đơn hàng</strong> từ file. Hệ thống sẽ tự động bóc tách phân loại Shop theo Tên cửa hàng & SĐT có sẵn trong file.
-                  </span>
-                ) : (
-                  'Kéo và thả trực tiếp File Excel đối soát từ NVC vào đây. Ở Chế độ 1 File, hệ thống tự động bóc tách danh sách Shop theo cột Tên cửa hàng / SĐT mà không cần file App.'
-                )}
-              </p>
-
-              {nvcFile && nvcMapping.waybillColumn && (
-                <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', padding: '4px 12px', borderRadius: 20 }}>
-                  ✓ Đã tự động nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
-                </div>
-              )}
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                Kiểm tra các trường dữ liệu, số lượng dòng đơn và bảng ánh xạ cột trước khi tiến hành tính cước đối soát.
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => { if (isAdmin) setConfigCarrier(selectedCarrierTier); }}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Settings2 size={15} />
+              <span>⚙️ Cấu Hình Ánh Xạ Cột</span>
+            </button>
           </div>
-        ) : (
-          /* Dual Files 50-50 Grid Mode */
+
+          {/* 2 Data Inspection Cards */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: 20,
-            marginBottom: 20,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: 16,
           }}>
-            
-            {/* Dropzone 1: File NVC */}
-            <div 
-              onClick={() => nvcFileInputRef.current?.click()}
-              onDragOver={handleNvcDragOver}
-              onDragEnter={handleNvcDragOver}
-              onDragLeave={handleNvcDragLeave}
-              onDrop={handleNvcDrop}
-              style={{
-                border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--border-color)'}`,
-                borderRadius: 'var(--radius-lg)',
-                padding: 24,
-                background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.2s ease',
-                transform: isDraggingNvc ? 'scale(1.02)' : 'none',
-                boxShadow: isDraggingNvc ? '0 0 16px var(--primary-glow)' : 'none',
-                position: 'relative',
-              }}
-            >
-              <input
-                type="file"
-                ref={nvcFileInputRef}
-                accept=".xlsx, .xls, .csv"
-                style={{ display: 'none' }}
-                onChange={(e) => e.target.files?.[0] && handleNvcFileChange(e.target.files[0])}
-              />
-
-              {nvcFile && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setNvcFile(null);
-                    setNvcRows([]);
-                  }}
-                  className="btn btn-secondary btn-sm"
-                  style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
-                  title="Hủy chọn file này"
-                >
-                  <XCircle size={14} color="var(--danger)" />
-                </button>
-              )}
-
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'var(--bg-tertiary)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 12px',
-              }}>
-                {nvcFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingNvc ? '#fff' : 'var(--primary)'} />}
+            {/* Card 1: File NVC */}
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: '18px 20px', border: '1.5px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontWeight: 800, fontSize: 14.5, color: isJntCarrier ? '#dc2626' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>📄 File Đối Soát NVC:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: 13 }}>{selectedCarrierTier?.carrierName}</span>
+                </div>
+                <span className="badge badge-success" style={{ fontSize: 11 }}>{nvcRows.length.toLocaleString('vi-VN')} dòng</span>
               </div>
 
-              <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-                {isDraggingNvc ? 'THẢ FILE ĐỐI SOÁT NVC VÀO ĐÂY' : '1. FILE ĐỐI SOÁT TỪ NVC'}
-              </h4>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                {nvcFile ? (
-                  <strong style={{ color: 'var(--text-main)' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
-                ) : (
-                  'Kéo thả trực tiếp file Excel đối soát NVC vào đây (Có Mã đơn, COD, Cước...)'
-                )}
-              </p>
-
-              {nvcFile && (
-                <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
-                  ✓ Đã nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Tên tệp Excel:</span>
+                  <strong style={{ color: 'var(--text-main)' }}>{nvcFile?.name || 'File_NVC.xlsx'}</strong>
                 </div>
-              )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Cột Mã Vận Đơn:</span>
+                  <strong className="mono" style={{ color: 'var(--primary)' }}>[{nvcMapping.waybillColumn || 'Chưa nhận diện'}]</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Cột Tiền Thu Hộ (COD):</span>
+                  <strong className="mono">[{nvcMapping.codColumn || 'Mặc định'}]</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Cột Cước Phí NVC:</span>
+                  <strong className="mono">[{nvcMapping.weightColumn || nvcMapping.feeColumn || 'Mặc định'}]</strong>
+                </div>
+              </div>
             </div>
 
-            {/* Dropzone 2: File App */}
-            <div 
-              onClick={() => appFileInputRef.current?.click()}
-              onDragOver={handleAppDragOver}
-              onDragEnter={handleAppDragOver}
-              onDragLeave={handleAppDragLeave}
-              onDrop={handleAppDrop}
-              style={{
-                border: `2px dashed ${isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
-                borderRadius: 'var(--radius-lg)',
-                padding: 24,
-                background: isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.2s ease',
-                transform: isDraggingApp ? 'scale(1.02)' : 'none',
-                boxShadow: isDraggingApp ? '0 0 16px var(--primary-glow)' : 'none',
-                position: 'relative',
-              }}
-            >
-              <input
-                type="file"
-                ref={appFileInputRef}
-                accept=".xlsx, .xls, .csv"
-                multiple
-                style={{ display: 'none' }}
-                onChange={(e) => e.target.files && handleAppFilesChange(e.target.files)}
-              />
-
-              {appFile && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAppFile(null);
-                    setAppRows([]);
-                    setShopProposalGroups([]);
-                    setShopReviewConfirmed(false);
-                    setShowShopProposal(false);
-                  }}
-                  className="btn btn-secondary btn-sm"
-                  style={{ position: 'absolute', top: 10, right: 10, padding: '4px' }}
-                  title="Hủy chọn file này"
-                >
-                  <XCircle size={14} color="var(--danger)" />
-                </button>
-              )}
-
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: appFile ? 'var(--success)' : isDraggingApp ? 'var(--primary)' : 'var(--bg-tertiary)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 12px',
-              }}>
-                {appFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingApp ? '#fff' : 'var(--primary)'} />}
-              </div>
-
-              <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-                {isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
-              </h4>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                {appFile ? (
-                  <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
-                ) : (
-                  'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
-                )}
-              </p>
-
-              {appFile && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
-                    ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
+            {/* Card 2: File App (if 2 files mode) */}
+            {reconcileMode === '2files' && (
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: '18px 20px', border: '1.5px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14.5, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>📱 File Đơn Hàng Xuất Từ App</span>
                   </div>
-                  <button type="button" className={shopReviewConfirmed ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'} style={{ fontSize: 11, padding: '4px 8px' }} onClick={event => { event.stopPropagation(); prepareShopProposals(appRows, appMapping); }}>
-                    {shopReviewConfirmed ? 'Xem lại shop từ file App' : `Xác nhận ${shopProposalGroups.reduce((sum, group) => sum + group.entries.length, 0)} định danh shop`}
-                  </button>
+                  <span className="badge badge-success" style={{ fontSize: 11 }}>{appRows.length.toLocaleString('vi-VN')} dòng</span>
                 </div>
-              )}
-            </div>
 
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Tên tệp Excel:</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{appFile?.name || 'File_App.xlsx'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Cột Tên Shop:</span>
+                    <strong className="mono" style={{ color: '#4f46e5' }}>[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Cột SĐT Shop:</span>
+                    <strong className="mono">[{appMapping.shopPhoneColumn || appMapping.receiverPhoneColumn || 'Mặc định'}]</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Định danh Shop:</span>
+                    <button
+                      type="button"
+                      className="btn btn-warning btn-sm"
+                      style={{ fontSize: 11, padding: '2px 8px' }}
+                      onClick={() => prepareShopProposals(appRows, appMapping)}
+                    >
+                      Kiểm tra Shop File App
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* 🚀 Step 1 Completed Banner & Prompt for Step 2 */}
-        {reconcileMode === '2files' && nvcFile && appFile && !currentSession && (
+          {/* Quick Verification Strip */}
           <div style={{
             background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.06) 100%)',
             border: '1.5px solid #10b981',
             borderRadius: 12,
             padding: '14px 18px',
-            marginBottom: 16,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
             flexWrap: 'wrap',
-            animation: 'fadeIn 0.3s ease',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <CheckCircle2 size={20} />
+              <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CheckCircle2 size={18} />
               </div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)' }}>
-                  Bước 1 Hoàn Tất: Đã nạp thành công 2 file (File Đối Soát J&T + File Đơn Hàng App)
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                  File J&T: <strong style={{ color: 'var(--text-main)' }}>{nvcRows.length.toLocaleString('vi-VN')} dòng</strong> • File App: <strong style={{ color: 'var(--text-main)' }}>{appRows.length.toLocaleString('vi-VN')} dòng</strong>. Hãy bấm <strong>"Tiến Hành Đối Soát & Tính Cước"</strong> để chuyển sang Bước 2!
-                </div>
+              <div style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 600 }}>
+                Dữ liệu đã khớp nối sẵn sàng! Biểu cước sỉ của <strong>{selectedCarrierTier?.carrierName}</strong> và danh mục <strong>{shops.length} Shop</strong> đã được kết nối để tính tiền tự động.
               </div>
             </div>
-            <span style={{ fontSize: 11.5, background: '#10b981', color: '#fff', padding: '6px 14px', borderRadius: 20, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span>Sẵn sàng Bước 2</span>
-              <span>→</span>
-            </span>
-          </div>
-        )}
-
-        {/* Action Controls Bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          paddingTop: 16,
-          borderTop: '1px solid var(--border-color)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {(nvcFile || appFile || currentSession) && (
-              <button
-                onClick={handleResetReconciliation}
-                className="btn btn-danger btn-sm"
-                title="Hủy file đã tải và kết quả đối soát hiện tại (Giữ nguyên Danh sách Shop & Cài đặt cước)"
-              >
-                <RotateCcw size={15} />
-                <span>Làm Mới / Hủy File</span>
-              </button>
-            )}
           </div>
 
-          <button
-            onClick={handleRunReconciliation}
-            className="btn btn-primary btn-lg"
-            disabled={isProcessing || nvcRows.length === 0 || (reconcileMode === '2files' && appRows.length === 0)}
-            style={{ minWidth: 260 }}
-          >
-            {isProcessing ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                <span>Đang Ghép Nối & Tính Cước...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} />
-                <span>TIẾN HÀNH ĐỐI SOÁT & TÍNH CƯỚC</span>
-              </>
-            )}
-          </button>
+          {/* Action Bar of Step 2 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            paddingTop: 16,
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setWizardStep(1)}
+              className="btn btn-secondary btn-lg"
+              style={{ fontWeight: 700, fontSize: 13 }}
+            >
+              <ArrowLeft size={16} />
+              <span>Quay Lại Bước 1 (Nạp File)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRunReconciliation}
+              className="btn btn-primary btn-lg"
+              disabled={isProcessing}
+              style={{ minWidth: 310, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
+            >
+              {isProcessing ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  <span>Đang Ghép Nối & Tính Cước...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={18} />
+                  <span>TIẾN HÀNH ĐỐI SOÁT & TÍNH CƯỚC (BƯỚC 3) ➔</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Results Dashboard */}
-      {currentSession && (
+      {/* 🚀 BƯỚC 3: ĐỐI SOÁT & BẢNG KÊ CHI TIẾT TỪNG SHOP */}
+      {wizardStep === 3 && currentSession && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {currentSession.unmatchedOrdersCount > 0 && (
             <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
@@ -2572,6 +2721,238 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
 
+          {/* Action Bar of Step 3 */}
+          <div className="glass-panel" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            padding: '16px 22px',
+          }}>
+            <button
+              type="button"
+              onClick={() => setWizardStep(2)}
+              className="btn btn-secondary btn-lg"
+              style={{ fontWeight: 700, fontSize: 13 }}
+            >
+              <ArrowLeft size={16} />
+              <span>Quay Lại Bước 2 (Kiểm Tra)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setWizardStep(4)}
+              className="btn btn-primary btn-lg"
+              style={{ minWidth: 290, fontWeight: 900, fontSize: 14, padding: '12px 26px', background: 'linear-gradient(135deg, #10b981 0%, #4f46e5 100%)' }}
+            >
+              <span>TIẾP THEO: XÁC NHẬN & XUẤT BÁO CÁO (BƯỚC 4) ➔</span>
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* 🚀 BƯỚC 4: XÁC NHẬN & XUẤT BÁO CÁO */}
+      {wizardStep === 4 && currentSession && (
+        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Header Step 4 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CheckCircle2 size={22} />
+                <span>BƯỚC 4: XÁC NHẬN KỲ ĐỐI SOÁT & XUẤT BÁO CÁO</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                Đối soát hoàn tất 100%! Bạn có thể tải file Excel tổng hợp, tải trọn bộ file ZIP bảng kê từng Shop, hoặc chuyển sang gửi Email hàng loạt.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="badge badge-success" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
+                ✓ ĐÃ CHỐT KỲ ĐỐI SOÁT
+              </span>
+            </div>
+          </div>
+
+          {/* Financial Summary Card */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.06) 100%)',
+            border: '1.5px solid #10b981',
+            borderRadius: 16,
+            padding: 22,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16, borderBottom: '1px solid rgba(16, 185, 129, 0.2)', paddingBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)' }}>
+                  {currentSession.sessionName}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>
+                  Hãng vận chuyển: <strong>{currentSession.carrierName}</strong> • Ngày tạo kỳ: <strong>{new Date(currentSession.createdAt).toLocaleDateString('vi-VN')}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+            }}>
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>SỐ SHOP ĐỐI SOÁT</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--primary)', marginTop: 4 }}>
+                  {currentSession.statements.length} <span style={{ fontSize: 12, fontWeight: 500 }}>Shop</span>
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-main)', marginTop: 4 }}>
+                  {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 500 }}>đơn</span>
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--info)', marginTop: 4 }}>
+                  {formatVND(currentSession.totalCod)}
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1.5px solid var(--primary)' }}>
+                <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 800 }}>THỰC TRẢ SHOP (BANK)</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', marginTop: 4 }}>
+                  {formatVND(currentSession.totalNetPayout)}
+                </div>
+              </div>
+
+              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #10b981' }}>
+                <div style={{ fontSize: 11, color: '#059669', fontWeight: 800 }}>LỢI NHUẬN GOM ĐƠN</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', marginTop: 4 }}>
+                  +{formatVND(currentSession.totalProfit)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Action Cards Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+          }}>
+            {/* Action 1: Xuất Excel Báo Cáo */}
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
+              <div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <FileSpreadsheet size={22} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>1. Xuất Excel Báo Cáo Kỳ</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Tải file Excel tổng hợp gồm tất cả đơn hàng đã đối soát hoặc chia sheet riêng theo từng Shop.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
+                  className="btn btn-primary"
+                  style={{ width: '100%', fontSize: 12.5, fontWeight: 700, padding: '10px 14px' }}
+                >
+                  <Download size={15} />
+                  <span>Tải Báo Cáo & Phân Tích Lợi Nhuận (.xlsx)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Action 2: Tải ZIP Trọn Bộ */}
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
+              <div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Download size={22} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>2. Tải File ZIP Bảng Kê Shop</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Tự động đóng gói trọn bộ {currentSession.statements.length} file Excel bảng kê riêng biệt của từng Shop vào 1 file ZIP duy nhất.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadAllZip}
+                disabled={zipProgress.active}
+                className="btn btn-primary"
+                style={{ width: '100%', fontSize: 12.5, fontWeight: 800, padding: '10px 14px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
+              >
+                {zipProgress.active ? (
+                  <>
+                    <RefreshCw size={15} className="animate-spin" />
+                    <span>Đang nén ZIP ({zipProgress.percent}%)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} />
+                    <span>Tải File ZIP Trọn Bộ {currentSession.statements.length} Shop</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Action 3: Gửi Email Hàng Loạt */}
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
+              <div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(236, 72, 153, 0.12)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <Mail size={22} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>3. Gửi Email Bảng Kê Hàng Loạt</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Mở ngay phân hệ Gửi Email với nội dung và bảng kê đối soát của kỳ này được nạp sẵn sàng 100%.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onNavigateToEmail(currentSession)}
+                className="btn btn-secondary"
+                style={{ width: '100%', fontSize: 12.5, fontWeight: 800, padding: '10px 14px', borderColor: '#ec4899', color: '#db2777' }}
+              >
+                <Mail size={15} />
+                <span>Chuyển Sang Gửi Email Ngay ➔</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Action Bar of Step 4 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            paddingTop: 16,
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setWizardStep(3)}
+              className="btn btn-secondary btn-lg"
+              style={{ fontWeight: 700, fontSize: 13 }}
+            >
+              <ArrowLeft size={16} />
+              <span>Quay Lại Bước 3 (Bảng Kê Chi Tiết)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetReconciliation}
+              className="btn btn-success btn-lg"
+              style={{ fontWeight: 900, fontSize: 13.5, padding: '12px 26px' }}
+            >
+              <CheckCircle2 size={18} />
+              <span>✓ Hoàn Tất & Làm Mới Phiên Đối Soát</span>
+            </button>
+          </div>
         </div>
       )}
 
