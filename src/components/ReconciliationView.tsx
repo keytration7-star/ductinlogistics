@@ -489,103 +489,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     };
   }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops]);
 
-  // Step 2 Grouped Excel-style Shop Table Data
-  const fileShopGridData = useMemo(() => {
-    const rowsToScan = reconcileMode === '1file' ? nvcRows : appRows;
-    const nameCol = reconcileMode === '1file' ? nvcMapping.shopNameColumn : appMapping.shopNameColumn;
-    const phoneCol = reconcileMode === '1file' ? nvcMapping.shopPhoneColumn : appMapping.shopPhoneColumn;
-    const codCol = reconcileMode === '1file' ? nvcMapping.codColumn : undefined;
-
-    if (rowsToScan.length === 0) return null;
-
-    interface ShopGridItem {
-      name: string;
-      phone: string;
-      address?: string;
-      orderCount: number;
-      totalCod: number;
-      matchedShop?: Shop;
-    }
-
-    const map = new Map<string, ShopGridItem>();
-
-    for (const row of rowsToScan) {
-      let name = String(nameCol ? row[nameCol] || '' : '').trim();
-      let phone = String(phoneCol ? row[phoneCol] || '' : '').trim();
-      if (!name && !phone) continue;
-      name = name || 'Chưa đặt tên';
-
-      const key = `${name.toLowerCase()}|${phone.replace(/\D/g, '')}`;
-      let item = map.get(key);
-      if (!item) {
-        const matchRes = findRegisteredShop(shops, { name, phone });
-        item = {
-          name,
-          phone,
-          address: '',
-          orderCount: 0,
-          totalCod: 0,
-          matchedShop: matchRes.matched ? matchRes.shop : undefined,
-        };
-        map.set(key, item);
-      }
-      item.orderCount++;
-      if (codCol && row[codCol]) {
-        item.totalCod += parseNumber(row[codCol]);
-      }
-    }
-
-    const items = Array.from(map.values());
-    if (items.length === 0) return null;
-
-    const phoneToItems = new Map<string, ShopGridItem[]>();
-    const nameToItems = new Map<string, ShopGridItem[]>();
-
-    items.forEach(item => {
-      const normPhone = normalizePhone(item.phone);
-      if (normPhone) {
-        if (!phoneToItems.has(normPhone)) phoneToItems.set(normPhone, []);
-        phoneToItems.get(normPhone)!.push(item);
-      }
-
-      const normName = normalizeHeader(item.name);
-      if (normName) {
-        if (!nameToItems.has(normName)) nameToItems.set(normName, []);
-        nameToItems.get(normName)!.push(item);
-      }
-    });
-
-    const phoneConflictGroups: { phone: string; items: ShopGridItem[] }[] = [];
-    const nameConflictGroups: { name: string; items: ShopGridItem[] }[] = [];
-    const usedKeys = new Set<string>();
-
-    phoneToItems.forEach((groupItems, phone) => {
-      if (groupItems.length > 1) {
-        phoneConflictGroups.push({ phone, items: groupItems });
-        groupItems.forEach(it => usedKeys.add(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
-      }
-    });
-
-    nameToItems.forEach((groupItems, name) => {
-      if (groupItems.length > 1) {
-        const remaining = groupItems.filter(it => !usedKeys.has(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
-        if (remaining.length > 1) {
-          nameConflictGroups.push({ name, items: groupItems });
-          groupItems.forEach(it => usedKeys.add(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
-        }
-      }
-    });
-
-    const cleanShops = items.filter(it => !usedKeys.has(`${it.name.toLowerCase()}|${it.phone.replace(/\D/g, '')}`));
-
-    return {
-      totalDistinctIdentities: items.length,
-      phoneConflictGroups,
-      nameConflictGroups,
-      cleanShops,
-    };
-  }, [nvcRows, appRows, nvcMapping, appMapping, reconcileMode, shops]);
-
   const updateProposalPricing = (groupId: string, updater: (pricingPlan: ShopPricingPlan) => ShopPricingPlan) => {
     setShopProposalGroups(groups => groups.map(group => group.id === groupId
       ? { ...group, pricingPlan: updater({ ...group.pricingPlan, weightRules: group.pricingPlan.weightRules.map(rule => ({ ...rule })) }) }
@@ -2024,262 +1927,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           </div>
         )}
 
-        {/* STEP 2 PREVIEW: FAST KPI STATS & GROUPED EXCEL-STYLE SHOP TABLE */}
-        {quickPreviewStats && !currentSession && (
-          <div style={{ marginTop: 24, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            
-            {/* Top KPI Preview Header & Cards */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
-              border: '1.5px solid var(--primary-glow)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 18,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    📊 SỐ LIỆU DỰ TÍNH NHANH TỪ FILE (BƯỚC 2)
-                  </span>
-                  <span style={{ fontSize: 11, background: 'var(--primary)', color: '#fff', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
-                    Tự động quét từ file
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  * Số liệu dự tính theo dữ liệu thô và biểu giá hiện hành
-                </div>
-              </div>
-
-              {/* Grid 6 Thẻ KPI */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: 12,
-              }}>
-                {/* 1. Tổng đơn */}
-                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
-                    {quickPreviewStats.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 500 }}>đơn</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Đọc từ file đối soát</div>
-                </div>
-
-                {/* 2. Tổng COD */}
-                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG TIỀN COD THU HỘ</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', margin: '4px 0' }}>
-                    {formatVND(quickPreviewStats.totalCod)}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tiền NVC đã thu từ khách</div>
-                </div>
-
-                {/* 3. Cước NVC gốc */}
-                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC GỐC TRẢ NVC</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warning)', margin: '4px 0' }}>
-                    {formatVND(quickPreviewStats.totalNvcFee)}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước vận chuyển + phụ phí</div>
-                </div>
-
-                {/* 4. Doanh thu cước thu shop */}
-                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-color)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>DOANH THU CƯỚC SHOP</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
-                    {formatVND(quickPreviewStats.totalShopFee)}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tạm tính theo biểu giá shop</div>
-                </div>
-
-                {/* 5. Lợi nhuận ròng */}
-                <div style={{ background: quickPreviewStats.estimatedProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${quickPreviewStats.estimatedProfit >= 0 ? '#10b981' : '#ef4444'}`, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', fontWeight: 800 }}>LỢI NHUẬN RÒNG (LÃI DỰ TÍNH)</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', margin: '4px 0' }}>
-                    {quickPreviewStats.estimatedProfit >= 0 ? '+' : ''}{formatVND(quickPreviewStats.estimatedProfit)}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>= Cước thu shop - Cước NVC</div>
-                </div>
-
-                {/* 6. Thực chuyển trả shop */}
-                <div style={{ background: 'rgba(79, 70, 229, 0.08)', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--primary)', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN TRẢ SHOP</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
-                    {formatVND(quickPreviewStats.estimatedShopPayout)}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>= COD thu - Cước & phí shop</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Grouped Excel-style Shop Table */}
-            {fileShopGridData && (
-              <div style={{
-                background: '#fff',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-color)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  padding: '14px 18px',
-                  background: 'var(--bg-secondary)',
-                  borderBottom: '1px solid var(--border-color)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 10,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase' }}>
-                      📋 DANH SÁCH & PHÂN NHÓM SHOP TỪ FILE EXCEL
-                    </span>
-                    <span style={{ fontSize: 11, background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '3px 9px', borderRadius: 12, fontWeight: 700 }}>
-                      {fileShopGridData.totalDistinctIdentities} Định Danh Shop Trong File
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {fileShopGridData.phoneConflictGroups.length > 0 && (
-                      <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                        🔴 {fileShopGridData.phoneConflictGroups.length} Nhóm 1 SĐT nhiều Tên
-                      </span>
-                    )}
-                    {fileShopGridData.nameConflictGroups.length > 0 && (
-                      <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                        🟠 {fileShopGridData.nameConflictGroups.length} Nhóm 1 Tên nhiều SĐT
-                      </span>
-                    )}
-                    <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                      🟢 {fileShopGridData.cleanShops.length} Shop Chuẩn Độc Lập
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto', maxHeight: 420 }}>
-                  <table className="data-table" style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '2px solid var(--border-color)', position: 'sticky', top: 0, zIndex: 2 }}>
-                        <th style={{ width: 50, textAlign: 'center', padding: '10px 8px' }}>STT</th>
-                        <th style={{ textAlign: 'left', padding: '10px 12px' }}>TÊN SHOP TRONG FILE</th>
-                        <th style={{ textAlign: 'left', padding: '10px 12px' }}>SỐ ĐIỆN THOẠI</th>
-                        <th style={{ textAlign: 'center', padding: '10px 8px', width: 90 }}>SỐ ĐƠN</th>
-                        <th style={{ textAlign: 'right', padding: '10px 12px' }}>TỔNG COD</th>
-                        <th style={{ textAlign: 'center', padding: '10px 12px' }}>TRẠNG THÁI HỒ SƠ</th>
-                        <th style={{ textAlign: 'center', padding: '10px 12px' }}>PHÂN LOẠI NHÓM</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* KHỐI 1: 1 SĐT NHIỀU TÊN */}
-                      {fileShopGridData.phoneConflictGroups.map((group, gIdx) => (
-                        <React.Fragment key={`phone_grp_${gIdx}`}>
-                          <tr style={{ background: 'rgba(239, 68, 68, 0.06)', borderTop: '2px solid rgba(239, 68, 68, 0.3)' }}>
-                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#dc2626', fontSize: 12 }}>
-                              🔴 NHÓM TRÙNG SĐT: <span className="mono" style={{ textDecoration: 'underline' }}>{group.phone}</span> ({group.items.length} tên shop khác nhau)
-                            </td>
-                          </tr>
-                          {group.items.map((item, iIdx) => (
-                            <tr key={`p_item_${gIdx}_${iIdx}`} style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.15)' }}>
-                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{gIdx + 1}.{iIdx + 1}</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
-                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
-                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                {item.matchedShop ? (
-                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✨ Shop mới
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'center', fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
-                                1 SĐT nhiều tên
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      ))}
-
-                      {/* KHỐI 2: 1 TÊN NHIỀU SĐT */}
-                      {fileShopGridData.nameConflictGroups.map((group, gIdx) => (
-                        <React.Fragment key={`name_grp_${gIdx}`}>
-                          <tr style={{ background: 'rgba(245, 158, 11, 0.06)', borderTop: '2px solid rgba(245, 158, 11, 0.3)' }}>
-                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#d97706', fontSize: 12 }}>
-                              🟠 NHÓM TRÙNG TÊN: <strong>{group.name}</strong> ({group.items.length} số điện thoại khác nhau)
-                            </td>
-                          </tr>
-                          {group.items.map((item, iIdx) => (
-                            <tr key={`n_item_${gIdx}_${iIdx}`} style={{ borderBottom: '1px solid rgba(245, 158, 11, 0.15)' }}>
-                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{gIdx + 1}.{iIdx + 1}</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
-                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
-                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                {item.matchedShop ? (
-                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✨ Shop mới
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'center', fontSize: 11, color: '#d97706', fontWeight: 600 }}>
-                                1 Tên nhiều SĐT
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      ))}
-
-                      {/* KHỐI 3: SHOP ĐỘC LẬP / CHUẨN */}
-                      {fileShopGridData.cleanShops.length > 0 && (
-                        <>
-                          <tr style={{ background: 'rgba(16, 185, 129, 0.06)', borderTop: '2px solid rgba(16, 185, 129, 0.3)' }}>
-                            <td colSpan={7} style={{ padding: '8px 14px', fontWeight: 800, color: '#059669', fontSize: 12 }}>
-                              🟢 CÁC SHOP CHUẨN ĐỘC LẬP ({fileShopGridData.cleanShops.length} Shop)
-                            </td>
-                          </tr>
-                          {fileShopGridData.cleanShops.map((item, idx) => (
-                            <tr key={`c_item_${idx}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.name}</td>
-                              <td className="mono" style={{ color: 'var(--text-dim)' }}>{item.phone || '--'}</td>
-                              <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{item.orderCount}</td>
-                              <td className="mono" style={{ textAlign: 'right', color: 'var(--info)', fontWeight: 600 }}>{formatVND(item.totalCod)}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                {item.matchedShop ? (
-                                  <span style={{ fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#059669', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✓ Đã có hồ sơ ({item.matchedShop.name})
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: 11, background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                                    ✨ Shop mới
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'center', fontSize: 11, color: '#059669', fontWeight: 600 }}>
-                                Chuẩn độc lập
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
-
         {/* Action Controls Bar */}
         <div style={{
           display: 'flex',
@@ -2907,23 +2554,105 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       {/* Unified Carrier Profile Config Modal */}
       {showShopProposal && (
         <div className="modal-overlay" onClick={() => setShowShopProposal(false)}>
-          <div className="modal-content" style={{ maxWidth: 860, maxHeight: '88vh', overflowY: 'auto' }} onClick={event => event.stopPropagation()}>
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-color)' }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Xác nhận shop đọc từ File App</h3>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>App không tự tạo hoặc tự gộp shop. Admin phải xác nhận mọi shop mới hoặc nhóm Tên/SĐT liên quan trước khi đối soát.</p>
+          <div className="modal-content" style={{ maxWidth: 1020, maxHeight: '90vh', overflowY: 'auto' }} onClick={event => event.stopPropagation()}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🏪 Xác Nhận & Phân Nhóm Shop Đọc Từ File
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Kiểm tra số liệu dự tính và danh sách định danh shop đọc từ file trước khi tiến hành tính cước.
+                </p>
+              </div>
+              <button onClick={() => setShowShopProposal(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }}>
+                ✕ Đóng
+              </button>
             </div>
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '9px 11px', borderRadius: 'var(--radius-md)' }}>Danh sách dưới đây là toàn bộ định danh đọc từ file. Nhãn xanh là hồ sơ đã khớp chính xác; nhãn vàng là dữ liệu mới. Với một tên/nhiều SĐT hoặc một SĐT/nhiều tên, hãy chọn gộp hoặc tách rõ ràng.</div>
-              {shopProposalGroups.map(group => (
-                <div key={group.id} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong>{group.label}</strong>
+
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* TOP KPI STATS PREVIEW INSIDE POPUP */}
+              {quickPreviewStats && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
+                  border: '1.5px solid var(--primary-glow)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 16px',
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    📊 SỐ LIỆU DỰ TÍNH NHANH TỪ FILE (BƯỚC 2)
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+                    gap: 10,
+                  }}>
+                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', margin: '3px 0' }}>
+                        {quickPreviewStats.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500 }}>đơn</span>
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--info)', margin: '3px 0' }}>
+                        {formatVND(quickPreviewStats.totalCod)}
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC GỐC NVC</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--warning)', margin: '3px 0' }}>
+                        {formatVND(quickPreviewStats.totalNvcFee)}
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC THU SHOP</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
+                        {formatVND(quickPreviewStats.totalShopFee)}
+                      </div>
+                    </div>
+
+                    <div style={{ background: quickPreviewStats.estimatedProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${quickPreviewStats.estimatedProfit >= 0 ? '#10b981' : '#ef4444'}` }}>
+                      <div style={{ fontSize: 10.5, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', fontWeight: 800 }}>LỢI NHUẬN RÒNG</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', margin: '3px 0' }}>
+                        {quickPreviewStats.estimatedProfit >= 0 ? '+' : ''}{formatVND(quickPreviewStats.estimatedProfit)}
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(79, 70, 229, 0.08)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--primary)' }}>
+                      <div style={{ fontSize: 10.5, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN SHOP</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
+                        {formatVND(quickPreviewStats.estimatedShopPayout)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                💡 <strong>Hướng dẫn:</strong> Danh sách dưới đây hiển thị toàn bộ định danh Shop dưới dạng bảng Excel kẻ ô rõ ràng. Nhãn xanh là shop đã có hồ sơ; nhãn vàng là shop mới. Bạn có thể chọn menu góc phải để <strong>Gộp tùy chỉnh</strong> hoặc <strong>Tách độc lập</strong>.
+              </div>
+
+              {shopProposalGroups.map((group, gIdx) => (
+                <div key={group.id} style={{ border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 14, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.02)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
+                        {group.entries.length > 1 ? `🔴 Nhóm xung đột #${gIdx + 1}:` : `🟢 Nhóm shop độc lập #${gIdx + 1}:`} {group.label}
+                      </span>
+                      <span style={{ fontSize: 11, background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>
+                        {group.entries.reduce((sum, e) => sum + e.count, 0)} đơn
+                      </span>
+                    </div>
+
                     {(group.entries.length > 1 || group.entries.some(entry => !entry.existing)) && (
                       <select
                         value={group.decision}
                         onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, decision: event.target.value as ShopProposalDecision } : item))}
                         className="select-field"
-                        style={{ width: 340, padding: '6px 8px', fontSize: 12, fontWeight: 700 }}
+                        style={{ width: 340, padding: '6px 8px', fontSize: 12, fontWeight: 700, borderColor: group.decision === 'custom_merge' ? 'var(--primary)' : 'var(--border-color)' }}
                       >
                         <option value="pending">-- Admin chọn cách xử lý --</option>
                         <option value="separate">Tạo/Giữ shop độc lập theo từng định danh</option>
@@ -2932,56 +2661,73 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       </select>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 9, marginTop: 12 }}>
-                    {group.entries.map(entry => {
-                      const entryKey = `${entry.name.toLocaleLowerCase('vi-VN')}|${entry.phone.replace(/\D/g, '')}`;
-                      const mergedSubGroup = (group.customSubGroups || []).find(sg => sg.entryKeys.includes(entryKey));
-                      const isSelected = (selectedEntryKeysMap[group.id] || []).includes(entryKey);
-                      const accent = mergedSubGroup ? '#2563eb' : entry.existing ? '#059669' : '#d97706';
-                      const surface = mergedSubGroup ? 'rgba(37, 99, 235, 0.08)' : entry.existing ? 'rgba(16, 185, 129, 0.07)' : 'rgba(245, 158, 11, 0.08)';
-                      const border = mergedSubGroup ? 'rgba(37, 99, 235, 0.45)' : entry.existing ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.48)';
 
-                      return (
-                        <div key={entryKey} style={{ border: `1px solid ${border}`, borderLeft: `4px solid ${accent}`, background: surface, borderRadius: 'var(--radius-sm)', padding: '10px 12px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* BẢNG DANH SÁCH SHOP DẠNG EXCEL KẺ Ô */}
+                  <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+                    <table className="data-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1.5px solid var(--border-color)' }}>
+                          {group.decision === 'custom_merge' && (
+                            <th style={{ width: 45, textAlign: 'center', padding: '8px 4px' }}>Chọn</th>
+                          )}
+                          <th style={{ width: 45, textAlign: 'center', padding: '8px 4px' }}>STT</th>
+                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>TÊN SHOP TRONG FILE</th>
+                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>SỐ ĐIỆN THOẠI</th>
+                          <th style={{ textAlign: 'center', padding: '8px 6px', width: 75 }}>SỐ ĐƠN</th>
+                          <th style={{ textAlign: 'left', padding: '8px 10px' }}>ĐỊA CHỈ KHO GỬI</th>
+                          <th style={{ textAlign: 'center', padding: '8px 10px', width: 190 }}>TRẠNG THÁI HỒ SƠ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.entries.map((entry, eIdx) => {
+                          const entryKey = `${entry.name.toLocaleLowerCase('vi-VN')}|${entry.phone.replace(/\D/g, '')}`;
+                          const mergedSubGroup = (group.customSubGroups || []).find(sg => sg.entryKeys.includes(entryKey));
+                          const isSelected = (selectedEntryKeysMap[group.id] || []).includes(entryKey);
+
+                          return (
+                            <tr key={entryKey} style={{
+                              background: mergedSubGroup ? 'rgba(37, 99, 235, 0.05)' : isSelected ? 'rgba(79, 70, 229, 0.08)' : eIdx % 2 === 0 ? '#fff' : 'var(--bg-secondary)',
+                              borderBottom: '1px solid var(--border-color)',
+                            }}>
                               {group.decision === 'custom_merge' && (
-                                <input
-                                  type="checkbox"
-                                  disabled={!!mergedSubGroup}
-                                  checked={!!mergedSubGroup || isSelected}
-                                  onChange={(e) => {
-                                    const prev = selectedEntryKeysMap[group.id] || [];
-                                    if (e.target.checked) {
-                                      setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [...prev, entryKey] });
-                                    } else {
-                                      setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: prev.filter(k => k !== entryKey) });
-                                    }
-                                  }}
-                                  style={{ width: 16, height: 16, cursor: mergedSubGroup ? 'not-allowed' : 'pointer' }}
-                                />
+                                <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                                  <input
+                                    type="checkbox"
+                                    disabled={!!mergedSubGroup}
+                                    checked={!!mergedSubGroup || isSelected}
+                                    onChange={(e) => {
+                                      const prev = selectedEntryKeysMap[group.id] || [];
+                                      if (e.target.checked) {
+                                        setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: [...prev, entryKey] });
+                                      } else {
+                                        setSelectedEntryKeysMap({ ...selectedEntryKeysMap, [group.id]: prev.filter(k => k !== entryKey) });
+                                      }
+                                    }}
+                                    style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: mergedSubGroup ? 'not-allowed' : 'pointer' }}
+                                  />
+                                </td>
                               )}
-                              <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>{entry.name}</strong>
-                            </div>
-                            {mergedSubGroup ? (
-                              <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd' }}>
-                                ✓ Đã gộp vào Shop: <strong>{mergedSubGroup.name}</strong>
-                              </span>
-                            ) : (
-                              <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`}>
-                                {entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7, fontSize: 12, color: 'var(--text-main)' }}>
-                            <span className="mono" style={{ fontWeight: 700, color: accent }}>{entry.phone || 'Chưa có SĐT'}</span>
-                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                            <span><strong>{entry.count}</strong> đơn</span>
-                          </div>
-                          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>📍 {entry.address || 'Chưa có địa chỉ kho gửi'}</div>
-                        </div>
-                      );
-                    })}
+                              <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{eIdx + 1}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{entry.name}</td>
+                              <td className="mono" style={{ color: 'var(--primary)', fontWeight: 600 }}>{entry.phone || 'Chưa có SĐT'}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-main)' }}>{entry.count}</td>
+                              <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{entry.address || '—'}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                {mergedSubGroup ? (
+                                  <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd', fontSize: 11 }}>
+                                    ✓ Đã gộp vào: <strong>{mergedSubGroup.name}</strong>
+                                  </span>
+                                ) : (
+                                  <span className={`badge ${entry.existing ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: 11 }}>
+                                    {entry.existing ? '✓ Đã có hồ sơ' : '+ Shop mới'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
                   {group.decision === 'custom_merge' && (
@@ -3019,34 +2765,43 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            placeholder="Gõ tên Shop gộp (Ví dụ: AC hoặc Shop Kiều Nhung)"
-                            value={customGroupInputMap[group.id] || ''}
-                            onChange={e => setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: e.target.value })}
-                            className="input-field"
-                            style={{ flex: 1, minWidth: 200, padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
-                          />
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: 200 }}>
+                            <input
+                              type="text"
+                              className="input-field"
+                              placeholder="Nhập tên Shop mới (Ví dụ: Shop Kiều Nhung)..."
+                              value={customGroupInputMap[group.id] || ''}
+                              onChange={(e) => setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: e.target.value })}
+                              style={{ width: '100%', padding: '7px 10px', fontSize: 12, fontWeight: 700 }}
+                            />
+                          </div>
 
-                          <select
-                            value={customGroupTargetShopMap[group.id] || ''}
-                            onChange={e => setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: e.target.value })}
-                            className="select-field"
-                            style={{ width: 240, padding: '7px 8px', fontSize: 12, fontWeight: 600 }}
-                          >
-                            <option value="">-- Tạo Hồ sơ Shop Mới --</option>
-                            {shops.filter(s => s.active).map(shop => (
-                              <option key={shop.id} value={shop.id}>
-                                Gộp vào: {shop.code} · {shop.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div style={{ width: 220 }}>
+                            <select
+                              value={customGroupTargetShopMap[group.id] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomGroupTargetShopMap({ ...customGroupTargetShopMap, [group.id]: val });
+                                if (val && !customGroupInputMap[group.id]) {
+                                  const targetShop = shops.find(s => s.id === val);
+                                  if (targetShop) setCustomGroupInputMap({ ...customGroupInputMap, [group.id]: targetShop.name });
+                                }
+                              }}
+                              className="select-field"
+                              style={{ width: '100%', padding: '7px 9px', fontSize: 11.5 }}
+                            >
+                              <option value="">-- Hoặc chọn shop chính có sẵn --</option>
+                              {shops.filter(s => s.active).map(s => (
+                                <option key={s.id} value={s.id}>{s.name} ({s.phone})</option>
+                              ))}
+                            </select>
+                          </div>
 
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
-                            disabled={(selectedEntryKeysMap[group.id] || []).length < 1 || !(customGroupInputMap[group.id] || '').trim()}
+                            disabled={(selectedEntryKeysMap[group.id] || []).length === 0 || !(customGroupInputMap[group.id] || '').trim()}
                             onClick={() => {
                               const selectedKeys = selectedEntryKeysMap[group.id] || [];
                               const customName = (customGroupInputMap[group.id] || '').trim();
@@ -3074,6 +2829,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       </div>
                     </div>
                   )}
+
                   {group.decision === 'merge' && (group.entries.length > 1 || group.entries.some(entry => entry.existing)) && (
                     <div style={{ marginTop: 12, background: '#fffbeb', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid #fcd34d', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div>
@@ -3122,39 +2878,42 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       </div>
                     </div>
                   )}
-                  {group.entries.some(entry => !entry.existing) && !(group.decision === 'merge' && group.targetShopId) && <div style={{ marginTop: 16, padding: 15, borderRadius: 'var(--radius-md)', background: 'rgba(79, 70, 229, 0.045)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}><Sliders size={16} /> Biểu giá cước bậc thang theo cân nặng</div>
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => addProposalWeightRule(group)} style={{ fontSize: 11, padding: '4px 9px' }}><Plus size={13} /> Thêm nấc cân nặng</button>
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Áp dụng cho shop mới tạo từ nhóm này. Cước 0–1kg là bắt buộc; các nấc sau giúp app tính đúng theo biểu giá riêng.</p>
-                    <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {group.pricingPlan.weightRules.map((rule, index) => <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                        <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>{index === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}</div>
-                        <input type="number" min="0.1" step="0.1" value={rule.maxWeight} className="input-field" style={{ width: 82, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                          const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, maxWeight: Number(event.target.value || 0) } : item);
-                          return { ...pricingPlan, weightRules };
-                        })} />
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
-                        <input type="number" min="0" step="500" value={rule.price === 0 ? '' : rule.price} placeholder={index === 0 ? 'Bắt buộc nhập' : '0'} className="input-field" style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
-                          const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, price: Number(event.target.value || 0) } : item);
-                          return { ...pricingPlan, weightRules };
-                        })} />
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
-                        {group.pricingPlan.weightRules.length > 1 && <button type="button" className="btn btn-danger btn-sm" style={{ padding: '4px 6px' }} onClick={() => removeProposalWeightRule(group, index)} title="Xóa nấc cân"><Trash2 size={12} /></button>}
-                      </div>)}
-                      <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vượt cân: mỗi thêm<input type="number" min="0.1" step="0.1" value={group.pricingPlan.extraStepWeight} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepWeight: Number(event.target.value || 1) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước cộng thêm (đ)<input type="number" min="0" step="500" value={group.pricingPlan.extraStepPrice === 0 ? '' : group.pricingPlan.extraStepPrice} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepPrice: Number(event.target.value || 0) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)<input type="number" min="0" max="100" value={group.pricingPlan.returnFeePercent} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, returnFeePercent: Number(event.target.value || 0) }))} /></label>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phụ thu cố định (đ)<input type="number" min="0" step="500" value={group.pricingPlan.fixedSurcharge === 0 ? '' : group.pricingPlan.fixedSurcharge} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, fixedSurcharge: Number(event.target.value || 0) }))} /></label>
+
+                  {group.entries.some(entry => !entry.existing) && !(group.decision === 'merge' && group.targetShopId) && (
+                    <div style={{ marginTop: 16, padding: 15, borderRadius: 'var(--radius-md)', background: 'rgba(79, 70, 229, 0.045)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--primary)', fontSize: 14, fontWeight: 800 }}><Sliders size={16} /> Biểu giá cước bậc thang theo cân nặng</div>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => addProposalWeightRule(group)} style={{ fontSize: 11, padding: '4px 9px' }}><Plus size={13} /> Thêm nấc cân nặng</button>
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Áp dụng cho shop mới tạo từ nhóm này. Cước 0–1kg là bắt buộc; các nấc sau giúp app tính đúng theo biểu giá riêng.</p>
+                      <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {group.pricingPlan.weightRules.map((rule, index) => <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                          <div style={{ width: 100, fontSize: 12, fontWeight: 700 }}>{index === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}</div>
+                          <input type="number" min="0.1" step="0.1" value={rule.maxWeight} className="input-field" style={{ width: 82, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
+                            const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, maxWeight: Number(event.target.value || 0) } : item);
+                            return { ...pricingPlan, weightRules };
+                          })} />
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
+                          <input type="number" min="0" step="500" value={rule.price === 0 ? '' : rule.price} placeholder={index === 0 ? 'Bắt buộc nhập' : '0'} className="input-field" style={{ flex: 1, minWidth: 130, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => {
+                            const weightRules = pricingPlan.weightRules.map((item, ruleIndex) => ruleIndex === index ? { ...item, price: Number(event.target.value || 0) } : item);
+                            return { ...pricingPlan, weightRules };
+                          })} />
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
+                          {group.pricingPlan.weightRules.length > 1 && <button type="button" className="btn btn-danger btn-sm" style={{ padding: '4px 6px' }} onClick={() => removeProposalWeightRule(group, index)} title="Xóa nấc cân"><Trash2 size={12} /></button>}
+                        </div>)}
+                        <div style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vượt cân: mỗi thêm<input type="number" min="0.1" step="0.1" value={group.pricingPlan.extraStepWeight} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepWeight: Number(event.target.value || 1) }))} /></label>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Cước cộng thêm (đ)<input type="number" min="0" step="500" value={group.pricingPlan.extraStepPrice === 0 ? '' : group.pricingPlan.extraStepPrice} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, extraStepPrice: Number(event.target.value || 0) }))} /></label>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phí chuyển hoàn (%)<input type="number" min="0" max="100" value={group.pricingPlan.returnFeePercent} className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, returnFeePercent: Number(event.target.value || 0) }))} /></label>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phụ thu cố định (đ)<input type="number" min="0" step="500" value={group.pricingPlan.fixedSurcharge === 0 ? '' : group.pricingPlan.fixedSurcharge} placeholder="0" className="input-field" style={{ width: '100%', marginTop: 4, padding: '5px 8px', fontSize: 12 }} onChange={event => updateProposalPricing(group.id, pricingPlan => ({ ...pricingPlan, fixedSurcharge: Number(event.target.value || 0) }))} /></label>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 10, background: 'rgba(79, 70, 229, 0.06)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calculator size={15} color="var(--primary)" /><span style={{ fontSize: 12, fontWeight: 700 }}>Thử tính cước:</span><input type="number" min="0.1" step="0.1" value={group.testWeight} className="input-field" style={{ width: 72, padding: '4px 7px', fontSize: 12 }} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, testWeight: Number(event.target.value || 0.1) } : item))} /><span style={{ fontSize: 12 }}>kg</span></div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước tính ra: <strong className="mono" style={{ fontSize: 15, color: 'var(--success)' }}>{new Intl.NumberFormat('vi-VN').format(calculateWeightFee(group.testWeight, group.pricingPlan))} đ</strong></div>
                       </div>
                     </div>
-                    <div style={{ marginTop: 10, background: 'rgba(79, 70, 229, 0.06)', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calculator size={15} color="var(--primary)" /><span style={{ fontSize: 12, fontWeight: 700 }}>Thử tính cước:</span><input type="number" min="0.1" step="0.1" value={group.testWeight} className="input-field" style={{ width: 72, padding: '4px 7px', fontSize: 12 }} onChange={event => setShopProposalGroups(groups => groups.map(item => item.id === group.id ? { ...item, testWeight: Number(event.target.value || 0.1) } : item))} /><span style={{ fontSize: 12 }}>kg</span></div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cước tính ra: <strong className="mono" style={{ fontSize: 15, color: 'var(--success)' }}>{new Intl.NumberFormat('vi-VN').format(calculateWeightFee(group.testWeight, group.pricingPlan))} đ</strong></div>
-                    </div>
-                  </div>}
+                  )}
                 </div>
               ))}
             </div>
