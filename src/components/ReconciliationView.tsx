@@ -23,7 +23,8 @@ import {
   Sliders,
   Calculator,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Store
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -1439,8 +1440,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       {(() => {
         const hasBothFiles = reconcileMode === '2files' ? (!!nvcFile && !!appFile) : (!!nvcFile);
         const step1Done = hasBothFiles;
-        const step2Done = !!currentSession;
-        const step3Done = !!currentSession && currentSession.unmatchedOrdersCount === 0;
 
         const getStep1Desc = () => {
           if (reconcileMode === '2files') {
@@ -1453,28 +1452,31 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         };
 
         const getStep2Desc = () => {
-          if (currentSession) return `✓ Đã ghép ${currentSession.matchedOrdersCount}/${currentSession.totalOrders} đơn`;
-          if (hasBothFiles) return '👉 Bấm tính cước ngay';
+          if (wizardStep > 2) return '✓ Dữ liệu hợp lệ';
+          if (hasBothFiles) return '👉 Kiểm tra trường dữ liệu';
           return reconcileMode === '2files' ? 'Chờ nạp đủ 2 file' : 'Chờ nạp file';
         };
 
         const getStep3Desc = () => {
+          if (shopProposalGroups.length > 0) {
+            const newCount = shopProposalGroups.filter(g => g.entries.some(e => !e.existing)).length;
+            if (newCount > 0) return `⚠️ Có ${newCount} Shop mới cần duyệt`;
+            return `✓ Đã khớp ${shopProposalGroups.length} Shop`;
+          }
+          return 'Duyệt & Cấu hình Shop';
+        };
+
+        const getStep4Desc = () => {
           if (!currentSession) return 'Chờ tính cước';
           if (currentSession.unmatchedOrdersCount > 0) return `⚠️ ${currentSession.unmatchedOrdersCount} đơn chưa khớp`;
           return `✓ ${currentSession.statements.length} Shop đối soát`;
         };
 
-        const getStep4Desc = () => {
-          if (currentSession && currentSession.unmatchedOrdersCount === 0) return 'Xuất Excel / ZIP / Email';
-          if (currentSession && currentSession.unmatchedOrdersCount > 0) return 'Cần xử lý đơn chưa khớp';
-          return 'Chờ hoàn tất';
-        };
-
         const steps = [
           { step: '01', stepNum: 1, title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: wizardStep === 1, done: wizardStep > 1 || step1Done },
-          { step: '02', stepNum: 2, title: 'KHỚP NỐI & KIỂM TRA', desc: getStep2Desc(), active: wizardStep === 2, done: wizardStep > 2 || step2Done },
-          { step: '03', stepNum: 3, title: 'BẢNG KÊ & CÔNG NỢ', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || step3Done },
-          { step: '04', stepNum: 4, title: 'XÁC NHẬN & BÁO CÁO', desc: getStep4Desc(), active: wizardStep === 4, done: false },
+          { step: '02', stepNum: 2, title: 'KHỚP NỐI & KIỂM TRA', desc: getStep2Desc(), active: wizardStep === 2, done: wizardStep > 2 },
+          { step: '03', stepNum: 3, title: 'PHÁT HIỆN & DUYỆT SHOP MỚI', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || (shopReviewConfirmed && !!currentSession) },
+          { step: '04', stepNum: 4, title: 'BẢNG KÊ & XUẤT BÁO CÁO', desc: getStep4Desc(), active: wizardStep === 4, done: false },
         ];
 
         return (
@@ -2123,20 +2125,250 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
             <button
               type="button"
-              onClick={handleRunReconciliation}
+              onClick={() => {
+                if (reconcileMode === '2files' && appRows.length > 0) {
+                  prepareShopProposals(appRows, appMapping);
+                }
+                setWizardStep(3);
+              }}
+              className="btn btn-primary btn-lg"
+              style={{ minWidth: 310, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
+            >
+              <span>TIẾP THEO: DUYỆT & CẤU HÌNH SHOP (BƯỚC 3) ➔</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 BƯỚC 3: PHÁT HIỆN & DUYỆT CẤU HÌNH SHOP MỚI */}
+      {wizardStep === 3 && (
+        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Header Step 3 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Store size={22} />
+                <span>BƯỚC 3: PHÁT HIỆN & CẤU HÌNH DANH SÁCH SHOP TỪ FILE EXCEL</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                Hệ thống quét các Shop trong file đơn hàng. Bạn hãy kiểm tra tên gộp/tách và biểu giá cước để lưu vào hệ thống trước khi tính cước đối soát.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowShopProposal(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Sliders size={15} />
+              <span>🏪 Mở Popup Cấu Hình Shop Chi Tiết</span>
+            </button>
+          </div>
+
+          {/* KPI Preview Strip */}
+          {quickPreviewStats && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)',
+              border: '1.5px solid var(--primary-glow)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+            }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                📊 SỐ LIỆU DỰ TÍNH NHANH TỪ FILE ĐỐI SOÁT
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+                gap: 10,
+              }}>
+                <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', margin: '3px 0' }}>
+                    {quickPreviewStats.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500 }}>đơn</span>
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--info)', margin: '3px 0' }}>
+                    {formatVND(quickPreviewStats.totalCod)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC GỐC NVC</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--warning)', margin: '3px 0' }}>
+                    {formatVND(quickPreviewStats.totalNvcFee)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)', fontWeight: 700 }}>CƯỚC THU SHOP</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
+                    {formatVND(quickPreviewStats.totalShopFee)}
+                  </div>
+                </div>
+
+                <div style={{ background: quickPreviewStats.estimatedProfit >= 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${quickPreviewStats.estimatedProfit >= 0 ? '#10b981' : '#ef4444'}` }}>
+                  <div style={{ fontSize: 10.5, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', fontWeight: 800 }}>LỢI NHUẬN RÒNG</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: quickPreviewStats.estimatedProfit >= 0 ? '#059669' : '#dc2626', margin: '3px 0' }}>
+                    {quickPreviewStats.estimatedProfit >= 0 ? '+' : ''}{formatVND(quickPreviewStats.estimatedProfit)}
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(79, 70, 229, 0.08)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--primary)' }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN SHOP</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '3px 0' }}>
+                    {formatVND(quickPreviewStats.estimatedShopPayout)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Shop Proposal Summary Content */}
+          {shopProposalGroups.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)' }}>
+                  📋 Danh Sách Nhóm Shop Phát Hiện ({shopProposalGroups.length} nhóm định danh):
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: g.entries.length > 1 ? 'merge' : 'separate' })))}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11.5 }}
+                  >
+                    ⚡ Gộp tự động theo SĐT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShopProposalGroups(groups => groups.map(g => ({ ...g, decision: 'separate' })))}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11.5 }}
+                  >
+                    ✂️ Tách riêng tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowShopProposal(true)}
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: 11.5 }}
+                  >
+                    🔍 Mở bảng duyệt đầy đủ ({shopProposalGroups.reduce((s, g) => s + g.entries.length, 0)} shop)
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+                {shopProposalGroups.map((group, idx) => {
+                  const hasNew = group.entries.some(e => !e.existing);
+                  return (
+                    <div key={group.id} style={{
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 12,
+                      padding: '14px 16px',
+                      border: hasNew ? '1.5px solid #f59e0b' : '1px solid var(--border-color)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
+                            {idx + 1}. {group.label}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {group.entries.map(e => e.name).join(', ')}
+                          </div>
+                        </div>
+                        <span className={hasNew ? 'badge badge-warning' : 'badge badge-success'} style={{ fontSize: 10, padding: '2px 6px' }}>
+                          {hasNew ? 'Shop Mới' : 'Đã có hồ sơ'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px dashed var(--border-color)', fontSize: 11.5 }}>
+                        <span style={{ color: 'var(--text-dim)' }}>
+                          Xử lý: <strong>{group.decision === 'merge' ? 'Gộp shop' : group.decision === 'separate' ? 'Tách riêng' : 'Tùy chỉnh'}</strong>
+                        </span>
+                        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                          {group.entries.reduce((s, e) => s + e.count, 0)} đơn hàng
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1.5px solid #10b981',
+              borderRadius: 14,
+              padding: '24px 20px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={24} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>
+                Tất Cả Shop Đã Khớp Hồ Sơ Hệ Thống!
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)', maxWidth: 500 }}>
+                Hệ thống đã nhận diện chính xác toàn bộ các Shop có trong file. Bấm nút dưới đây để tiến hành đối soát và lập bảng kê chi tiết!
+              </div>
+            </div>
+          )}
+
+          {/* Action Bar of Step 3 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            paddingTop: 16,
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setWizardStep(2)}
+              className="btn btn-secondary btn-lg"
+              style={{ fontWeight: 700, fontSize: 13 }}
+            >
+              <ArrowLeft size={16} />
+              <span>Quay Lại Bước 2 (Kiểm Tra File)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (shopProposalGroups.length > 0 && isAdmin) {
+                  saveShopProposals();
+                }
+                await handleRunReconciliation();
+                setWizardStep(4);
+              }}
               className="btn btn-primary btn-lg"
               disabled={isProcessing}
-              style={{ minWidth: 310, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
+              style={{ minWidth: 320, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #10b981 0%, #4f46e5 100%)' }}
             >
               {isProcessing ? (
                 <>
                   <RefreshCw size={18} className="animate-spin" />
-                  <span>Đang Ghép Nối & Tính Cước...</span>
+                  <span>Đang Tính Cước & Lập Bảng Kê...</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={18} />
-                  <span>TIẾN HÀNH ĐỐI SOÁT & TÍNH CƯỚC (BƯỚC 3) ➔</span>
+                  <span>TIẾN HÀNH ĐỐI SOÁT & XUẤT BẢNG KÊ (BƯỚC 4) ➔</span>
                 </>
               )}
             </button>
@@ -2144,8 +2376,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         </div>
       )}
 
-      {/* 🚀 BƯỚC 3: ĐỐI SOÁT & BẢNG KÊ CHI TIẾT TỪNG SHOP */}
-      {wizardStep === 3 && currentSession && (
+      {/* 🚀 BƯỚC 4: KẾT QUẢ ĐỐI SOÁT & BẢNG KÊ CHI TIẾT TỪNG SHOP */}
+      {wizardStep === 4 && currentSession && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {currentSession.unmatchedOrdersCount > 0 && (
             <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
@@ -2721,121 +2953,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
 
-          {/* Action Bar of Step 3 */}
-          <div className="glass-panel" style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
-            padding: '16px 22px',
-          }}>
-            <button
-              type="button"
-              onClick={() => setWizardStep(2)}
-              className="btn btn-secondary btn-lg"
-              style={{ fontWeight: 700, fontSize: 13 }}
-            >
-              <ArrowLeft size={16} />
-              <span>Quay Lại Bước 2 (Kiểm Tra)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setWizardStep(4)}
-              className="btn btn-primary btn-lg"
-              style={{ minWidth: 290, fontWeight: 900, fontSize: 14, padding: '12px 26px', background: 'linear-gradient(135deg, #10b981 0%, #4f46e5 100%)' }}
-            >
-              <span>TIẾP THEO: XÁC NHẬN & XUẤT BÁO CÁO (BƯỚC 4) ➔</span>
-            </button>
-          </div>
-
-        </div>
-      )}
-
-      {/* 🚀 BƯỚC 4: XÁC NHẬN & XUẤT BÁO CÁO */}
-      {wizardStep === 4 && currentSession && (
-        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Header Step 4 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <CheckCircle2 size={22} />
-                <span>BƯỚC 4: XÁC NHẬN KỲ ĐỐI SOÁT & XUẤT BÁO CÁO</span>
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                Đối soát hoàn tất 100%! Bạn có thể tải file Excel tổng hợp, tải trọn bộ file ZIP bảng kê từng Shop, hoặc chuyển sang gửi Email hàng loạt.
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="badge badge-success" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
-                ✓ ĐÃ CHỐT KỲ ĐỐI SOÁT
-              </span>
-            </div>
-          </div>
-
-          {/* Financial Summary Card */}
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.06) 100%)',
-            border: '1.5px solid #10b981',
-            borderRadius: 16,
-            padding: 22,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16, borderBottom: '1px solid rgba(16, 185, 129, 0.2)', paddingBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)' }}>
-                  {currentSession.sessionName}
-                </div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>
-                  Hãng vận chuyển: <strong>{currentSession.carrierName}</strong> • Ngày tạo kỳ: <strong>{new Date(currentSession.createdAt).toLocaleDateString('vi-VN')}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: 12,
-            }}>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>SỐ SHOP ĐỐI SOÁT</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--primary)', marginTop: 4 }}>
-                  {currentSession.statements.length} <span style={{ fontSize: 12, fontWeight: 500 }}>Shop</span>
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-main)', marginTop: 4 }}>
-                  {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 500 }}>đơn</span>
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--info)', marginTop: 4 }}>
-                  {formatVND(currentSession.totalCod)}
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1.5px solid var(--primary)' }}>
-                <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 800 }}>THỰC TRẢ SHOP (BANK)</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', marginTop: 4 }}>
-                  {formatVND(currentSession.totalNetPayout)}
-                </div>
-              </div>
-
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #10b981' }}>
-                <div style={{ fontSize: 11, color: '#059669', fontWeight: 800 }}>LỢI NHUẬN GOM ĐƠN</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', marginTop: 4 }}>
-                  +{formatVND(currentSession.totalProfit)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 4 Action Cards Grid */}
+          {/* 4 Action Cards Grid in Step 4 */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -2849,7 +2967,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>1. Xuất Excel Báo Cáo Kỳ</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Tải file Excel tổng hợp gồm tất cả đơn hàng đã đối soát hoặc chia sheet riêng theo từng Shop.
+                  Tải file Excel tổng hợp gồm tất cả đơn hàng đã đối soát kèm phân tích chi tiết doanh thu & lợi nhuận.
                 </div>
               </div>
 
@@ -2924,14 +3042,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           </div>
 
           {/* Action Bar of Step 4 */}
-          <div style={{
+          <div className="glass-panel" style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 12,
-            paddingTop: 16,
-            borderTop: '1px solid var(--border-color)',
+            padding: '16px 22px',
           }}>
             <button
               type="button"
@@ -2940,7 +3057,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               style={{ fontWeight: 700, fontSize: 13 }}
             >
               <ArrowLeft size={16} />
-              <span>Quay Lại Bước 3 (Bảng Kê Chi Tiết)</span>
+              <span>Quay Lại Bước 3 (Duyệt & Cấu Hình Shop)</span>
             </button>
 
             <button
@@ -2953,6 +3070,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               <span>✓ Hoàn Tất & Làm Mới Phiên Đối Soát</span>
             </button>
           </div>
+
         </div>
       )}
 
