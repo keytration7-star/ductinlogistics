@@ -20,7 +20,13 @@ import {
   Settings2,
   ArrowLeft,
   ArrowRight,
-  Store
+  Store,
+  Sliders,
+  Plus,
+  Trash2,
+  Calculator,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -234,12 +240,16 @@ export type CustomShopSubGroup = {
 };
 
 
-const createOnboardingPricingPlan = (): ShopPricingPlan => ({
+const createOnboardingPricingPlan = (shopName?: string): ShopPricingPlan => ({
   id: `plan_onboarding_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-  name: 'Biểu giá nhập khi xác nhận shop',
-  weightRules: [{ minWeight: 0, maxWeight: 1, price: 20000 }],
+  name: shopName ? `Biểu giá ${shopName}` : 'Biểu giá cước bậc thang',
+  weightRules: [
+    { minWeight: 0, maxWeight: 1, price: 20000 },
+    { minWeight: 1, maxWeight: 3, price: 28000 },
+    { minWeight: 3, maxWeight: 5, price: 35000 },
+  ],
   extraStepWeight: 1,
-  extraStepPrice: 0,
+  extraStepPrice: 5000,
   returnFeePercent: 50,
   insuranceFeePercent: 0,
   fixedSurcharge: 0,
@@ -381,6 +391,11 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Unmatched manual assign map
   const [selectedAssignShops, setSelectedAssignShops] = useState<Record<string, string>>({});
   const [unmatchedSearchTerm, setUnmatchedSearchTerm] = useState('');
+
+  // New shop pricing inputs (key = name|phone) — full plan per new shop
+  const [newShopPricingMap, setNewShopPricingMap] = useState<Record<string, ShopPricingPlan>>({});
+  const [expandedNewShopKey, setExpandedNewShopKey] = useState<string | null>(null);
+  const [newShopTestWeights, setNewShopTestWeights] = useState<Record<string, number>>({});
 
   const filteredUnmatchedOrders = useMemo(() => {
     if (!currentSession) return [];
@@ -603,29 +618,71 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     };
   }, [reconcileMode, appRows, nvcRows, appMapping, nvcMapping, shops]);
 
+  const getNewShopPricingPlan = (key: string, shopName?: string): ShopPricingPlan => {
+    if (newShopPricingMap[key]) return newShopPricingMap[key];
+    return createOnboardingPricingPlan(shopName);
+  };
+
+  const updateNewShopPricingPlan = (key: string, updater: (plan: ShopPricingPlan) => ShopPricingPlan, shopName?: string) => {
+    setNewShopPricingMap(prev => {
+      const current = prev[key] || getNewShopPricingPlan(key, shopName);
+      return {
+        ...prev,
+        [key]: updater({
+          ...current,
+          weightRules: current.weightRules.map(r => ({ ...r })),
+        }),
+      };
+    });
+  };
+
+  const addNewShopWeightRule = (key: string, shopName?: string) => {
+    updateNewShopPricingPlan(key, plan => {
+      const lastRule = plan.weightRules[plan.weightRules.length - 1];
+      const newMin = lastRule ? Math.round((lastRule.maxWeight + 0.1) * 10) / 10 : 0;
+      const newMax = lastRule ? Math.ceil(newMin + 2) : 1;
+      const newPrice = lastRule ? lastRule.price + 5000 : 20000;
+      return {
+        ...plan,
+        weightRules: [...plan.weightRules, { minWeight: newMin, maxWeight: newMax, price: newPrice }],
+      };
+    }, shopName);
+  };
+
+  const removeNewShopWeightRule = (key: string, index: number, shopName?: string) => {
+    updateNewShopPricingPlan(key, plan => ({
+      ...plan,
+      weightRules: plan.weightRules.filter((_, i) => i !== index),
+    }), shopName);
+  };
+
   const handleAddNewScannedShops = (newShopsList: { name: string; phone: string; pricingPlan: ShopPricingPlan }[]) => {
     if (!isAdmin) {
       showToast('Chỉ Admin mới có quyền thêm Shop mới.', 'error');
       return;
     }
-    const createdShops: Shop[] = newShopsList.map((item, idx) => ({
-      id: `shop_${Date.now()}_${idx}`,
-      code: `SHOP-${String(shops.length + idx + 1).padStart(3, '0')}`,
-      name: item.name,
-      phone: item.phone,
-      email: '',
-      address: '',
-      bankAccount: { bankName: '', accountNumber: '', accountHolder: '' },
-      active: true,
-      createdAt: new Date().toISOString(),
-      pricingPlan: item.pricingPlan || createOnboardingPricingPlan(),
-      nameAliases: [],
-      phoneAliases: [],
-    }));
+    const createdShops: Shop[] = newShopsList.map((item, idx) => {
+      const key = `${item.name.toLowerCase()}|${item.phone.replace(/\D/g, '')}`;
+      const pricingPlan = newShopPricingMap[key] || getNewShopPricingPlan(key, item.name);
+      return {
+        id: `shop_${Date.now()}_${idx}`,
+        code: `SHOP-${String(shops.length + idx + 1).padStart(3, '0')}`,
+        name: item.name,
+        phone: item.phone,
+        email: '',
+        address: '',
+        bankAccount: { bankName: '', accountNumber: '', accountHolder: '' },
+        active: true,
+        createdAt: new Date().toISOString(),
+        pricingPlan,
+        nameAliases: [],
+        phoneAliases: [],
+      };
+    });
 
     const updatedShops = [...shops, ...createdShops];
     onSaveShops(updatedShops);
-    showToast(`Đã thêm thành công ${createdShops.length} Shop mới vào Danh Mục Shop!`, 'success');
+    showToast(`Đã thêm thành công ${createdShops.length} Shop mới kèm biểu giá cước vào Danh Mục Shop!`, 'success');
   };
 
   // Zip Download Progress State
@@ -1967,15 +2024,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* TRƯỜNG HỢP A: PHÁT HIỆN SHOP MỚI CẦN THÊM */}
           {scannedShopAnalysis.hasNewShops && (
-            <div style={{ background: 'rgba(245, 158, 11, 0.06)', border: '1.5px solid #f59e0b', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1.5px solid #f59e0b', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid rgba(245, 158, 11, 0.25)', paddingBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: '#b45309', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <AlertTriangle size={18} />
+                  <div style={{ fontSize: 15.5, fontWeight: 900, color: '#b45309', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={19} color="#d97706" />
                     <span>PHÁT HIỆN {scannedShopAnalysis.newShops.length} SHOP MỚI CHƯA CÓ TRONG HỆ THỐNG</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2 }}>
-                    Vui lòng bấm nút <strong>"Thêm Shop Mới Vào Danh Mục"</strong> để hệ thống tạo hồ sơ và tính cước.
+                  <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 3 }}>
+                    💡 Quý khách có thể thiết lập <strong>Biểu giá cước bậc thang riêng</strong> cho từng Shop mới ngay bên dưới trước khi bấm lưu.
                   </div>
                 </div>
 
@@ -1983,39 +2040,317 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   type="button"
                   onClick={() => handleAddNewScannedShops(scannedShopAnalysis.newShops)}
                   className="btn btn-warning"
-                  style={{ fontWeight: 800, fontSize: 13, padding: '8px 18px', background: '#f59e0b', color: '#fff', border: 'none' }}
+                  style={{ fontWeight: 800, fontSize: 13, padding: '9px 20px', background: '#f59e0b', color: '#fff', border: 'none', boxShadow: '0 2px 8px rgba(245, 158, 11, 0.35)' }}
                 >
-                  💾 Thêm {scannedShopAnalysis.newShops.length} Shop Mới Vào Danh Mục Shop
+                  💾 Thêm Tất Cả {scannedShopAnalysis.newShops.length} Shop Mới Vào Danh Mục Shop
                 </button>
               </div>
 
-              <div className="table-responsive" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                <table className="data-table" style={{ fontSize: 12.5 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 50 }}>STT</th>
-                      <th>TÊN SHOP MỚI TRONG FILE</th>
-                      <th>SỐ ĐIỆN THOẠI</th>
-                      <th style={{ textAlign: 'right' }}>SỐ ĐƠN HÀNG</th>
-                      <th style={{ textAlign: 'right' }}>TỔNG COD THU HỘ</th>
-                      <th>TRẠNG THÁI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scannedShopAnalysis.newShops.map((newShop, idx) => (
-                      <tr key={idx}>
-                        <td>{idx + 1}</td>
-                        <td><strong>{newShop.name}</strong></td>
-                        <td className="mono">{newShop.phone || 'Chưa có SĐT'}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">{newShop.orderCount.toLocaleString('vi-VN')} đơn</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }} className="mono">{formatVND(newShop.totalCod)}</td>
-                        <td>
-                          <span className="badge badge-warning" style={{ fontSize: 11 }}>Chưa có hồ sơ</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Danh sách từng Shop mới kèm Editor Biểu Giá Cước Đầy Đủ */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {scannedShopAnalysis.newShops.map((newShop, idx) => {
+                  const key = `${newShop.name.toLowerCase()}|${newShop.phone.replace(/\D/g, '')}`;
+                  const plan = getNewShopPricingPlan(key, newShop.name);
+                  const isExpanded = expandedNewShopKey === null ? true : expandedNewShopKey === key;
+                  const testWeight = newShopTestWeights[key] ?? 1.5;
+                  const calculatedTestFee = calculateWeightFee(testWeight, plan);
+
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid rgba(245, 158, 11, 0.35)',
+                        borderRadius: 12,
+                        padding: '16px 18px',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                      }}
+                    >
+                      {/* Header Shop Mới */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <span style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: '50%',
+                            background: '#fef3c7',
+                            color: '#b45309',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <strong style={{ fontSize: 14.5, color: 'var(--text-main)' }}>{newShop.name}</strong>
+                            {newShop.phone && (
+                              <span style={{ fontSize: 12, color: '#059669', marginLeft: 8, fontWeight: 600 }}>
+                                📞 {newShop.phone}
+                              </span>
+                            )}
+                          </div>
+                          <span className="badge badge-warning" style={{ fontSize: 11, fontWeight: 700 }}>
+                            Chưa có hồ sơ
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                            • <strong>{newShop.orderCount.toLocaleString('vi-VN')}</strong> đơn (COD: {formatVND(newShop.totalCod)})
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedNewShopKey(isExpanded ? '__none__' : key)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: 11.5, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }}
+                          >
+                            <Sliders size={13} color="var(--primary)" />
+                            <span>{isExpanded ? 'Thu gọn biểu giá' : '⚙️ Tùy chỉnh biểu giá'}</span>
+                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* KHỐI BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG (Chuẩn theo ảnh mẫu) */}
+                      {isExpanded && (
+                        <div style={{
+                          background: 'rgba(79, 70, 229, 0.035)',
+                          border: '1px solid rgba(79, 70, 229, 0.18)',
+                          borderRadius: 10,
+                          padding: 14,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                        }}>
+                          {/* Header Biểu Giá */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--primary)', fontSize: 13, fontWeight: 800 }}>
+                              <Sliders size={15} />
+                              <span>3. BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => addNewShopWeightRule(key, newShop.name)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Plus size={12} />
+                              <span>+ Thêm Nấc Cân Nặng</span>
+                            </button>
+                          </div>
+
+                          {/* Bảng Nấc Cân Nặng */}
+                          <div style={{
+                            background: '#ffffff',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 8,
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 9,
+                          }}>
+                            {plan.weightRules.map((rule, rIdx) => (
+                              <div
+                                key={rIdx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  flexWrap: 'wrap',
+                                  paddingBottom: 6,
+                                  borderBottom: rIdx < plan.weightRules.length - 1 ? '1px dashed rgba(0, 0, 0, 0.06)' : 'none',
+                                }}
+                              >
+                                <span style={{ width: 85, fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>
+                                  {rIdx === 0 ? 'Từ 0 đến' : `Từ ${rule.minWeight} đến`}
+                                </span>
+                                
+                                <input
+                                  type="number"
+                                  min="0.1"
+                                  step="0.1"
+                                  value={rule.maxWeight}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value || 0);
+                                    updateNewShopPricingPlan(key, p => ({
+                                      ...p,
+                                      weightRules: p.weightRules.map((item, idx2) => idx2 === rIdx ? { ...item, maxWeight: val } : item),
+                                    }), newShop.name);
+                                  }}
+                                  className="input-field"
+                                  style={{ width: 75, padding: '4px 8px', fontSize: 12, textAlign: 'center' }}
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>kg:</span>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="500"
+                                  value={rule.price === 0 ? '' : rule.price}
+                                  placeholder={rIdx === 0 ? 'Bắt buộc nhập' : '0'}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value || 0);
+                                    updateNewShopPricingPlan(key, p => ({
+                                      ...p,
+                                      weightRules: p.weightRules.map((item, idx2) => idx2 === rIdx ? { ...item, price: val } : item),
+                                    }), newShop.name);
+                                  }}
+                                  className="input-field"
+                                  style={{ flex: 1, minWidth: 120, padding: '4px 8px', fontSize: 12 }}
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>VNĐ</span>
+
+                                {plan.weightRules.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeNewShopWeightRule(key, rIdx, newShop.name)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{ padding: '4px 7px' }}
+                                    title="Xóa nấc cân này"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            {/* Cấu hình Vượt cân & Phí hoàn */}
+                            <div style={{
+                              marginTop: 6,
+                              paddingTop: 10,
+                              borderTop: '1px solid var(--border-color)',
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                              gap: 10,
+                              alignItems: 'flex-end',
+                            }}>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                                  Vượt cân: Mỗi thêm
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <input
+                                    type="number"
+                                    min="0.1"
+                                    step="0.1"
+                                    value={plan.extraStepWeight || 1}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value || 1);
+                                      updateNewShopPricingPlan(key, p => ({ ...p, extraStepWeight: val }), newShop.name);
+                                    }}
+                                    className="input-field"
+                                    style={{ width: '100%', padding: '4px 8px', fontSize: 12 }}
+                                  />
+                                  <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>kg</span>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                                  Cước cộng thêm
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="500"
+                                    value={plan.extraStepPrice ?? 5000}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value || 0);
+                                      updateNewShopPricingPlan(key, p => ({ ...p, extraStepPrice: val }), newShop.name);
+                                    }}
+                                    className="input-field"
+                                    style={{ width: '100%', padding: '4px 8px', fontSize: 12 }}
+                                  />
+                                  <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>đ</span>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                                  Phí chuyển hoàn (%)
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={plan.returnFeePercent ?? 50}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value || 0);
+                                      updateNewShopPricingPlan(key, p => ({ ...p, returnFeePercent: val }), newShop.name);
+                                    }}
+                                    className="input-field"
+                                    style={{ width: 60, padding: '4px 6px', fontSize: 12, textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>%</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateNewShopPricingPlan(key, p => ({ ...p, returnFeePercent: 0 }), newShop.name)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700 }}
+                                  >
+                                    0%
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateNewShopPricingPlan(key, p => ({ ...p, returnFeePercent: 50 }), newShop.name)}
+                                    className="btn btn-primary btn-sm"
+                                    style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700 }}
+                                  >
+                                    50%
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Khung Thử Tính Cước Trực Tiếp (Dashed Box) */}
+                          <div style={{
+                            background: 'rgba(79, 70, 229, 0.05)',
+                            border: '1.5px dashed var(--primary)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <Calculator size={15} color="var(--primary)" />
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>
+                                Thử tính cước với cân nặng:
+                              </span>
+                              <input
+                                type="number"
+                                min="0.1"
+                                step="0.1"
+                                value={testWeight}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value || 0.1);
+                                  setNewShopTestWeights(prev => ({ ...prev, [key]: val }));
+                                }}
+                                className="input-field"
+                                style={{ width: 65, padding: '3px 6px', fontSize: 12, textAlign: 'center' }}
+                              />
+                              <span style={{ fontSize: 12 }}>kg</span>
+                            </div>
+
+                            <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                              Cước tính ra: <strong className="mono" style={{ fontSize: 14.5, color: '#059669' }}>{formatVND(calculatedTestFee)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
