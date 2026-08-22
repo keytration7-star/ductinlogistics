@@ -67,14 +67,37 @@ function writeJsonFile(filename, data) {
 }
 
 // ──────────────────────────────────────────
-// 🔐 SERVER-SIDE AUTHORIZATION
-// Browser-side role checks are only a UI convenience. All access to financial
-// data must be verified here, where a visitor cannot forge an ADMIN role.
-// Sessions intentionally live only in memory: a server restart invalidates old
-// tokens and requires a fresh sign-in.
 // ──────────────────────────────────────────
-const activeSessions = new Map();
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+// 🔐 SERVER-SIDE AUTHORIZATION (PERSISTENT SESSIONS ACROSS REBOOTS)
+// ──────────────────────────────────────────
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days persistent session
+
+function loadActiveSessions() {
+  const raw = readJsonFile('_auth_sessions.json', {});
+  const map = new Map();
+  const now = Date.now();
+  if (raw && typeof raw === 'object') {
+    for (const [token, session] of Object.entries(raw)) {
+      if (session && session.expiresAt > now && session.user) {
+        map.set(token, session);
+      }
+    }
+  }
+  return map;
+}
+
+const activeSessions = loadActiveSessions();
+
+function persistActiveSessions() {
+  const obj = {};
+  const now = Date.now();
+  for (const [token, session] of activeSessions.entries()) {
+    if (session && session.expiresAt > now) {
+      obj[token] = session;
+    }
+  }
+  writeJsonFile('_auth_sessions.json', obj);
+}
 
 function publicUser(user) {
   if (!user) return null;
@@ -92,7 +115,10 @@ function requireAuth(req, res, next) {
   const token = readBearerToken(req);
   const session = token ? activeSessions.get(token) : null;
   if (!session || session.expiresAt <= Date.now()) {
-    if (token) activeSessions.delete(token);
+    if (token) {
+      activeSessions.delete(token);
+      persistActiveSessions();
+    }
     return res.status(401).json({ success: false, error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
   }
   req.authUser = session.user;
@@ -163,11 +189,13 @@ app.post('/api/auth/login', (req, res) => {
   const token = crypto.randomBytes(32).toString('base64url');
   const safeUser = publicUser(user);
   activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + SESSION_TTL_MS });
+  persistActiveSessions();
   res.json({ success: true, token, user: safeUser, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() });
 });
 
 app.post('/api/auth/logout', requireAuth, (req, res) => {
   activeSessions.delete(readBearerToken(req));
+  persistActiveSessions();
   res.json({ success: true });
 });
 
