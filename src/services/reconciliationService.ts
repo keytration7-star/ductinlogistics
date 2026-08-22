@@ -468,31 +468,57 @@ export function performReconciliation(
       shopAddress = String(appMapping.shopAddressColumn ? appRow[appMapping.shopAddressColumn] || '' : '').trim();
       shopCode = String(appMapping.shopCodeColumn ? appRow[appMapping.shopCodeColumn] || '' : '').trim();
     }
-
     const receiverName = extractRowField(appRow, nvcRow, appMapping.receiverNameColumn || nvcMapping.receiverNameColumn, ['ten_nguoi_nhan', 'nguoi_nhan', 'ten_khach', 'khach_nhan', 'receiver']) || 'Khách Nhận';
     const receiverPhone = extractRowField(appRow, nvcRow, appMapping.receiverPhoneColumn || nvcMapping.receiverPhoneColumn, ['sdt_nguoi_nhan', 'sdt_nhan', 'so_dien_thoai', 'phone', 'mobile', 'sdt']);
     const receiverAddress = extractRowField(appRow, nvcRow, appMapping.receiverAddressColumn || nvcMapping.receiverAddressColumn, ['dia_chi', 'address', 'dc_nhan', 'giao_hang', 'dia_chi_nhan', 'dc']);
     const productName = extractRowField(appRow, nvcRow, appMapping.productNameColumn || nvcMapping.productNameColumn, ['ten_san_pham', 'hang_hoa', 'ten_hang', 'san_pham', 'noi_dung', 'mo_ta', 'product', 'items']);
     const declaredValue = parseNumber(extractRowField(appRow, nvcRow, appMapping.declaredValueColumn || nvcMapping.declaredValueColumn, ['khai_gia', 'gia_tri_khai_gia', 'bao_hiem', 'declared_value']));
 
-    const hasBlockingDataIssue = nvcSettlementVerified === false
-      || (mode === '2files' && !appRow)
+    const hasBlockingDataIssue = (mode === '2files' && !appRow)
       || (isJntCarrier && (!shopName && !shopPhone && !shopCode))
       || status === 'unknown';
-    const shopMatch = nvcSettlementVerified === false
-      ? { matched: false as const, reason: 'Số tiền NVC trả sau cấn trừ không khớp COD − cước − phụ phí + điều chỉnh; cần kiểm tra mapping cột' }
-      : (mode === '2files' && !appRow)
+      
+    const shopMatch = (mode === '2files' && !appRow)
       ? { matched: false as const, reason: 'Mã vận đơn có trong File NVC nhưng không tìm thấy trong File App xuất ra' }
       : (isJntCarrier && (!shopName && !shopPhone && !shopCode))
       ? { matched: false as const, reason: 'Thiếu Tên người gửi, SĐT người gửi và Mã kho/Shop trong File App' }
       : status === 'unknown'
       ? { matched: false as const, reason: `Không nhận diện được trạng thái “${statusText}”; cần xác nhận cấu hình hoặc file NVC` }
       : findRegisteredShop(registeredShops, { phone: shopPhone, code: shopCode, name: shopName });
+      
     matchedShop = shopMatch.matched ? shopMatch.shop : undefined;
 
     let pricingPlan: ShopPricingPlan;
     if (matchedShop) {
       pricingPlan = matchedShop.pricingPlan;
+    } else if (shopName || shopPhone) {
+      // Auto-fallback dynamic shop identity for new/unregistered shops so they don't get blocked
+      pricingPlan = {
+        id: `auto_plan_${(shopPhone || shopName).toLowerCase().replace(/\s+/g, '_')}`,
+        name: `Biểu giá Tiêu chuẩn (${shopName || shopPhone})`,
+        weightRules: [
+          { minWeight: 0, maxWeight: 1, price: 22000 },
+          { minWeight: 1, maxWeight: 3, price: 28000 },
+          { minWeight: 3, maxWeight: 5, price: 35000 },
+        ],
+        extraStepWeight: 1,
+        extraStepPrice: 5000,
+        returnFeePercent: 50,
+        insuranceFeePercent: 0,
+        fixedSurcharge: 0,
+      };
+      matchedShop = {
+        id: `shop_auto_${(shopPhone || shopName).toLowerCase().replace(/\s+/g, '_')}`,
+        code: (shopCode || shopName.slice(0, 6).toUpperCase() || 'SHOP').replace(/\s+/g, ''),
+        name: shopName || `Shop ${shopPhone}`,
+        phone: shopPhone,
+        email: '',
+        address: shopAddress,
+        bankAccount: { bankName: '', accountNumber: '', accountHolder: shopName || '' },
+        active: true,
+        pricingPlan,
+        createdAt: new Date().toISOString(),
+      };
     } else {
       pricingPlan = {
         id: 'plan_fallback',

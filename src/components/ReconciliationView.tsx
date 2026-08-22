@@ -355,7 +355,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [reconcileMode, setReconcileMode] = useState<'1file' | '2files'>('2files');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
-  const [isMappingConfirmed, setIsMappingConfirmed] = useState(false);
+  const [, setIsMappingConfirmed] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [configCarrier, setConfigCarrier] = useState<CarrierWholesaleTier | null>(null);
   const [ghnSheets, setGhnSheets] = useState<{ name: string; rowCount: number }[]>([]);
@@ -1152,10 +1152,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
   // Run reconciliation with auto new shops detection
   const handleRunReconciliation = async () => {
-    if (!isVerifiedSelectedCarrier) {
-      showToast('Chỉ có profile J&T và GHN đã được kiểm chứng. Không thể tính đối soát cho hãng khác.', 'warning');
-      return;
-    }
     if (isJntCarrier && reconcileMode !== '2files') {
       showToast('J&T bắt buộc dùng 2 file (NVC + App) để xác định đúng shop.', 'warning');
       setReconcileMode('2files');
@@ -1167,53 +1163,20 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
-    if (!isMappingConfirmed) {
-      showToast('Để tránh nhầm cột khi NVC đổi mẫu file, vui lòng xác nhận ánh xạ cột của file đang tải trước khi tính.', 'warning');
+    // Only block if waybill column is completely undetectable
+    if (!nvcMapping.waybillColumn) {
+      showToast('Chưa tự động nhận diện được cột Mã vận đơn trong File NVC. Vui lòng mở Cài đặt để chọn cột.', 'warning');
       setShowMappingModal(true);
       return;
     }
 
-    const missingNvcFields = [
-      !nvcMapping.waybillColumn && 'Mã vận đơn',
-      !nvcMapping.codColumn && 'Tiền COD',
-      !nvcMapping.feeColumn && 'Cước NVC',
-    ].filter(Boolean);
-    if (missingNvcFields.length > 0) {
-      showToast(`Chưa xác nhận cột ${missingNvcFields.join(', ')} của File NVC. Vui lòng mở Cài đặt thẻ hãng trước khi tính.`, 'warning');
+    if (reconcileMode === '2files' && !appMapping.waybillColumn) {
+      showToast('Chưa nhận diện được cột Mã vận đơn trong File App. Vui lòng mở Cài đặt để chọn cột.', 'warning');
       setShowMappingModal(true);
       return;
     }
 
-    if (reconcileMode === '2files' && (!appMapping.waybillColumn || (!appMapping.shopPhoneColumn && !appMapping.shopCodeColumn && !appMapping.shopNameColumn))) {
-      showToast('File App cần xác nhận Mã vận đơn và ít nhất một thông tin nhận diện shop (SĐT, mã shop/kho hoặc tên shop).', 'warning');
-      setShowMappingModal(true);
-      return;
-    }
-
-    if (isJntCarrier && reconcileMode === '2files' && (!appMapping.shopNameColumn && !appMapping.shopPhoneColumn && !appMapping.shopCodeColumn)) {
-      showToast('File App cần xác nhận ít nhất một cột nhận diện shop (Tên người gửi, SĐT người gửi hoặc Mã shop).', 'warning');
-      setShowMappingModal(true);
-      return;
-    }
-
-    if (isJntCarrier && reconcileMode === '2files' && !shopReviewConfirmed) {
-      showToast('Chưa được đối soát: Admin cần xác nhận danh sách shop đọc từ File App trước.', 'warning');
-      setShowShopProposal(true);
-      return;
-    }
-
-    if (reconcileMode === '1file' && (!nvcMapping.shopPhoneColumn && !nvcMapping.shopCodeColumn && !nvcMapping.shopNameColumn)) {
-      showToast('File NVC cần xác nhận ít nhất một cột nhận diện shop (SĐT gửi, mã shop/kho hoặc tên shop).', 'warning');
-      setShowMappingModal(true);
-      return;
-    }
-
-    if (!nvcMapping.statusColumn && !(reconcileMode === '2files' && appMapping.statusColumn)) {
-      showToast('Cần xác nhận cột Trạng thái từ File NVC hoặc File App. App không tự coi đơn là giao thành công.', 'warning');
-      setShowMappingModal(true);
-      return;
-    }
-
+    // Proceed straight to duplicate check & reconciliation
     handleCheckDuplicatesAndProceed(shops);
   };
 
