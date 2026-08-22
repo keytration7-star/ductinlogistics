@@ -1269,6 +1269,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                 const isMergeChecked = selectedMergeShopIds.includes(shop.id);
                 const isChecked = isMergeMode ? isMergeChecked : isBatchChecked;
                 const groupInfo = shopGroupColorMap.get(shop.id);
+                const isMerged = Boolean(shop.nameAliases && shop.nameAliases.length > 0);
 
                 return (
                   <div
@@ -1288,35 +1289,45 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       padding: '10px 12px',
                       borderRadius: 12,
                       border: isChecked
-                        ? '2px solid var(--primary)'
-                        : groupInfo
-                          ? `1.5px solid ${groupInfo.color.border}`
-                          : (isSelected
-                              ? '1.5px solid var(--primary)'
-                              : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                        ? (isMerged ? '2px solid #b45309' : '2px solid var(--primary)')
+                        : isMerged
+                          ? (isSelected ? '2px solid #d97706' : '1.5px solid rgba(245, 158, 11, 0.45)')
+                          : groupInfo
+                            ? `1.5px solid ${groupInfo.color.border}`
+                            : (isSelected
+                                ? '1.5px solid var(--primary)'
+                                : '1.5px solid rgba(226, 232, 240, 0.9)'),
                       borderLeft: isChecked
-                        ? '6px solid var(--primary)'
-                        : groupInfo
-                          ? `6px solid ${groupInfo.color.border}`
-                          : (isSelected
-                              ? '5px solid var(--primary)'
-                              : '1.5px solid rgba(226, 232, 240, 0.9)'),
+                        ? (isMerged ? '6px solid #b45309' : '6px solid var(--primary)')
+                        : isMerged
+                          ? (isSelected ? '6px solid #d97706' : '5px solid #f59e0b')
+                          : groupInfo
+                            ? `6px solid ${groupInfo.color.border}`
+                            : (isSelected
+                                ? '5px solid var(--primary)'
+                                : '1.5px solid rgba(226, 232, 240, 0.9)'),
                       background: isChecked
-                        ? 'rgba(79, 70, 229, 0.08)'
-                        : groupInfo
-                          ? groupInfo.color.bg
-                          : (isSelected
-                              ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)'
-                              : '#ffffff'),
-                      boxShadow: (isSelected || isChecked) ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+                        ? (isMerged ? 'linear-gradient(135deg, rgba(254, 243, 199, 0.85) 0%, rgba(253, 230, 138, 0.5) 100%)' : 'rgba(79, 70, 229, 0.08)')
+                        : isMerged
+                          ? (isSelected
+                              ? 'linear-gradient(135deg, rgba(254, 243, 199, 0.75) 0%, rgba(255, 251, 235, 0.95) 100%)'
+                              : 'linear-gradient(135deg, rgba(255, 251, 235, 0.95) 0%, rgba(254, 243, 199, 0.35) 100%)')
+                          : groupInfo
+                            ? groupInfo.color.bg
+                            : (isSelected
+                                ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%)'
+                                : '#ffffff'),
+                      boxShadow: isMerged
+                        ? ((isSelected || isChecked) ? '0 8px 20px -4px rgba(217, 119, 6, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9)' : '0 4px 12px -2px rgba(217, 119, 6, 0.12)')
+                        : ((isSelected || isChecked) ? '0 8px 18px -4px rgba(79, 70, 229, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)' : '0 4px 10px -2px rgba(15, 23, 42, 0.03)'),
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                       display: 'flex',
-                      alignItems: 'center',
+                      alignItems: 'flex-start',
                       gap: 8,
                     }}
                   >
-                    {/* Checkbox per shop (Hỗ trợ chọn 1 hoặc nhiều shop để thao tác hàng loạt) */}
+                    {/* Checkbox per shop */}
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1336,59 +1347,113 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                       }}
                       style={{
                         padding: '4px 2px',
-                        color: isChecked ? 'var(--primary)' : groupInfo ? groupInfo.color.border : 'var(--text-dim)',
+                        color: isChecked ? (isMerged ? '#b45309' : 'var(--primary)') : isMerged ? '#d97706' : (groupInfo ? groupInfo.color.border : 'var(--text-dim)'),
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         flexShrink: 0,
+                        marginTop: 2,
                       }}
                       title={isChecked ? 'Bỏ chọn shop này' : 'Tick chọn shop này để thao tác'}
                     >
-                      {isChecked ? <CheckSquare size={17} color="var(--primary)" /> : <Square size={17} />}
+                      {isChecked ? <CheckSquare size={17} color={isMerged ? '#b45309' : 'var(--primary)'} /> : <Square size={17} />}
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                        <strong style={{ fontSize: 13, color: isChecked || isSelected ? 'var(--primary)' : 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <strong style={{
+                          fontSize: 13,
+                          color: isChecked || isSelected
+                            ? (isMerged ? '#92400e' : 'var(--primary)')
+                            : (isMerged ? '#78350f' : 'var(--text-main)'),
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          fontWeight: isMerged ? 800 : 700,
+                        }}>
                           {shop.name}
                         </strong>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                          {shop.nameAliases && shop.nameAliases.length > 0 && (
+                          {isMerged && (
                             <span
                               style={{
-                                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.10) 100%)',
-                                color: 'var(--primary)',
-                                border: '1px solid var(--primary)',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: '#ffffff',
+                                border: '1px solid #b45309',
                                 fontSize: 9.5,
-                                fontWeight: 800,
-                                padding: '1px 5px',
-                                borderRadius: 4,
+                                fontWeight: 900,
+                                padding: '2px 6px',
+                                borderRadius: 5,
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 3,
+                                boxShadow: '0 2px 5px rgba(217, 119, 6, 0.3)',
+                                letterSpacing: '0.02em',
                               }}
-                              title={`Shop đã gộp ${shop.nameAliases.length} tên phụ: ${shop.nameAliases.join(', ')}`}
+                              title={`Shop đã gộp ${shop.nameAliases!.length} tên phụ: ${shop.nameAliases!.join(', ')}`}
                             >
                               <GitMerge size={10} />
-                              <span>ĐÃ GỘP ({shop.nameAliases.length})</span>
+                              <span>ĐÃ GỘP ({shop.nameAliases!.length})</span>
                             </span>
                           )}
-                          <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)' }}>
+                          <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: isMerged ? '#b45309' : 'var(--text-dim)' }}>
                             {shop.code}
                           </span>
                         </div>
                       </div>
 
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Phone size={10} />
+                      <div style={{ fontSize: 11, color: isMerged ? '#92400e' : 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Phone size={10} color={isMerged ? '#d97706' : undefined} />
                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shop.phone || 'Chưa có SĐT'}
                         </span>
                       </div>
 
+                      {/* 🌟 Hiển thị danh sách các Shop đã gộp bên dưới */}
+                      {isMerged && shop.nameAliases && shop.nameAliases.length > 0 && (
+                        <div style={{
+                          marginTop: 6,
+                          padding: '5px 8px',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          border: '1px dashed rgba(217, 119, 6, 0.4)',
+                          borderRadius: 6,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 3,
+                        }}>
+                          <div style={{ fontSize: 9.5, fontWeight: 800, color: '#92400e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <GitMerge size={10} color="#d97706" />
+                            <span>Gồm {shop.nameAliases.length} shop đã gộp:</span>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {shop.nameAliases.map((alias, aIdx) => (
+                              <span
+                                key={aIdx}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1px solid rgba(217, 119, 6, 0.45)',
+                                  color: '#78350f',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  boxShadow: '0 1px 2px rgba(217, 119, 6, 0.08)',
+                                  whiteSpace: 'nowrap',
+                                  maxWidth: '100%',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                • {alias}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Group color tag badge */}
                       {groupInfo && (
-                        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{
                             background: groupInfo.color.badge,
                             color: groupInfo.color.text,
@@ -1407,7 +1472,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                         </div>
                       )}
 
-                      {!groupInfo && (
+                      {!groupInfo && !isMerged && (
                         <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           📍 {shop.address || 'Toàn quốc'}
                         </div>
@@ -1455,16 +1520,18 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({ shops, o
                     {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
                       <span
                         style={{
-                          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.10) 100%)',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          color: '#ffffff',
+                          border: '1px solid #b45309',
                           fontSize: 11,
-                          fontWeight: 800,
-                          padding: '2px 8px',
+                          fontWeight: 900,
+                          padding: '3px 10px',
                           borderRadius: 6,
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 4,
+                          boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
+                          letterSpacing: '0.02em',
                         }}
                         title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
                       >
