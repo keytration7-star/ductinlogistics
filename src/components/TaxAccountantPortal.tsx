@@ -23,9 +23,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   TrendingUp,
-  Globe,
-  ChevronDown,
-  ChevronUp
+  Globe
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
 import { StorageService } from '../services/storage';
@@ -133,20 +131,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   const [selectedSession, setSelectedSession] = useState<ReconciliationSession | null>(null);
   const [selectedShopStmt, setSelectedShopStmt] = useState<ShopSettlementStatement | null>(null);
 
-  // Set of expanded session IDs (accordion)
-  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<string>>(new Set());
-
-  const toggleSessionExpand = (sessionId: string) => {
-    setExpandedSessionIds(prev => {
-      const next = new Set(prev);
-      if (next.has(sessionId)) {
-        next.delete(sessionId);
-      } else {
-        next.add(sessionId);
-      }
-      return next;
-    });
-  };
+  // Selected session ID for Master-Detail Split Screen in Tab 1
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   // Date range filter for monthly/quarterly tax report
   const now = new Date();
@@ -211,11 +197,20 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       const name = sess.sessionName || '';
       const matchSearch = !searchQuery || 
         name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (sess.carrierId && sess.carrierId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (sess.carrierName && sess.carrierName.toLowerCase().includes(searchQuery.toLowerCase()));
+        (sess.carrierId ? sess.carrierId.toLowerCase().includes(searchQuery.toLowerCase()) : false) ||
+        (sess.carrierName ? sess.carrierName.toLowerCase().includes(searchQuery.toLowerCase()) : false);
       return matchCarrier && matchSearch;
     });
   }, [sessions, activeCarrierId, searchQuery]);
+
+  // Active selected session for Tab 1 Detail panel
+  const activeDetailSession = useMemo(() => {
+    if (selectedSessionId) {
+      const found = filteredSessions.find(s => s.id === selectedSessionId);
+      if (found) return found;
+    }
+    return filteredSessions[0] || null;
+  }, [filteredSessions, selectedSessionId]);
 
   // Filtered shops for the selected carrier
   const filteredShops = useMemo(() => {
@@ -1759,400 +1754,446 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       <main style={{ flex: 1, padding: '24px', maxWidth: 1440, width: '100%', margin: '0 auto' }}>
 
         {/* ========================================================================= */}
-        {/* TAB 1: BÁO CÁO ĐỐI SOÁT THEO KỲ                                           */}
+        {/* TAB 1: BÁO CÁO ĐỐI SOÁT THEO KỲ (MASTER-DETAIL SPLIT SCREEN)              */}
         {/* ========================================================================= */}
         {activeTab === 'sessions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Filter & Search Bar */}
-            <div style={{
-              background: 'var(--surface, #ffffff)',
-              padding: '16px 20px',
-              borderRadius: 12,
-              border: '1px solid var(--border, #e2e8f0)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 16
-            }}>
-              <div style={{ position: 'relative', flex: 1, minWidth: 280 }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  placeholder={`Tìm theo tên kỳ đối soát của ${currentCarrierTitle}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input-field"
-                  style={{ paddingLeft: 36, width: '100%' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  Hiển thị: <strong>{filteredSessions.length}</strong> kỳ đối soát
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedSessionIds(new Set(filteredSessions.map(s => s.id)))}
-                    className="btn btn-secondary"
-                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                    title="Mở rộng danh sách shop của tất cả các kỳ"
-                  >
-                    <ChevronDown size={13} />
-                    Mở Rộng Tất Cả
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setExpandedSessionIds(new Set())}
-                    className="btn btn-secondary"
-                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
-                    title="Thu gọn tất cả các kỳ"
-                  >
-                    <ChevronUp size={13} />
-                    Thu Gọn Tất Cả
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Sessions Cards / List */}
+          <div>
             {filteredSessions.length === 0 ? (
               <div style={{
                 background: 'var(--surface, #ffffff)',
                 padding: '60px 20px',
-                borderRadius: 12,
+                borderRadius: 18,
                 textAlign: 'center',
-                border: '1px dashed var(--border, #cbd5e1)'
+                border: '1.5px dashed var(--border, #cbd5e1)',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04)',
               }}>
                 <FileSpreadsheet size={48} style={{ color: '#94a3b8', margin: '0 auto 12px' }} />
-                <div style={{ fontSize: 16, fontWeight: 700 }}>Chưa có kỳ đối soát nào cho {currentCarrierTitle}</div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>Chưa có kỳ đối soát nào cho {currentCarrierTitle}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                   Khi bộ phận đối soát hoàn tất phiên của hãng này, số liệu sẽ tự động hiển thị tại đây để kế toán tải file.
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {filteredSessions.map((sess) => {
-                  const carrierBadgeColor = (sess.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444';
-                  const carrierName = sess.carrierName || ((sess.carrierId || 'jnt') === 'ghn' ? 'GHN' : 'J&T Express');
-                  const sessTitle = sess.sessionName || 'Kỳ đối soát';
-                  const isExpanded = expandedSessionIds.has(sess.id);
-                  const stmtCount = sess.statements?.length || 0;
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '380px 1fr',
+                gap: 22,
+                alignItems: 'start',
+              }}>
+                {/* 👈 CỘT TRÁI: DANH SÁCH CÁC KỲ ĐỐI SOÁT (MASTER LIST) */}
+                <div style={{
+                  background: 'var(--surface, #ffffff)',
+                  borderRadius: 18,
+                  border: '1.5px solid var(--border, #e2e8f0)',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}>
+                  {/* Header & Search Bar bên trái */}
+                  <div style={{
+                    padding: '16px 18px',
+                    borderBottom: '1.5px solid var(--border, #e2e8f0)',
+                    background: 'var(--bg-app, #f8fafc)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <span style={{ fontWeight: 900, fontSize: 13.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        CÁC KỲ ĐỐI SOÁT
+                      </span>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        background: '#ede9fe',
+                        color: '#7c3aed',
+                        padding: '3px 9px',
+                        borderRadius: 20
+                      }}>
+                        {filteredSessions.length} Kỳ
+                      </span>
+                    </div>
 
-                  return (
-                    <div
-                      key={sess.id}
-                      style={{
-                        background: 'var(--surface, #ffffff)',
-                        borderRadius: 14,
-                        border: '1px solid var(--border, #e2e8f0)',
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {/* Session Header Card */}
-                      <div 
-                        onClick={() => toggleSessionExpand(sess.id)}
-                        style={{
-                          padding: '16px 22px',
-                          borderBottom: isExpanded ? '1px solid var(--border, #f1f5f9)' : 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          flexWrap: 'wrap',
-                          gap: 16,
-                          background: 'linear-gradient(to right, rgba(124, 58, 237, 0.03), transparent)',
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 6,
-                            background: isExpanded ? '#ede9fe' : '#f1f5f9',
-                            color: isExpanded ? '#7c3aed' : '#64748b',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s'
-                          }}>
-                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                          </div>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input
+                        type="text"
+                        placeholder="Tìm theo tên kỳ đối soát..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="input-field"
+                        style={{ paddingLeft: 32, fontSize: 12.5, width: '100%', borderRadius: 10 }}
+                      />
+                    </div>
+                  </div>
 
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{
-                                background: carrierBadgeColor,
-                                color: '#fff',
-                                fontSize: 11,
-                                fontWeight: 800,
-                                padding: '2px 8px',
-                                borderRadius: 6
-                              }}>
-                                {carrierName}
-                              </span>
-                              <span style={{ fontSize: 17, fontWeight: 800 }}>{sessTitle}</span>
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                              Ngày tạo: {new Date(sess.createdAt).toLocaleDateString('vi-VN')} lúc {new Date(sess.createdAt).toLocaleTimeString('vi-VN')} • {stmtCount} Shop đối soát
-                            </div>
-                          </div>
-                        </div>
+                  {/* Danh sách các thẻ Kỳ có thể cuộn riêng */}
+                  <div style={{
+                    maxHeight: 'calc(100vh - 270px)',
+                    minHeight: 480,
+                    overflowY: 'auto',
+                    padding: '12px',
+                    background: 'var(--surface, #ffffff)',
+                  }}>
+                    {filteredSessions.map((sess) => {
+                      const isSelected = activeDetailSession?.id === sess.id;
+                      const carrierBadgeColor = (sess.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444';
+                      const carrierName = sess.carrierName || ((sess.carrierId || 'jnt') === 'ghn' ? 'GHN' : 'J&T');
 
-                        {/* 4 Multi-Download Action Buttons + Expand Toggle */}
-                        <div 
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* 1. Tải file tổng đa Sheet */}
-                          <button
-                            onClick={() => exportSessionMultiSheet(sess)}
-                            className="btn btn-primary"
-                            style={{
-                              background: '#7c3aed',
-                              borderColor: '#7c3aed',
-                              padding: '7px 13px',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            title="Tải 1 file Excel chứa Sheet tổng và từng Sheet chi tiết từng Shop"
-                          >
-                            <Download size={14} />
-                            Tải File Đa Sheet (.xlsx)
-                          </button>
-
-                          {/* 2. Tải file ZIP trọn bộ shop */}
-                          <button
-                            onClick={() => exportSessionZipPackage(sess)}
-                            className="btn btn-secondary"
-                            style={{
-                              padding: '7px 11px',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            title="Tải 1 file ZIP chứa từng file Excel riêng biệt của từng Shop"
-                          >
-                            <Archive size={14} />
-                            Tải Gói (.ZIP)
-                          </button>
-
-                          {/* 3. Xuất MISA flat data */}
-                          <button
-                            onClick={() => exportFlatMisaData(sess)}
-                            className="btn btn-secondary"
-                            style={{
-                              padding: '7px 11px',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            title="Xuất bảng dữ liệu phẳng để import vào phần mềm kế toán MISA / FAST"
-                          >
-                            <FileText size={14} />
-                            Xuất MISA
-                          </button>
-
-                          {/* Toggle Expand Button */}
-                          <button
-                            type="button"
-                            onClick={() => toggleSessionExpand(sess.id)}
-                            className="btn btn-secondary"
-                            style={{
-                              padding: '7px 11px',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              color: isExpanded ? '#7c3aed' : 'var(--text-main)',
-                              borderColor: isExpanded ? '#ddd6fe' : undefined,
-                            }}
-                          >
-                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            <span>{isExpanded ? 'Thu Gọn' : `Xem Shop (${stmtCount})`}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Summary Metrics Row */}
-                      <div 
-                        onClick={() => toggleSessionExpand(sess.id)}
-                        style={{
-                          padding: '12px 22px',
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                          gap: 16,
-                          background: 'var(--bg-app, #f8fafc)',
-                          borderBottom: isExpanded ? '1px solid var(--border, #e2e8f0)' : 'none',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Số Đơn Hàng</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{sess.totalOrders.toLocaleString('vi-VN')} đơn</div>
-                        </div>
-
-                        <div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Tiền COD Thu Hộ</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: '#2563eb', marginTop: 2 }}>
-                            {sess.totalCod.toLocaleString('vi-VN')} đ
-                          </div>
-                        </div>
-
-                        <div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Doanh Thu Cước Dịch Vụ</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
-                            {(sess.totalShopRevenue || 0).toLocaleString('vi-VN')} đ
-                          </div>
-                        </div>
-
-                        <div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Thực Trả Khách Hàng (Shop)</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
-                            {sess.totalNetPayout.toLocaleString('vi-VN')} đ
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Collapsible & Scrollable Shop Breakdown Table */}
-                      {isExpanded && (
-                        <div>
-                          <div style={{
-                            padding: '8px 22px',
-                            background: '#f8fafc',
-                            fontSize: 11.5,
-                            color: 'var(--text-muted)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            borderBottom: '1px solid var(--border, #f1f5f9)'
-                          }}>
-                            <span>DANH SÁCH {stmtCount} SHOP ĐỐI SOÁT (Cuộn chuột bên dưới để xem toàn bộ danh sách):</span>
-                            <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động</span>
-                          </div>
-
-                          <div style={{
-                            maxHeight: 380,
-                            overflowY: 'auto',
-                            padding: '0 22px 16px',
-                            background: 'var(--surface, #ffffff)',
-                          }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
-                              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface, #ffffff)', zIndex: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                                <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                                  <th style={{ padding: '10px 6px', background: 'var(--surface, #ffffff)' }}>STT</th>
-                                  <th style={{ padding: '10px 10px', background: 'var(--surface, #ffffff)' }}>Khách Hàng (Shop)</th>
-                                  <th style={{ padding: '10px 10px', background: 'var(--surface, #ffffff)' }}>Số Tài Khoản Nhận</th>
-                                  <th style={{ padding: '10px 10px', textAlign: 'center', background: 'var(--surface, #ffffff)' }}>Số Đơn</th>
-                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Tổng COD</th>
-                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Cước Dịch Vụ</th>
-                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Thực Trả Shop</th>
-                                  <th style={{ padding: '10px 10px', textAlign: 'center', background: 'var(--surface, #ffffff)' }}>Thao Tác</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(sess.statements || []).map((stmt, sIdx) => {
-                                  const bankStr = stmt.bankInfo?.accountNumber
-                                    ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}`
-                                    : 'Chưa cập nhật';
-
-                                  return (
-                                    <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
-                                      <td style={{ padding: '10px 6px', color: 'var(--text-muted)' }}>{sIdx + 1}</td>
-                                      <td style={{ padding: '10px 10px' }}>
-                                        <div style={{ fontWeight: 700 }}>{stmt.shopName}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
-                                      </td>
-                                      <td style={{ padding: '10px 10px' }}>
-                                        <div style={{ fontSize: 12, fontWeight: 600 }}>{bankStr}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
-                                      </td>
-                                      <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 700 }}>
-                                        {stmt.totalOrders}
-                                      </td>
-                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
-                                        {stmt.totalCod.toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
-                                        {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
-                                        {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td style={{ padding: '10px 10px', textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                          {/* Tải Excel Shop */}
-                                          <button
-                                            onClick={() => exportSingleShopExcel(sessTitle, stmt)}
-                                            className="btn btn-secondary"
-                                            style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
-                                            title="Tải riêng file Excel của Shop này"
-                                          >
-                                            <Download size={12} /> Excel
-                                          </button>
-
-                                          {/* Xem chi tiết đơn */}
-                                          <button
-                                            onClick={() => {
-                                              setSelectedSession(sess);
-                                              setSelectedShopStmt(stmt);
-                                            }}
-                                            className="btn btn-secondary"
-                                            style={{ padding: '4px 8px', fontSize: 11 }}
-                                            title="Xem chi tiết các mã vận đơn"
-                                          >
-                                            <Eye size={12} /> Chi Tiết
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Collapsed Footer Hint Bar */}
-                      {!isExpanded && (
-                        <div 
-                          onClick={() => toggleSessionExpand(sess.id)}
+                      return (
+                        <div
+                          key={sess.id}
+                          onClick={() => setSelectedSessionId(sess.id)}
                           style={{
-                            padding: '8px 22px',
-                            background: 'var(--surface, #ffffff)',
-                            borderTop: '1px dashed var(--border, #e2e8f0)',
-                            fontSize: 12,
-                            color: '#7c3aed',
-                            fontWeight: 600,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
+                            padding: '14px 16px',
+                            borderRadius: 14,
+                            border: isSelected ? '2px solid #7c3aed' : '1px solid var(--border, #e2e8f0)',
+                            background: isSelected
+                              ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(79, 70, 229, 0.03) 100%)'
+                              : 'var(--surface, #ffffff)',
+                            marginBottom: 10,
                             cursor: 'pointer',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: isSelected
+                              ? '0 8px 20px -4px rgba(124, 58, 237, 0.25)'
+                              : '0 2px 6px rgba(0,0,0,0.02)',
+                            position: 'relative',
                           }}
                         >
-                          <ChevronDown size={14} />
-                          <span>Bấm để mở rộng xem danh sách {stmtCount} Shop trong kỳ này</span>
+                          {isSelected && (
+                            <div style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 12,
+                              bottom: 12,
+                              width: 4,
+                              borderRadius: '0 4px 4px 0',
+                              background: '#7c3aed',
+                            }} />
+                          )}
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                            <span style={{
+                              background: carrierBadgeColor,
+                              color: '#fff',
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              padding: '2px 7px',
+                              borderRadius: 4,
+                            }}>
+                              {carrierName}
+                            </span>
+
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              {new Date(sess.createdAt).toLocaleDateString('vi-VN')}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            fontSize: 14.5,
+                            fontWeight: 800,
+                            marginTop: 7,
+                            color: isSelected ? '#7c3aed' : 'var(--text-main)',
+                            lineHeight: 1.3,
+                          }}>
+                            {sess.sessionName}
+                          </div>
+
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: 10,
+                            paddingTop: 8,
+                            borderTop: '1px dashed var(--border, #e2e8f0)',
+                            fontSize: 11.5,
+                          }}>
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              <strong>{sess.statements?.length || 0}</strong> Shop • <strong>{sess.totalOrders}</strong> đơn
+                            </span>
+
+                            <span style={{ fontWeight: 800, color: '#2563eb' }}>
+                              {sess.totalCod.toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 👉 CỘT PHẢI: CHI TIẾT KỲ ĐỐI SOÁT ĐƯỢC CHỌN (DETAIL WORKSPACE) */}
+                {activeDetailSession ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {/* 1. Header Banner Kỳ Đối Soát + Cụm Nút Xuất File */}
+                    <div style={{
+                      background: 'var(--surface, #ffffff)',
+                      borderRadius: 18,
+                      border: '1.5px solid var(--border, #e2e8f0)',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                      padding: '20px 24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 16,
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{
+                            background: (activeDetailSession.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 900,
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            letterSpacing: 0.5,
+                          }}>
+                            {activeDetailSession.carrierName || (activeDetailSession.carrierId || 'jnt').toUpperCase()}
+                          </span>
+                          <h2 style={{ fontSize: 19, fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>
+                            {activeDetailSession.sessionName}
+                          </h2>
+                        </div>
+
+                        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <span>📅 Ngày tạo: <strong>{new Date(activeDetailSession.createdAt).toLocaleDateString('vi-VN')} lúc {new Date(activeDetailSession.createdAt).toLocaleTimeString('vi-VN')}</strong></span>
+                          <span>•</span>
+                          <span>🏪 Quy mô: <strong>{activeDetailSession.statements?.length || 0} Shop đối soát</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Cụm 3 nút xuất file cao cấp */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => exportSessionMultiSheet(activeDetailSession)}
+                          className="btn btn-primary"
+                          style={{
+                            background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                            borderColor: '#7c3aed',
+                            padding: '10px 18px',
+                            fontSize: 13,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                            borderRadius: 10,
+                          }}
+                          title="Tải 1 file Excel chứa Sheet tổng và từng Sheet chi tiết từng Shop"
+                        >
+                          <Download size={16} />
+                          <span>Tải File Đa Sheet (.xlsx)</span>
+                        </button>
+
+                        <button
+                          onClick={() => exportSessionZipPackage(activeDetailSession)}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '10px 16px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            borderRadius: 10,
+                          }}
+                          title="Tải gói file ZIP trọn bộ các Shop"
+                        >
+                          <Archive size={16} />
+                          <span>Tải Gói (.ZIP)</span>
+                        </button>
+
+                        <button
+                          onClick={() => exportFlatMisaData(activeDetailSession)}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '10px 16px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            borderRadius: 10,
+                          }}
+                          title="Xuất bảng dữ liệu phẳng import phần mềm kế toán MISA / FAST"
+                        >
+                          <FileText size={16} />
+                          <span>Xuất MISA</span>
+                        </button>
+                      </div>
                     </div>
-                  );
-                })}
+
+                    {/* 2. 4 Khối KPI Metrics dày dặn, đổ bóng & phân chia rõ ràng */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 14,
+                    }}>
+                      <div style={{
+                        background: 'var(--surface, #ffffff)',
+                        borderRadius: 16,
+                        border: '1.5px solid var(--border, #e2e8f0)',
+                        padding: '16px 20px',
+                        boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.04)',
+                      }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG SỐ ĐƠN HÀNG</div>
+                        <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4, color: '#1e293b' }}>
+                          {activeDetailSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>đơn</span>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--surface, #ffffff)',
+                        borderRadius: 16,
+                        border: '1.5px solid rgba(37, 99, 235, 0.25)',
+                        padding: '16px 20px',
+                        boxShadow: '0 8px 20px -4px rgba(37, 99, 235, 0.08)',
+                      }}>
+                        <div style={{ fontSize: 11, color: '#2563eb', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG TIỀN COD THU HỘ</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#2563eb' }}>
+                          {activeDetailSession.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--surface, #ffffff)',
+                        borderRadius: 16,
+                        border: '1.5px solid rgba(124, 58, 237, 0.25)',
+                        padding: '16px 20px',
+                        boxShadow: '0 8px 20px -4px rgba(124, 58, 237, 0.08)',
+                      }}>
+                        <div style={{ fontSize: 11, color: '#7c3aed', textTransform: 'uppercase', fontWeight: 800 }}>DOANH THU CƯỚC DỊCH VỤ</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#7c3aed' }}>
+                          {(activeDetailSession.totalShopRevenue || 0).toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--surface, #ffffff)',
+                        borderRadius: 16,
+                        border: '1.5px solid rgba(22, 163, 74, 0.25)',
+                        padding: '16px 20px',
+                        boxShadow: '0 8px 20px -4px rgba(22, 163, 74, 0.08)',
+                      }}>
+                        <div style={{ fontSize: 11, color: '#16a34a', textTransform: 'uppercase', fontWeight: 800 }}>THỰC TRẢ KHÁCH HÀNG (SHOP)</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#16a34a' }}>
+                          {activeDetailSession.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Bảng Danh Sách Shop Chi Tiết Có Khung Cuộn Độc Lập & Header Sticky */}
+                    <div style={{
+                      background: 'var(--surface, #ffffff)',
+                      borderRadius: 18,
+                      border: '1.5px solid var(--border, #e2e8f0)',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        padding: '14px 22px',
+                        background: 'var(--bg-app, #f8fafc)',
+                        borderBottom: '1.5px solid var(--border, #e2e8f0)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <span style={{ fontWeight: 900, fontSize: 13.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          BẢNG KÊ CHI TIẾT CÁC SHOP TRONG KỲ ({activeDetailSession.statements?.length || 0} Shop)
+                        </span>
+
+                        <span style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 700 }}>
+                          Khung cuộn tự động • Bấm Chi Tiết để xem từng mã vận đơn
+                        </span>
+                      </div>
+
+                      <div style={{ maxHeight: 460, overflowY: 'auto', overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
+                              <th style={{ padding: '12px 10px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                              <th style={{ padding: '12px 12px', background: 'var(--bg-app, #f8fafc)' }}>Khách Hàng (Shop)</th>
+                              <th style={{ padding: '12px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Tài Khoản Nhận</th>
+                              <th style={{ padding: '12px 10px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Đơn</th>
+                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD</th>
+                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Cước Dịch Vụ</th>
+                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Thực Trả Shop</th>
+                              <th style={{ padding: '12px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Thao Tác</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(activeDetailSession.statements || []).map((stmt, sIdx) => {
+                              const bankStr = stmt.bankInfo?.accountNumber
+                                ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}`
+                                : 'Chưa cập nhật';
+
+                              return (
+                                <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
+                                  <td style={{ padding: '12px 10px', color: 'var(--text-muted)', textAlign: 'center' }}>{sIdx + 1}</td>
+                                  <td style={{ padding: '12px 12px' }}>
+                                    <div style={{ fontWeight: 800 }}>{stmt.shopName}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
+                                  </td>
+                                  <td style={{ padding: '12px 12px' }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{bankStr}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
+                                  </td>
+                                  <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 800 }}>
+                                    {stmt.totalOrders}
+                                  </td>
+                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                                    {stmt.totalCod.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 800, color: '#7c3aed' }}>
+                                    {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 900, color: '#16a34a' }}>
+                                    {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '12px 12px', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                      <button
+                                        onClick={() => exportSingleShopExcel(activeDetailSession.sessionName, stmt)}
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700 }}
+                                        title="Tải riêng file Excel của Shop này"
+                                      >
+                                        <Download size={12} /> Excel
+                                      </button>
+
+                                      <button
+                                        onClick={() => {
+                                          setSelectedSession(activeDetailSession);
+                                          setSelectedShopStmt(stmt);
+                                        }}
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700 }}
+                                        title="Xem chi tiết các mã vận đơn"
+                                      >
+                                        <Eye size={12} /> Chi Tiết
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    background: 'var(--surface, #ffffff)',
+                    borderRadius: 18,
+                    border: '1.5px dashed var(--border, #cbd5e1)',
+                    padding: '60px 20px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                  }}>
+                    <FileSpreadsheet size={48} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>Vui lòng chọn một kỳ đối soát ở cột bên trái</div>
+                  </div>
+                )}
               </div>
             )}
           </div>
