@@ -15,6 +15,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
+import { TaxAccountantPortal } from './components/TaxAccountantPortal';
 import { Truck } from 'lucide-react';
 
 import type { 
@@ -158,6 +159,22 @@ export function App() {
     return (
       <UIFeedbackProvider>
         <LoginView onLoginSuccess={(user) => setCurrentUser(user)} />
+      </UIFeedbackProvider>
+    );
+  }
+
+  // 🏛️ TAX ACCOUNTANT DEDICATED WORKSPACE: Isolated environment for tax & compliance
+  if (currentUser.role === 'TAX_ACCOUNTANT') {
+    return (
+      <UIFeedbackProvider>
+        <TaxAccountantPortal
+          currentUser={currentUser}
+          sessions={sessions}
+          shops={shops}
+          theme={theme}
+          setTheme={setTheme}
+          onLogout={handleLogout}
+        />
       </UIFeedbackProvider>
     );
   }

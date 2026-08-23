@@ -329,7 +329,7 @@ export interface ZnsSendResult {
   sentAt: string;
 }
 
-export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'STAFF' | 'VIEWER';
+export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'TAX_ACCOUNTANT' | 'STAFF' | 'VIEWER';
 
 export interface UserAccount {
   id: string;

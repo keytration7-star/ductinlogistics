@@ -138,6 +138,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
         return <span className="badge badge-danger" style={{ fontWeight: 700 }}>👑 Quản Trị Viên (Admin)</span>;
       case 'ACCOUNTANT':
         return <span className="badge badge-primary" style={{ fontWeight: 700 }}>💼 Kế Toán / Đối Soát</span>;
+      case 'TAX_ACCOUNTANT':
+        return <span className="badge" style={{ background: '#7c3aed', color: '#fff', fontWeight: 700 }}>🏛️ Kế Toán Thuế (Portal Riêng)</span>;
       case 'STAFF':
         return <span className="badge badge-success">🧑‍💼 Nhân Viên Vận Hành</span>;
       case 'VIEWER':
@@ -427,7 +429,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                   className="select-field"
                 >
-                  <option value="ACCOUNTANT">💼 Kế Toán (Được đối soát, xuất file, gửi mail, quản lý shop)</option>
+                  <option value="ACCOUNTANT">💼 Kế Toán Đối Soát (Được đối soát, xuất file, gửi mail, quản lý shop)</option>
+                  <option value="TAX_ACCOUNTANT">🏛️ Kế Toán Thuế (Không gian riêng: Xem DS Shop, Báo cáo thuế tổng hợp, Tải file đa dạng)</option>
                   <option value="STAFF">🧑‍💼 Nhân Viên Vận Hành (Được đối soát, ẩn số liệu lợi nhuận)</option>
                   <option value="ADMIN">👑 Quản Trị Viên (Toàn quyền quản trị hệ thống)</option>
                   <option value="VIEWER">👁️ Người Xem (Chỉ được xem / đọc dữ liệu)</option>
@@ -522,7 +525,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                   onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as UserRole })}
                   className="select-field"
                 >
-                  <option value="ACCOUNTANT">💼 Kế Toán (Được đối soát, xuất file, gửi mail, quản lý shop)</option>
+                  <option value="ACCOUNTANT">💼 Kế Toán Đối Soát (Được đối soát, xuất file, gửi mail, quản lý shop)</option>
+                  <option value="TAX_ACCOUNTANT">🏛️ Kế Toán Thuế (Không gian riêng: Xem DS Shop, Báo cáo thuế tổng hợp, Tải file đa dạng)</option>
                   <option value="STAFF">🧑‍💼 Nhân Viên Vận Hành (Được đối soát, ẩn số liệu lợi nhuận)</option>
                   <option value="ADMIN">👑 Quản Trị Viên (Toàn quyền quản trị hệ thống)</option>
                   <option value="VIEWER">👁️ Người Xem (Chỉ được xem / đọc dữ liệu)</option>
