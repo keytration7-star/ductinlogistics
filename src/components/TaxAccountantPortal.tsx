@@ -93,6 +93,76 @@ const DEFAULT_THEME = {
   accentColor: '#4f46e5',
 };
 
+const SoftwareDeveloperFooter: React.FC = () => (
+  <footer style={{
+    marginTop: 'auto',
+    padding: '18px 22px 22px',
+    display: 'flex',
+    justifyContent: 'center',
+    width: '100%',
+  }}>
+    <div style={{
+      maxWidth: 1600,
+      width: '100%',
+      background: 'rgba(255, 255, 255, 0.95)',
+      backdropFilter: 'blur(8px)',
+      border: '1px solid #e0e7ff',
+      borderRadius: 14,
+      padding: '10px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      gap: 14,
+      boxShadow: '0 2px 10px rgba(79, 70, 229, 0.04)',
+      fontSize: 12.5,
+    }}>
+      {/* Badge TQ */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+        color: '#ffffff',
+        fontWeight: 900,
+        fontSize: 11,
+        padding: '3px 8px',
+        borderRadius: 6,
+        letterSpacing: '0.5px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+      }}>
+        TQ
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--text-muted, #64748b)' }}>Phát triển bởi:</span>
+        <strong style={{ color: '#1e293b', fontWeight: 800 }}>CÔNG TY TNHH MTV CÔNG NGHỆ VÀ THƯƠNG MẠI TQ DIGITAL</strong>
+      </div>
+
+      <span style={{ color: '#cbd5e1' }}>|</span>
+
+      <span style={{ color: '#475569' }}>Thôn Đại Lai 1, Trần Hưng Đạo, Hưng Yên</span>
+
+      <span style={{ color: '#cbd5e1' }}>|</span>
+
+      <a
+        href="tel:0936833319"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          color: '#4f46e5',
+          fontWeight: 800,
+          textDecoration: 'none',
+        }}
+      >
+        <span>📞</span>
+        <span>09368.333.19</span>
+      </a>
+    </div>
+  </footer>
+);
+
 // Common Excel Styling Helpers
 const THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -1562,6 +1632,9 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             </div>
           </div>
         </main>
+
+        {/* 🏢 FOOTER THÔNG TIN ĐƠN VỊ PHÁT TRIỂN PHẦN MỀM (TQ DIGITAL) */}
+        <SoftwareDeveloperFooter />
       </div>
     );
   }
@@ -2546,6 +2619,9 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           </div>
         )}
       </main>
+
+      {/* 🏢 FOOTER THÔNG TIN ĐƠN VỊ PHÁT TRIỂN PHẦN MỀM (TQ DIGITAL) */}
+      <SoftwareDeveloperFooter />
 
       {/* 👁️ MODAL: CHI TIẾT ĐƠN HÀNG CỦA SHOP                                     */}
       {selectedSession && selectedShopStmt && (
