@@ -1578,167 +1578,171 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column' }}>
       
-      {/* 🏛️ TOP NAVIGATION BAR */}
-      <header style={{
-        background: 'var(--surface, #ffffff)',
-        borderBottom: '1px solid var(--border, #e2e8f0)',
-        padding: '10px 22px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+      {/* 🏛️ UNIFIED STICKY TOP CONTAINER (HEADER + 3 TABS BAR) */}
+      <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        background: 'var(--surface, #ffffff)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Back to Carrier Hub Button */}
-          <button
-            onClick={() => setActiveCarrierId(null)}
-            className="btn btn-secondary btn-sm"
-            style={{
+        {/* 1. Header Bar */}
+        <header style={{
+          padding: '10px 22px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid var(--border, #e2e8f0)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Back to Carrier Hub Button */}
+            <button
+              onClick={() => setActiveCarrierId(null)}
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 700,
+                padding: '6px 12px',
+                borderRadius: 8,
+                background: '#f1f5f9',
+                fontSize: 12,
+              }}
+              title="Quay lại danh sách thẻ hãng"
+            >
+              <ArrowLeft size={15} />
+              <span>Đổi Hãng Vận Chuyển</span>
+            </button>
+
+            <div style={{ width: 1, height: 24, background: 'var(--border, #e2e8f0)' }} />
+
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              background: activeCarrierId === 'all' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : currentCarrierTheme.bgGradient,
+              border: `1.5px solid ${currentCarrierTheme.border}`,
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              fontWeight: 700,
-              padding: '6px 12px',
-              borderRadius: 8,
-              background: '#f1f5f9',
-              fontSize: 12,
-            }}
-            title="Quay lại danh sách thẻ hãng"
-          >
-            <ArrowLeft size={15} />
-            <span>Đổi Hãng Vận Chuyển</span>
-          </button>
-
-          <div style={{ width: 1, height: 24, background: 'var(--border, #e2e8f0)' }} />
-
-          <div style={{
-            width: 34,
-            height: 34,
-            borderRadius: 8,
-            background: activeCarrierId === 'all' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : currentCarrierTheme.bgGradient,
-            border: `1.5px solid ${currentCarrierTheme.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: activeCarrierId === 'all' ? '#fff' : currentCarrierTheme.accentColor,
-          }}>
-            <Truck size={18} />
-          </div>
-
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.2 }}>
-              {currentCarrierTitle}
-              <span style={{ fontSize: 10, background: '#ede9fe', color: '#6d28d9', padding: '2px 7px', borderRadius: 4, fontWeight: 800 }}>
-                TAX WORKSPACE
-              </span>
+              justifyContent: 'center',
+              color: activeCarrierId === 'all' ? '#fff' : currentCarrierTheme.accentColor,
+            }}>
+              <Truck size={18} />
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted, #64748b)', marginTop: 2 }}>
-              Không gian xuất bảng kê thuế & đối soát dữ liệu của hãng {currentCarrierTitle}
+
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.2 }}>
+                {currentCarrierTitle}
+                <span style={{ fontSize: 10, background: '#ede9fe', color: '#6d28d9', padding: '2px 7px', borderRadius: 4, fontWeight: 800 }}>
+                  TAX WORKSPACE
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #64748b)', marginTop: 2 }}>
+                Không gian xuất bảng kê thuế & đối soát dữ liệu của hãng {currentCarrierTitle}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* User badge */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            padding: '5px 12px',
-            background: 'var(--bg-app, #f1f5f9)',
-            borderRadius: 20,
-            border: '1px solid var(--border, #e2e8f0)'
-          }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ fontSize: 12.5, fontWeight: 700 }}>{currentUser.fullName || currentUser.username}</span>
-            <span className="badge badge-primary" style={{ fontSize: 9.5, background: '#7c3aed', color: '#fff', padding: '1px 6px' }}>Kế Toán Thuế</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* User badge */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '5px 12px',
+              background: 'var(--bg-app, #f1f5f9)',
+              borderRadius: 20,
+              border: '1px solid var(--border, #e2e8f0)'
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
+              <span style={{ fontSize: 12.5, fontWeight: 700 }}>{currentUser.fullName || currentUser.username}</span>
+              <span className="badge badge-primary" style={{ fontSize: 9.5, background: '#7c3aed', color: '#fff', padding: '1px 6px' }}>Kế Toán Thuế</span>
+            </div>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogoutClick}
+              className="btn btn-secondary btn-sm"
+              style={{ padding: '6px 12px', borderRadius: 8, color: '#ef4444', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+            >
+              <LogOut size={14} />
+              <span style={{ fontWeight: 600 }}>Đăng Xuất</span>
+            </button>
           </div>
+        </header>
 
-          {/* Logout */}
+        {/* 2. 🧭 TAB NAVIGATION BAR (Sticky cùng header, không bao giờ bị che) */}
+        <div style={{
+          padding: '0 22px',
+          display: 'flex',
+          gap: 6,
+          background: 'var(--surface, #ffffff)',
+          borderBottom: '1.5px solid var(--border, #e2e8f0)',
+        }}>
           <button
-            onClick={handleLogoutClick}
-            className="btn btn-secondary btn-sm"
-            style={{ padding: '6px 12px', borderRadius: 8, color: '#ef4444', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+            onClick={() => setActiveTab('sessions')}
+            style={{
+              padding: '10px 18px',
+              fontSize: 13,
+              fontWeight: 800,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: activeTab === 'sessions' ? '#7c3aed' : 'var(--text-muted, #64748b)',
+              borderBottom: activeTab === 'sessions' ? '3px solid #7c3aed' : '3px solid transparent',
+              transition: 'all 0.2s'
+            }}
           >
-            <LogOut size={14} />
-            <span style={{ fontWeight: 600 }}>Đăng Xuất</span>
+            <FileSpreadsheet size={16} />
+            1. BÁO CÁO ĐỐI SOÁT THEO KỲ ({filteredSessions.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('shops')}
+            style={{
+              padding: '10px 18px',
+              fontSize: 13,
+              fontWeight: 800,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: activeTab === 'shops' ? '#7c3aed' : 'var(--text-muted, #64748b)',
+              borderBottom: activeTab === 'shops' ? '3px solid #7c3aed' : '3px solid transparent',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Store size={16} />
+            2. DANH MỤC KHÁCH HÀNG / SHOP ({filteredShops.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('monthly')}
+            style={{
+              padding: '10px 18px',
+              fontSize: 13,
+              fontWeight: 800,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: activeTab === 'monthly' ? '#7c3aed' : 'var(--text-muted, #64748b)',
+              borderBottom: activeTab === 'monthly' ? '3px solid #7c3aed' : '3px solid transparent',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Calendar size={16} />
+            3. BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)
           </button>
         </div>
-      </header>
-
-      {/* 🧭 TAB NAVIGATION BAR */}
-      <div style={{
-        background: 'var(--surface, #ffffff)',
-        borderBottom: '1.5px solid var(--border, #e2e8f0)',
-        padding: '0 22px',
-        display: 'flex',
-        gap: 6,
-      }}>
-        <button
-          onClick={() => setActiveTab('sessions')}
-          style={{
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: 800,
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            color: activeTab === 'sessions' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-            borderBottom: activeTab === 'sessions' ? '3px solid #7c3aed' : '3px solid transparent',
-            transition: 'all 0.2s'
-          }}
-        >
-          <FileSpreadsheet size={16} />
-          1. BÁO CÁO ĐỐI SOÁT THEO KỲ ({filteredSessions.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('shops')}
-          style={{
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: 800,
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            color: activeTab === 'shops' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-            borderBottom: activeTab === 'shops' ? '3px solid #7c3aed' : '3px solid transparent',
-            transition: 'all 0.2s'
-          }}
-        >
-          <Store size={16} />
-          2. DANH MỤC KHÁCH HÀNG / SHOP ({filteredShops.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('monthly')}
-          style={{
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: 800,
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            color: activeTab === 'monthly' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-            borderBottom: activeTab === 'monthly' ? '3px solid #7c3aed' : '3px solid transparent',
-            transition: 'all 0.2s'
-          }}
-        >
-          <Calendar size={16} />
-          3. BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)
-        </button>
       </div>
 
       {/* 📦 MAIN CONTENT BODY */}
