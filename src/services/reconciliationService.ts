@@ -247,27 +247,7 @@ export function parseOrderStatus(statusStr: string): { status: OrderStatus; text
   const text = statusStr.toString().trim();
   const lower = text.toLowerCase();
 
-  if (
-    lower.includes('thành công') ||
-    lower.includes('giao thành công') ||
-    lower.includes('đã giao') ||
-    lower.includes('hoàn tất') ||
-    lower.includes('delivered') ||
-    lower.includes('phát thành công') ||
-    lower.includes('đã đối soát') ||
-    lower.includes('ký nhận') ||
-    lower.includes('đã ký nhận') ||
-    lower.includes('đã nhận') ||
-    lower.includes('đã phát') ||
-    lower.includes('giao xong') ||
-    lower.includes('ky nhan') ||
-    lower.includes('da giao') ||
-    lower.includes('da nhan') ||
-    lower.includes('thanh cong')
-  ) {
-    return { status: 'delivered', text };
-  }
-
+  // 1. Check RETURNED first (to avoid 'Hoàn hàng thành công' matching 'thành công')
   if (
     lower.includes('chuyển hoàn') ||
     lower.includes('trả hàng') ||
@@ -283,36 +263,73 @@ export function parseOrderStatus(statusStr: string): { status: OrderStatus; text
     return { status: 'returned', text };
   }
 
+  // 2. Check RETURNING
   if (
     lower.includes('đang hoàn') ||
     lower.includes('chờ hoàn') ||
     lower.includes('returning') ||
     lower.includes('dang hoan') ||
-    lower.includes('cho hoan')
+    lower.includes('cho hoan') ||
+    lower.includes('yêu cầu hoàn')
   ) {
     return { status: 'returning', text };
   }
 
+  // 3. Check CANCELLED
   if (
     lower.includes('hủy') ||
     lower.includes('cancelled') ||
     lower.includes('không gửi') ||
     lower.includes('huy don') ||
-    lower.includes('da huy')
+    lower.includes('da huy') ||
+    lower.includes('đã hủy') ||
+    lower.includes('bồi thường')
   ) {
     return { status: 'cancelled', text };
   }
 
+  // 4. Check IN_TRANSIT (Đang trung chuyển, Nhập kho, Lấy hàng thành công...)
   if (
     lower.includes('đang giao') ||
     lower.includes('đang phát') ||
     lower.includes('trung chuyển') ||
     lower.includes('in transit') ||
-    lower.includes('giao hàng') ||
+    lower.includes('nhập kho') ||
+    lower.includes('lưu kho') ||
+    lower.includes('lấy hàng') ||
+    lower.includes('đang lấy') ||
+    lower.includes('lấy thành công') ||
+    lower.includes('lấy hàng thành công') ||
     lower.includes('dang giao') ||
-    lower.includes('dang phat')
+    lower.includes('dang phat') ||
+    lower.includes('nhap kho') ||
+    lower.includes('luu kho') ||
+    lower.includes('lay hang')
   ) {
     return { status: 'in_transit', text };
+  }
+
+  // 5. Check DELIVERED
+  if (
+    lower.includes('giao hàng thành công') ||
+    lower.includes('giao thành công') ||
+    lower.includes('phát thành công') ||
+    lower.includes('đã giao') ||
+    lower.includes('hoàn tất') ||
+    lower.includes('delivered') ||
+    lower.includes('đã đối soát') ||
+    lower.includes('ký nhận') ||
+    lower.includes('đã ký nhận') ||
+    lower.includes('đã nhận') ||
+    lower.includes('đã phát') ||
+    lower.includes('giao xong') ||
+    lower.includes('ky nhan') ||
+    lower.includes('da giao') ||
+    lower.includes('da nhan') ||
+    lower.includes('thanh cong') ||
+    lower.includes('thành công')
+  ) {
+    return { status: 'delivered', text };
   }
 
   // GHN's right-hand ledger records an amount that was charged in this
@@ -321,8 +338,8 @@ export function parseOrderStatus(statusStr: string): { status: OrderStatus; text
     return { status: 'fee_charged', text };
   }
 
-  // Fallback: Default unrecognized text to delivered if it contains positive signals or numeric values
-  return { status: 'delivered', text };
+  // Fallback: Default unrecognized text to in_transit if uncertain, or delivered if general
+  return { status: 'in_transit', text };
 }
 
 export function extractRowField(
