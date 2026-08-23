@@ -1582,7 +1582,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       <header style={{
         background: 'var(--surface, #ffffff)',
         borderBottom: '1px solid var(--border, #e2e8f0)',
-        padding: '12px 24px',
+        padding: '10px 22px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1591,7 +1591,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         zIndex: 50,
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Back to Carrier Hub Button */}
           <button
             onClick={() => setActiveCarrierId(null)}
@@ -1601,22 +1601,23 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               alignItems: 'center',
               gap: 6,
               fontWeight: 700,
-              padding: '8px 12px',
+              padding: '6px 12px',
               borderRadius: 8,
               background: '#f1f5f9',
+              fontSize: 12,
             }}
             title="Quay lại danh sách thẻ hãng"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={15} />
             <span>Đổi Hãng Vận Chuyển</span>
           </button>
 
-          <div style={{ width: 1, height: 28, background: 'var(--border, #e2e8f0)' }} />
+          <div style={{ width: 1, height: 24, background: 'var(--border, #e2e8f0)' }} />
 
           <div style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
+            width: 34,
+            height: 34,
+            borderRadius: 8,
             background: activeCarrierId === 'all' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : currentCarrierTheme.bgGradient,
             border: `1.5px solid ${currentCarrierTheme.border}`,
             display: 'flex',
@@ -1624,55 +1625,45 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             justifyContent: 'center',
             color: activeCarrierId === 'all' ? '#fff' : currentCarrierTheme.accentColor,
           }}>
-            <Truck size={20} />
+            <Truck size={18} />
           </div>
 
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.2 }}>
               {currentCarrierTitle}
-              <span style={{ fontSize: 11, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+              <span style={{ fontSize: 10, background: '#ede9fe', color: '#6d28d9', padding: '2px 7px', borderRadius: 4, fontWeight: 800 }}>
                 TAX WORKSPACE
               </span>
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted, #64748b)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #64748b)', marginTop: 2 }}>
               Không gian xuất bảng kê thuế & đối soát dữ liệu của hãng {currentCarrierTitle}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* User badge */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '6px 14px',
+            gap: 7,
+            padding: '5px 12px',
             background: 'var(--bg-app, #f1f5f9)',
-            borderRadius: 30,
+            borderRadius: 20,
             border: '1px solid var(--border, #e2e8f0)'
           }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
-            <span style={{ fontSize: 13, fontWeight: 700 }}>{currentUser.fullName || currentUser.username}</span>
-            <span className="badge badge-primary" style={{ fontSize: 10, background: '#7c3aed', color: '#fff' }}>Kế Toán Thuế</span>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
+            <span style={{ fontSize: 12.5, fontWeight: 700 }}>{currentUser.fullName || currentUser.username}</span>
+            <span className="badge badge-primary" style={{ fontSize: 9.5, background: '#7c3aed', color: '#fff', padding: '1px 6px' }}>Kế Toán Thuế</span>
           </div>
-
-          {/* Theme toggle */}
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="btn btn-secondary"
-            style={{ padding: '8px 12px', borderRadius: 8 }}
-            title="Đổi giao diện Sáng / Tối"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
 
           {/* Logout */}
           <button
             onClick={handleLogoutClick}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', borderRadius: 8, color: '#ef4444', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: 6 }}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '6px 12px', borderRadius: 8, color: '#ef4444', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
           >
-            <LogOut size={16} />
+            <LogOut size={14} />
             <span style={{ fontWeight: 600 }}>Đăng Xuất</span>
           </button>
         </div>
@@ -1681,77 +1672,77 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       {/* 🧭 TAB NAVIGATION BAR */}
       <div style={{
         background: 'var(--surface, #ffffff)',
-        borderBottom: '1px solid var(--border, #e2e8f0)',
-        padding: '0 24px',
+        borderBottom: '1.5px solid var(--border, #e2e8f0)',
+        padding: '0 22px',
         display: 'flex',
-        gap: 8,
+        gap: 6,
       }}>
         <button
           onClick={() => setActiveTab('sessions')}
           style={{
-            padding: '14px 20px',
-            fontSize: 14,
-            fontWeight: 700,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 800,
             border: 'none',
             background: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 7,
             color: activeTab === 'sessions' ? '#7c3aed' : 'var(--text-muted, #64748b)',
             borderBottom: activeTab === 'sessions' ? '3px solid #7c3aed' : '3px solid transparent',
             transition: 'all 0.2s'
           }}
         >
-          <FileSpreadsheet size={18} />
+          <FileSpreadsheet size={16} />
           1. BÁO CÁO ĐỐI SOÁT THEO KỲ ({filteredSessions.length})
         </button>
 
         <button
           onClick={() => setActiveTab('shops')}
           style={{
-            padding: '14px 20px',
-            fontSize: 14,
-            fontWeight: 700,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 800,
             border: 'none',
             background: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 7,
             color: activeTab === 'shops' ? '#7c3aed' : 'var(--text-muted, #64748b)',
             borderBottom: activeTab === 'shops' ? '3px solid #7c3aed' : '3px solid transparent',
             transition: 'all 0.2s'
           }}
         >
-          <Store size={18} />
+          <Store size={16} />
           2. DANH MỤC KHÁCH HÀNG / SHOP ({filteredShops.length})
         </button>
 
         <button
           onClick={() => setActiveTab('monthly')}
           style={{
-            padding: '14px 20px',
-            fontSize: 14,
-            fontWeight: 700,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 800,
             border: 'none',
             background: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 7,
             color: activeTab === 'monthly' ? '#7c3aed' : 'var(--text-muted, #64748b)',
             borderBottom: activeTab === 'monthly' ? '3px solid #7c3aed' : '3px solid transparent',
             transition: 'all 0.2s'
           }}
         >
-          <Calendar size={18} />
+          <Calendar size={16} />
           3. BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)
         </button>
       </div>
 
       {/* 📦 MAIN CONTENT BODY */}
-      <main style={{ flex: 1, padding: '24px', maxWidth: 1440, width: '100%', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '14px 22px', maxWidth: 1600, width: '100%', margin: '0 auto' }}>
 
         {/* ========================================================================= */}
         {/* TAB 1: BÁO CÁO ĐỐI SOÁT THEO KỲ (MASTER-DETAIL SPLIT SCREEN)              */}
@@ -2203,33 +2194,33 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         {/* TAB 2: DANH MỤC KHÁCH HÀNG (SHOP DIRECTORY)                               */}
         {/* ========================================================================= */}
         {activeTab === 'shops' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Header & Export Button */}
             <div style={{
               background: 'var(--surface, #ffffff)',
-              padding: '16px 20px',
+              padding: '10px 16px',
               borderRadius: 12,
-              border: '1px solid var(--border, #e2e8f0)',
+              border: '1.5px solid var(--border, #e2e8f0)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
-              gap: 16
+              gap: 12
             }}>
               <div style={{ position: 'relative', flex: 1, minWidth: 280 }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-muted)' }} />
+                <Search size={15} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--text-muted)' }} />
                 <input
                   type="text"
                   placeholder={`Tìm theo tên shop, mã khách, SĐT của ${currentCarrierTitle}...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="input-field"
-                  style={{ paddingLeft: 36, width: '100%' }}
+                  style={{ paddingLeft: 34, width: '100%', fontSize: 12.5 }}
                 />
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                   Tổng: <strong>{filteredShops.length}</strong> khách hàng ({currentCarrierTitle})
                 </div>
 
@@ -2239,8 +2230,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   style={{
                     background: '#7c3aed',
                     borderColor: '#7c3aed',
-                    padding: '8px 16px',
-                    fontSize: 13,
+                    padding: '7px 14px',
+                    fontSize: 12.5,
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
@@ -2257,35 +2248,35 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             <div style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 14,
-              border: '1px solid var(--border, #e2e8f0)',
+              border: '1.5px solid var(--border, #e2e8f0)',
               overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
             }}>
               <div style={{
-                padding: '10px 20px',
+                padding: '8px 16px',
                 background: 'var(--bg-app, #f8fafc)',
-                fontSize: 12,
+                fontSize: 11.5,
                 color: 'var(--text-muted)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border, #e2e8f0)'
               }}>
-                <span style={{ fontWeight: 700 }}>DANH MỤC {filteredShops.length} KHÁCH HÀNG / SHOP:</span>
+                <span style={{ fontWeight: 800 }}>DANH MỤC {filteredShops.length} KHÁCH HÀNG / SHOP:</span>
                 <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
               </div>
 
-              <div style={{ maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
+              <div style={{ maxHeight: 'calc(100vh - 220px)', minHeight: 400, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Đơn Vị</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Địa Chỉ Kinh Doanh</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Thông Tin Ngân Hàng</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Trạng Thái</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Đơn Vị</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Địa Chỉ Kinh Doanh</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Thông Tin Ngân Hàng</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Trạng Thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2297,35 +2288,35 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       </tr>
                     ) : (
                       filteredShops.map((s, idx) => (
-                        <tr key={s.id || idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
-                          <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                          <td style={{ padding: '12px 14px', fontWeight: 700, color: '#7c3aed' }}>
+                        <tr key={s.id || idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
+                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                          <td style={{ padding: '9px 12px', fontWeight: 700, color: '#7c3aed' }}>
                             {s.code || '-'}
                           </td>
-                          <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                          <td style={{ padding: '9px 12px', fontWeight: 700 }}>
                             {s.name}
                           </td>
-                          <td style={{ padding: '12px 14px' }}>
+                          <td style={{ padding: '9px 12px' }}>
                             {s.phone || '-'}
                           </td>
-                          <td style={{ padding: '12px 14px', maxWidth: 220, fontSize: 12 }}>
+                          <td style={{ padding: '9px 12px', maxWidth: 220, fontSize: 11.5 }}>
                             {s.address || '-'}
                           </td>
-                          <td style={{ padding: '12px 14px' }}>
-                            <div style={{ fontWeight: 600, fontSize: 12 }}>
+                          <td style={{ padding: '9px 12px' }}>
+                            <div style={{ fontWeight: 600, fontSize: 11.5 }}>
                               {s.bankAccount?.bankName ? `${s.bankAccount.bankName} - ${s.bankAccount.accountNumber}` : 'Chưa cập nhật'}
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
                               {s.bankAccount?.accountHolder || ''}
                             </div>
                           </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <td style={{ padding: '9px 12px', textAlign: 'center' }}>
                             <span style={{
                               background: s.active !== false ? '#dcfce7' : '#f1f5f9',
                               color: s.active !== false ? '#166534' : '#64748b',
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: 700,
-                              padding: '2px 8px',
+                              padding: '2px 7px',
                               borderRadius: 6
                             }}>
                               {s.active !== false ? 'Hoạt động' : 'Tạm dừng'}
@@ -2345,53 +2336,53 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         {/* TAB 3: BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)                                 */}
         {/* ========================================================================= */}
         {activeTab === 'monthly' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Date Range Filter Bar */}
             <div style={{
               background: 'var(--surface, #ffffff)',
-              padding: '18px 22px',
+              padding: '8px 16px',
               borderRadius: 12,
-              border: '1px solid var(--border, #e2e8f0)',
+              border: '1.5px solid var(--border, #e2e8f0)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: 16
+              gap: 10
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>Chọn khoảng thời gian:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>Chọn khoảng thời gian:</span>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Từ ngày:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Từ ngày:</span>
                   <input
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     className="input-field"
-                    style={{ padding: '6px 10px', fontSize: 13 }}
+                    style={{ padding: '4px 8px', fontSize: 12 }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Đến ngày:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Đến ngày:</span>
                   <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     className="input-field"
-                    style={{ padding: '6px 10px', fontSize: 13 }}
+                    style={{ padding: '4px 8px', fontSize: 12 }}
                   />
                 </div>
 
                 {/* Quick select buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <button
                     onClick={() => {
                       setFromDate(firstDayOfMonth);
                       setToDate(todayStr);
                     }}
                     className="btn btn-secondary"
-                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 600 }}
+                    style={{ padding: '4px 8px', fontSize: 11, fontWeight: 600 }}
                   >
                     Tháng Này
                   </button>
@@ -2404,7 +2395,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       setToDate(prevMonthLast);
                     }}
                     className="btn btn-secondary"
-                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 600 }}
+                    style={{ padding: '4px 8px', fontSize: 11, fontWeight: 600 }}
                   >
                     Tháng Trước
                   </button>
@@ -2418,49 +2409,49 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 style={{
                   background: '#7c3aed',
                   borderColor: '#7c3aed',
-                  padding: '9px 18px',
-                  fontSize: 13,
+                  padding: '7px 14px',
+                  fontSize: 12.5,
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6
                 }}
               >
-                <Download size={15} />
+                <Download size={14} />
                 Xuất Báo Cáo Doanh Thu Thuế ({currentCarrierTitle})
               </button>
             </div>
 
             {/* 4 Summary KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '18px', borderRadius: 12, border: '1px solid var(--border, #e2e8f0)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Kỳ Đối Soát Trong Khoảng</div>
-                <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4 }}>{monthlyAggregatedData.sessionCount} kỳ</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')} tổng đơn</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid var(--border, #e2e8f0)' }}>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Kỳ Đối Soát Trong Khoảng</div>
+                <div style={{ fontSize: 19, fontWeight: 800, marginTop: 2 }}>{monthlyAggregatedData.sessionCount} kỳ</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')} tổng đơn</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '18px', borderRadius: 12, border: '1px solid var(--border, #e2e8f0)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tổng COD Thu Hộ Luân Chuyển</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#2563eb', marginTop: 4 }}>
+              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(37, 99, 235, 0.25)' }}>
+                <div style={{ fontSize: 10.5, color: '#2563eb', fontWeight: 800, textTransform: 'uppercase' }}>Tổng COD Thu Hộ Luân Chuyển</div>
+                <div style={{ fontSize: 19, fontWeight: 800, color: '#2563eb', marginTop: 2 }}>
                   {monthlyAggregatedData.totalCod.toLocaleString('vi-VN')} đ
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tiền hàng thu hộ từ khách</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tiền hàng thu hộ từ khách</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '18px', borderRadius: 12, border: '1px solid var(--border, #e2e8f0)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Doanh Thu Cước Dịch Vụ</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#7c3aed', marginTop: 4 }}>
+              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(124, 58, 237, 0.25)' }}>
+                <div style={{ fontSize: 10.5, color: '#7c3aed', fontWeight: 800, textTransform: 'uppercase' }}>Doanh Thu Cước Dịch Vụ</div>
+                <div style={{ fontSize: 19, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
                   {monthlyAggregatedData.totalServiceRevenue.toLocaleString('vi-VN')} đ
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Doanh thu chịu thuế GTGT/TNDN</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Doanh thu chịu thuế GTGT/TNDN</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '18px', borderRadius: 12, border: '1px solid var(--border, #e2e8f0)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Thực Chi Trả Khách Hàng</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#16a34a', marginTop: 4 }}>
+              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(22, 163, 74, 0.25)' }}>
+                <div style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 800, textTransform: 'uppercase' }}>Thực Chi Trả Khách Hàng</div>
+                <div style={{ fontSize: 19, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
                   {monthlyAggregatedData.totalNetPayout.toLocaleString('vi-VN')} đ
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tổng chuyển khoản cho các Shop</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tổng chuyển khoản cho các Shop</div>
               </div>
             </div>
 
@@ -2468,55 +2459,55 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             <div style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 14,
-              border: '1px solid var(--border, #e2e8f0)',
+              border: '1.5px solid var(--border, #e2e8f0)',
               overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
             }}>
               <div style={{
-                padding: '14px 20px',
+                padding: '10px 16px',
                 borderBottom: '1px solid var(--border, #e2e8f0)',
                 background: 'var(--bg-app, #f8fafc)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ fontWeight: 800, fontSize: 14 }}>
+                <span style={{ fontWeight: 800, fontSize: 13 }}>
                   BẢNG PHÂN BỔ DOANH THU & DÒNG TIỀN THEO TỪNG KHÁCH HÀNG ({currentCarrierTitle})
                 </span>
                 <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
               </div>
 
-              <div style={{ maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
+              <div style={{ maxHeight: 'calc(100vh - 310px)', minHeight: 350, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Shop</th>
-                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Kỳ Tham Gia</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Tổng Số Đơn</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD Luân Chuyển</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Doanh Thu Cước Dịch Vụ</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng Thực Trả</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Shop</th>
+                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Kỳ Tham Gia</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Tổng Số Đơn</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD Luân Chuyển</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Doanh Thu Cước Dịch Vụ</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng Thực Trả</th>
                     </tr>
                   </thead>
                   <tbody>
                     {monthlyAggregatedData.shopBreakdown.map((s, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
-                        <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                        <td style={{ padding: '12px 14px', fontWeight: 700, color: '#7c3aed' }}>{s.shopCode}</td>
-                        <td style={{ padding: '12px 14px', fontWeight: 700 }}>{s.shopName}</td>
-                        <td style={{ padding: '12px 14px' }}>{s.phone}</td>
-                        <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 600 }}>{s.sessionCount} kỳ</td>
-                        <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700 }}>{s.totalOrders.toLocaleString('vi-VN')}</td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
+                        <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                        <td style={{ padding: '9px 12px', fontWeight: 700, color: '#7c3aed' }}>{s.shopCode}</td>
+                        <td style={{ padding: '9px 12px', fontWeight: 700 }}>{s.shopName}</td>
+                        <td style={{ padding: '9px 12px' }}>{s.phone}</td>
+                        <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 600 }}>{s.sessionCount} kỳ</td>
+                        <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700 }}>{s.totalOrders.toLocaleString('vi-VN')}</td>
+                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
                           {s.totalCod.toLocaleString('vi-VN')} đ
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
+                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
                           {s.totalServiceFee.toLocaleString('vi-VN')} đ
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
                           {s.totalNetPayout.toLocaleString('vi-VN')} đ
                         </td>
                       </tr>
