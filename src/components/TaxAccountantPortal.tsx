@@ -2220,17 +2220,31 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
             }}>
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{
+                padding: '10px 20px',
+                background: 'var(--bg-app, #f8fafc)',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--border, #e2e8f0)'
+              }}>
+                <span style={{ fontWeight: 700 }}>DANH MỤC {filteredShops.length} KHÁCH HÀNG / SHOP:</span>
+                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
+              </div>
+
+              <div style={{ maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--bg-app, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 14px' }}>STT</th>
-                      <th style={{ padding: '12px 14px' }}>Mã Khách</th>
-                      <th style={{ padding: '12px 14px' }}>Tên Khách Hàng / Đơn Vị</th>
-                      <th style={{ padding: '12px 14px' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '12px 14px' }}>Địa Chỉ Kinh Doanh</th>
-                      <th style={{ padding: '12px 14px' }}>Thông Tin Ngân Hàng</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center' }}>Trạng Thái</th>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Đơn Vị</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Địa Chỉ Kinh Doanh</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Thông Tin Ngân Hàng</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Trạng Thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2417,23 +2431,33 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
             }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border, #e2e8f0)', fontWeight: 800, fontSize: 15 }}>
-                BẢNG PHÂN BỔ DOANH THU & DÒNG TIỀN THEO TỪNG KHÁCH HÀNG ({currentCarrierTitle})
+              <div style={{
+                padding: '14px 20px',
+                borderBottom: '1px solid var(--border, #e2e8f0)',
+                background: 'var(--bg-app, #f8fafc)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontWeight: 800, fontSize: 14 }}>
+                  BẢNG PHÂN BỔ DOANH THU & DÒNG TIỀN THEO TỪNG KHÁCH HÀNG ({currentCarrierTitle})
+                </span>
+                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ maxHeight: 520, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--bg-app, #f8fafc)', borderBottom: '1px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 14px' }}>STT</th>
-                      <th style={{ padding: '12px 14px' }}>Mã Khách</th>
-                      <th style={{ padding: '12px 14px' }}>Tên Khách Hàng / Shop</th>
-                      <th style={{ padding: '12px 14px' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center' }}>Số Kỳ Tham Gia</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center' }}>Tổng Số Đơn</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right' }}>Tổng COD Luân Chuyển</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right' }}>Doanh Thu Cước Dịch Vụ</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right' }}>Tổng Thực Trả</th>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Shop</th>
+                      <th style={{ padding: '12px 14px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Kỳ Tham Gia</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Tổng Số Đơn</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD Luân Chuyển</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Doanh Thu Cước Dịch Vụ</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng Thực Trả</th>
                     </tr>
                   </thead>
                   <tbody>
