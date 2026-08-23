@@ -350,112 +350,185 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const QUICK_BANKS = ['Vietcombank', 'MB Bank', 'Techcombank', 'VPBank', 'TPBank', 'ACB', 'BIDV', 'VietinBank'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       
-      {/* Top Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CreditCard size={26} color="var(--primary)" />
-            Quản Lý Công Nợ & Đi Tiền Ngân Hàng Cho Khách (Shop)
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Theo dõi tiến độ chuyển khoản, nhật ký giao dịch ngân hàng và quản lý dư nợ công nợ tồn đọng của từng Shop.
-          </p>
-        </div>
-
-        {/* Sub-Tab Navigation */}
-        <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 3, gap: 4 }}>
-          <button
-            onClick={() => setActiveSubTab('sessions')}
-            className={`btn btn-sm ${activeSubTab === 'sessions' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: 12, padding: '6px 14px' }}
-          >
-            <Layers size={14} />
-            <span>Đi Tiền Theo Kỳ ({sessions.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveSubTab('shops')}
-            className={`btn btn-sm ${activeSubTab === 'shops' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: 12, padding: '6px 14px' }}
-          >
-            <Building2 size={14} />
-            <span>Sổ Nợ Khách Hàng ({shops.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveSubTab('history')}
-            className={`btn btn-sm ${activeSubTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: 12, padding: '6px 14px' }}
-          >
-            <History size={14} />
-            <span>Nhật Ký Chuyển Khoản ({payments.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Overview Stat Cards */}
+      {/* 🏛️ UNIFIED COMPACT STICKY TOP CONTAINER (HEADER + 3 TABS + 3 KPI STATS) */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: 16,
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+        background: 'var(--bg-card, #ffffff)',
+        padding: '10px 16px 12px',
+        borderRadius: 14,
+        border: '1px solid var(--border-color, #e2e8f0)',
+        boxShadow: '0 4px 14px -3px rgba(0, 0, 0, 0.07)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        backdropFilter: 'blur(12px)',
       }}>
-        {/* Stat 1: Total Payout Needed */}
-        <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 'var(--radius-md)',
-            background: 'rgba(79, 70, 229, 0.12)', color: 'var(--primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-          }}>
-            <Wallet size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Tổng Cần Chuyển Tất Cả Kỳ
+        
+        {/* Row 1: Title & 3 Sub-Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(79, 70, 229, 0.12)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <CreditCard size={18} />
             </div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
-              {formatVND(grandTotalNetPayout)}
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Quản Lý Công Nợ & Đi Tiền Ngân Hàng
+              </h2>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Theo dõi tiến độ chuyển khoản & dư nợ tồn đọng từng Shop
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-Tab Navigation */}
+          <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 10, padding: 3, gap: 4 }}>
+            <button
+              onClick={() => setActiveSubTab('sessions')}
+              className={`btn btn-sm ${activeSubTab === 'sessions' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+            >
+              <Layers size={13} />
+              <span>Đi Tiền Theo Kỳ ({sessions.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('shops')}
+              className={`btn btn-sm ${activeSubTab === 'shops' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+            >
+              <Building2 size={13} />
+              <span>Sổ Nợ Khách Hàng ({shops.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('history')}
+              className={`btn btn-sm ${activeSubTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+            >
+              <History size={13} />
+              <span>Nhật Ký Chuyển Khoản ({payments.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: 3 Compact KPI Stat Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 10,
+        }}>
+          {/* Stat 1: Total Payout Needed */}
+          <div style={{
+            background: 'var(--bg-tertiary, #f8fafc)',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            borderRadius: 10,
+            padding: '7px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'rgba(79, 70, 229, 0.12)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Wallet size={16} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                Tổng Cần Chuyển Tất Cả Kỳ
+              </div>
+              <div className="mono" style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                {formatVND(grandTotalNetPayout)}
+              </div>
+            </div>
+          </div>
+
+          {/* Stat 2: Total Paid Amount */}
+          <div style={{
+            background: 'var(--bg-tertiary, #f8fafc)',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            borderRadius: 10,
+            padding: '7px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'rgba(16, 185, 129, 0.12)',
+              color: 'var(--success)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <CheckCircle2 size={16} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                Đã Đi Tiền Ngân Hàng
+              </div>
+              <div className="mono" style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--success)', whiteSpace: 'nowrap' }}>
+                {formatVND(grandTotalPaid)}
+              </div>
+            </div>
+          </div>
+
+          {/* Stat 3: Remaining Unpaid Debt */}
+          <div style={{
+            background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-tertiary, #f8fafc)',
+            border: `1px solid ${grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.25)' : 'var(--border-color, #e2e8f0)'}`,
+            borderRadius: 10,
+            padding: '7px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+              color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--success)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <AlertCircle size={16} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                Dư Nợ Còn Phải Đi Tiền
+              </div>
+              <div className="mono" style={{ fontSize: 15.5, fontWeight: 800, color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--success)', whiteSpace: 'nowrap' }}>
+                {formatVND(grandRemainingDebt)}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Stat 2: Total Paid Amount */}
-        <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 'var(--radius-md)',
-            background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-          }}>
-            <CheckCircle2 size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Đã Đi Tiền Ngân Hàng
-            </div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
-              {formatVND(grandTotalPaid)}
-            </div>
-          </div>
-        </div>
-
-        {/* Stat 3: Remaining Unpaid Debt */}
-        <div className="glass-panel" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 'var(--radius-md)',
-            background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-            color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--success)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-          }}>
-            <AlertCircle size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Dư Nợ Còn Phải Đi Tiền
-            </div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 800, color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--success)', marginTop: 2 }}>
-              {formatVND(grandRemainingDebt)}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* SUB-TAB 1: SESSION PAYOUT TRACKER */}
