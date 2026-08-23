@@ -494,6 +494,18 @@ export function App() {
                 onSaveEmailSettings={handleSaveEmailSettings}
                 activeCarrierId={activeCarrierId}
                 activeCarrierName={activeCarrierObj.carrierName}
+                initialChannel="email"
+              />
+            )}
+
+            {activeTab === 'zalo' && (
+              <BulkEmailView
+                currentSession={currentSession}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={handleSaveEmailSettings}
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
+                initialChannel="zalo"
               />
             )}
 

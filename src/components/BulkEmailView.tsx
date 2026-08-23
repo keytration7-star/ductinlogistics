@@ -39,6 +39,7 @@ interface BulkEmailViewProps {
   onSaveEmailSettings: (settings: EmailSettings) => void;
   activeCarrierId?: string;
   activeCarrierName?: string;
+  initialChannel?: 'zalo' | 'email';
 }
 
 const MOCK_DEMO_STATEMENT: ShopSettlementStatement = {
@@ -74,6 +75,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   onSaveEmailSettings,
   activeCarrierId,
   activeCarrierName,
+  initialChannel = 'email',
 }) => {
   const { showToast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
 
   // Active Notification Channel: 'zalo' | 'email'
-  const [activeChannel, setActiveChannel] = useState<'zalo' | 'email'>('zalo');
+  const [activeChannel, setActiveChannel] = useState<'zalo' | 'email'>(initialChannel);
+
+  React.useEffect(() => {
+    if (initialChannel) {
+      setActiveChannel(initialChannel);
+    }
+  }, [initialChannel]);
   const [zaloSettings, setZaloSettings] = useState<ZaloZnsSettings>(() => StorageService.getZaloZnsSettings());
   const [isZaloConfigOpen, setIsZaloConfigOpen] = useState(false);
   const [isSendingZaloBatch, setIsSendingZaloBatch] = useState(false);

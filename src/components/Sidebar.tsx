@@ -4,6 +4,7 @@ import {
   FileSpreadsheet, 
   Store, 
   Truck, 
+  Mail,
   BarChart3, 
   Sun, 
   Moon, 
@@ -112,8 +113,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { 
           id: 'emails', 
-          label: 'Gửi Zalo ZNS & Email', 
-          desc: 'Tự động gửi bảng kê cho Shop',
+          label: 'Gửi Email Đối Soát', 
+          desc: 'Bảng kê HTML & File Excel',
+          icon: Mail,
+          badge: null,
+          roles: ['ADMIN', 'ACCOUNTANT']
+        },
+        { 
+          id: 'zalo', 
+          label: 'Gửi Zalo ZNS (OA)', 
+          desc: 'Tự động gửi SĐT khách hàng',
           icon: MessageSquare,
           badge: 'Tích Xanh',
           roles: ['ADMIN', 'ACCOUNTANT']
