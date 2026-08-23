@@ -19,12 +19,19 @@ import {
   AlertCircle,
   Eye,
   Timer,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  ShieldCheck,
+  Zap,
+  Search,
+  Settings as SettingsIcon,
 } from 'lucide-react';
-import type { ReconciliationSession, EmailSettings, ShopSettlementStatement } from '../types';
+import type { ReconciliationSession, EmailSettings, ShopSettlementStatement, ZaloZnsSettings } from '../types';
 import { EmailService } from '../services/emailService';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storage';
+import { ZaloZnsService } from '../services/zaloZnsService';
+import { ZaloZnsConfigModal } from './ZaloZnsConfigModal';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
@@ -140,6 +147,16 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const hasUnmatchedOrders = (activeSession?.unmatchedOrdersCount || 0) > 0;
 
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
+
+  // Active Notification Channel: 'zalo' | 'email'
+  const [activeChannel, setActiveChannel] = useState<'zalo' | 'email'>('zalo');
+  const [zaloSettings, setZaloSettings] = useState<ZaloZnsSettings>(() => StorageService.getZaloZnsSettings());
+  const [isZaloConfigOpen, setIsZaloConfigOpen] = useState(false);
+  const [isSendingZaloBatch, setIsSendingZaloBatch] = useState(false);
+  const [zaloProgress, setZaloProgress] = useState<{ sent: number; total: number; success: number; failed: number }>({ sent: 0, total: 0, success: 0, failed: 0 });
+  const [zaloStatuses, setZaloStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string; messageId?: string }>>({});
+  const [zaloSearchQuery, setZaloSearchQuery] = useState('');
+
   const [selectedShopId, setSelectedShopId] = useState<string>(
     statements[0]?.shopId || ''
   );
@@ -401,6 +418,85 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     showToast('Đã hoàn tất tiến trình gửi email đối soát hàng loạt!', 'success');
   };
 
+  // Zalo ZNS Handlers
+  const handleSaveZaloSettings = (newSettings: ZaloZnsSettings) => {
+    setZaloSettings(newSettings);
+    StorageService.saveZaloZnsSettings(newSettings);
+  };
+
+  const handleStartZaloBatchSend = async () => {
+    if (hasUnmatchedOrders) {
+      showToast('Kỳ đối soát còn đơn chưa khớp nên không thể gửi ZNS cho shop.', 'warning');
+      return;
+    }
+    if (statements.length === 0) {
+      showToast('Chưa có danh sách shop đối soát nào trong kỳ này.', 'warning');
+      return;
+    }
+
+    setIsSendingZaloBatch(true);
+    setZaloProgress({ sent: 0, total: statements.length, success: 0, failed: 0 });
+
+    const newStatuses = { ...zaloStatuses };
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      newStatuses[stmt.shopId] = { status: 'sending' };
+      setZaloStatuses({ ...newStatuses });
+
+      const res = await ZaloZnsService.sendSingleZns(stmt.shopPhone || '', stmt, activeSession!, zaloSettings);
+      
+      if (res.success) {
+        successCount++;
+        newStatuses[stmt.shopId] = { status: 'sent', messageId: res.messageId, message: 'Đã gửi thành công qua Zalo ZNS' };
+      } else {
+        failedCount++;
+        newStatuses[stmt.shopId] = { status: 'failed', message: res.error || 'Lỗi gửi ZNS' };
+      }
+
+      setZaloStatuses({ ...newStatuses });
+      setZaloProgress({
+        sent: i + 1,
+        total: statements.length,
+        success: successCount,
+        failed: failedCount,
+      });
+
+      if (i < statements.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+    }
+
+    setIsSendingZaloBatch(false);
+    showToast(`Đã hoàn tất gửi Zalo ZNS! Thành công: ${successCount}, Lỗi: ${failedCount}`, successCount > 0 ? 'success' : 'warning');
+  };
+
+  const handleSendSingleZalo = async (stmt: ShopSettlementStatement) => {
+    if (hasUnmatchedOrders) {
+      showToast('Kỳ còn đơn chưa khớp nên không thể gửi ZNS.', 'warning');
+      return;
+    }
+    setZaloStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sending' } }));
+    const res = await ZaloZnsService.sendSingleZns(stmt.shopPhone || '', stmt, activeSession!, zaloSettings);
+    if (res.success) {
+      setZaloStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sent', messageId: res.messageId, message: 'Đã gửi thành công' } }));
+      showToast(`Đã gửi tin nhắn Zalo ZNS thành công tới ${stmt.shopName}!`, 'success');
+    } else {
+      setZaloStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'failed', message: res.error } }));
+      showToast(`Lỗi gửi Zalo ZNS: ${res.error}`, 'error');
+    }
+  };
+
+  const handleOpenZaloDirectChat = (phone: string, stmt: ShopSettlementStatement) => {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const memo = `Kính gửi ${stmt.shopName},\n${zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'} gửi bảng kê đối soát kỳ ${activeSession?.sessionName || ''}:\n- Tổng đơn: ${stmt.totalOrders} đơn\n- Thu hộ COD: ${new Intl.NumberFormat('vi-VN').format(stmt.totalCod)} đ\n- Tổng cước: ${new Intl.NumberFormat('vi-VN').format(stmt.totalShopFee + stmt.totalShopOtherFee)} đ\n- THỰC NHẬN: ${new Intl.NumberFormat('vi-VN').format(stmt.totalNetPayout)} đ\nSTK: ${stmt.bankInfo?.bankName || ''} - ${stmt.bankInfo?.accountNumber || ''} (${stmt.bankInfo?.accountHolder || ''})\nTrân trọng cảm ơn Quý Khách!`;
+    navigator.clipboard.writeText(memo);
+    showToast(`Đã sao chép nội dung tóm tắt đối soát & mở Zalo chat với ${phone}`, 'success');
+    window.open(`https://zalo.me/${cleanPhone}`, '_blank');
+  };
+
   // Schedule Helpers
   const setQuickSchedule = (minutesFromNow: number) => {
     if (hasUnmatchedOrders) {
@@ -457,6 +553,16 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 
+  const filteredZaloStatements = statements.filter(stmt => {
+    if (!zaloSearchQuery) return true;
+    const q = zaloSearchQuery.toLowerCase();
+    return (
+      stmt.shopName.toLowerCase().includes(q) ||
+      stmt.shopCode.toLowerCase().includes(q) ||
+      (stmt.shopPhone && stmt.shopPhone.includes(q))
+    );
+  });
+
   const currentCarrierId = activeCarrierId || (selectedCarrierTab !== 'default' ? selectedCarrierTab : activeSession?.carrierId);
 
   const previewRendered = EmailService.renderEmail(selectedStatement, settings, currentCarrierId);
@@ -468,8 +574,500 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
+      {/* 🌟 CHANNEL SELECTOR TABS: ZALO ZNS VS GMAIL */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        background: '#ffffff',
+        padding: '8px 12px',
+        borderRadius: 16,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveChannel('zalo')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            padding: '12px 20px',
+            borderRadius: 12,
+            border: activeChannel === 'zalo' ? '1.5px solid #0068ff' : '1px solid transparent',
+            background: activeChannel === 'zalo' ? 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)' : '#f8fafc',
+            color: activeChannel === 'zalo' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            boxShadow: activeChannel === 'zalo' ? '0 4px 14px rgba(0, 104, 255, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <MessageSquare size={20} />
+          <span>💬 GỬI ZALO ZNS DOANH NGHIỆP (TỰ ĐỘNG 100%)</span>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 800,
+            background: activeChannel === 'zalo' ? '#ffffff' : '#e0f2fe',
+            color: activeChannel === 'zalo' ? '#0068ff' : '#0369a1',
+            padding: '2px 8px',
+            borderRadius: 12,
+            textTransform: 'uppercase',
+          }}>
+            Tích Xanh OA
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveChannel('email')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            padding: '12px 20px',
+            borderRadius: 12,
+            border: activeChannel === 'email' ? '1.5px solid var(--primary)' : '1px solid transparent',
+            background: activeChannel === 'email' ? 'linear-gradient(135deg, var(--primary) 0%, #4338ca 100%)' : '#f8fafc',
+            color: activeChannel === 'email' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            boxShadow: activeChannel === 'email' ? '0 4px 14px rgba(79, 70, 229, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Mail size={20} />
+          <span>✉️ GỬI EMAIL HÀNG LOẠT (HTML & FILE EXCEL)</span>
+        </button>
+      </div>
+
+      {/* ======================= TAB 1: ZALO ZNS DOANH NGHIỆP ======================= */}
+      {activeChannel === 'zalo' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Top Toolbar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            background: '#ffffff',
+            padding: '18px 24px',
+            borderRadius: 16,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 15px -3px rgba(0,0,0,0.04)',
+          }}>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: 'var(--text-main)' }}>
+                <MessageSquare size={24} color="#0068ff" />
+                Gửi Thông Báo Đối Soát Qua Zalo ZNS (Tích Xanh Doanh Nghiệp)
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Gửi tin nhắn thông báo đối soát trực tiếp đến Số Điện Thoại của khách hàng qua Zalo Notification Service.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Mode Indicator */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 10,
+                background: zaloSettings.isTestMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                border: `1px solid ${zaloSettings.isTestMode ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                fontSize: 12,
+                fontWeight: 700,
+                color: zaloSettings.isTestMode ? '#b45309' : '#047857',
+              }}>
+                {zaloSettings.isTestMode ? <Zap size={15} /> : <ShieldCheck size={15} />}
+                <span>{zaloSettings.isTestMode ? '⚡ Chế độ Thử Nghiệm / Demo' : '🟢 Zalo OA Live Production'}</span>
+              </div>
+
+              {/* Zalo Config Button */}
+              <button
+                type="button"
+                onClick={() => setIsZaloConfigOpen(true)}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', fontWeight: 700 }}
+              >
+                <SettingsIcon size={16} />
+                <span>Cấu Hình Zalo ZNS</span>
+              </button>
+
+              {/* Send Zalo Bulk Button */}
+              <button
+                type="button"
+                onClick={handleStartZaloBatchSend}
+                disabled={isSendingZaloBatch || hasUnmatchedOrders || statements.length === 0}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 18px',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)',
+                  borderColor: '#0068ff',
+                }}
+              >
+                {isSendingZaloBatch ? (
+                  <>
+                    <RotateCcw size={16} className="animate-spin" />
+                    <span>Đang gửi ZNS ({zaloProgress.sent}/{zaloProgress.total})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    <span>GỬI ZALO ZNS TẤT CẢ {statements.length > 0 ? `(${statements.length} SHOP)` : 'HÀNG LOẠT'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Live Progress Banner when batch sending */}
+          {isSendingZaloBatch && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(0, 104, 255, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+              border: '1.5px solid #0068ff',
+              borderRadius: 14,
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
+                <span style={{ color: '#0068ff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <RotateCcw size={16} className="animate-spin" />
+                  Đang gửi tin nhắn Zalo ZNS tới các Shop...
+                </span>
+                <span>
+                  Tiến độ: <strong>{zaloProgress.sent} / {zaloProgress.total}</strong> ({Math.round((zaloProgress.sent / (zaloProgress.total || 1)) * 100)}%)
+                </span>
+              </div>
+              {/* Progress bar line */}
+              <div style={{ width: '100%', height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.round((zaloProgress.sent / (zaloProgress.total || 1)) * 100)}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #0068ff 0%, #10b981 100%)',
+                  transition: 'width 0.2s ease',
+                }} />
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓ Thành công: {zaloProgress.success}</span>
+                <span style={{ color: 'var(--danger)', fontWeight: 700 }}>✗ Lỗi: {zaloProgress.failed}</span>
+              </div>
+            </div>
+          )}
+
+          {/* 2 Columns: Left (Shop Table) + Right (Mobile Mockup Preview) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(450px, 1fr) 380px',
+            gap: 20,
+            alignItems: 'start',
+          }}>
+            {/* Left Column: Shop Table */}
+            <div className="glass-panel" style={{ padding: 20, borderRadius: 16, background: '#ffffff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    Danh Sách Shop Nhận ZNS ({filteredZaloStatements.length})
+                  </h3>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Kỳ đối soát: <strong>{activeSession?.sessionName || 'Chưa chọn'}</strong>
+                  </div>
+                </div>
+
+                <div style={{ position: 'relative', width: 220 }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Tìm Shop hoặc SĐT..."
+                    value={zaloSearchQuery}
+                    onChange={(e) => setZaloSearchQuery(e.target.value)}
+                    style={{ paddingLeft: 30, fontSize: 12 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ maxHeight: 520, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                <table className="data-table" style={{ margin: 0 }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-tertiary)' }}>
+                    <tr>
+                      <th>STT</th>
+                      <th>Tên Shop & Mã</th>
+                      <th>SĐT Zalo</th>
+                      <th style={{ textAlign: 'right' }}>Thực Nhận</th>
+                      <th style={{ textAlign: 'center' }}>Trạng Thái ZNS</th>
+                      <th style={{ textAlign: 'right' }}>Hành Động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredZaloStatements.map((stmt, idx) => {
+                      const isSelected = selectedShopId === stmt.shopId;
+                      const statusObj = zaloStatuses[stmt.shopId];
+                      return (
+                        <tr 
+                          key={stmt.shopId}
+                          onClick={() => setSelectedShopId(stmt.shopId)}
+                          style={{
+                            background: isSelected ? 'rgba(0, 104, 255, 0.05)' : undefined,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <td>{idx + 1}</td>
+                          <td>
+                            <div>
+                              <strong style={{ fontSize: 13, color: isSelected ? '#0068ff' : undefined }}>{stmt.shopName}</strong>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode}</div>
+                            </div>
+                          </td>
+                          <td>
+                            {stmt.shopPhone ? (
+                              <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{stmt.shopPhone}</span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Thiếu SĐT</span>
+                            )}
+                          </td>
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }}>
+                            {formatVND(stmt.totalNetPayout)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {statusObj?.status === 'sending' && (
+                              <span className="badge badge-info" style={{ fontSize: 10 }}>
+                                <RotateCcw size={10} className="animate-spin" style={{ display: 'inline', marginRight: 3 }} />
+                                Đang gửi...
+                              </span>
+                            )}
+                            {statusObj?.status === 'sent' && (
+                              <span className="badge badge-success" style={{ fontSize: 10 }}>
+                                ✓ Đã gửi ZNS
+                              </span>
+                            )}
+                            {statusObj?.status === 'failed' && (
+                              <span className="badge badge-danger" style={{ fontSize: 10 }} title={statusObj.message}>
+                                ✗ Lỗi ZNS
+                              </span>
+                            )}
+                            {(!statusObj || statusObj.status === 'idle') && (
+                              <span className="badge badge-neutral" style={{ fontSize: 10 }}>
+                                Chưa gửi
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleSendSingleZalo(stmt)}
+                                disabled={hasUnmatchedOrders}
+                                className="btn btn-sm btn-primary"
+                                style={{ padding: '3px 8px', fontSize: 11, background: '#0068ff', borderColor: '#0068ff' }}
+                                title="Gửi tin ZNS chính thức qua Zalo OA"
+                              >
+                                <Send size={11} />
+                                <span>Gửi</span>
+                              </button>
+
+                              {stmt.shopPhone && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenZaloDirectChat(stmt.shopPhone || '', stmt)}
+                                  className="btn btn-sm btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: 11, color: '#0068ff' }}
+                                  title="Mở chat Zalo cá nhân (Zalo 1-Click)"
+                                >
+                                  <MessageSquare size={11} />
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => ExcelService.downloadShopStatement(stmt)}
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '3px 8px', fontSize: 11, color: 'var(--success)' }}
+                                title="Tải file Excel bảng kê của Shop này"
+                              >
+                                <Download size={11} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Right Column: Mobile Zalo ZNS Mockup Preview */}
+            <div style={{
+              background: '#f1f5f9',
+              borderRadius: 24,
+              padding: '16px 14px',
+              border: '3px solid #cbd5e1',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              {/* Mobile Header Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 8px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#64748b',
+              }}>
+                <span>09:41</span>
+                <span>Zalo Notification</span>
+                <span>🔋 100%</span>
+              </div>
+
+              {/* Zalo OA Header */}
+              <div style={{
+                background: '#ffffff',
+                padding: '12px 14px',
+                borderRadius: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+              }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  background: '#0068ff',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 14,
+                }}>
+                  {zaloSettings.companyName ? zaloSettings.companyName.charAt(0) : 'D'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <strong style={{ fontSize: 13, color: '#0f172a' }}>{zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'}</strong>
+                    <span style={{ color: '#0068ff', fontSize: 13 }}>✓</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Zalo Official Account</div>
+                </div>
+              </div>
+
+              {/* ZNS Message Card */}
+              <div style={{
+                background: '#ffffff',
+                borderRadius: 16,
+                padding: 16,
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}>
+                {/* Card Title */}
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#0068ff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    THÔNG BÁO GIAO DỊCH
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', marginTop: 3 }}>
+                    Quyết Toán Đối Soát COD
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Kính gửi Shop: <strong style={{ color: '#0f172a' }}>{selectedStatement.shopName}</strong>
+                  </div>
+                </div>
+
+                {/* Summary Parameter Rows */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Kỳ đối soát:</span>
+                    <strong>{activeSession?.sessionName || selectedStatement.periodName}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Tổng đơn hoàn thành:</span>
+                    <strong>{selectedStatement.totalOrders} đơn</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Tiền thu hộ COD:</span>
+                    <strong style={{ color: '#0284c7' }}>{formatVND(selectedStatement.totalCod)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Tổng cước & phí DV:</span>
+                    <strong style={{ color: '#b45309' }}>-{formatVND(selectedStatement.totalShopFee + selectedStatement.totalShopOtherFee)}</strong>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    background: 'rgba(0, 104, 255, 0.08)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(0, 104, 255, 0.2)',
+                  }}>
+                    <span style={{ fontWeight: 800, color: '#0068ff' }}>THỰC NHẬN:</span>
+                    <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: '#0068ff' }}>
+                      {formatVND(selectedStatement.totalNetPayout)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
+                    <span>Tài khoản nhận:</span>
+                    <span style={{ textAlign: 'right' }}>
+                      {selectedStatement.bankInfo?.bankName ? `${selectedStatement.bankInfo.bankName} - ${selectedStatement.bankInfo.accountNumber}` : 'Chưa cập nhật'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action CTA Button */}
+                <div style={{
+                  marginTop: 6,
+                  padding: '10px',
+                  borderRadius: 10,
+                  background: '#0068ff',
+                  color: '#ffffff',
+                  textAlign: 'center',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  boxShadow: '0 2px 8px rgba(0, 104, 255, 0.3)',
+                  cursor: 'pointer',
+                }}>
+                  📄 Xem & Tải Bảng Kê Chi Tiết
+                </div>
+
+                <div style={{ fontSize: 10.5, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4 }}>
+                  Tin nhắn tự động từ {zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'}. Vui lòng liên hệ kế toán nếu có thắc mắc.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================= TAB 2: EMAIL HÀNG LOẠT ======================= */}
+      {activeChannel === 'email' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Top Header & Action Controls Bar */}
       <div style={{
         display: 'flex',
@@ -1375,6 +1973,19 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Close Email Tab Container */}
+      </div>
+      )}
+
+      {/* Zalo ZNS Configuration Modal */}
+      {isZaloConfigOpen && (
+        <ZaloZnsConfigModal
+          settings={zaloSettings}
+          onSave={handleSaveZaloSettings}
+          onClose={() => setIsZaloConfigOpen(false)}
+        />
       )}
 
     </div>

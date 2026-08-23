@@ -305,6 +305,30 @@ export interface EmailSettings {
   carrierTemplates?: Record<string, CarrierEmailTemplateConfig>; // Per carrier template & sender!
 }
 
+export interface ZaloZnsSettings {
+  appId: string;
+  secretKey: string;
+  oaId: string;
+  templateId: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
+  isTestMode?: boolean;
+  testPhoneNumber?: string;
+  companyName?: string;
+}
+
+export interface ZnsSendResult {
+  shopId: string;
+  shopCode: string;
+  shopName: string;
+  phone: string;
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  sentAt: string;
+}
+
 export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'STAFF' | 'VIEWER';
 
 export interface UserAccount {

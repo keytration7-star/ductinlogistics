@@ -4,7 +4,6 @@ import {
   FileSpreadsheet, 
   Store, 
   Truck, 
-  Mail, 
   BarChart3, 
   Sun, 
   Moon, 
@@ -14,7 +13,8 @@ import {
   UserCheck,
   CreditCard,
   Settings,
-  Award
+  Award,
+  MessageSquare
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -112,10 +112,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { 
           id: 'emails', 
-          label: 'Gửi Email Hàng Loạt', 
-          desc: 'Gửi bảng kê tự động cho Shop',
-          icon: Mail,
-          badge: null,
+          label: 'Gửi Zalo ZNS & Email', 
+          desc: 'Tự động gửi bảng kê cho Shop',
+          icon: MessageSquare,
+          badge: 'Tích Xanh',
           roles: ['ADMIN', 'ACCOUNTANT']
         },
       ]

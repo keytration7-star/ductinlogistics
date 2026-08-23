@@ -1,14 +1,25 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile, ZaloZnsSettings } from '../types';
 import { getAuthHeaders } from './authService';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
 const CARRIERS_KEY = 'gomdon_carriers_v1';
 const SESSIONS_KEY = 'gomdon_sessions_v1';
 const EMAIL_SETTINGS_KEY = 'gomdon_email_settings_v1';
+const ZALO_ZNS_SETTINGS_KEY = 'gomdon_zalo_zns_settings_v1';
 const COLUMN_MAPPINGS_KEY = 'gomdon_column_mappings_v1';
 const COMPANY_INFO_KEY = 'gomdon_company_info_v1';
 const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
 const PAYMENTS_KEY = 'gomdon_payments_v1';
+
+export const DEFAULT_ZALO_ZNS_SETTINGS: ZaloZnsSettings = {
+  appId: '',
+  secretKey: '',
+  oaId: '',
+  templateId: '',
+  isTestMode: true,
+  testPhoneNumber: '',
+  companyName: 'ĐỨC TÍN LOGISTICS',
+};
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   companyName: 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN',
@@ -392,6 +403,24 @@ export const StorageService = {
   saveEmailSettings(settings: EmailSettings): void {
     localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(settings));
     postServerSync('/api/db/email-settings', { emailSettings: settings });
+  },
+
+  getZaloZnsSettings(): ZaloZnsSettings {
+    const data = localStorage.getItem(ZALO_ZNS_SETTINGS_KEY);
+    if (!data) {
+      this.saveZaloZnsSettings(DEFAULT_ZALO_ZNS_SETTINGS);
+      return DEFAULT_ZALO_ZNS_SETTINGS;
+    }
+    try {
+      return { ...DEFAULT_ZALO_ZNS_SETTINGS, ...JSON.parse(data) };
+    } catch {
+      return DEFAULT_ZALO_ZNS_SETTINGS;
+    }
+  },
+
+  saveZaloZnsSettings(settings: ZaloZnsSettings): void {
+    localStorage.setItem(ZALO_ZNS_SETTINGS_KEY, JSON.stringify(settings));
+    postServerSync('/api/db/zalo-settings', { zaloSettings: settings });
   },
 
   getColumnMappings(): { nvc?: any; app?: any } {
