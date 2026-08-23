@@ -95,41 +95,43 @@ const DEFAULT_THEME = {
 
 const SoftwareDeveloperFooter: React.FC = () => (
   <footer style={{
-    marginTop: 'auto',
-    padding: '18px 22px 22px',
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 40,
+    background: 'rgba(255, 255, 255, 0.96)',
+    backdropFilter: 'blur(10px)',
+    borderTop: '1px solid #e2e8f0',
+    padding: '7px 20px',
     display: 'flex',
+    alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
+    boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.04)',
+    fontSize: 12,
   }}>
     <div style={{
       maxWidth: 1600,
       width: '100%',
-      background: 'rgba(255, 255, 255, 0.95)',
-      backdropFilter: 'blur(8px)',
-      border: '1px solid #e0e7ff',
-      borderRadius: 14,
-      padding: '10px 20px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexWrap: 'wrap',
-      gap: 14,
-      boxShadow: '0 2px 10px rgba(79, 70, 229, 0.04)',
-      fontSize: 12.5,
+      gap: 12,
     }}>
       {/* Badge TQ */}
       <div style={{
         background: 'linear-gradient(135deg, #0284c7, #2563eb)',
         color: '#ffffff',
         fontWeight: 900,
-        fontSize: 11,
-        padding: '3px 8px',
-        borderRadius: 6,
+        fontSize: 10.5,
+        padding: '2px 7px',
+        borderRadius: 5,
         letterSpacing: '0.5px',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+        boxShadow: '0 1px 3px rgba(37, 99, 235, 0.25)',
       }}>
         TQ
       </div>
@@ -150,7 +152,7 @@ const SoftwareDeveloperFooter: React.FC = () => (
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 5,
+          gap: 4,
           color: '#4f46e5',
           fontWeight: 800,
           textDecoration: 'none',
@@ -1166,7 +1168,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     const totalSystemCod = sessions.reduce((sum, s) => sum + (s.totalCod || 0), 0);
 
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column', paddingBottom: 48 }}>
         
         {/* TOP BAR */}
         <header style={{
@@ -1649,7 +1651,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   const currentCarrierTheme = CARRIER_THEMES[activeCarrierId] || DEFAULT_THEME;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column', paddingBottom: 48 }}>
       
       {/* 🏛️ UNIFIED STICKY TOP CONTAINER (HEADER + 3 TABS BAR) */}
       <div style={{
