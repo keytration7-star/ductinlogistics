@@ -77,8 +77,10 @@ export const BANK_CODES: Record<string, string> = VIETNAM_BANKS.reduce((acc, b) 
 export function toVietQrMemo(text: string): string {
   if (!text) return '';
   let clean = text
+    .replace(/J&T Express/gi, 'JNT')
     .replace(/J&T/gi, 'JNT')
     .replace(/J & T/gi, 'JNT')
+    .replace(/Express/gi, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
@@ -90,15 +92,48 @@ export function toVietQrMemo(text: string): string {
     .replace(/ky Doi Soat/gi, 'ky')
     // Fix stuck words and dates: e.g. "Express20/08" -> "Express 20.08"
     .replace(/([a-zA-Z])(\d{1,2}[./-]\d{1,2})/g, '$1 $2')
-    .replace(/([a-zA-Z])(\(\d{1,2})/g, '$1 $2')
-    // Đổi dấu gạch chéo ngày tháng (20/08/2026 -> 20.08.2026, 20/08 -> 20.08)
-    .replace(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g, '$1.$2.$3')
-    .replace(/(\d{1,2})\/(\d{1,2})/g, '$1.$2')
-    .replace(/[–—]/g, '-')
+    .replace(/([a-zA-Z])(\(\d{1,2})/g, '$1 $2');
+
+  // Dải ngày có năm: 20/08 - 23/08/2026 hoặc 20.08 - 23.08.2026 hoặc 22.8-22.8.2026
+  clean = clean.replace(/(\d{1,2})[./](\d{1,2})\s*[-–]\s*(\d{1,2})[./](\d{1,2})[./](\d{4})/g, (_match, d1, m1, d2, m2, y) => {
+    const day1 = parseInt(d1, 10);
+    const mon1 = parseInt(m1, 10);
+    const day2 = parseInt(d2, 10);
+    const mon2 = parseInt(m2, 10);
+    if (day1 === day2 && mon1 === mon2) {
+      return `ngay ${day1}T${mon1} ${y}`;
+    }
+    return `tu ${day1}T${mon1} den ${day2}T${mon2} ${y}`;
+  });
+
+  // Dải ngày không năm: 20/08 - 23/08 hoặc 20.8-23.8
+  clean = clean.replace(/(\d{1,2})[./](\d{1,2})\s*[-–]\s*(\d{1,2})[./](\d{1,2})/g, (_match, d1, m1, d2, m2) => {
+    const day1 = parseInt(d1, 10);
+    const mon1 = parseInt(m1, 10);
+    const day2 = parseInt(d2, 10);
+    const mon2 = parseInt(m2, 10);
+    if (day1 === day2 && mon1 === mon2) {
+      return `ngay ${day1}T${mon1}`;
+    }
+    return `tu ${day1}T${mon1} den ${day2}T${mon2}`;
+  });
+
+  // Ngày đơn có năm: 22/08/2026 hoặc 22.8.2026
+  clean = clean.replace(/(\d{1,2})[./](\d{1,2})[./](\d{4})/g, (_match, d, m, y) => {
+    return `ngay ${parseInt(d, 10)}T${parseInt(m, 10)} ${y}`;
+  });
+
+  // Ngày đơn không năm: 22/08
+  clean = clean.replace(/(\d{1,2})[./](\d{1,2})/g, (_match, d, m) => {
+    return `ngay ${parseInt(d, 10)}T${parseInt(m, 10)}`;
+  });
+
+  clean = clean
     .replace(/[()[\]{}]/g, ' ')
-    .replace(/[^a-zA-Z0-9\s.-]/g, ' ')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
   return clean.slice(0, 50);
 }
 
