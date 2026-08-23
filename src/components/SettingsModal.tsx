@@ -851,7 +851,7 @@ const TabBackup: React.FC<{ onDataReloaded?: () => void }> = ({ onDataReloaded }
 };
 
 /* ─────────────── TAB: BẢO MẬT ─────────────── */
-const TabSecurity: React.FC<{ isAdmin: boolean; onNavigateTo?: (tab: string) => void; onClose: () => void }> = ({ isAdmin, onNavigateTo, onClose }) => (
+const TabSecurity: React.FC<{ isAdmin: boolean; onSwitchToAccounts?: () => void }> = ({ isAdmin, onSwitchToAccounts }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
     <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
       <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -875,11 +875,12 @@ const TabSecurity: React.FC<{ isAdmin: boolean; onNavigateTo?: (tab: string) => 
 
     {isAdmin && (
       <button
-        className="btn btn-secondary"
-        style={{ fontSize: 13 }}
-        onClick={() => { if (onNavigateTo) onNavigateTo('users'); onClose(); }}
+        type="button"
+        className="btn btn-primary"
+        style={{ fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', fontWeight: 600 }}
+        onClick={onSwitchToAccounts}
       >
-        <Users size={14} /> Quản Lý Nhân Viên & Thiết Bị
+        <Users size={15} /> Quản Lý Nhân Viên & Thiết Bị
       </button>
     )}
 
@@ -1192,7 +1193,7 @@ const TabAccounts: React.FC<{ currentUser?: UserAccount }> = ({ currentUser }) =
 
 /* ─────────────── MAIN MODAL ─────────────── */
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen, onClose, theme: _theme, setTheme: _setTheme, userRole = 'STAFF', currentUser, onSaved, onNavigateTo,
+  isOpen, onClose, theme: _theme, setTheme: _setTheme, userRole = 'STAFF', currentUser, onSaved, onNavigateTo: _onNavigateTo,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const isAdmin = userRole === 'ADMIN';
@@ -1260,7 +1261,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'company' && <TabCompany onSaved={onSaved} isAdmin={isAdmin} />}
           {activeTab === 'notifications' && <TabNotifications />}
           {activeTab === 'backup' && isAdmin && <TabBackup onDataReloaded={onSaved} />}
-          {activeTab === 'security' && <TabSecurity isAdmin={isAdmin} onNavigateTo={onNavigateTo} onClose={onClose} />}
+          {activeTab === 'security' && <TabSecurity isAdmin={isAdmin} onSwitchToAccounts={() => setActiveTab('accounts')} />}
           {activeTab === 'accounts' && isAdmin && <TabAccounts currentUser={currentUser} />}
           {activeTab === 'guide' && <TabGuide />}
         </div>
