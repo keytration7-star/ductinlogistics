@@ -218,14 +218,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* 2. USER PROFILE BLOCK */}
           <div style={{
-            background: 'var(--bg-secondary)',
+            background: 'var(--bg-card, #ffffff)',
             padding: '7px 9px',
             borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)',
+            border: '1px solid #cfe2fe',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: 'var(--shadow-sm)',
+            boxShadow: '0 1px 4px rgba(37, 99, 235, 0.06)',
           }}>
             <div 
               onClick={() => {
@@ -335,11 +335,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Bottom Controls & Security Area */}
       <div style={{
         padding: '14px 14px 18px',
-        borderTop: '1px solid var(--border-color)',
+        borderTop: '1px solid #cfe2fe',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        background: 'var(--bg-tertiary)',
+        background: 'rgba(219, 234, 254, 0.45)',
       }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
