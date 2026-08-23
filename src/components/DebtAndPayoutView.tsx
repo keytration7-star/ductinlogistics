@@ -16,6 +16,8 @@ import {
   FileSpreadsheet,
   Zap,
   Eye,
+  QrCode,
+  Copy,
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
@@ -23,6 +25,7 @@ import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
 import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, getStatementPaidAmount } from '../services/settlementService';
+import { BANK_CODES, VIETNAM_BANKS } from '../constants/banks';
 
 interface DebtAndPayoutViewProps {
   sessions: ReconciliationSession[];
@@ -71,6 +74,20 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   // Helper to format currency
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';
   const isSessionEligibleForPayout = (session: ReconciliationSession) => (session.unmatchedOrdersCount || 0) === 0;
+
+  // Helper to get bank code for VietQR
+  const getBankCode = (bankName: string) => {
+    if (!bankName) return 'MB';
+    const trimmed = bankName.trim();
+    if (BANK_CODES[trimmed]) return BANK_CODES[trimmed];
+    const norm = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const b of VIETNAM_BANKS) {
+      if (b.code.toLowerCase() === norm || b.shortName.toLowerCase().replace(/[^a-z0-9]/g, '') === norm) {
+        return b.code;
+      }
+    }
+    return 'MB';
+  };
 
   // Compute Payout Stats for a specific Shop in a Session
   const getStatementPayoutInfo = (sessionId: string, statement: ShopSettlementStatement) => {
@@ -1030,135 +1047,304 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
         </div>
       )}
 
-      {/* PAYOUT FORM MODAL */}
-      {isModalOpen && targetSession && targetStatement && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div 
-            className="modal-content" 
-            style={{ maxWidth: 540 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{
-              padding: '18px 24px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <DollarSign size={22} color="var(--success)" />
-                <div>
-                  <h3 style={{ fontSize: 17, fontWeight: 800 }}>Xác Nhận Đi Tiền Ngân Hàng</h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Shop: <strong style={{ color: 'var(--primary)' }}>{targetStatement.shopName} ({targetStatement.shopCode})</strong>
+      {/* PAYOUT FORM MODAL WITH LIVE VIETQR & SESSION TRANSFER MEMO */}
+      {isModalOpen && targetSession && targetStatement && (() => {
+        const bankName = targetStatement.bankInfo?.bankName || 'MB Bank';
+        const bankCode = getBankCode(bankName);
+        const rawAccountNum = targetStatement.bankInfo?.accountNumber || '';
+        const cleanAccountNum = rawAccountNum.replace(/[^0-9]/g, '');
+        const accountHolder = targetStatement.bankInfo?.accountHolder || targetStatement.shopName || '';
+        const amountNum = Math.max(0, parseFloat(payAmount.replace(/[^0-9.]/g, '')) || 0);
+        const transferMemo = payNote.trim() || `Thanh toán đối soát kỳ ${cleanSessionName(targetSession.sessionName)}`;
+        const qrUrl = cleanAccountNum 
+          ? `https://img.vietqr.io/image/${bankCode}-${cleanAccountNum}-compact2.png?amount=${Math.round(amountNum)}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent(accountHolder)}`
+          : '';
+
+        const handleCopy = (text: string, label: string) => {
+          navigator.clipboard.writeText(text);
+          showToast(`Đã sao chép ${label}: ${text}`, 'success');
+        };
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+            <div 
+              className="modal-content" 
+              style={{ maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', padding: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '16px 22px',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(79, 70, 229, 0.08) 100%)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--success)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                  }}>
+                    <QrCode size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+                      Xác Nhận Đi Tiền & Quét Mã VietQR Tự Động
+                    </h3>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Shop: <strong style={{ color: 'var(--primary)' }}>{targetStatement.shopName} ({targetStatement.shopCode})</strong> • Kỳ: <strong>{targetSession.sessionName}</strong>
+                    </div>
                   </div>
                 </div>
+                <button onClick={() => setIsModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
+                  <X size={16} />
+                </button>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
-                <X size={16} />
-              </button>
-            </div>
 
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Bank Account Info Box */}
-              {targetStatement.bankInfo?.bankName && (
+              {/* Modal Body: 2 Columns */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: 0,
+                background: 'var(--bg-secondary)',
+              }}>
+                {/* 👈 CỘT TRÁI: LIVE VIETQR CODE & BANK ACCOUNT INFO */}
                 <div style={{
-                  padding: '12px 16px',
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                  border: '1.5px solid var(--success)',
-                  borderRadius: 'var(--radius-md)',
+                  padding: 20,
+                  borderRight: '1px solid var(--border-color)',
+                  background: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 12,
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', marginBottom: 4 }}>
-                    💳 Tài Khoản Ngân Hàng Nhận Tiền Của Shop
+                  <div style={{ width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CreditCard size={14} />
+                    <span>MÃ VIETQR CHUYỂN KHOẢN KỲ NÀY</span>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>
-                    {targetStatement.bankInfo.bankName} • <span className="mono">{targetStatement.bankInfo.accountNumber}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Chủ tài khoản: <strong>{targetStatement.bankInfo.accountHolder}</strong>
+
+                  {/* QR Image Box */}
+                  {cleanAccountNum ? (
+                    <div style={{
+                      background: '#ffffff',
+                      padding: 12,
+                      borderRadius: 'var(--radius-md)',
+                      border: '1.5px solid var(--border-color)',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      width: '100%',
+                    }}>
+                      <img 
+                        src={qrUrl} 
+                        alt="Mã VietQR Chuyển Khoản"
+                        style={{ width: '100%', maxWidth: 280, height: 'auto', display: 'block', borderRadius: 8 }}
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center', fontWeight: 600 }}>
+                        ⚡ Quét mã bằng App ngân hàng để tự điền STK, Số tiền & Nội dung CK
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: 24,
+                      textAlign: 'center',
+                      background: '#fef2f2',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px dashed #ef4444',
+                      color: '#b91c1c',
+                      width: '100%',
+                    }}>
+                      <AlertCircle size={28} style={{ margin: '0 auto 8px' }} />
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>Shop chưa có Số Tài Khoản</div>
+                      <div style={{ fontSize: 11, marginTop: 4 }}>Vui lòng vào Quản Lý Shop để cập nhật STK nhận tiền.</div>
+                    </div>
+                  )}
+
+                  {/* Quick Copy Info Card */}
+                  <div style={{
+                    width: '100%',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    fontSize: 12,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Ngân hàng nhận:</span>
+                      <strong>{bankName}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <strong className="mono" style={{ color: 'var(--primary)', fontSize: 13 }}>{rawAccountNum || '—'}</strong>
+                        {rawAccountNum && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(cleanAccountNum, 'Số tài khoản')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: 10.5 }}
+                            title="Sao chép STK"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
+                      <strong>{accountHolder || '—'}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Số tiền chuyển:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <strong className="mono" style={{ color: 'var(--success)', fontSize: 13 }}>{formatVND(amountNum)}</strong>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(Math.round(amountNum).toString(), 'Số tiền')}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 6px', fontSize: 10.5 }}
+                          title="Sao chép Số tiền"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border-color)' }}>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>Nội dung CK:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, textAlign: 'right' }}>
+                        <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--text-main)', fontWeight: 600 }}>
+                          {transferMemo}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(transferMemo, 'Nội dung CK')}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 6px', fontSize: 10.5, flexShrink: 0 }}
+                          title="Sao chép Nội dung CK"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Amount Input */}
-              <div className="input-group">
-                <label className="input-label">Số tiền chuyển khoản (VND) *</label>
-                <input
-                  type="text"
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  placeholder="Nhập số tiền..."
-                  className="input-field mono"
-                  style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}
-                />
-              </div>
+                {/* 👉 CỘT PHẢI: FORM ĐIỀU CHỈNH & XÁC NHẬN ĐI TIỀN */}
+                <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* Amount Input */}
+                  <div className="input-group">
+                    <label className="input-label" style={{ fontWeight: 700 }}>
+                      Số tiền thực chuyển khoản (VND) *
+                    </label>
+                    <input
+                      type="text"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                      placeholder="Nhập số tiền..."
+                      className="input-field mono"
+                      style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', background: '#fff' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                      💡 Sửa số tiền ở đây sẽ lập tức cập nhật lại số tiền trên mã VietQR bên trái.
+                    </div>
+                  </div>
 
-              {/* Bank Name Selector */}
-              <div>
-                <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>Ngân hàng thực hiện chuyển khoản:</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {QUICK_BANKS.map(bank => (
-                    <button
-                      key={bank}
-                      type="button"
-                      onClick={() => setPayBank(bank)}
-                      className={`btn btn-sm ${payBank === bank ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{ fontSize: 11, padding: '3px 8px' }}
-                    >
-                      {bank}
+                  {/* Transfer Note / Memo Input */}
+                  <div className="input-group">
+                    <label className="input-label" style={{ fontWeight: 700 }}>
+                      Nội dung chuyển khoản / Ghi chú thanh toán
+                    </label>
+                    <input
+                      type="text"
+                      value={payNote}
+                      onChange={(e) => setPayNote(e.target.value)}
+                      placeholder="Nội dung chuyển khoản..."
+                      className="input-field"
+                      style={{ fontSize: 12.5, background: '#fff' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                      💡 Nội dung này được gắn tự động vào mã VietQR để khi quét mã sẽ tự điền vào App ngân hàng.
+                    </div>
+                  </div>
+
+                  {/* Bank Name Selector */}
+                  <div>
+                    <label className="input-label" style={{ marginBottom: 6, display: 'block', fontWeight: 700 }}>
+                      Ngân hàng nguồn của bạn (dùng để chuyển tiền):
+                    </label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                      {QUICK_BANKS.map(bank => (
+                        <button
+                          key={bank}
+                          type="button"
+                          onClick={() => setPayBank(bank)}
+                          className={`btn btn-sm ${payBank === bank ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ fontSize: 11, padding: '2px 7px' }}
+                        >
+                          {bank}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={payBank}
+                      onChange={(e) => setPayBank(e.target.value)}
+                      placeholder="Hoặc gõ tên ngân hàng..."
+                      className="input-field"
+                      style={{ fontSize: 12.5, background: '#fff' }}
+                    />
+                  </div>
+
+                  {/* Transaction Ref ID */}
+                  <div className="input-group">
+                    <label className="input-label" style={{ fontWeight: 700 }}>
+                      Mã giao dịch ngân hàng / Mã tra cứu (FT...)
+                    </label>
+                    <input
+                      type="text"
+                      value={payRef}
+                      onChange={(e) => setPayRef(e.target.value)}
+                      placeholder="Ví dụ: FT260823123456"
+                      className="input-field mono"
+                      style={{ fontSize: 12.5, background: '#fff' }}
+                    />
+                  </div>
+
+                  {/* Submit Buttons */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
+                      Hủy Bỏ
                     </button>
-                  ))}
+                    <button type="button" onClick={handleSubmitPayout} className="btn btn-primary" style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}>
+                      <CheckCircle size={16} />
+                      <span>Xác Nhận Đã Đi Tiền</span>
+                    </button>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  value={payBank}
-                  onChange={(e) => setPayBank(e.target.value)}
-                  placeholder="Hoặc gõ tên ngân hàng..."
-                  className="input-field"
-                  style={{ fontSize: 13 }}
-                />
-              </div>
-
-              {/* Transaction Ref ID */}
-              <div className="input-group">
-                <label className="input-label">Mã giao dịch ngân hàng / Mã tra cứu (FT...)</label>
-                <input
-                  type="text"
-                  value={payRef}
-                  onChange={(e) => setPayRef(e.target.value)}
-                  placeholder="Ví dụ: FT240809123456"
-                  className="input-field mono"
-                  style={{ fontSize: 13 }}
-                />
-              </div>
-
-              {/* Note */}
-              <div className="input-group">
-                <label className="input-label">Ghi chú thanh toán</label>
-                <input
-                  type="text"
-                  value={payNote}
-                  onChange={(e) => setPayNote(e.target.value)}
-                  placeholder="Ghi chú thêm..."
-                  className="input-field"
-                  style={{ fontSize: 13 }}
-                />
-              </div>
-
-              {/* Submit Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
-                  Hủy Bỏ
-                </button>
-                <button type="button" onClick={handleSubmitPayout} className="btn btn-primary">
-                  <CheckCircle size={16} />
-                  <span>Xác Nhận Đã Đi Tiền</span>
-                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );
