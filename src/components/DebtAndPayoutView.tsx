@@ -133,7 +133,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     setPayAmount(remainingDebt.toString());
     setPayRef('');
     setPayBank(statement.bankInfo?.bankName || 'Vietcombank');
-    setPayNote(`Thanh toán đối soát kỳ ${session.sessionName}`);
+    const smartPeriodTitle = cleanSessionName(session.sessionName, session.createdAt, session.carrierName);
+    setPayNote(`Thanh toán đối soát kỳ ${smartPeriodTitle}`);
     setIsModalOpen(true);
   };
 

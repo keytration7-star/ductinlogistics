@@ -21,22 +21,43 @@ export function generateSmartSessionName(
     const extractedDates: Date[] = [];
     
     fileRows.forEach(row => {
-      const dateVal = row['Ngày gửi'] || row['Ngày'] || row['NGAY_GUI'] || row['date'] || row['Ngày phát sinh'] || row['Ngày tạo'] || row['Ngày chốt'];
+      let dateVal: any = null;
+      for (const k of Object.keys(row)) {
+        const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '_');
+        if (
+          norm.includes('ngay') || 
+          norm.includes('thoi_gian') || 
+          norm.includes('date') || 
+          norm.includes('time') || 
+          norm.includes('ky_nhan') || 
+          norm.includes('phat_sinh') ||
+          norm.includes('tao_don')
+        ) {
+          if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+            dateVal = row[k];
+            break;
+          }
+        }
+      }
+
       if (dateVal) {
         let parsed: Date | null = null;
         if (dateVal instanceof Date) {
           parsed = dateVal;
         } else if (typeof dateVal === 'string') {
-          // Try DD/MM/YYYY or YYYY-MM-DD
-          const parts = dateVal.trim().split(/[\sT]+/)[0].split(/[/.-]/);
+          // Try DD/MM/YYYY or YYYY-MM-DD or DD-MM-YYYY HH:mm:ss
+          const datePart = dateVal.trim().split(/[\sT]+/)[0];
+          const parts = datePart.split(/[/.-]/);
           if (parts.length === 3) {
             if (parts[0].length === 4) {
               parsed = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
             } else if (parts[2].length === 4) {
               parsed = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            } else if (parts[2].length === 2) {
+              parsed = new Date(2000 + parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
             }
           }
-        } else if (typeof dateVal === 'number') {
+        } else if (typeof dateVal === 'number' && dateVal > 30000 && dateVal < 60000) {
           // Excel serial date format
           parsed = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
         }
@@ -81,10 +102,10 @@ export function generateSmartSessionName(
     }
   }
 
-  // 3. Fallback: Start date = 7 days ago
+  // 3. Fallback: Start date = 3 days ago (standard 3-day courier settlement cycle)
   if (!startDate) {
     const fallbackStart = new Date(now);
-    fallbackStart.setDate(fallbackStart.getDate() - 6);
+    fallbackStart.setDate(fallbackStart.getDate() - 3);
     startDate = fallbackStart;
   }
 
@@ -102,29 +123,41 @@ export function generateSmartSessionName(
     return `Đối Soát ${carrierClean} (${endDay}/${endMonth}/${endYear})`;
   }
 
-  return `Đối Soát ${carrierClean} (${startDay}/${startMonth} - ${endDay}/${endMonth}/${endYear})`;
+  return `Đối Soát ${carrierClean} (${startDay}/${startMonth} – ${endDay}/${endMonth}/${endYear})`;
 }
 
 /**
- * Automatically cleans and formats old session titles (e.g. removes "Tháng tháng")
+ * Automatically cleans and formats old session titles (e.g. ensures full date range like "(20/08 – 23/08/2026)")
  */
-export function cleanSessionName(sessionName: string, createdAt?: string, carrierName?: string): string {
+export function cleanSessionName(sessionName: string, createdAt?: string, _carrierName?: string): string {
   if (!sessionName) return 'Kỳ Đối Soát';
   
   let cleaned = sessionName
     .replace(/Tháng tháng/gi, 'Tháng')
-    .replace(/Kỳ Đối Soát Tháng tháng/gi, 'Đối Soát');
+    .replace(/Kỳ Đối Soát Tháng tháng/gi, 'Đối Soát')
+    .trim();
 
-  // Fix generic "Kỳ Đối Soát Tháng 08, 2026" or "Kỳ Đối Soát Tháng 08/2026"
-  if (cleaned.startsWith('Kỳ Đối Soát Tháng ') || cleaned.startsWith('Kỳ Đối Soát tháng ')) {
-    const d = createdAt ? new Date(createdAt) : new Date();
-    const dayStr = String(d.getDate()).padStart(2, '0');
-    const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-    const yearStr = d.getFullYear();
-    const cName = carrierName ? carrierName.trim() : '';
-
-    cleaned = `Đối Soát ${cName} (${dayStr}/${monthStr}/${yearStr})`.replace(/\s+/g, ' ').trim();
+  // If session title already contains date range in parentheses, return it
+  if (/\([0-9/.\s–-]+(\/[0-9]{4})?\)/.test(cleaned)) {
+    return cleaned;
   }
 
-  return cleaned;
+  // If session title lacks date range, extract from createdAt and attach date range
+  const d = createdAt ? new Date(createdAt) : new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  
+  const startDate = new Date(d);
+  startDate.setDate(startDate.getDate() - 3);
+
+  const startDay = pad(startDate.getDate());
+  const startMonth = pad(startDate.getMonth() + 1);
+  const endDay = pad(d.getDate());
+  const endMonth = pad(d.getMonth() + 1);
+  const endYear = d.getFullYear();
+
+  const dateRange = (startDay === endDay && startMonth === endMonth)
+    ? `(${endDay}/${endMonth}/${endYear})`
+    : `(${startDay}/${startMonth} – ${endDay}/${endMonth}/${endYear})`;
+
+  return `${cleaned} ${dateRange}`.replace(/\s+/g, ' ').trim();
 }
