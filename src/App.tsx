@@ -36,13 +36,43 @@ export function App() {
     AuthService.getAccessToken() ? AuthService.getCurrentUser() : null
   );
   
-  // Active Carrier Workspace Context (null = Carrier Hub Dashboard)
-  const [activeCarrierId, setActiveCarrierId] = useState<string | null>(() => {
-    return sessionStorage.getItem('gomdon_active_carrier_id') || null;
-  });
+  // ──────────────────────────────────────────
+  // 🧭 PROFESSIONAL ENTERPRISE URL ROUTER (SAAS / FB-STYLE DYNAMIC URLS)
+  // ──────────────────────────────────────────
+  const parseAppRoute = () => {
+    const path = window.location.pathname.toLowerCase();
+    const search = new URLSearchParams(window.location.search);
+    const segments = path.split('/').filter(Boolean);
 
-  const [activeTab, setActiveTab] = useState<string>('reconciliation');
-  const [reportsChannel, setReportsChannel] = useState<'zalo' | 'email' | 'telegram'>('email');
+    let carrierId: string | null = sessionStorage.getItem('gomdon_active_carrier_id') || null;
+    let tab: string = 'reconciliation';
+    let channel: 'zalo' | 'email' | 'telegram' = 'email';
+
+    if (segments[0] === 'app') {
+      if (segments[1] === 'hub') {
+        carrierId = null;
+      } else if (segments[1] === 'carrier' && segments[2]) {
+        carrierId = segments[2];
+        if (segments[3]) tab = segments[3];
+      } else if (segments[1]) {
+        tab = segments[1];
+      }
+    }
+
+    if (search.has('channel')) {
+      const ch = search.get('channel');
+      if (ch === 'zalo' || ch === 'email' || ch === 'telegram') channel = ch;
+    }
+
+    return { carrierId, tab, channel };
+  };
+
+  const initialRoute = parseAppRoute();
+
+  // Active Carrier Workspace Context (null = Carrier Hub Dashboard)
+  const [activeCarrierId, setActiveCarrierId] = useState<string | null>(initialRoute.carrierId);
+  const [activeTab, setActiveTab] = useState<string>(initialRoute.tab);
+  const [reportsChannel, setReportsChannel] = useState<'zalo' | 'email' | 'telegram'>(initialRoute.channel);
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [carriers, setCarriers] = useState<CarrierWholesaleTier[]>([]);
@@ -62,6 +92,56 @@ export function App() {
     usedMB: number;
     uptimeHours: string;
   } | null>(null);
+
+  // 🌐 Bidirectional URL Sync: Push URL when state changes
+  useEffect(() => {
+    if (!currentUser) {
+      if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+        window.history.replaceState(null, '', '/login');
+      }
+      return;
+    }
+
+    // Role TAX_ACCOUNTANT manages its own URL in TaxAccountantPortal component
+    if (currentUser.role === 'TAX_ACCOUNTANT') {
+      return;
+    }
+
+    let targetPath = '/app';
+    if (!activeCarrierId) {
+      targetPath = '/app/hub';
+    } else {
+      targetPath = `/app/carrier/${activeCarrierId}/${activeTab}`;
+    }
+
+    const queryParams = new URLSearchParams();
+    if (activeTab === 'email' && reportsChannel) {
+      queryParams.set('channel', reportsChannel);
+    }
+    if (currentSession?.id) {
+      queryParams.set('session_id', currentSession.id);
+    }
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const fullUrl = `${targetPath}${queryString}`;
+
+    if (window.location.pathname + window.location.search !== fullUrl) {
+      window.history.pushState(null, '', fullUrl);
+    }
+  }, [currentUser, activeCarrierId, activeTab, reportsChannel, currentSession?.id]);
+
+  // 🔄 Browser Back / Forward Button Handling
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = parseAppRoute();
+      setActiveCarrierId(route.carrierId);
+      setActiveTab(route.tab);
+      setReportsChannel(route.channel);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -151,6 +231,7 @@ export function App() {
     setCurrentUser(null);
     setActiveCarrierId(null);
     sessionStorage.removeItem('gomdon_active_carrier_id');
+    window.history.pushState(null, '', '/login');
   };
 
   // Filter shops strictly belonging to the currently selected Carrier workspace

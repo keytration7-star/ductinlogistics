@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
@@ -141,10 +141,39 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
 
-  // Active carrier selection: null = Hub view (select carrier card), 'all' | carrierId = inside carrier workspace
-  const [activeCarrierId, setActiveCarrierId] = useState<string | null>(null);
+  // ──────────────────────────────────────────
+  // 🧭 TAX PORTAL URL ROUTER (SAAS / FB-STYLE DYNAMIC URLS)
+  // ──────────────────────────────────────────
+  const parseTaxRoute = () => {
+    const path = window.location.pathname.toLowerCase();
+    const search = new URLSearchParams(window.location.search);
+    const segments = path.split('/').filter(Boolean);
 
-  const [activeTab, setActiveTab] = useState<'sessions' | 'shops' | 'monthly'>('sessions');
+    let carrierId: string | null = null;
+    let tab: 'sessions' | 'shops' | 'monthly' = 'sessions';
+    let sessId: string | null = search.get('session_id') || null;
+
+    if (segments[0] === 'tax-portal' || segments[0] === 'tax') {
+      if (segments[1] === 'carrier' && segments[2]) {
+        carrierId = segments[2];
+      } else if (segments[1] === 'hub') {
+        carrierId = null;
+      }
+    }
+
+    if (search.has('tab')) {
+      const t = search.get('tab');
+      if (t === 'shops' || t === 'monthly' || t === 'sessions') tab = t;
+    }
+
+    return { carrierId, tab, sessId };
+  };
+
+  const initialTaxRoute = parseTaxRoute();
+
+  // Active carrier selection: null = Hub view (select carrier card), 'all' | carrierId = inside carrier workspace
+  const [activeCarrierId, setActiveCarrierId] = useState<string | null>(initialTaxRoute.carrierId);
+  const [activeTab, setActiveTab] = useState<'sessions' | 'shops' | 'monthly'>(initialTaxRoute.tab);
   const [searchQuery, setSearchQuery] = useState('');
   const [hubSearchTerm, setHubSearchTerm] = useState('');
   
@@ -153,7 +182,47 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   const [selectedShopStmt, setSelectedShopStmt] = useState<ShopSettlementStatement | null>(null);
 
   // Selected session ID for Master-Detail Split Screen in Tab 1
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialTaxRoute.sessId);
+
+  // 🌐 Bidirectional URL Sync for Tax Portal
+  useEffect(() => {
+    let targetPath = '/tax-portal';
+    if (!activeCarrierId) {
+      targetPath = '/tax-portal/hub';
+    } else {
+      targetPath = `/tax-portal/carrier/${activeCarrierId}`;
+    }
+
+    const queryParams = new URLSearchParams();
+    if (activeCarrierId) {
+      queryParams.set('tab', activeTab);
+      if (selectedSessionId) {
+        queryParams.set('session_id', selectedSessionId);
+      }
+    }
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const fullUrl = `${targetPath}${queryString}`;
+
+    if (window.location.pathname + window.location.search !== fullUrl) {
+      window.history.pushState(null, '', fullUrl);
+    }
+  }, [activeCarrierId, activeTab, selectedSessionId]);
+
+  // 🔄 Browser Back / Forward Button Handling for Tax Portal
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = parseTaxRoute();
+      setActiveCarrierId(route.carrierId);
+      setActiveTab(route.tab);
+      if (route.sessId) {
+        setSelectedSessionId(route.sessId);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Date range filter for monthly/quarterly tax report
   const now = new Date();
