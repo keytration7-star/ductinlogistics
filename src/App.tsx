@@ -685,7 +685,7 @@ export function App() {
               textOverflow: 'ellipsis',
               flexShrink: 1,
             }}>
-              <span>Phiên làm việc: <strong style={{ color: 'var(--text-main)' }}>{currentUser.fullName}</strong> ({currentUser.username})</span>
+              <span><strong style={{ color: 'var(--text-main)' }}>{currentUser.fullName}</strong> ({currentUser.username})</span>
 
               <span>•</span>
 
