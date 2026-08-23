@@ -1913,161 +1913,184 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
                 {/* 👉 CỘT PHẢI: CHI TIẾT KỲ ĐỐI SOÁT ĐƯỢC CHỌN (DETAIL WORKSPACE) */}
                 {activeDetailSession ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    {/* 1. Header Banner Kỳ Đối Soát + Cụm Nút Xuất File */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* 1. Header Banner Kỳ Đối Soát + Cụm Nút Xuất File (Cố định chiều cao, không bị nhảy) */}
                     <div style={{
                       background: 'var(--surface, #ffffff)',
-                      borderRadius: 18,
+                      borderRadius: 14,
                       border: '1.5px solid var(--border, #e2e8f0)',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
-                      padding: '20px 24px',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.03)',
+                      padding: '8px 16px',
+                      minHeight: 52,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: 16,
+                      flexWrap: 'nowrap',
+                      gap: 12,
                     }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{
-                            background: (activeDetailSession.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444',
-                            color: '#fff',
-                            fontSize: 11,
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                        <span style={{
+                          background: (activeDetailSession.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444',
+                          color: '#fff',
+                          fontSize: 10.5,
+                          fontWeight: 900,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          letterSpacing: 0.5,
+                          flexShrink: 0,
+                        }}>
+                          {activeDetailSession.carrierName || (activeDetailSession.carrierId || 'jnt').toUpperCase()}
+                        </span>
+                        
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                          <h2 style={{
+                            fontSize: 15.5,
                             fontWeight: 900,
-                            padding: '3px 10px',
-                            borderRadius: 6,
-                            letterSpacing: 0.5,
+                            margin: 0,
+                            color: 'var(--text-main)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                           }}>
-                            {activeDetailSession.carrierName || (activeDetailSession.carrierId || 'jnt').toUpperCase()}
-                          </span>
-                          <h2 style={{ fontSize: 19, fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>
                             {activeDetailSession.sessionName}
                           </h2>
-                        </div>
-
-                        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                          <span>📅 Ngày tạo: <strong>{new Date(activeDetailSession.createdAt).toLocaleDateString('vi-VN')} lúc {new Date(activeDetailSession.createdAt).toLocaleTimeString('vi-VN')}</strong></span>
-                          <span>•</span>
-                          <span>🏪 Quy mô: <strong>{activeDetailSession.statements?.length || 0} Shop đối soát</strong></span>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            • <strong>{activeDetailSession.statements?.length || 0}</strong> Shop • {new Date(activeDetailSession.createdAt).toLocaleDateString('vi-VN')} {new Date(activeDetailSession.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Cụm 3 nút xuất file cao cấp */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      {/* Cụm 3 nút xuất file cao cấp (gọn gàng) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <button
                           onClick={() => exportSessionMultiSheet(activeDetailSession)}
-                          className="btn btn-primary"
+                          className="btn btn-primary btn-sm"
                           style={{
                             background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
                             borderColor: '#7c3aed',
-                            padding: '10px 18px',
-                            fontSize: 13,
+                            padding: '6px 14px',
+                            fontSize: 12,
                             fontWeight: 800,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 8,
-                            boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
-                            borderRadius: 10,
+                            gap: 6,
+                            borderRadius: 8,
                           }}
                           title="Tải 1 file Excel chứa Sheet tổng và từng Sheet chi tiết từng Shop"
                         >
-                          <Download size={16} />
+                          <Download size={14} />
                           <span>Tải File Đa Sheet (.xlsx)</span>
                         </button>
 
                         <button
                           onClick={() => exportSessionZipPackage(activeDetailSession)}
-                          className="btn btn-secondary"
+                          className="btn btn-secondary btn-sm"
                           style={{
-                            padding: '10px 16px',
-                            fontSize: 13,
+                            padding: '6px 12px',
+                            fontSize: 12,
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            borderRadius: 10,
+                            gap: 5,
+                            borderRadius: 8,
                           }}
                           title="Tải gói file ZIP trọn bộ các Shop"
                         >
-                          <Archive size={16} />
+                          <Archive size={14} />
                           <span>Tải Gói (.ZIP)</span>
                         </button>
 
                         <button
                           onClick={() => exportFlatMisaData(activeDetailSession)}
-                          className="btn btn-secondary"
+                          className="btn btn-secondary btn-sm"
                           style={{
-                            padding: '10px 16px',
-                            fontSize: 13,
+                            padding: '6px 12px',
+                            fontSize: 12,
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            borderRadius: 10,
+                            gap: 5,
+                            borderRadius: 8,
                           }}
                           title="Xuất bảng dữ liệu phẳng import phần mềm kế toán MISA / FAST"
                         >
-                          <FileText size={16} />
+                          <FileText size={14} />
                           <span>Xuất MISA</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* 2. 4 Khối KPI Metrics dày dặn, đổ bóng & phân chia rõ ràng */}
+                    {/* 2. 4 Khối KPI Metrics cố định kích thước, không bị nhảy layout */}
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: 14,
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: 10,
                     }}>
                       <div style={{
                         background: 'var(--surface, #ffffff)',
-                        borderRadius: 16,
+                        borderRadius: 12,
                         border: '1.5px solid var(--border, #e2e8f0)',
-                        padding: '16px 20px',
-                        boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.04)',
+                        padding: '8px 14px',
+                        height: 64,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
                       }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG SỐ ĐƠN HÀNG</div>
-                        <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4, color: '#1e293b' }}>
-                          {activeDetailSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>đơn</span>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG SỐ ĐƠN HÀNG</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#1e293b', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>đơn</span>
                         </div>
                       </div>
 
                       <div style={{
                         background: 'var(--surface, #ffffff)',
-                        borderRadius: 16,
+                        borderRadius: 12,
                         border: '1.5px solid rgba(37, 99, 235, 0.25)',
-                        padding: '16px 20px',
-                        boxShadow: '0 8px 20px -4px rgba(37, 99, 235, 0.08)',
+                        padding: '8px 14px',
+                        height: 64,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(37, 99, 235, 0.04)',
                       }}>
-                        <div style={{ fontSize: 11, color: '#2563eb', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG TIỀN COD THU HỘ</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#2563eb' }}>
-                          {activeDetailSession.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        <div style={{ fontSize: 10, color: '#2563eb', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG TIỀN COD THU HỘ</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#2563eb', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
                         </div>
                       </div>
 
                       <div style={{
                         background: 'var(--surface, #ffffff)',
-                        borderRadius: 16,
+                        borderRadius: 12,
                         border: '1.5px solid rgba(124, 58, 237, 0.25)',
-                        padding: '16px 20px',
-                        boxShadow: '0 8px 20px -4px rgba(124, 58, 237, 0.08)',
+                        padding: '8px 14px',
+                        height: 64,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(124, 58, 237, 0.04)',
                       }}>
-                        <div style={{ fontSize: 11, color: '#7c3aed', textTransform: 'uppercase', fontWeight: 800 }}>DOANH THU CƯỚC DỊCH VỤ</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#7c3aed' }}>
-                          {(activeDetailSession.totalShopRevenue || 0).toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        <div style={{ fontSize: 10, color: '#7c3aed', textTransform: 'uppercase', fontWeight: 800 }}>DOANH THU CƯỚC DỊCH VỤ</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#7c3aed', lineHeight: 1.2 }}>
+                          {(activeDetailSession.totalShopRevenue || 0).toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
                         </div>
                       </div>
 
                       <div style={{
                         background: 'var(--surface, #ffffff)',
-                        borderRadius: 16,
+                        borderRadius: 12,
                         border: '1.5px solid rgba(22, 163, 74, 0.25)',
-                        padding: '16px 20px',
-                        boxShadow: '0 8px 20px -4px rgba(22, 163, 74, 0.08)',
+                        padding: '8px 14px',
+                        height: 64,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.04)',
                       }}>
-                        <div style={{ fontSize: 11, color: '#16a34a', textTransform: 'uppercase', fontWeight: 800 }}>THỰC TRẢ KHÁCH HÀNG (SHOP)</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#16a34a' }}>
-                          {activeDetailSession.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600 }}>đ</span>
+                        <div style={{ fontSize: 10, color: '#16a34a', textTransform: 'uppercase', fontWeight: 800 }}>THỰC TRẢ KHÁCH HÀNG (SHOP)</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#16a34a', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
                         </div>
                       </div>
                     </div>
@@ -2075,40 +2098,40 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     {/* 3. Bảng Danh Sách Shop Chi Tiết Có Khung Cuộn Độc Lập & Header Sticky */}
                     <div style={{
                       background: 'var(--surface, #ffffff)',
-                      borderRadius: 18,
+                      borderRadius: 14,
                       border: '1.5px solid var(--border, #e2e8f0)',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.03)',
                       overflow: 'hidden',
                     }}>
                       <div style={{
-                        padding: '14px 22px',
+                        padding: '8px 16px',
                         background: 'var(--bg-app, #f8fafc)',
                         borderBottom: '1.5px solid var(--border, #e2e8f0)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
                       }}>
-                        <span style={{ fontWeight: 900, fontSize: 13.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          BẢNG KÊ CHI TIẾT CÁC SHOP TRONG KỲ ({activeDetailSession.statements?.length || 0} Shop)
+                        <span style={{ fontWeight: 900, fontSize: 12.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          BẢNG KÊ CHI TIẾT CÁC SHOP TRONG KỲ ({activeDetailSession.statements?.length || 0} SHOP)
                         </span>
 
-                        <span style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 700 }}>
+                        <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>
                           Khung cuộn tự động • Bấm Chi Tiết để xem từng mã vận đơn
                         </span>
                       </div>
 
-                      <div style={{ maxHeight: 460, overflowY: 'auto', overflowX: 'auto' }}>
+                      <div style={{ maxHeight: 'calc(100vh - 280px)', minHeight: 380, overflowY: 'auto', overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                            <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                              <th style={{ padding: '12px 10px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                              <th style={{ padding: '12px 12px', background: 'var(--bg-app, #f8fafc)' }}>Khách Hàng (Shop)</th>
-                              <th style={{ padding: '12px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Tài Khoản Nhận</th>
-                              <th style={{ padding: '12px 10px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Đơn</th>
-                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD</th>
-                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Cước Dịch Vụ</th>
-                              <th style={{ padding: '12px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Thực Trả Shop</th>
-                              <th style={{ padding: '12px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Thao Tác</th>
+                            <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: 'var(--text-muted)' }}>
+                              <th style={{ padding: '9px 10px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
+                              <th style={{ padding: '9px 12px', background: 'var(--bg-app, #f8fafc)' }}>Khách Hàng (Shop)</th>
+                              <th style={{ padding: '9px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Tài Khoản Nhận</th>
+                              <th style={{ padding: '9px 10px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Đơn</th>
+                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD</th>
+                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Cước Dịch Vụ</th>
+                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Thực Trả Shop</th>
+                              <th style={{ padding: '9px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Thao Tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2118,37 +2141,37 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                                 : 'Chưa cập nhật';
 
                               return (
-                                <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
-                                  <td style={{ padding: '12px 10px', color: 'var(--text-muted)', textAlign: 'center' }}>{sIdx + 1}</td>
-                                  <td style={{ padding: '12px 12px' }}>
+                                <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-muted)', textAlign: 'center' }}>{sIdx + 1}</td>
+                                  <td style={{ padding: '8px 12px' }}>
                                     <div style={{ fontWeight: 800 }}>{stmt.shopName}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
+                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
                                   </td>
-                                  <td style={{ padding: '12px 12px' }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{bankStr}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
+                                  <td style={{ padding: '8px 12px' }}>
+                                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>{bankStr}</div>
+                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
                                   </td>
-                                  <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 800 }}>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 800 }}>
                                     {stmt.totalOrders}
                                   </td>
-                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
                                     {stmt.totalCod.toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 800, color: '#7c3aed' }}>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#7c3aed' }}>
                                     {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 900, color: '#16a34a' }}>
+                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: '#16a34a' }}>
                                     {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '12px 12px', textAlign: 'center' }}>
+                                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                                       <button
                                         onClick={() => exportSingleShopExcel(activeDetailSession.sessionName, stmt)}
                                         className="btn btn-secondary btn-sm"
-                                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700 }}
+                                        style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
                                         title="Tải riêng file Excel của Shop này"
                                       >
-                                        <Download size={12} /> Excel
+                                        <Download size={11} /> Excel
                                       </button>
 
                                       <button
@@ -2157,10 +2180,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                                           setSelectedShopStmt(stmt);
                                         }}
                                         className="btn btn-secondary btn-sm"
-                                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700 }}
+                                        style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
                                         title="Xem chi tiết các mã vận đơn"
                                       >
-                                        <Eye size={12} /> Chi Tiết
+                                        <Eye size={11} /> Chi Tiết
                                       </button>
                                     </div>
                                   </td>
