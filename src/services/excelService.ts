@@ -190,7 +190,10 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
       // engine represents carrier cost as a positive number and adjustment as
       // a signed offset, yielding COD - fee + adjustment = total settlement.
       const fee = Math.abs(ghnNumber(row[feeIndexes[0]]));
-      const cod = ghnNumber(row[codIndex]);
+      const codOnly = ghnNumber(row[codIndex]);
+      // GHN column (2) is 'Giao thất bại - thu tiền'. In GHN settlement, this is collected money paid out to the shop.
+      const failCollection = (codIndex >= 0 && row[codIndex + 1] !== undefined) ? ghnNumber(row[codIndex + 1]) : 0;
+      const cod = codOnly + failCollection;
       const settlement = ghnNumber(row[settlementIndex]);
 
       const rowObj: Record<string, any> = {
@@ -205,6 +208,9 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
         'Ngày giao/trả': row[shopIndex + 4] ?? '',
         'Trạng thái': row[statusIndex] ?? '',
         'Tiền COD': cod,
+        'Tiền COD thuần': codOnly,
+        'Giao thất bại - thu tiền': failCollection,
+        'Giao thất bại - thu tiền (2)': failCollection,
         'Cước phí': fee,
         'Điều chỉnh': settlement - cod + fee,
         'Tổng đối soát': settlement,

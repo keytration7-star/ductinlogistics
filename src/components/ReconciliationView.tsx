@@ -562,7 +562,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       if (isSummaryOrInvalidWaybill(rawWb)) continue;
       totalOrders++;
 
-      const cod = codCol ? parseNumber(row[codCol]) : 0;
+      const codRaw = codCol ? parseNumber(row[codCol]) : 0;
+      const failCollection = parseNumber(
+        row['Giao thất bại - thu tiền'] ??
+        row['Giao thất bại - thu tiền (2)'] ??
+        (nvcMapping.adjustmentColumn ? row[nvcMapping.adjustmentColumn] : 0)
+      );
+      const cod = (row['Tiền COD thuần'] !== undefined) ? codRaw : (codRaw + failCollection);
       const nvcFee = feeCol ? Math.abs(parseNumber(row[feeCol])) : 0;
       const nvcOther = otherFeeCols.reduce((sum, col) => sum + Math.abs(parseNumber(row[col])), 0);
       totalCod += cod;

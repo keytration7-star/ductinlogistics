@@ -608,7 +608,14 @@ export function performReconciliation(
     }
 
     const effectiveNvcFee = nvcFee;
-    const effectiveCod = (status === 'returned' || status === 'cancelled') ? 0 : nvcCod;
+    const failCollection = parseNumber(
+      nvcRow['Giao thất bại - thu tiền'] ??
+      nvcRow['Giao thất bại - thu tiền (2)'] ??
+      (nvcMapping.adjustmentColumn ? nvcRow[nvcMapping.adjustmentColumn] : 0)
+    );
+    const effectiveCod = (status === 'returned' || status === 'cancelled')
+      ? (nvcCod > 0 ? nvcCod : failCollection)
+      : nvcCod;
     const netShopPayout = effectiveCod - shopCalculatedFee - shopOtherFee;
     const profitMargin = (shopCalculatedFee + shopOtherFee) - (effectiveNvcFee + nvcOtherFee);
 
