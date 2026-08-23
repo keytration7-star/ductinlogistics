@@ -1818,10 +1818,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
                   {/* Danh sách các thẻ Kỳ có thể cuộn riêng */}
                   <div style={{
-                    maxHeight: 'calc(100vh - 270px)',
+                    maxHeight: 'calc(100vh - 215px)',
                     minHeight: 480,
                     overflowY: 'auto',
-                    padding: '12px',
+                    padding: '10px',
                     background: 'var(--surface, #ffffff)',
                   }}>
                     {filteredSessions.map((sess) => {
