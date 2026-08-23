@@ -25,7 +25,10 @@ import {
   Trash2,
   Calculator,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Calendar,
+  Edit3,
+  X,
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -399,12 +402,57 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const [sessionPeriodDate, setSessionPeriodDate] = useState<string>(getYesterdayIso());
   const [sessionPeriodName, setSessionPeriodName] = useState<string>(() => formatDefaultPeriodName(getYesterdayIso()));
 
+  // Period Setup Modal States (Bắt buộc xác nhận Ngày & Kỳ trước khi nạp file)
+  const [showPeriodSetupModal, setShowPeriodSetupModal] = useState<boolean>(false);
+  const [isPeriodConfirmed, setIsPeriodConfirmed] = useState<boolean>(false);
+  const [pendingFileAction, setPendingFileAction] = useState<'nvc' | 'app' | null>(null);
+
   // Auto-fill default session period name if empty
   React.useEffect(() => {
     if (!sessionPeriodName && sessionPeriodDate) {
       setSessionPeriodName(formatDefaultPeriodName(sessionPeriodDate));
     }
   }, [sessionPeriodDate, sessionPeriodName]);
+
+  const handleConfirmPeriodSetup = () => {
+    if (!sessionPeriodDate || sessionPeriodDate.trim() === '') {
+      showToast('Vui lòng chọn Ngày Chốt đối soát.', 'warning');
+      return;
+    }
+    if (!sessionPeriodName || sessionPeriodName.trim() === '') {
+      showToast('Vui lòng nhập Tên Kỳ đối soát (ví dụ: 22.8-22.8.2026).', 'warning');
+      return;
+    }
+    setIsPeriodConfirmed(true);
+    setShowPeriodSetupModal(false);
+    showToast(`Đã xác nhận kỳ: ${sessionPeriodName} (${sessionPeriodDate})`, 'success');
+
+    if (pendingFileAction === 'nvc') {
+      setTimeout(() => nvcFileInputRef.current?.click(), 150);
+      setPendingFileAction(null);
+    } else if (pendingFileAction === 'app') {
+      setTimeout(() => appFileInputRef.current?.click(), 150);
+      setPendingFileAction(null);
+    }
+  };
+
+  const handleTriggerNvcFileInput = () => {
+    if (!isPeriodConfirmed) {
+      setPendingFileAction('nvc');
+      setShowPeriodSetupModal(true);
+      return;
+    }
+    nvcFileInputRef.current?.click();
+  };
+
+  const handleTriggerAppFileInput = () => {
+    if (!isPeriodConfirmed) {
+      setPendingFileAction('app');
+      setShowPeriodSetupModal(true);
+      return;
+    }
+    appFileInputRef.current?.click();
+  };
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
@@ -955,6 +1003,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingNvc(false);
+    if (!isPeriodConfirmed) {
+      showToast('Vui lòng xác nhận Ngày Chốt & Tên Kỳ đối soát trước khi nạp file.', 'warning');
+      setPendingFileAction('nvc');
+      setShowPeriodSetupModal(true);
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleNvcFileChange(e.dataTransfer.files[0]);
     }
@@ -975,6 +1029,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingApp(false);
+    if (!isPeriodConfirmed) {
+      showToast('Vui lòng xác nhận Ngày Chốt & Tên Kỳ đối soát trước khi nạp file.', 'warning');
+      setPendingFileAction('app');
+      setShowPeriodSetupModal(true);
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleAppFilesChange(e.dataTransfer.files);
     }
@@ -1034,9 +1094,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     if (dupResult.hasConflict) {
       setDuplicateCheckResult(dupResult);
       setIsDuplicateModalOpen(true);
-    } else {
-      executeReconciliation(effectiveShops);
+      return;
     }
+
+    executeReconciliation(effectiveShops);
   };
 
   const handleFilterNewOnlyConflict = () => {
@@ -1064,11 +1125,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
     if (!sessionPeriodDate || sessionPeriodDate.trim() === '') {
       showToast('Vui lòng chọn Ngày Chốt kỳ đối soát trước khi tiến hành.', 'warning');
+      setShowPeriodSetupModal(true);
       return;
     }
 
     if (!sessionPeriodName || sessionPeriodName.trim() === '') {
       showToast('Vui lòng nhập Tên Kỳ đối soát (ví dụ: 22.8-22.8.2026) trước khi tiến hành.', 'warning');
+      setShowPeriodSetupModal(true);
       return;
     }
 
@@ -1115,6 +1178,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setIsMappingConfirmed(false);
       setSelectedAssignShops({});
       setCurrentSession(null);
+      setIsPeriodConfirmed(false);
+      setPendingFileAction(null);
       setWizardStep(1);
     }
   };
@@ -1499,58 +1564,54 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
             {/* Right: Merged Controls (Ngày Chốt Kỳ + Tên Kỳ Đối Soát + Nút Ánh Xạ Cột) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#ffffff',
-                padding: '4px 10px',
-                borderRadius: 8,
-                border: '1.5px solid var(--border-color)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              }}>
-                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  🗓️ Ngày Chốt <span style={{ color: '#ef4444' }}>*</span>:
-                </label>
-                <input
-                  type="date"
-                  value={sessionPeriodDate}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSessionPeriodDate(val);
-                    if (val) {
-                      setSessionPeriodName(formatDefaultPeriodName(val));
-                    }
+              {isPeriodConfirmed ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#ffffff',
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  border: '1.5px solid var(--success)',
+                  boxShadow: '0 1px 3px rgba(16, 185, 129, 0.12)',
+                }}>
+                  <div style={{ fontSize: 11.5, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: 'var(--success)', fontWeight: 800 }}>✓ KỲ ĐÃ CHỌN:</span>
+                    <span>Ngày: <strong style={{ color: 'var(--primary)' }}>{sessionPeriodDate}</strong></span>
+                    <span>•</span>
+                    <span>Tên Kỳ: <strong className="mono" style={{ color: 'var(--primary)' }}>{sessionPeriodName}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPeriodSetupModal(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11, padding: '3px 8px', fontWeight: 700, marginLeft: 4 }}
+                    title="Đổi lại Ngày hoặc Tên Kỳ"
+                  >
+                    <Edit3 size={12} />
+                    <span>Đổi</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowPeriodSetupModal(true)}
+                  className="btn btn-primary btn-sm"
+                  style={{
+                    fontSize: 12,
+                    padding: '7px 16px',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #059669 100%)',
+                    boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
                   }}
-                  required
-                  className="input-field"
-                  style={{ padding: '3px 8px', fontSize: 11.5, width: 130, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
-                />
-              </div>
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#ffffff',
-                padding: '4px 10px',
-                borderRadius: 8,
-                border: '1.5px solid var(--border-color)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              }}>
-                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  Tên Kỳ <span style={{ color: '#ef4444' }}>*</span>:
-                </label>
-                <input
-                  type="text"
-                  value={sessionPeriodName}
-                  onChange={(e) => setSessionPeriodName(e.target.value)}
-                  required
-                  className="input-field"
-                  placeholder="Ví dụ: 22.8-22.8.2026"
-                  style={{ padding: '3px 8px', fontSize: 11.5, width: 200, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
-                />
-              </div>
+                >
+                  <Calendar size={15} />
+                  <span>🗓️ 1. Chọn Ngày & Kỳ Đối Soát (Bắt buộc)</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1582,6 +1643,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowExportModal(true)}
+                className="btn btn-secondary btn-sm"
                 style={{
                   fontSize: 11.5,
                   padding: '6px 12px',
@@ -1590,8 +1652,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   alignItems: 'center',
                   gap: 5,
                   background: '#fff',
-                  border: '1.5px solid var(--primary)',
-                  color: 'var(--primary)',
+                  border: '1.5px solid var(--border-color)',
+                  color: 'var(--text-main)',
                   borderRadius: 8,
                   boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
                   cursor: 'pointer',
@@ -1599,7 +1661,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 }}
                 title="Cài đặt và tùy chọn cột khi xuất file Excel cho Shop và Báo cáo tổng"
               >
-                <Settings2 size={14} color="var(--primary)" />
+                <Sliders size={14} color="var(--primary)" />
                 <span>⚙️ Cài đặt xuất file</span>
               </button>
             </div>
@@ -1623,7 +1685,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             /* Single File Hero Dropzone Mode */
             <div style={{ marginBottom: 20 }}>
               <div 
-                onClick={() => nvcFileInputRef.current?.click()}
+                onClick={handleTriggerNvcFileInput}
                 onDragOver={handleNvcDragOver}
                 onDragEnter={handleNvcDragOver}
                 onDragLeave={handleNvcDragLeave}
@@ -1711,7 +1773,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               
               {/* Dropzone 1: File NVC */}
               <div 
-                onClick={() => nvcFileInputRef.current?.click()}
+                onClick={handleTriggerNvcFileInput}
                 onDragOver={handleNvcDragOver}
                 onDragEnter={handleNvcDragOver}
                 onDragLeave={handleNvcDragLeave}
@@ -1786,7 +1848,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
               {/* Dropzone 2: File App */}
               <div 
-                onClick={() => appFileInputRef.current?.click()}
+                onClick={handleTriggerAppFileInput}
                 onDragOver={handleAppDragOver}
                 onDragEnter={handleAppDragOver}
                 onDragLeave={handleAppDragLeave}
@@ -3393,6 +3455,163 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           />
         );
       })()}
+
+      {/* MODAL KHỞI TẠO NGÀY & KỲ ĐỐI SOÁT (BẮT BUỘC TRƯỚC KHI CHỌN FILE) */}
+      {showPeriodSetupModal && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setShowPeriodSetupModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: 520, 
+              width: '100%',
+              padding: 0, 
+              overflow: 'hidden',
+              borderRadius: 16,
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+              background: '#ffffff',
+              border: '1px solid var(--border-color)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid var(--border-color)',
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 10,
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(79, 70, 229, 0.35)',
+                }}>
+                  <Calendar size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    Khởi Tạo Kỳ Đối Soát Mới
+                  </h3>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Hãng vận chuyển: <strong style={{ color: 'var(--primary)' }}>{selectedCarrierTier?.carrierName}</strong> ({reconcileMode === '2files' ? '2 File' : '1 File'})
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPeriodSetupModal(false)} 
+                className="btn btn-secondary btn-sm" 
+                style={{ padding: '4px 6px', borderRadius: 6 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{
+                background: '#f8fafc',
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '1px solid #e2e8f0',
+                fontSize: 12.5,
+                color: '#334155',
+                lineHeight: 1.5,
+              }}>
+                📌 <strong>Quy định bắt buộc:</strong> Vui lòng chọn <strong>Ngày Chốt</strong> và xác nhận <strong>Tên Kỳ Đối Soát</strong> trước khi nạp File Excel vào hệ thống để các báo cáo và dòng tiền đối soát được gắn đúng kỳ.
+              </div>
+
+              {/* Field 1: Ngày Chốt */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  🗓️ 1. Ngày Chốt Đối Soát <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  value={sessionPeriodDate}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSessionPeriodDate(val);
+                    if (val) {
+                      setSessionPeriodName(formatDefaultPeriodName(val));
+                    }
+                  }}
+                  required
+                  className="input-field"
+                  style={{ fontSize: 14, fontWeight: 700, padding: '9px 12px', background: '#fff', border: '1.5px solid var(--border-color)', borderRadius: 8 }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  💡 Khi bạn thay đổi ngày chốt, Tên Kỳ bên dưới sẽ tự động được sinh lại theo ngày đã chọn.
+                </div>
+              </div>
+
+              {/* Field 2: Tên Kỳ */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  🏷️ 2. Tên Kỳ Đối Soát <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={sessionPeriodName}
+                  onChange={(e) => setSessionPeriodName(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="Ví dụ: 22.8-22.8.2026"
+                  style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', padding: '9px 12px', background: '#fff', border: '1.5px solid var(--border-color)', borderRadius: 8 }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  💡 Định dạng khuyến nghị: <strong>22.8-22.8.2026</strong>. Bạn có thể sửa trực tiếp theo mong muốn.
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowPeriodSetupModal(false)} 
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 16px' }}
+                >
+                  Đóng
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleConfirmPeriodSetup} 
+                  className="btn btn-primary"
+                  style={{ fontWeight: 800, padding: '9px 20px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>Xác Nhận & Bắt Đầu Chọn File</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Column Mapping Modal (Stand-alone fallback if triggered elsewhere) */}
       {showMappingModal && (
