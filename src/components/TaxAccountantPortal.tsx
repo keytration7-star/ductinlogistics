@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { 
   Building2, 
@@ -27,6 +28,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
+import { StorageService } from '../services/storage';
 import type { 
   ReconciliationSession, 
   Shop, 
@@ -91,6 +93,21 @@ const DEFAULT_THEME = {
   badgeBg: '#e0e7ff',
   badgeText: '#4338ca',
   accentColor: '#4f46e5',
+};
+
+// Common Excel Styling Helpers
+const THIN_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+};
+
+const TOTAL_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: 'thin', color: { argb: 'FF000000' } },
+  left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  bottom: { style: 'double', color: { argb: 'FF000000' } },
+  right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
 };
 
 export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
@@ -290,28 +307,124 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     };
   }, [sessions, shops, activeCarrierId, fromDate, toDate]);
 
-  // --------------------------------------------------------------------------
-  // EXPORT 1: Multi-Sheet Excel for Single Session
-  // --------------------------------------------------------------------------
-  const exportSessionMultiSheet = (session: ReconciliationSession) => {
-    try {
-      const wb = XLSX.utils.book_new();
-      const sessTitle = session.sessionName || 'Kỳ đối soát';
+  // Helper to add Corporate Header to any worksheet
+  const addCorporateHeader = (
+    ws: ExcelJS.Worksheet,
+    title: string,
+    subtitle: string,
+    numCols: number
+  ) => {
+    // 🌟 Bỏ ô lưới (showGridLines = false) để báo cáo phẳng sạch sẽ
+    ws.views = [{ showGridLines: false }];
 
-      // Sheet 1: Tổng Hợp Các Shop
-      const summaryRows: any[][] = [
-        ['BẢNG TỔNG HỢP ĐỐI SOÁT DOANH THU & COD KHÁCH HÀNG (BÁO CÁO THUẾ)'],
-        [`Kỳ đối soát: ${sessTitle}`],
-        [`Hãng vận chuyển: ${(session.carrierName || session.carrierId || 'jnt').toUpperCase()} | Ngày lập: ${new Date(session.createdAt).toLocaleDateString('vi-VN')}`],
-        [],
-        ['STT', 'Mã Shop', 'Tên Shop / Khách Hàng', 'Số Điện Thoại', 'Tài Khoản Ngân Hàng', 'Tổng Số Đơn', 'Tổng COD Thu Hộ (VNĐ)', 'Doanh Thu Cước Dịch Vụ (VNĐ)', 'Thực Trả Khách Hàng (VNĐ)']
+    const company = StorageService.getCompanyInfo();
+    const companyTitle = (company.companyName || 'CÔNG TY LOGISTICS & VẬN TẢI ENTERPRISE').toUpperCase();
+    const companySub = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
+
+    // Row 1: Company Title (Gộp ô, In Đậm, Nền Xám Nhẹ, Chữ Xanh Navy)
+    const r1 = ws.addRow([companyTitle]);
+    ws.mergeCells(1, 1, 1, numCols);
+    r1.height = 30;
+    r1.getCell(1).font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FF1E3A8A' } };
+    r1.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    r1.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+    // Row 2: Company Subtitle
+    const r2 = ws.addRow([companySub]);
+    ws.mergeCells(2, 1, 2, numCols);
+    r2.height = 20;
+    r2.getCell(1).font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+    r2.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    r2.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+    // Row 3: Report Title (Gộp ô, In đậm, Màu Tím Đậm / Indigo)
+    const r3 = ws.addRow([title]);
+    ws.mergeCells(3, 1, 3, numCols);
+    r3.height = 26;
+    r3.getCell(1).font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FF4338CA' } };
+    r3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // Row 4: Subtitle / Period
+    const r4 = ws.addRow([subtitle]);
+    ws.mergeCells(4, 1, 4, numCols);
+    r4.height = 20;
+    r4.getCell(1).font = { name: 'Calibri', size: 10.5, italic: true, color: { argb: 'FF334155' } };
+    r4.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // Row 5: Empty space
+    const r5 = ws.addRow([]);
+    r5.height = 10;
+  };
+
+  // Helper to format table headers
+  const formatTableHeader = (row: ExcelJS.Row) => {
+    row.height = 26;
+    row.eachCell((cell) => {
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } }; // Dark Slate
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = THIN_BORDER;
+    });
+  };
+
+  // Helper to auto-fit column widths
+  const autoFitColumns = (ws: ExcelJS.Worksheet, minWidths: number[] = []) => {
+    ws.columns.forEach((col, idx) => {
+      let maxLen = minWidths[idx] || 12;
+      col.eachCell?.({ includeEmpty: false }, (cell, rowNumber) => {
+        if (rowNumber > 5) { // Skip merged title rows
+          const cellLen = cell.value ? String(cell.value).length : 0;
+          if (cellLen > maxLen) maxLen = cellLen;
+        }
+      });
+      col.width = Math.min(Math.max(maxLen + 4, minWidths[idx] || 12), 48);
+    });
+  };
+
+  // --------------------------------------------------------------------------
+  // EXPORT 1: Multi-Sheet Professional Excel for Single Session
+  // --------------------------------------------------------------------------
+  const exportSessionMultiSheet = async (session: ReconciliationSession) => {
+    try {
+      showToast('Đang tạo file Excel báo cáo tổng hợp đa Sheet...', 'info');
+      const workbook = new ExcelJS.Workbook();
+      const sessTitle = session.sessionName || 'Kỳ đối soát';
+      const carrierName = (session.carrierName || session.carrierId || 'jnt').toUpperCase();
+
+      // ==========================================
+      // SHEET 1: TỔNG HỢP CÁC SHOP
+      // ==========================================
+      const wsSummary = workbook.addWorksheet('TONG_HOP_CAC_SHOP');
+      const summaryHeaders = [
+        'STT', 
+        'Mã Shop', 
+        'Tên Shop / Khách Hàng', 
+        'Số Điện Thoại', 
+        'Tài Khoản Ngân Hàng', 
+        'Số Đơn', 
+        'Tổng COD Thu Hộ (VNĐ)', 
+        'Doanh Thu Cước Dịch Vụ (VNĐ)', 
+        'Thực Trả Khách Hàng (VNĐ)'
       ];
 
+      addCorporateHeader(
+        wsSummary,
+        'BẢNG TỔNG HỢP ĐỐI SOÁT DOANH THU & COD KHÁCH HÀNG (BÁO CÁO THUẾ)',
+        `Kỳ đối soát: ${sessTitle} | Hãng vận chuyển: ${carrierName} | Ngày lập: ${new Date(session.createdAt).toLocaleDateString('vi-VN')}`,
+        summaryHeaders.length
+      );
+
+      // Header Row
+      const hRow = wsSummary.addRow(summaryHeaders);
+      formatTableHeader(hRow);
+
+      // Data Rows
       (session.statements || []).forEach((stmt, idx) => {
         const bankStr = stmt.bankInfo?.accountNumber 
           ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder || ''})`
           : 'Chưa cập nhật';
-        summaryRows.push([
+
+        const row = wsSummary.addRow([
           idx + 1,
           stmt.shopCode || '-',
           stmt.shopName,
@@ -322,10 +435,33 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           stmt.totalShopFee + stmt.totalShopOtherFee,
           stmt.totalNetPayout
         ]);
+
+        row.height = 22;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          // STT
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          // Mã Shop, SĐT
+          else if (colNum === 2 || colNum === 4) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          // Tên Shop, Ngân hàng
+          else if (colNum === 3 || colNum === 5) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          // Số đơn
+          else if (colNum === 6) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.numFmt = '#,##0';
+          }
+          // Các cột tiền: Định dạng VNĐ
+          else if (colNum >= 7) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
       });
 
-      // Total Row
-      summaryRows.push([
+      // 🌟 HÀNG TỔNG CỘNG: Tô chữ đỏ nền vàng rực rỡ theo yêu cầu!
+      const totalRow = wsSummary.addRow([
         'TỔNG CỘNG',
         '',
         '',
@@ -337,27 +473,67 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         session.totalNetPayout
       ]);
 
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'TỔNG HỢP CÁC SHOP');
+      const totalRowNum = totalRow.number;
+      wsSummary.mergeCells(totalRowNum, 1, totalRowNum, 5);
+      totalRow.height = 26;
 
-      // Sheets 2..N: Individual Shop Detail Tabs
+      totalRow.eachCell((cell, colNum) => {
+        // Nền vàng tươi + Chữ đỏ in đậm
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+        cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFDC2626' } };
+        cell.border = TOTAL_BORDER;
+
+        if (colNum === 1) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNum === 6) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.numFmt = '#,##0';
+        } else if (colNum >= 7) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      autoFitColumns(wsSummary, [8, 14, 26, 16, 32, 12, 22, 22, 22]);
+
+      // ==========================================
+      // SHEETS 2..N: CHI TIẾT TỪNG SHOP
+      // ==========================================
       (session.statements || []).forEach((stmt) => {
         const cleanSheetName = (stmt.shopName || 'Shop')
           .replace(/[\\/*?:[\]]/g, '')
           .slice(0, 30);
 
-        const shopRows: any[][] = [
-          [`CHI TIẾT ĐỐI SOÁT - ${stmt.shopName.toUpperCase()}`],
-          [`Mã Shop: ${stmt.shopCode || '-'} | SĐT: ${stmt.shopPhone || '-'} | Kỳ: ${sessTitle}`],
-          [`STK: ${stmt.bankInfo?.accountNumber || '-'} - ${stmt.bankInfo?.bankName || ''} (${stmt.bankInfo?.accountHolder || ''})`],
-          [`Tổng đơn: ${stmt.totalOrders} | Tổng COD: ${stmt.totalCod.toLocaleString('vi-VN')} đ | Cước dịch vụ: ${(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ | Thực nhận: ${stmt.totalNetPayout.toLocaleString('vi-VN')} đ`],
-          [],
-          ['STT', 'Mã Vận Đơn', 'Người Nhận', 'Số Điện Thoại', 'Địa Chỉ Nhận', 'Ngày Tạo / Gửi', 'Trạng Thái', 'Tiền COD (VNĐ)', 'Cước Phí Dịch Vụ (VNĐ)', 'Thực Chuyển Đơn (VNĐ)']
+        const wsShop = workbook.addWorksheet(cleanSheetName);
+        const shopHeaders = [
+          'STT', 
+          'Mã Vận Đơn', 
+          'Người Nhận', 
+          'Số Điện Thoại', 
+          'Địa Chỉ Nhận', 
+          'Ngày Tạo / Gửi', 
+          'Trạng Thái', 
+          'Tiền COD (VNĐ)', 
+          'Cước Dịch Vụ (VNĐ)', 
+          'Thực Nhận (VNĐ)'
         ];
 
+        const shopSub = `Khách hàng: ${stmt.shopName.toUpperCase()} | Mã: ${stmt.shopCode || '-'} | SĐT: ${stmt.shopPhone || '-'} | Kỳ: ${sessTitle}`;
+        addCorporateHeader(
+          wsShop,
+          `BẢNG KÊ CHI TIẾT ĐỐI SOÁT - ${stmt.shopName.toUpperCase()}`,
+          shopSub,
+          shopHeaders.length
+        );
+
+        // Header
+        const sHeaderRow = wsShop.addRow(shopHeaders);
+        formatTableHeader(sHeaderRow);
+
+        // Data Rows
         (stmt.orders || []).forEach((ord: ReconciledOrder, oIdx: number) => {
           const dateStr = ord.rawNvcData?.['Ngày tạo'] || ord.rawNvcData?.['Ngày gửi'] || ord.rawAppData?.['Ngày tạo'] || '-';
-          shopRows.push([
+          const r = wsShop.addRow([
             oIdx + 1,
             ord.waybill,
             ord.receiverName || '-',
@@ -369,46 +545,104 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             ord.shopCalculatedFee + ord.shopOtherFee,
             ord.netShopPayout
           ]);
+
+          r.height = 22;
+          r.eachCell((cell, colNum) => {
+            cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+            cell.border = THIN_BORDER;
+
+            if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            else if (colNum === 2 || colNum === 4 || colNum === 6 || colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            else if (colNum === 3 || colNum === 5) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            else if (colNum >= 8) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0 "đ"';
+            }
+          });
         });
 
-        const wsShop = XLSX.utils.aoa_to_sheet(shopRows);
-        XLSX.utils.book_append_sheet(wb, wsShop, cleanSheetName);
+        // 🌟 HÀNG TỔNG CỘNG CHO TỪNG SHOP: Nền vàng chữ đỏ
+        const shopTotalRow = wsShop.addRow([
+          'TỔNG CỘNG',
+          '',
+          '',
+          '',
+          '',
+          '',
+          `${stmt.totalOrders} đơn`,
+          stmt.totalCod,
+          stmt.totalShopFee + stmt.totalShopOtherFee,
+          stmt.totalNetPayout
+        ]);
+
+        const sTotalRowNum = shopTotalRow.number;
+        wsShop.mergeCells(sTotalRowNum, 1, sTotalRowNum, 6);
+        shopTotalRow.height = 26;
+
+        shopTotalRow.eachCell((cell, colNum) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+          cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFDC2626' } };
+          cell.border = TOTAL_BORDER;
+
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum >= 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
+
+        autoFitColumns(wsShop, [8, 18, 20, 16, 28, 16, 16, 18, 18, 18]);
       });
 
+      const buffer = await workbook.xlsx.writeBuffer();
       const safeName = sessTitle.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-      XLSX.writeFile(wb, `Bao_Cao_Thue_Tong_Hop_${safeName}.xlsx`);
-      showToast('Đã tải thành công file báo cáo tổng hợp đa Tab!', 'success');
+      saveAs(new Blob([buffer]), `Bao_Cao_Thue_Tong_Hop_${safeName}.xlsx`);
+      showToast('Đã tải thành công file báo cáo tổng hợp đa Sheet cực đẹp!', 'success');
     } catch (err: any) {
       showToast('Lỗi khi xuất file Excel: ' + (err?.message || err), 'error');
     }
   };
 
   // --------------------------------------------------------------------------
-  // EXPORT 2: Single Shop Excel File
+  // EXPORT 2: Single Shop Professional Excel File
   // --------------------------------------------------------------------------
-  const exportSingleShopExcel = (sessionName: string, stmt: ShopSettlementStatement) => {
+  const exportSingleShopExcel = async (sessionName: string, stmt: ShopSettlementStatement) => {
     try {
-      const wb = XLSX.utils.book_new();
-      const shopRows: any[][] = [
-        [`BIÊN BẢN ĐỐI SOÁT DOANH THU & CƯỚC DỊCH VỤ`],
-        [`Đơn vị / Shop: ${stmt.shopName.toUpperCase()}`],
-        [`Mã khách hàng: ${stmt.shopCode || '-'} | SĐT: ${stmt.shopPhone || '-'}`],
-        [`Kỳ đối soát: ${sessionName}`],
-        [`Tài khoản nhận tiền: ${stmt.bankInfo?.bankName || ''} - ${stmt.bankInfo?.accountNumber || ''} (${stmt.bankInfo?.accountHolder || ''})`],
-        [],
-        ['TỔNG KẾT DOANH THU & TIỀN THANH TOÁN', ''],
-        ['Tổng số đơn hàng thực hiện:', stmt.totalOrders],
-        ['Tổng tiền COD thu hộ:', stmt.totalCod],
-        ['Doanh thu cước dịch vụ vận chuyển:', stmt.totalShopFee + stmt.totalShopOtherFee],
-        ['Tổng tiền thực nhận (Chuyển khoản):', stmt.totalNetPayout],
-        [],
-        ['BẢNG KÊ CHI TIẾT CÁC ĐƠN HÀNG TRONG KỲ', ''],
-        ['STT', 'Mã Vận Đơn', 'Người Nhận', 'SĐT Nhận', 'Địa Chỉ', 'Ngày Gửi', 'Trạng Thái Đơn', 'Tiền COD (VNĐ)', 'Cước Phí Dịch Vụ (VNĐ)', 'Thực Nhận Từng Đơn (VNĐ)']
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('BIEN_BAN_DOI_SOAT');
+      const headers = [
+        'STT', 
+        'Mã Vận Đơn', 
+        'Người Nhận', 
+        'Số Điện Thoại', 
+        'Địa Chỉ Nhận', 
+        'Ngày Tạo / Gửi', 
+        'Trạng Thái', 
+        'Tiền COD (VNĐ)', 
+        'Cước Phí (VNĐ)', 
+        'Thực Nhận (VNĐ)'
       ];
 
+      const bankStr = stmt.bankInfo?.accountNumber 
+        ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder || ''})`
+        : 'Chưa cập nhật';
+
+      addCorporateHeader(
+        ws,
+        `BIÊN BẢN ĐỐI SOÁT DOANH THU & TIỀN THU HỘ (COD)`,
+        `Khách hàng: ${stmt.shopName.toUpperCase()} | SĐT: ${stmt.shopPhone || '-'} | TK nhận: ${bankStr} | Kỳ: ${sessionName}`,
+        headers.length
+      );
+
+      // Header Row
+      const hRow = ws.addRow(headers);
+      formatTableHeader(hRow);
+
+      // Data Rows
       (stmt.orders || []).forEach((ord: ReconciledOrder, idx: number) => {
         const dateStr = ord.rawNvcData?.['Ngày tạo'] || ord.rawNvcData?.['Ngày gửi'] || ord.rawAppData?.['Ngày tạo'] || '-';
-        shopRows.push([
+        const r = ws.addRow([
           idx + 1,
           ord.waybill,
           ord.receiverName || '-',
@@ -420,13 +654,58 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           ord.shopCalculatedFee + ord.shopOtherFee,
           ord.netShopPayout
         ]);
+
+        r.height = 22;
+        r.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 2 || colNum === 4 || colNum === 6 || colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 3 || colNum === 5) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          else if (colNum >= 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(shopRows);
-      XLSX.utils.book_append_sheet(wb, ws, 'BIÊN BẢN ĐỐI SOÁT');
+      // 🌟 HÀNG TỔNG CỘNG: Nền vàng chữ đỏ
+      const totalRow = ws.addRow([
+        'TỔNG CỘNG',
+        '',
+        '',
+        '',
+        '',
+        '',
+        `${stmt.totalOrders} đơn`,
+        stmt.totalCod,
+        stmt.totalShopFee + stmt.totalShopOtherFee,
+        stmt.totalNetPayout
+      ]);
 
+      const totalRowNum = totalRow.number;
+      ws.mergeCells(totalRowNum, 1, totalRowNum, 6);
+      totalRow.height = 26;
+
+      totalRow.eachCell((cell, colNum) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+        cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFDC2626' } };
+        cell.border = TOTAL_BORDER;
+
+        if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum >= 8) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      autoFitColumns(ws, [8, 18, 20, 16, 28, 16, 16, 18, 18, 18]);
+
+      const buffer = await workbook.xlsx.writeBuffer();
       const safeShop = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-      XLSX.writeFile(wb, `BBDS_${safeShop}_${sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+      saveAs(new Blob([buffer]), `BBDS_${safeShop}_${sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
       showToast(`Đã xuất biên bản cho Shop ${stmt.shopName}!`, 'success');
     } catch (err: any) {
       showToast('Lỗi khi xuất file: ' + err?.message, 'error');
@@ -434,33 +713,47 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   };
 
   // --------------------------------------------------------------------------
-  // EXPORT 3: ZIP Package containing all shop files
+  // EXPORT 3: ZIP Package containing all styled shop files
   // --------------------------------------------------------------------------
   const exportSessionZipPackage = async (session: ReconciliationSession) => {
     try {
-      showToast('Đang khởi tạo gói file ZIP trọn bộ các Shop...', 'info');
+      showToast('Đang tạo gói file ZIP trọn bộ các Shop...', 'info');
       const zip = new JSZip();
       const sessTitle = session.sessionName || 'Kỳ đối soát';
 
-      (session.statements || []).forEach(stmt => {
-        const wb = XLSX.utils.book_new();
-        const shopRows: any[][] = [
-          [`BIÊN BẢN ĐỐI SOÁT DỊCH VỤ GIAO HÀNG`],
-          [`Khách hàng: ${stmt.shopName.toUpperCase()}`],
-          [`Mã: ${stmt.shopCode || '-'} | SĐT: ${stmt.shopPhone || '-'} | Kỳ: ${sessTitle}`],
-          [`STK: ${stmt.bankInfo?.bankName || ''} - ${stmt.bankInfo?.accountNumber || ''} (${stmt.bankInfo?.accountHolder || ''})`],
-          [],
-          ['Tổng số đơn:', stmt.totalOrders],
-          ['Tổng tiền COD thu hộ:', stmt.totalCod],
-          ['Doanh thu cước dịch vụ:', stmt.totalShopFee + stmt.totalShopOtherFee],
-          ['Tổng thanh toán chuyển khoản:', stmt.totalNetPayout],
-          [],
-          ['STT', 'Mã Vận Đơn', 'Người Nhận', 'SĐT', 'Địa Chỉ', 'Ngày Giao', 'Trạng Thái', 'Tiền COD (VNĐ)', 'Cước Phí (VNĐ)', 'Thực Chuyển (VNĐ)']
+      for (const stmt of session.statements || []) {
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('BIEN_BAN_DOI_SOAT');
+        const headers = [
+          'STT', 
+          'Mã Vận Đơn', 
+          'Người Nhận', 
+          'Số Điện Thoại', 
+          'Địa Chỉ Nhận', 
+          'Ngày Tạo / Gửi', 
+          'Trạng Thái', 
+          'Tiền COD (VNĐ)', 
+          'Cước Phí (VNĐ)', 
+          'Thực Nhận (VNĐ)'
         ];
+
+        const bankStr = stmt.bankInfo?.accountNumber 
+          ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder || ''})`
+          : 'Chưa cập nhật';
+
+        addCorporateHeader(
+          ws,
+          `BIÊN BẢN ĐỐI SOÁT DỊCH VỤ VẬN CHUYỂN`,
+          `Khách hàng: ${stmt.shopName.toUpperCase()} | SĐT: ${stmt.shopPhone || '-'} | TK: ${bankStr} | Kỳ: ${sessTitle}`,
+          headers.length
+        );
+
+        const hRow = ws.addRow(headers);
+        formatTableHeader(hRow);
 
         (stmt.orders || []).forEach((ord: ReconciledOrder, idx: number) => {
           const dateStr = ord.rawNvcData?.['Ngày tạo'] || ord.rawNvcData?.['Ngày gửi'] || ord.rawAppData?.['Ngày tạo'] || '-';
-          shopRows.push([
+          const r = ws.addRow([
             idx + 1,
             ord.waybill,
             ord.receiverName || '-',
@@ -472,25 +765,63 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             ord.shopCalculatedFee + ord.shopOtherFee,
             ord.netShopPayout
           ]);
+
+          r.height = 22;
+          r.eachCell((cell, colNum) => {
+            cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+            cell.border = THIN_BORDER;
+
+            if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            else if (colNum === 2 || colNum === 4 || colNum === 6 || colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            else if (colNum === 3 || colNum === 5) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            else if (colNum >= 8) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0 "đ"';
+            }
+          });
         });
 
-        const ws = XLSX.utils.aoa_to_sheet(shopRows);
-        XLSX.utils.book_append_sheet(wb, ws, 'BIÊN BẢN');
+        // Hàng tổng nền vàng chữ đỏ
+        const totalRow = ws.addRow([
+          'TỔNG CỘNG',
+          '',
+          '',
+          '',
+          '',
+          '',
+          `${stmt.totalOrders} đơn`,
+          stmt.totalCod,
+          stmt.totalShopFee + stmt.totalShopOtherFee,
+          stmt.totalNetPayout
+        ]);
 
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const totalRowNum = totalRow.number;
+        ws.mergeCells(totalRowNum, 1, totalRowNum, 6);
+        totalRow.height = 26;
+
+        totalRow.eachCell((cell, colNum) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+          cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFDC2626' } };
+          cell.border = TOTAL_BORDER;
+
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 7) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum >= 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
+
+        autoFitColumns(ws, [8, 18, 20, 16, 28, 16, 16, 18, 18, 18]);
+
+        const buffer = await workbook.xlsx.writeBuffer();
         const safeShop = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-        zip.file(`BBDS_${safeShop}.xlsx`, wbout);
-      });
+        zip.file(`BBDS_${safeShop}.xlsx`, buffer);
+      }
 
       const content = await zip.generateAsync({ type: 'blob' });
-      const url = window.URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Goi_File_Doi_Soat_Shop_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      showToast('Đã tải thành công trọn bộ file ZIP!', 'success');
+      saveAs(content, `Goi_File_Doi_Soat_Shop_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+      showToast('Đã tải thành công trọn bộ file ZIP đóng khung chuyên nghiệp!', 'success');
     } catch (err: any) {
       showToast('Lỗi nén file ZIP: ' + err?.message, 'error');
     }
@@ -499,29 +830,40 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   // --------------------------------------------------------------------------
   // EXPORT 4: Flat Data Table for MISA / FAST Accounting Software Import
   // --------------------------------------------------------------------------
-  const exportFlatMisaData = (session: ReconciliationSession) => {
+  const exportFlatMisaData = async (session: ReconciliationSession) => {
     try {
       const sessTitle = session.sessionName || 'Kỳ đối soát';
-      const rows: any[][] = [
-        [
-          'Mã Chứng Từ',
-          'Ngày Hạch Toán',
-          'Mã Khách Hàng',
-          'Tên Khách Hàng',
-          'Mã Vận Đơn',
-          'Người Nhận',
-          'SĐT Người Nhận',
-          'Địa Chỉ Giao',
-          'Trạng Thái Đơn',
-          'Tiền COD Thu Hộ (TK 1388)',
-          'Doanh Thu Cước (TK 5113)',
-          'Thực Chuyển Trả (TK 3388)'
-        ]
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('DU_LIEU_MISA');
+
+      const headers = [
+        'Mã Chứng Từ',
+        'Ngày Hạch Toán',
+        'Mã Khách Hàng',
+        'Tên Khách Hàng',
+        'Mã Vận Đơn',
+        'Người Nhận',
+        'SĐT Người Nhận',
+        'Địa Chỉ Giao',
+        'Trạng Thái Đơn',
+        'Tiền COD Thu Hộ (TK 1388)',
+        'Doanh Thu Cước (TK 5113)',
+        'Thực Chuyển Trả (TK 3388)'
       ];
+
+      addCorporateHeader(
+        ws,
+        `BẢNG DỮ LIỆU ĐỐI SOÁT IMPORT PHẦN MỀM KẾ TOÁN (MISA / FAST)`,
+        `Kỳ đối soát: ${sessTitle} | Ngày tạo: ${new Date(session.createdAt).toLocaleDateString('vi-VN')}`,
+        headers.length
+      );
+
+      const hRow = ws.addRow(headers);
+      formatTableHeader(hRow);
 
       (session.statements || []).forEach(stmt => {
         (stmt.orders || []).forEach((ord: ReconciledOrder) => {
-          rows.push([
+          const r = ws.addRow([
             sessTitle,
             new Date(session.createdAt).toLocaleDateString('vi-VN'),
             stmt.shopCode || '-',
@@ -535,15 +877,29 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             ord.shopCalculatedFee + ord.shopOtherFee,
             ord.netShopPayout
           ]);
+
+          r.height = 22;
+          r.eachCell((cell, colNum) => {
+            cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+            cell.border = THIN_BORDER;
+
+            if (colNum <= 2 || colNum === 5 || colNum === 7 || colNum === 9) {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            } else if (colNum === 3 || colNum === 4 || colNum === 6 || colNum === 8) {
+              cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            } else if (colNum >= 10) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0';
+            }
+          });
         });
       });
 
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'DU_LIEU_MISA');
+      autoFitColumns(ws, [18, 16, 16, 24, 18, 20, 16, 28, 16, 22, 22, 22]);
 
-      XLSX.writeFile(wb, `Du_Lieu_Ke_Toan_MISA_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
-      showToast('Đã xuất bảng kê dạng phẳng chuẩn import phần mềm kế toán!', 'success');
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(new Blob([buffer]), `Du_Lieu_Ke_Toan_MISA_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+      showToast('Đã xuất bảng kê dạng phẳng chuẩn MISA thành công!', 'success');
     } catch (err: any) {
       showToast('Lỗi xuất dữ liệu: ' + err?.message, 'error');
     }
@@ -552,18 +908,37 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   // --------------------------------------------------------------------------
   // EXPORT 5: Shop Legal Directory for Tax Declaration
   // --------------------------------------------------------------------------
-  const exportShopLegalDirectory = () => {
+  const exportShopLegalDirectory = async () => {
     try {
       const carrierLabel = activeCarrierObj ? activeCarrierObj.carrierName : 'Tất Cả Hãng';
-      const rows: any[][] = [
-        [`DANH MỤC KHÁCH HÀNG & THÔNG TIN PHÁP LÝ KHAI THUẾ - ${carrierLabel.toUpperCase()}`],
-        [`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`],
-        [],
-        ['STT', 'Mã Khách Hàng', 'Tên Đơn Vị / Shop', 'Số Điện Thoại', 'Email', 'Địa Chỉ Kinh Doanh', 'Ngân Hàng', 'Số Tài Khoản', 'Chủ Tài Khoản', 'Trạng Thái']
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('DANH_SACH_SHOP');
+
+      const headers = [
+        'STT', 
+        'Mã Khách Hàng', 
+        'Tên Đơn Vị / Shop', 
+        'Số Điện Thoại', 
+        'Email', 
+        'Địa Chỉ Kinh Doanh', 
+        'Ngân Hàng', 
+        'Số Tài Khoản', 
+        'Chủ Tài Khoản', 
+        'Trạng Thái'
       ];
 
+      addCorporateHeader(
+        ws,
+        `DANH MỤC KHÁCH HÀNG & HỒ SƠ PHÁP LÝ KHAI THUẾ - ${carrierLabel.toUpperCase()}`,
+        `Ngày trích xuất: ${new Date().toLocaleDateString('vi-VN')} | Đơn vị quản lý: ${carrierLabel}`,
+        headers.length
+      );
+
+      const hRow = ws.addRow(headers);
+      formatTableHeader(hRow);
+
       filteredShops.forEach((s, idx) => {
-        rows.push([
+        const r = ws.addRow([
           idx + 1,
           s.code || '-',
           s.name,
@@ -575,14 +950,25 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           s.bankAccount?.accountHolder || '-',
           s.active !== false ? 'Đang hoạt động' : 'Tạm dừng'
         ]);
+
+        r.height = 22;
+        r.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          if (colNum === 1 || colNum === 2 || colNum === 4 || colNum === 8 || colNum === 10) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
       });
 
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'DANH_SACH_SHOP');
+      autoFitColumns(ws, [8, 16, 26, 16, 22, 32, 22, 20, 24, 16]);
 
+      const buffer = await workbook.xlsx.writeBuffer();
       const safeCarrier = carrierLabel.replace(/[^a-zA-Z0-9]/g, '_');
-      XLSX.writeFile(wb, `Danh_Sach_Khach_Hang_Khai_Thue_${safeCarrier}_${todayStr}.xlsx`);
+      saveAs(new Blob([buffer]), `Danh_Sach_Khach_Hang_Khai_Thue_${safeCarrier}_${todayStr}.xlsx`);
       showToast('Đã xuất danh bạ khách hàng khai thuế thành công!', 'success');
     } catch (err: any) {
       showToast('Lỗi xuất danh bạ shop: ' + err?.message, 'error');
@@ -592,22 +978,37 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   // --------------------------------------------------------------------------
   // EXPORT 6: Monthly / Quarterly Consolidated Tax Report
   // --------------------------------------------------------------------------
-  const exportMonthlyConsolidatedTaxReport = () => {
+  const exportMonthlyConsolidatedTaxReport = async () => {
     try {
       const carrierLabel = activeCarrierObj ? activeCarrierObj.carrierName : 'Tất Cả Hãng';
-      const rows: any[][] = [
-        [`BÁO CÁO DOANH THU DỊCH VỤ VẬN CHUYỂN & DÒNG TIỀN COD (${carrierLabel.toUpperCase()})`],
-        [`Thời gian: Từ ngày ${fromDate} đến ngày ${toDate}`],
-        [`Tổng số kỳ đối soát: ${monthlyAggregatedData.sessionCount} kỳ | Tổng số đơn: ${monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')}`],
-        [`Tổng tiền COD luân chuyển: ${monthlyAggregatedData.totalCod.toLocaleString('vi-VN')} đ`],
-        [`Tổng Doanh Thu Cước Dịch Vụ (Chưa VAT): ${monthlyAggregatedData.totalServiceRevenue.toLocaleString('vi-VN')} đ`],
-        [`Tổng Thực Chi Trả Khách Hàng: ${monthlyAggregatedData.totalNetPayout.toLocaleString('vi-VN')} đ`],
-        [],
-        ['STT', 'Mã Khách Hàng', 'Tên Khách Hàng / Shop', 'Số Điện Thoại', 'Tài Khoản Ngân Hàng', 'Số Kỳ Tham Gia', 'Tổng Số Đơn', 'Tổng COD Thu Hộ (VNĐ)', 'Doanh Thu Cước Dịch Vụ (VNĐ)', 'Tổng Thực Trả (VNĐ)']
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('BAO_CAO_THUE_TONG_HOP');
+
+      const headers = [
+        'STT', 
+        'Mã Khách', 
+        'Tên Khách Hàng / Shop', 
+        'Số Điện Thoại', 
+        'Tài Khoản Ngân Hàng', 
+        'Số Kỳ Tham Gia', 
+        'Tổng Số Đơn', 
+        'Tổng COD Thu Hộ (VNĐ)', 
+        'Doanh Thu Cước Dịch Vụ (VNĐ)', 
+        'Tổng Thực Trả (VNĐ)'
       ];
 
+      addCorporateHeader(
+        ws,
+        `BÁO CÁO DOANH THU DỊCH VỤ VẬN CHUYỂN & DÒNG TIỀN COD (${carrierLabel.toUpperCase()})`,
+        `Thời gian: Từ ngày ${fromDate} đến ngày ${toDate} | Số kỳ: ${monthlyAggregatedData.sessionCount} kỳ | Tổng đơn: ${monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')} đơn`,
+        headers.length
+      );
+
+      const hRow = ws.addRow(headers);
+      formatTableHeader(hRow);
+
       monthlyAggregatedData.shopBreakdown.forEach((s, idx) => {
-        rows.push([
+        const r = ws.addRow([
           idx + 1,
           s.shopCode,
           s.shopName,
@@ -619,27 +1020,64 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           s.totalServiceFee,
           s.totalNetPayout
         ]);
+
+        r.height = 22;
+        r.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          if (colNum === 1 || colNum === 2 || colNum === 4 || colNum === 6) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 3 || colNum === 5) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          } else if (colNum === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.numFmt = '#,##0';
+          } else if (colNum >= 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
       });
 
-      rows.push([
+      // 🌟 HÀNG TỔNG CỘNG: Nền vàng chữ đỏ
+      const totalRow = ws.addRow([
         'TỔNG CỘNG',
         '',
         '',
         '',
         '',
-        monthlyAggregatedData.sessionCount,
+        `${monthlyAggregatedData.sessionCount} kỳ`,
         monthlyAggregatedData.totalOrders,
         monthlyAggregatedData.totalCod,
         monthlyAggregatedData.totalServiceRevenue,
         monthlyAggregatedData.totalNetPayout
       ]);
 
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'BAO_CAO_THUE_TONG_HOP');
+      const totalRowNum = totalRow.number;
+      ws.mergeCells(totalRowNum, 1, totalRowNum, 5);
+      totalRow.height = 26;
 
+      totalRow.eachCell((cell, colNum) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+        cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFDC2626' } };
+        cell.border = TOTAL_BORDER;
+
+        if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum === 6 || colNum === 7) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          if (colNum === 7) cell.numFmt = '#,##0';
+        } else if (colNum >= 8) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      autoFitColumns(ws, [8, 14, 26, 16, 32, 14, 14, 22, 22, 22]);
+
+      const buffer = await workbook.xlsx.writeBuffer();
       const safeCarrier = carrierLabel.replace(/[^a-zA-Z0-9]/g, '_');
-      XLSX.writeFile(wb, `Bao_Cao_Doanh_Thu_Thue_${safeCarrier}_${fromDate}_den_${toDate}.xlsx`);
+      saveAs(new Blob([buffer]), `Bao_Cao_Doanh_Thu_Thue_${safeCarrier}_${fromDate}_den_${toDate}.xlsx`);
       showToast('Đã xuất báo cáo thuế định kỳ thành công!', 'success');
     } catch (err: any) {
       showToast('Lỗi xuất báo cáo định kỳ: ' + err?.message, 'error');
@@ -1325,7 +1763,6 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         {/* ========================================================================= */}
         {activeTab === 'sessions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Filter & Search Bar */}
             {/* Filter & Search Bar */}
             <div style={{
               background: 'var(--surface, #ffffff)',
