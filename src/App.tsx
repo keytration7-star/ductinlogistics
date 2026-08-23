@@ -169,6 +169,7 @@ export function App() {
       <UIFeedbackProvider>
         <TaxAccountantPortal
           currentUser={currentUser}
+          carriers={carriers}
           sessions={sessions}
           shops={shops}
           theme={theme}
