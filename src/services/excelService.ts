@@ -5,7 +5,7 @@ import { saveAs } from 'file-saver';
 import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
 import { normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
-import { calculateStatementSettlement } from './settlementService';
+import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from './settlementService';
 import { extractRowField } from './reconciliationService';
 
 export function formatAnyDateValue(val: any): string {
@@ -705,7 +705,18 @@ export const ExcelService = {
     });
 
     // 🌟 Yêu cầu 3: Thống kê chi tiết Đơn Giao (BN đơn, BN tiền), Đơn Hoàn, Đơn GH1P, Công nợ cũ
-    const settlement = calculateStatementSettlement(statement);
+    const allSessions = StorageService.getSessions();
+    const allPayments = StorageService.getPaymentRecords();
+    const allShops = StorageService.getShops();
+    const currentSession = allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
+    const matchedShop = allShops.find(s => s.id === statement.shopId || s.code === statement.shopCode);
+
+    const liveOpeningDebt = currentSession
+      ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
+      : (statement.previousDebt || 0);
+
+    const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt);
     const previousDebtVal = settlement.openingDebt;
     const finalPayout = settlement.amountPayable;
 
@@ -989,8 +1000,18 @@ export const ExcelService = {
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
 
+    const allSessions = StorageService.getSessions();
+    const allPayments = StorageService.getPaymentRecords();
+    const allShops = StorageService.getShops();
+
+    let masterTotalPayable = 0;
+
     session.statements.forEach((stmt, idx) => {
-      const settlement = calculateStatementSettlement(stmt);
+      const matchedShop = allShops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode);
+      const liveOpeningDebt = calculateLiveOpeningDebtForStatement(stmt, session, allSessions, allPayments, matchedShop);
+      const settlement = calculateStatementSettlement({ ...stmt, previousDebt: liveOpeningDebt });
+      masterTotalPayable += settlement.amountPayable;
+
       const addedRow = wsMaster.addRow([
         idx + 1,
         stmt.shopCode,
@@ -1023,7 +1044,7 @@ export const ExcelService = {
       session.totalShopRevenue,
       session.totalNvcCost,
       session.totalProfit,
-      session.statements.reduce((sum, stmt) => sum + calculateStatementSettlement(stmt).amountPayable, 0),
+      masterTotalPayable,
       '',
     ]);
 

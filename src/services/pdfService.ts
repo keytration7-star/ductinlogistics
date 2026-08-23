@@ -1,14 +1,25 @@
-import type { ShopSettlementStatement } from '../types';
+import type { ShopSettlementStatement, ReconciliationSession } from '../types';
 import { StorageService } from './storage';
-import { calculateStatementSettlement } from './settlementService';
+import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from './settlementService';
 
 export const PdfService = {
-  printShopStatementPdf(statement: ShopSettlementStatement): void {
+  printShopStatementPdf(statement: ShopSettlementStatement, session?: ReconciliationSession): void {
     const company = StorageService.getCompanyInfo();
     const companyTitle = (company.companyName || 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
 
-    const settlement = calculateStatementSettlement(statement);
+    const allSessions = StorageService.getSessions();
+    const allPayments = StorageService.getPaymentRecords();
+    const allShops = StorageService.getShops();
+    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
+    const matchedShop = allShops.find(s => s.id === statement.shopId || s.code === statement.shopCode);
+
+    const liveOpeningDebt = currentSession
+      ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
+      : (statement.previousDebt || 0);
+
+    const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt);
     const previousDebtVal = settlement.openingDebt;
     const finalPayout = settlement.amountPayable;
 

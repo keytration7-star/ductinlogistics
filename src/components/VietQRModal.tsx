@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
 import { X, Check, Copy, QrCode } from 'lucide-react';
-import type { ShopSettlementStatement } from '../types';
+import type { ShopSettlementStatement, ReconciliationSession } from '../types';
 
 interface VietQRModalProps {
   statement: ShopSettlementStatement | null;
   onClose: () => void;
+  amountOverride?: number;
+  session?: ReconciliationSession;
 }
 
 import { BANK_CODES, toVietQrMemo } from '../constants/banks';
-import { calculateStatementSettlement } from '../services/settlementService';
+import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from '../services/settlementService';
 import { StorageService } from '../services/storage';
 
-export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) => {
+export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose, amountOverride, session }) => {
   const [copied, setCopied] = useState(false);
 
   if (!statement) return null;
 
+  const allSessions = StorageService.getSessions();
+  const allPayments = StorageService.getPaymentRecords();
   const liveShop = StorageService.getShops().find(s => 
     s.id === statement.shopId || 
     s.code === statement.shopCode || 
@@ -27,8 +31,14 @@ export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) 
   const bankCode = BANK_CODES[bankName] || 'MB';
   const accountNumber = (liveBank.accountNumber || '').replace(/[^0-9]/g, '') || '091234567899';
   const accountHolder = encodeURIComponent(liveBank.accountHolder || statement.shopName);
-  const settlement = calculateStatementSettlement(statement);
-  const amount = settlement.amountPayable;
+
+  const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
+  const liveOpeningDebt = currentSession
+    ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, liveShop)
+    : (statement.previousDebt || 0);
+
+  const settlement = calculateStatementSettlement({ ...statement, previousDebt: liveOpeningDebt });
+  const amount = amountOverride !== undefined ? amountOverride : settlement.amountPayable;
   const rawMemo = `DOI SOAT ${statement.shopCode} ${statement.periodName}`;
   const memo = encodeURIComponent(toVietQrMemo(rawMemo));
 
