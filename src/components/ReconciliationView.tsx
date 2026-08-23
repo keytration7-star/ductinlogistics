@@ -563,8 +563,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       totalOrders++;
 
       const cod = codCol ? parseNumber(row[codCol]) : 0;
-      const nvcFee = feeCol ? parseNumber(row[feeCol]) : 0;
-      const nvcOther = otherFeeCols.reduce((sum, col) => sum + parseNumber(row[col]), 0);
+      const nvcFee = feeCol ? Math.abs(parseNumber(row[feeCol])) : 0;
+      const nvcOther = otherFeeCols.reduce((sum, col) => sum + Math.abs(parseNumber(row[col])), 0);
       totalCod += cod;
 
       const wbKey = rawWb.toString().trim().toUpperCase();

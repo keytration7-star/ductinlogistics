@@ -421,12 +421,12 @@ export function performReconciliation(
     const appRow = mode === '1file' ? nvcRow : appMap.get(waybill);
 
     const nvcCod = parseNumber(nvcMapping.codColumn ? nvcRow[nvcMapping.codColumn] : 0);
-    const nvcFee = parseNumber(nvcMapping.feeColumn ? nvcRow[nvcMapping.feeColumn] : 0);
+    const nvcFee = Math.abs(parseNumber(nvcMapping.feeColumn ? nvcRow[nvcMapping.feeColumn] : 0));
     const otherFeeColumns = Array.from(new Set([
       nvcMapping.otherFeeColumn,
       ...(nvcMapping.additionalFeeColumns || []),
     ].filter(Boolean))) as string[];
-    const nvcOtherFee = otherFeeColumns.reduce((total, column) => total + parseNumber(nvcRow[column]), 0);
+    const nvcOtherFee = otherFeeColumns.reduce((total, column) => total + Math.abs(parseNumber(nvcRow[column])), 0);
     const nvcAdjustment = parseNumber(nvcMapping.adjustmentColumn ? nvcRow[nvcMapping.adjustmentColumn] : 0);
     const nvcSettlementAmount = nvcMapping.settlementAmountColumn
       ? parseNumber(nvcRow[nvcMapping.settlementAmountColumn])
