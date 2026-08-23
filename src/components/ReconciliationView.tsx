@@ -2639,15 +2639,28 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             paddingTop: 16,
             borderTop: '1px solid var(--border-color)',
           }}>
-            <button
-              type="button"
-              onClick={() => setWizardStep(2)}
-              className="btn btn-secondary btn-lg"
-              style={{ fontWeight: 700, fontSize: 13 }}
-            >
-              <ArrowLeft size={16} />
-              <span>Quay Lại Bước 2 (Kiểm Tra File)</span>
-            </button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setWizardStep(2)}
+                className="btn btn-secondary btn-lg"
+                style={{ fontWeight: 700, fontSize: 13 }}
+              >
+                <ArrowLeft size={16} />
+                <span>Quay Lại Bước 2</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetReconciliation}
+                className="btn btn-danger btn-lg"
+                style={{ fontWeight: 700, fontSize: 13, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: '1.5px solid #ef4444' }}
+                title={`Hủy file đang tải, xóa dữ liệu tạm của ${selectedCarrierTier?.carrierName || 'NVC'} để làm lại từ đầu`}
+              >
+                <Trash2 size={16} />
+                <span>Xóa Dữ Liệu Tạm & Làm Lại</span>
+              </button>
+            </div>
 
             <button
               type="button"

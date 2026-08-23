@@ -533,6 +533,13 @@ export function App() {
                   setCurrentSession(session);
                   setActiveTab('zalo');
                 }}
+                onRefreshSessions={() => {
+                  const updatedSessions = StorageService.getSessions();
+                  setSessions(updatedSessions);
+                  if (currentSession && !updatedSessions.some(s => s.id === currentSession.id)) {
+                    setCurrentSession(null);
+                  }
+                }}
               />
             )}
 

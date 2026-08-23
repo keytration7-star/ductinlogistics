@@ -11,13 +11,14 @@ import {
   PieChart,
   Layers,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import type { ReconciliationSession, Shop } from '../types';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storage';
 import { cleanSessionName } from '../utils/periodUtils';
-import { useToast } from './UIFeedback';
+import { useToast, useConfirm } from './UIFeedback';
 
 interface HistoryAndAnalyticsViewProps {
   sessions: ReconciliationSession[];
@@ -25,6 +26,7 @@ interface HistoryAndAnalyticsViewProps {
   onSelectSession: (session: ReconciliationSession) => void;
   onNavigateToEmail?: (session: ReconciliationSession) => void;
   onNavigateToZalo?: (session: ReconciliationSession) => void;
+  onRefreshSessions?: () => void;
 }
 
 export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = ({
@@ -33,10 +35,27 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   onSelectSession,
   onNavigateToEmail,
   onNavigateToZalo,
+  onRefreshSessions,
 }) => {
   const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [carrierFilter, setCarrierFilter] = useState('ALL');
+
+  const handleDeleteSession = async (session: ReconciliationSession) => {
+    const ok = await showConfirm({
+      title: 'Xóa Kỳ Đối Soát',
+      message: `Bạn có chắc chắn muốn xóa kỳ đối soát "${session.sessionName || session.id}" (${session.statements.length} Shop)? Thao tác này sẽ dọn sạch dữ liệu kỳ đối soát này để bạn có thể test lại.`,
+      danger: true,
+      confirmText: 'Xóa Vĩnh Viễn',
+      cancelText: 'Giữ Lại',
+    });
+    if (ok) {
+      StorageService.deleteSession(session.id);
+      showToast(`Đã xóa kỳ đối soát "${session.sessionName || session.id}"!`, 'success');
+      if (onRefreshSessions) onRefreshSessions();
+    }
+  };
 
   // Edit Session Date & Name Modal
   const [editingSession, setEditingSession] = useState<ReconciliationSession | null>(null);
@@ -500,6 +519,15 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                       >
                         <Calendar size={13} />
                         <span>Sửa ngày</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteSession(session)}
+                        className="btn btn-danger btn-sm"
+                        style={{ padding: '5px 7px', fontSize: 11, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', borderColor: '#fca5a5' }}
+                        title="Xóa kỳ đối soát test này"
+                      >
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>
