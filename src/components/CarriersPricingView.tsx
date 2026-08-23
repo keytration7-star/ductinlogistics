@@ -6,6 +6,125 @@ import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { StorageService } from '../services/storage';
 import { useToast, useConfirm } from './UIFeedback';
 
+export const getCarrierTheme = (carrierId: string = '', carrierName: string = '') => {
+  const key = (carrierId + ' ' + carrierName).toLowerCase();
+  if (key.includes('jnt') || key.includes('j&t')) {
+    return {
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+      accentColor: '#dc2626',
+      cardBorder: 'rgba(239, 68, 68, 0.35)',
+      cardBg: 'linear-gradient(180deg, #fff1f2 0%, #fee2e2 50%, #fff7f7 100%)',
+      innerBoxBg: 'rgba(254, 226, 226, 0.55)',
+      innerBoxBorder: '1px solid rgba(239, 68, 68, 0.22)',
+      badgeBg: '#fee2e2',
+      badgeText: '#b91c1c',
+      shadowGlow: '0 6px 20px -3px rgba(220, 38, 38, 0.18)',
+    };
+  }
+  if (key.includes('spx') || key.includes('shopee')) {
+    return {
+      gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+      accentColor: '#ea580c',
+      cardBorder: 'rgba(249, 115, 22, 0.35)',
+      cardBg: 'linear-gradient(180deg, #fff7ed 0%, #ffedd5 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(255, 237, 213, 0.55)',
+      innerBoxBorder: '1px solid rgba(249, 115, 22, 0.22)',
+      badgeBg: '#ffedd5',
+      badgeText: '#c2410c',
+      shadowGlow: '0 6px 20px -3px rgba(234, 88, 12, 0.18)',
+    };
+  }
+  if (key.includes('ghn') || key.includes('giao hang nhanh')) {
+    return {
+      gradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+      accentColor: '#0284c7',
+      cardBorder: 'rgba(2, 132, 199, 0.35)',
+      cardBg: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(224, 242, 254, 0.55)',
+      innerBoxBorder: '1px solid rgba(2, 132, 199, 0.22)',
+      badgeBg: '#e0f2fe',
+      badgeText: '#0369a1',
+      shadowGlow: '0 6px 20px -3px rgba(2, 132, 199, 0.18)',
+    };
+  }
+  if (key.includes('ghtk') || key.includes('tiet kiem')) {
+    return {
+      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      accentColor: '#059669',
+      cardBorder: 'rgba(16, 185, 129, 0.35)',
+      cardBg: 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(220, 252, 231, 0.55)',
+      innerBoxBorder: '1px solid rgba(16, 185, 129, 0.22)',
+      badgeBg: '#d1fae5',
+      badgeText: '#047857',
+      shadowGlow: '0 6px 20px -3px rgba(16, 185, 129, 0.18)',
+    };
+  }
+  if (key.includes('vtp') || key.includes('viettel')) {
+    return {
+      gradient: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+      accentColor: '#e11d48',
+      cardBorder: 'rgba(244, 63, 94, 0.35)',
+      cardBg: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(255, 228, 230, 0.55)',
+      innerBoxBorder: '1px solid rgba(244, 63, 94, 0.22)',
+      badgeBg: '#ffe4e6',
+      badgeText: '#be123c',
+      shadowGlow: '0 6px 20px -3px rgba(225, 29, 72, 0.18)',
+    };
+  }
+  if (key.includes('ninja')) {
+    return {
+      gradient: 'linear-gradient(135deg, #be123c 0%, #9f1239 100%)',
+      accentColor: '#be123c',
+      cardBorder: 'rgba(190, 18, 60, 0.35)',
+      cardBg: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(255, 228, 230, 0.55)',
+      innerBoxBorder: '1px solid rgba(190, 18, 60, 0.22)',
+      badgeBg: '#ffe4e6',
+      badgeText: '#9f1239',
+      shadowGlow: '0 6px 20px -3px rgba(190, 18, 60, 0.18)',
+    };
+  }
+  if (key.includes('best')) {
+    return {
+      gradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+      accentColor: '#0284c7',
+      cardBorder: 'rgba(2, 132, 199, 0.35)',
+      cardBg: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(224, 242, 254, 0.55)',
+      innerBoxBorder: '1px solid rgba(2, 132, 199, 0.22)',
+      badgeBg: '#e0f2fe',
+      badgeText: '#0369a1',
+      shadowGlow: '0 6px 20px -3px rgba(2, 132, 199, 0.18)',
+    };
+  }
+  if (key.includes('vnpost') || key.includes('ems')) {
+    return {
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      accentColor: '#d97706',
+      cardBorder: 'rgba(245, 158, 11, 0.35)',
+      cardBg: 'linear-gradient(180deg, #fffbeb 0%, #fef3c7 50%, #ffffff 100%)',
+      innerBoxBg: 'rgba(254, 243, 199, 0.55)',
+      innerBoxBorder: '1px solid rgba(245, 158, 11, 0.22)',
+      badgeBg: '#fef3c7',
+      badgeText: '#b45309',
+      shadowGlow: '0 6px 20px -3px rgba(217, 119, 6, 0.18)',
+    };
+  }
+  return {
+    gradient: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+    accentColor: '#4f46e5',
+    cardBorder: 'rgba(79, 70, 229, 0.3)',
+    cardBg: 'linear-gradient(180deg, #f5f3ff 0%, #ede9fe 50%, #ffffff 100%)',
+    innerBoxBg: 'rgba(237, 233, 254, 0.55)',
+    innerBoxBorder: '1px solid rgba(79, 70, 229, 0.22)',
+    badgeBg: '#e0e7ff',
+    badgeText: '#4338ca',
+    shadowGlow: '0 6px 20px -3px rgba(79, 70, 229, 0.18)',
+  };
+};
+
 interface CarriersPricingViewProps {
   carriers: CarrierWholesaleTier[];
   onSaveCarriers: (carriers: CarrierWholesaleTier[]) => void;
@@ -226,7 +345,19 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
             </button>
           )}
 
-          <button onClick={handleSaveAll} className="btn btn-primary" style={{ minWidth: 190 }} disabled={!isAdmin} title={!isAdmin ? 'Chỉ Admin được lưu thay đổi bảng giá' : undefined}>
+          <button 
+            onClick={handleSaveAll} 
+            className="btn" 
+            style={{ 
+              minWidth: 190,
+              background: activeCarrierTier ? getCarrierTheme(activeCarrierTier.carrierId, activeCarrierTier.carrierName).gradient : 'var(--primary)',
+              color: '#ffffff',
+              boxShadow: activeCarrierTier ? getCarrierTheme(activeCarrierTier.carrierId, activeCarrierTier.carrierName).shadowGlow : 'var(--shadow-sm)',
+              fontWeight: 700,
+            }} 
+            disabled={!isAdmin} 
+            title={!isAdmin ? 'Chỉ Admin được lưu thay đổi bảng giá' : undefined}
+          >
             <Check size={16} />
             <span>{showSaveToast ? '✓ Đã Lưu Xong!' : 'Lưu Thay Đổi Bảng Giá'}</span>
           </button>
@@ -252,6 +383,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
         }}>
           {displayedCarriers.map((carrier) => {
             const cIdx = carrierList.findIndex(c => c.id === carrier.id);
+            const theme = getCarrierTheme(carrier.carrierId, carrier.carrierName);
             return (
             <div 
               key={carrier.id} 
@@ -261,6 +393,9 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                 position: 'relative',
                 borderRadius: 16,
                 maxWidth: 540,
+                border: `1.5px solid ${theme.cardBorder}`,
+                background: theme.cardBg,
+                boxShadow: `0 4px 18px -2px rgba(15, 23, 42, 0.06), ${theme.shadowGlow}`,
               }}
             >
               {/* Top Carrier Header */}
@@ -270,22 +405,23 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                     width: 38,
                     height: 38,
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--brand-gradient)',
+                    background: theme.gradient,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#fff',
+                    boxShadow: theme.shadowGlow,
                   }}>
                     <Truck size={18} />
                   </div>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700 }}>{carrier.carrierName}</h3>
-                      <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>{carrier.carrierName}</h3>
+                      <span className="badge" style={{ fontSize: 10, padding: '2px 7px', background: theme.badgeBg, color: theme.badgeText, fontWeight: 700, border: `1px solid ${theme.cardBorder}` }}>
                         ✓ Đang áp dụng
                       </span>
                     </div>
-                    <span className="badge badge-neutral" style={{ fontSize: 10, marginTop: 2 }}>
+                    <span className="badge" style={{ fontSize: 10, marginTop: 2, background: 'rgba(255, 255, 255, 0.85)', color: theme.accentColor, border: `1px solid ${theme.cardBorder}`, fontWeight: 700 }}>
                       Mã sỉ: {carrier.carrierId.toUpperCase()}
                     </span>
                   </div>
@@ -364,8 +500,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                         value={rule.price === 0 ? '' : rule.price}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleWeightRuleChange(cIdx, rIdx, 'price', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
-                        className="input-field"
-                        style={{ padding: '5px 8px', fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}
+                        className="input-field mono"
+                        style={{ padding: '5px 8px', fontSize: 13, fontWeight: 750, color: theme.accentColor }}
                       />
                       <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>đ</span>
 
@@ -387,10 +523,10 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
 
               {/* Dynamic Editable Extra Step & Return Fee Box */}
               <div style={{
-                background: 'var(--bg-primary)',
+                background: theme.innerBoxBg,
                 padding: '14px 16px',
                 borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-color)',
+                border: theme.innerBoxBorder,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 12,
@@ -413,7 +549,7 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>+</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: theme.accentColor }}>+</span>
                     <input
                       type="number"
                       step="500"
@@ -422,8 +558,8 @@ export const CarriersPricingView: React.FC<CarriersPricingViewProps> = ({ carrie
                       value={carrier.extraStepPrice === 0 ? '' : carrier.extraStepPrice}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => handleCarrierFieldChange(cIdx, 'extraStepPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
-                      className="input-field"
-                      style={{ width: 85, padding: '3px 6px', fontSize: 12 }}
+                      className="input-field mono"
+                      style={{ width: 85, padding: '3px 6px', fontSize: 12, fontWeight: 700, color: theme.accentColor }}
                     />
                     <span style={{ fontSize: 12 }}>đ</span>
                   </div>

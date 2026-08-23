@@ -1,18 +1,8 @@
 import React, { useState } from 'react';
 import { StorageService } from '../services/storage';
 import type { CtvProfile, CtvCommissionRule } from '../types';
-import { Users, Plus, Edit2, Trash2, Check, X, DollarSign, Award, Search, Truck, CreditCard, Calculator, Ban } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Check, X, DollarSign, Award, Search, Truck, CreditCard, Calculator, Ban, Phone, Mail } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
-
-const AVAILABLE_CARRIERS = [
-  { id: 'ALL', name: '🌐 Tất Cả Hãng Vận Chuyển' },
-  { id: 'jnt', name: '📦 J&T Express' },
-  { id: 'spx', name: '⚡ Shopee Express (SPX)' },
-  { id: 'ghn', name: '🚀 Giao Hàng Nhanh (GHN)' },
-  { id: 'ghtk', name: '🛵 Giao Hàng Tiết Kiệm (GHTK)' },
-  { id: 'vtp', name: '📮 Viettel Post' },
-  { id: 'nlj', name: '🦁 Ninjavan' },
-];
 
 import { VIETNAM_BANKS as FULL_VIETNAM_BANKS } from '../constants/banks';
 
@@ -24,15 +14,15 @@ interface CtvManagementViewProps {
 }
 
 export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
-  activeCarrierId,
-  activeCarrierName,
+  activeCarrierId = 'jnt',
+  activeCarrierName = 'J&T Express',
 }) => {
   const [ctvs, setCtvs] = useState<CtvProfile[]>(() => StorageService.getCtvs());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCtv, setEditingCtv] = useState<CtvProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [testWeight, setTestWeight] = useState<number>(1.5);
-  const [testCarrierId, setTestCarrierId] = useState<string>(activeCarrierId || 'jnt');
 
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -45,7 +35,7 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
       phone: '',
       email: '',
       notes: '',
-      assignedCarriers: activeCarrierId ? [activeCarrierId] : ['ALL'],
+      assignedCarriers: [activeCarrierId],
       bankAccount: {
         bankName: 'MB Bank',
         accountNumber: '',
@@ -68,7 +58,7 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
   const handleOpenEdit = (ctv: CtvProfile) => {
     const ctvCopy: CtvProfile = JSON.parse(JSON.stringify(ctv));
     if (!ctvCopy.assignedCarriers || ctvCopy.assignedCarriers.length === 0) {
-      ctvCopy.assignedCarriers = ['ALL'];
+      ctvCopy.assignedCarriers = [activeCarrierId];
     }
     if (!ctvCopy.bankAccount) {
       ctvCopy.bankAccount = { bankName: 'MB Bank', accountNumber: '', accountHolder: ctvCopy.name };
@@ -92,6 +82,13 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
     showToast(`Đã ngừng hoạt động CTV ${name}; lịch sử vẫn được giữ lại.`, 'success');
   };
 
+  const handleActivate = (ctvId: string, name: string) => {
+    const updated = ctvs.map(c => c.id === ctvId ? { ...c, active: true } : c);
+    setCtvs(updated);
+    StorageService.saveCtvs(updated);
+    showToast(`Đã kích hoạt lại CTV ${name}.`, 'success');
+  };
+
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCtv) return;
@@ -101,13 +98,19 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
       return;
     }
 
-    const index = ctvs.findIndex(c => c.id === editingCtv.id);
+    // Always assign current active carrier
+    const ctvToSave: CtvProfile = {
+      ...editingCtv,
+      assignedCarriers: [activeCarrierId],
+    };
+
+    const index = ctvs.findIndex(c => c.id === ctvToSave.id);
     let updated: CtvProfile[];
     if (index >= 0) {
       updated = [...ctvs];
-      updated[index] = editingCtv;
+      updated[index] = ctvToSave;
     } else {
-      updated = [editingCtv, ...ctvs];
+      updated = [ctvToSave, ...ctvs];
     }
 
     setCtvs(updated);
@@ -146,28 +149,7 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
     setEditingCtv({ ...editingCtv, commissionRules: rules });
   };
 
-  const toggleCarrierAssignment = (carrierId: string) => {
-    if (!editingCtv) return;
-    let current = editingCtv.assignedCarriers || ['ALL'];
-
-    if (carrierId === 'ALL') {
-      current = ['ALL'];
-    } else {
-      current = current.filter(c => c !== 'ALL');
-      if (current.includes(carrierId)) {
-        current = current.filter(c => c !== carrierId);
-      } else {
-        current.push(carrierId);
-      }
-      if (current.length === 0) current = ['ALL'];
-    }
-
-    setEditingCtv({
-      ...editingCtv,
-      assignedCarriers: current,
-    });
-  };
-
+  // Filter CTVs for current active carrier
   const filteredCtvs = ctvs.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -175,112 +157,362 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
     
     if (!matchesSearch) return false;
 
-    if (activeCarrierId) {
-      const assigned = c.assignedCarriers || ['ALL'];
-      return assigned.includes('ALL') || assigned.includes(activeCarrierId);
-    }
-    return true;
+    if (statusFilter === 'active' && !c.active) return false;
+    if (statusFilter === 'inactive' && c.active) return false;
+
+    // Filter by active carrier
+    const assigned = c.assignedCarriers || ['ALL'];
+    return assigned.includes('ALL') || assigned.includes(activeCarrierId);
   });
 
+  const activeCount = filteredCtvs.filter(c => c.active).length;
+  const inactiveCount = filteredCtvs.filter(c => !c.active).length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Award color="var(--primary)" size={24} />
-            <span>Quản Lý Cộng Tác Viên (CTV) {activeCarrierName ? `Phụ Trách ${activeCarrierName}` : ''}</span>
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
-            {activeCarrierName 
-              ? `Danh sách CTV và chính sách hoa hồng bậc cân nặng áp dụng cho các đơn hàng của hãng ${activeCarrierName}.`
-              : 'Phân bổ CTV phụ trách từng bên vận chuyển (J&T, SPX, GHN...) hoặc toàn bộ các bên, cùng bảng tính hoa hồng bậc cân nặng riêng.'}
-          </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 🌟 1. TOP HEADER FROSTED PORCELAIN */}
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1.5px solid var(--border-color)',
+        borderRadius: 16,
+        padding: '14px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+        boxShadow: 'var(--shadow-sm)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+            flexShrink: 0,
+          }}>
+            <Award size={22} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 16.5, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
+                Quản Lý Cộng Tác Viên (CTV) Phụ Trách {activeCarrierName}
+              </h2>
+              <span style={{
+                fontSize: 10.5,
+                background: 'rgba(79, 70, 229, 0.12)',
+                color: 'var(--primary)',
+                border: '1px solid rgba(79, 70, 229, 0.25)',
+                padding: '2px 8px',
+                borderRadius: 6,
+                fontWeight: 800,
+              }}>
+                {filteredCtvs.length} CTV {activeCarrierName.toUpperCase()}
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '2px 0 0' }}>
+              Danh sách CTV và chính sách hoa hồng bậc cân nặng áp dụng cho các đơn hàng của hãng <strong>{activeCarrierName}</strong>.
+            </p>
+          </div>
         </div>
 
-        <button onClick={handleOpenAdd} className="btn btn-primary">
-          <Plus size={16} />
-          <span>Thêm CTV Mới</span>
+        <button
+          type="button"
+          onClick={handleOpenAdd}
+          className="btn btn-primary btn-sm"
+          style={{
+            fontSize: 12.5,
+            fontWeight: 800,
+            padding: '7px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'var(--brand-gradient)',
+            boxShadow: '0 2px 10px rgba(79, 70, 229, 0.25)',
+          }}
+        >
+          <Plus size={15} />
+          <span>+ Thêm CTV Mới</span>
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-secondary)', padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-        <Search size={18} color="var(--text-dim)" />
-        <input
-          type="text"
-          placeholder="Tìm theo Mã CTV, Tên, Số điện thoại..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none', fontSize: 14 }}
-        />
+      {/* 🌟 2. 3 THẺ KPI THỐNG KÊ NHANH */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 12,
+      }}>
+        {/* KPI 1: Tổng số CTV */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--info-border)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(2, 132, 199, 0.15)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Users size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--info)', fontWeight: 700, textTransform: 'uppercase' }}>CTV {activeCarrierName}</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)' }}>
+              {filteredCtvs.length} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--success)' }}>({activeCount} hoạt động)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 2: Hãng phụ trách */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1.5px solid rgba(124, 58, 237, 0.3)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(124, 58, 237, 0.15)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Truck size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 700, textTransform: 'uppercase' }}>Hãng Vận Chuyển</div>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>
+              {activeCarrierName}
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Bảng hoa hồng */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--success-border)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <DollarSign size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700, textTransform: 'uppercase' }}>Chính Sách Hoa Hồng</div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--success)' }}>
+              Theo bậc cân nặng (VNĐ / đơn)
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="table-container glass-panel">
-        <table className="data-table">
+      {/* 🌟 3. THANH TÌM KIẾM & BỘ LỌC TRẠNG THÁI */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 10,
+        background: 'var(--bg-card)',
+        padding: '8px 14px',
+        borderRadius: 12,
+        border: '1.5px solid var(--border-color)',
+        boxShadow: 'var(--shadow-sm)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
+          <Search size={16} color="var(--primary)" />
+          <input
+            type="text"
+            placeholder={`Tìm CTV ${activeCarrierName} theo Mã, Tên, Số điện thoại...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-main)',
+              width: '100%',
+              outline: 'none',
+              fontSize: 12.5,
+              fontWeight: 500,
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 2 }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Bộ lọc trạng thái */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className="btn btn-sm"
+            style={{
+              fontSize: 11,
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontWeight: statusFilter === 'all' ? 800 : 500,
+              background: statusFilter === 'all' ? 'var(--primary)' : '#f1f5f9',
+              color: statusFilter === 'all' ? '#fff' : 'var(--text-dim)',
+              border: 'none',
+            }}
+          >
+            Tất cả ({filteredCtvs.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className="btn btn-sm"
+            style={{
+              fontSize: 11,
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontWeight: statusFilter === 'active' ? 800 : 500,
+              background: statusFilter === 'active' ? '#10b981' : '#f1f5f9',
+              color: statusFilter === 'active' ? '#fff' : 'var(--text-dim)',
+              border: 'none',
+            }}
+          >
+            Đang hoạt động ({activeCount})
+          </button>
+
+          {inactiveCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter('inactive')}
+              className="btn btn-sm"
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontWeight: statusFilter === 'inactive' ? 800 : 500,
+                background: statusFilter === 'inactive' ? '#ef4444' : '#f1f5f9',
+                color: statusFilter === 'inactive' ? '#fff' : 'var(--text-dim)',
+                border: 'none',
+              }}
+            >
+              Tạm khóa ({inactiveCount})
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 🌟 4. BẢNG DANH SÁCH CỘNG TÁC VIÊN FROSTED PORCELAIN */}
+      <div className="table-container glass-panel" style={{
+        borderRadius: 14,
+        border: '1.5px solid #dbe6f2',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%)',
+        boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
+        overflow: 'hidden',
+      }}>
+        <table className="data-table" style={{ fontSize: 12 }}>
           <thead>
             <tr>
-              <th>Mã CTV</th>
-              <th>Họ Và Tên & Liên Hệ</th>
-              <th>Hãng Vận Chuyển Phụ Trách</th>
-              <th>Tài Khoản Nhận Hoa Hồng</th>
-              <th>Bảng Hoa Hồng Bậc Cân Nặng</th>
-              <th>Trạng Thái</th>
-              <th style={{ textAlign: 'right' }}>Thao Tác</th>
+              <th style={{ width: 90 }}>MÃ CTV</th>
+              <th>HỌ VÀ TÊN & LIÊN HỆ</th>
+              <th>TÀI KHOẢN NHẬN HOA HỒNG</th>
+              <th>BẢNG HOA HỒNG BẬC CÂN NẶNG</th>
+              <th style={{ width: 120 }}>TRẠNG THÁI</th>
+              <th style={{ textAlign: 'right', width: 90 }}>THAO TÁC</th>
             </tr>
           </thead>
           <tbody>
             {filteredCtvs.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>
-                  Chưa có Cộng tác viên nào. Bấm "Thêm CTV Mới" để tạo.
+                <td colSpan={6} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-dim)' }}>
+                  <Award size={32} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
+                  <div>Chưa có Cộng tác viên nào cho {activeCarrierName}.</div>
+                  <button
+                    type="button"
+                    onClick={handleOpenAdd}
+                    className="btn btn-primary btn-sm"
+                    style={{ marginTop: 10, fontSize: 11.5 }}
+                  >
+                    <Plus size={13} /> Thêm CTV Mới
+                  </button>
                 </td>
               </tr>
             ) : (
               filteredCtvs.map((ctv) => {
-                const assigned = ctv.assignedCarriers || ['ALL'];
-                const isAll = assigned.includes('ALL');
+                const initials = ctv.name ? ctv.name.split(' ').map(w => w[0]).filter(Boolean).slice(-2).join('').toUpperCase() : 'CTV';
 
                 return (
                   <tr key={ctv.id}>
                     <td>
-                      <span style={{ fontWeight: 700, color: 'var(--primary)', background: 'rgba(79,70,229,0.1)', padding: '4px 8px', borderRadius: 4 }}>
+                      <span className="mono" style={{
+                        fontWeight: 800,
+                        fontSize: 11.5,
+                        color: '#4338ca',
+                        background: '#eef2ff',
+                        border: '1px solid #c7d2fe',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        display: 'inline-block',
+                      }}>
                         {ctv.code}
                       </span>
                     </td>
 
                     <td>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{ctv.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>📞 {ctv.phone || 'Chưa có SĐT'}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>✉️ {ctv.email || 'Chưa có email'}</div>
-                    </td>
-
-                    <td>
-                      {isAll ? (
-                        <span className="badge badge-success" style={{ fontSize: 11 }}>
-                          🌐 Tất Cả Hãng Vận Chuyển
-                        </span>
-                      ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {assigned.map(cId => {
-                            const found = AVAILABLE_CARRIERS.find(ac => ac.id === cId);
-                            return (
-                              <span key={cId} className="badge badge-neutral" style={{ fontSize: 10 }}>
-                                {found ? found.name : cId.toUpperCase()}
-                              </span>
-                            );
-                          })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                          color: '#3730a3',
+                          fontWeight: 900,
+                          fontSize: 12,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {initials}
                         </div>
-                      )}
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-main)' }}>{ctv.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, marginTop: 1 }}>
+                            {ctv.phone ? (
+                              <span style={{ color: '#047857', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <Phone size={11} /> {ctv.phone}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Chưa có SĐT</span>
+                            )}
+                            {ctv.email && (
+                              <span style={{ color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <Mail size={11} /> {ctv.email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </td>
 
                     <td>
                       {ctv.bankAccount?.bankName && ctv.bankAccount?.accountNumber ? (
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 700 }}>{ctv.bankAccount.bankName}</div>
-                          <div className="mono" style={{ fontSize: 12, color: 'var(--primary)' }}>{ctv.bankAccount.accountNumber}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{ctv.bankAccount.accountHolder}</div>
+                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', display: 'inline-block' }}>
+                          <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-main)' }}>{ctv.bankAccount.bankName}</div>
+                          <div className="mono" style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>{ctv.bankAccount.accountNumber}</div>
+                          {ctv.bankAccount.accountHolder && (
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase' }}>{ctv.bankAccount.accountHolder}</div>
+                          )}
                         </div>
                       ) : (
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Chưa cập nhật STK</span>
@@ -288,14 +520,14 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                     </td>
 
                     <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5 }}>
                         {(ctv.commissionRules || []).map((r, i) => (
                           <div key={i} style={{ color: 'var(--text-secondary)' }}>
-                            • <b>{r.minWeight}kg - {r.maxWeight}kg</b>: <span style={{ color: 'var(--success)', fontWeight: 600 }}>+{r.commissionPrice.toLocaleString('vi-VN')} đ/đơn</span>
+                            • <b>{r.minWeight}kg - {r.maxWeight}kg</b>: <strong style={{ color: '#047857' }}>+{r.commissionPrice.toLocaleString('vi-VN')} đ/đơn</strong>
                           </div>
                         ))}
                         {ctv.extraWeightPrice > 0 && (
-                          <div style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: 11 }}>
+                          <div style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: 10.5 }}>
                             + Mỗi {ctv.extraWeightStep}kg sau: +{ctv.extraWeightPrice.toLocaleString('vi-VN')} đ/kg
                           </div>
                         )}
@@ -307,26 +539,51 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 4,
-                        padding: '2px 8px',
+                        padding: '3px 8px',
                         borderRadius: 12,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        background: ctv.active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                        color: ctv.active ? 'var(--success)' : 'var(--danger)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: ctv.active ? '#dcfce7' : '#fee2e2',
+                        color: ctv.active ? '#047857' : '#b91c1c',
+                        border: ctv.active ? '1px solid #86efac' : '1px solid #fca5a5',
                       }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: ctv.active ? '#10b981' : '#ef4444' }} />
                         {ctv.active ? 'Đang hoạt động' : 'Tạm khóa'}
                       </span>
                     </td>
 
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                        <button onClick={() => handleOpenEdit(ctv)} className="btn btn-secondary btn-sm" title="Sửa thông tin CTV">
-                          <Edit2 size={14} />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(ctv)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 8px', background: '#ffffff', border: '1px solid #cbd5e1' }}
+                          title="Sửa thông tin CTV"
+                        >
+                          <Edit2 size={13} color="var(--primary)" />
                         </button>
-                        {ctv.active && <button onClick={() => handleDeactivate(ctv.id, ctv.name)} className="btn btn-danger btn-sm" title="Ngừng hoạt động, không xóa lịch sử">
-                          <Ban size={14} />
-                        </button>
-                        }
+                        {ctv.active ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeactivate(ctv.id, ctv.name)}
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '4px 8px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626' }}
+                            title="Ngừng hoạt động, không xóa lịch sử"
+                          >
+                            <Ban size={13} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleActivate(ctv.id, ctv.name)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', background: '#dcfce7', border: '1px solid #86efac', color: '#059669' }}
+                            title="Kích hoạt lại CTV"
+                          >
+                            <Check size={13} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -337,139 +594,122 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
         </table>
       </div>
 
-      {/* Modal Add/Edit */}
+      {/* 🌟 5. MODAL ADD / EDIT CTV */}
       {isModalOpen && editingCtv && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" style={{ maxWidth: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{
+            maxWidth: 760,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 0,
+            borderRadius: 16,
+            overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleSaveModal} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary)', flexShrink: 0 }}>
+              {/* Modal Header */}
+              <div style={{
+                padding: '14px 20px',
+                borderBottom: '1.5px solid #dbe6f2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(180deg, #ffffff 0%, #f6faff 100%)',
+                flexShrink: 0,
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Award size={20} color="var(--primary)" />
-                  <h3 style={{ fontSize: 17, fontWeight: 700 }}>
-                    {editingCtv.id ? `Cấu hình CTV: ${editingCtv.name || editingCtv.code}` : 'Thêm Cộng Tác Viên Mới'}
+                  <Award size={18} color="var(--primary)" />
+                  <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    {editingCtv.id ? `Cấu hình CTV ${activeCarrierName}: ${editingCtv.name || editingCtv.code}` : `Thêm CTV Mới (${activeCarrierName})`}
                   </h3>
                 </div>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </div>
 
-              <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
+              {/* Modal Body */}
+              <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16, flex: 1, background: '#fbfcfe' }}>
                 {/* 1. THÔNG TIN CƠ BẢN */}
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Users size={16} /> 1. THÔNG TIN CƠ BẢN CỘNG TÁC VIÊN
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-                  <div className="input-group">
-                    <label className="input-label">Mã CTV (*)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="CTV_01, CTV_MINH..."
-                      value={editingCtv.code}
-                      onChange={(e) => setEditingCtv({ ...editingCtv, code: e.target.value.toUpperCase() })}
-                      className="input-field"
-                    />
+                <div style={{ background: '#ffffff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <Users size={15} /> 1. THÔNG TIN CƠ BẢN CỘNG TÁC VIÊN
                   </div>
 
-                  <div className="input-group">
-                    <label className="input-label">Họ Và Tên CTV (*)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ví dụ: Nguyễn Văn Minh"
-                      value={editingCtv.name}
-                      onChange={(e) => setEditingCtv({ ...editingCtv, name: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: 11 }}>Mã CTV (*)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="CTV_01, CTV_MINH..."
+                        value={editingCtv.code}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, code: e.target.value.toUpperCase() })}
+                        className="input-field"
+                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      />
+                    </div>
 
-                  <div className="input-group">
-                    <label className="input-label">Số điện thoại (*)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="0912345678"
-                      value={editingCtv.phone}
-                      onChange={(e) => setEditingCtv({ ...editingCtv, phone: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: 11 }}>Họ Và Tên CTV (*)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ví dụ: Nguyễn Văn Minh"
+                        value={editingCtv.name}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, name: e.target.value })}
+                        className="input-field"
+                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      />
+                    </div>
 
-                  <div className="input-group">
-                    <label className="input-label">Email liên hệ</label>
-                    <input
-                      type="email"
-                      placeholder="ctv@gmail.com"
-                      value={editingCtv.email || ''}
-                      onChange={(e) => setEditingCtv({ ...editingCtv, email: e.target.value })}
-                      className="input-field"
-                    />
-                  </div>
-                </div>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: 11 }}>Số điện thoại (*)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="0912345678"
+                        value={editingCtv.phone}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, phone: e.target.value })}
+                        className="input-field"
+                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      />
+                    </div>
 
-                {/* 2. PHÂN QUYỀN HÃNG VẬN CHUYỂN PHỤ TRÁCH */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    <Truck size={16} /> 2. HÃNG VẬN CHUYỂN PHỤ TRÁCH (PHẠM VI TÍNH HOA HỒNG)
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                    CTV chỉ được nhận hoa hồng đối với các đơn hàng thuộc hãng vận chuyển mà họ phụ trách bên dưới:
-                  </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {AVAILABLE_CARRIERS.map(c => {
-                      const isChecked = (editingCtv.assignedCarriers || ['ALL']).includes(c.id);
-                      return (
-                        <label
-                          key={c.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: isChecked ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
-                            background: isChecked ? 'rgba(79, 70, 229, 0.08)' : 'var(--bg-secondary)',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            fontWeight: isChecked ? 700 : 400,
-                            color: isChecked ? 'var(--primary)' : 'var(--text-main)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleCarrierAssignment(c.id)}
-                            style={{ accentColor: 'var(--primary)' }}
-                          />
-                          <span>{c.name}</span>
-                        </label>
-                      );
-                    })}
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: 11 }}>Email liên hệ</label>
+                      <input
+                        type="email"
+                        placeholder="ctv@gmail.com"
+                        value={editingCtv.email || ''}
+                        onChange={(e) => setEditingCtv({ ...editingCtv, email: e.target.value })}
+                        className="input-field"
+                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. TÀI KHOẢN NGÂN HÀNG & VIETQR */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    <CreditCard size={16} /> 3. TÀI KHOẢN NGÂN HÀNG NHẬN HOA HỒNG & VIETQR LIVE
+                {/* 2. TÀI KHOẢN NGÂN HÀNG & VIETQR */}
+                <div style={{ background: '#ffffff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#047857', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <CreditCard size={15} /> 2. TÀI KHOẢN NGÂN HÀNG NHẬN HOA HỒNG
                   </div>
 
                   <div style={{
                     background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(79, 70, 229, 0.05) 100%)',
-                    padding: 14,
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-color)',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid #d1fae5',
                     display: 'grid',
-                    gridTemplateColumns: '1fr 120px',
-                    gap: 14,
+                    gridTemplateColumns: '1fr 110px',
+                    gap: 12,
                     alignItems: 'center',
                   }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
                       <div className="input-group">
-                        <label className="input-label">Tên Ngân hàng</label>
+                        <label className="input-label" style={{ fontSize: 11 }}>Tên Ngân hàng</label>
                         <select
                           value={editingCtv.bankAccount?.bankName || 'MB Bank'}
                           onChange={(e) => setEditingCtv({
@@ -477,6 +717,7 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                             bankAccount: { ...editingShopBankAccount(editingCtv), bankName: e.target.value }
                           })}
                           className="select-field"
+                          style={{ padding: '5px 8px', fontSize: 12 }}
                         >
                           {VIETNAM_BANKS.map(b => (
                             <option key={b} value={b}>{b}</option>
@@ -485,21 +726,22 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                       </div>
 
                       <div className="input-group">
-                        <label className="input-label">Số tài khoản</label>
+                        <label className="input-label" style={{ fontSize: 11 }}>Số tài khoản</label>
                         <input
                           type="text"
-                          placeholder="STK nhận tiền hoa hồng..."
+                          placeholder="STK nhận tiền..."
                           value={editingCtv.bankAccount?.accountNumber || ''}
                           onChange={(e) => setEditingCtv({
                             ...editingCtv,
                             bankAccount: { ...editingShopBankAccount(editingCtv), accountNumber: e.target.value }
                           })}
                           className="input-field mono"
+                          style={{ padding: '5px 8px', fontSize: 12 }}
                         />
                       </div>
 
                       <div className="input-group">
-                        <label className="input-label">Tên chủ tài khoản</label>
+                        <label className="input-label" style={{ fontSize: 11 }}>Tên chủ tài khoản</label>
                         <input
                           type="text"
                           placeholder="NGUYEN VAN A"
@@ -509,6 +751,7 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                             bankAccount: { ...editingShopBankAccount(editingCtv), accountHolder: e.target.value.toUpperCase() }
                           })}
                           className="input-field"
+                          style={{ padding: '5px 8px', fontSize: 12 }}
                         />
                       </div>
                     </div>
@@ -519,33 +762,33 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                           <img
                             src={`https://img.vietqr.io/image/${(editingCtv.bankAccount.bankName || 'MBBank').replace(/\s+/g, '')}-${editingCtv.bankAccount.accountNumber}-compact.png?addInfo=Hoa%20hong%20CTV%20${editingCtv.code}&accountName=${encodeURIComponent(editingCtv.bankAccount.accountHolder || editingCtv.name)}`}
                             alt="VietQR Code"
-                            style={{ width: 100, height: 100, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: '#fff', padding: 3 }}
+                            style={{ width: 90, height: 90, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', padding: 2 }}
                           />
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Mã VietQR CTV</div>
+                          <div style={{ fontSize: 8.5, color: 'var(--text-dim)', marginTop: 2 }}>Mã VietQR CTV</div>
                         </>
                       ) : (
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic' }}>Gõ STK xem VietQR Live</div>
+                        <div style={{ fontSize: 9.5, color: 'var(--text-dim)', fontStyle: 'italic' }}>Gõ STK xem VietQR</div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* 4. BẢNG HOA HỒNG CHI TẢI THEO BẬC CÂN NẶNG */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                {/* 3. BẢNG HOA HỒNG CHI TRẢ THEO BẬC CÂN NẶNG */}
+                <div style={{ background: '#ffffff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <DollarSign size={16} /> 4. BẢNG HOA HỒNG CHI TẢI THEO BẬC CÂN NẶNG (VNĐ / ĐƠN)
+                      <DollarSign size={15} /> 3. BẢNG HOA HỒNG THEO BẬC CÂN NẶNG (VNĐ / ĐƠN)
                     </span>
-                    <button type="button" onClick={handleAddRule} className="btn btn-secondary btn-sm">
-                      <Plus size={14} /> Thêm Bậc Cân
+                    <button type="button" onClick={handleAddRule} className="btn btn-secondary btn-sm" style={{ padding: '3px 8px', fontSize: 11 }}>
+                      <Plus size={12} /> Thêm Bậc Cân
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {(editingCtv.commissionRules || []).map((rule, idx) => (
-                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 40px', gap: 10, alignItems: 'center', background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr 36px', gap: 8, alignItems: 'center', background: '#f8fafc', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                         <div>
-                          <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Từ (kg)</label>
+                          <label style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Từ (kg)</label>
                           <input
                             type="number"
                             step="0.1"
@@ -553,12 +796,12 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => handleRuleChange(idx, 'minWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                             className="input-field"
-                            style={{ padding: '6px 10px', fontSize: 13 }}
+                            style={{ padding: '4px 8px', fontSize: 12 }}
                           />
                         </div>
 
                         <div>
-                          <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Đến (kg)</label>
+                          <label style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Đến (kg)</label>
                           <input
                             type="number"
                             step="0.1"
@@ -566,12 +809,12 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => handleRuleChange(idx, 'maxWeight', parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 0)}
                             className="input-field"
-                            style={{ padding: '6px 10px', fontSize: 13 }}
+                            style={{ padding: '4px 8px', fontSize: 12 }}
                           />
                         </div>
 
                         <div>
-                          <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hoa hồng chia CTV (VNĐ / Đơn)</label>
+                          <label style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Hoa hồng chia CTV (VNĐ / Đơn)</label>
                           <input
                             type="number"
                             step="500"
@@ -580,22 +823,22 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => handleRuleChange(idx, 'commissionPrice', parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0)}
                             className="input-field"
-                            style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--success)' }}
+                            style={{ padding: '4px 8px', fontSize: 12, fontWeight: 700, color: '#047857' }}
                           />
                         </div>
 
-                        <div style={{ paddingTop: 16, textAlign: 'center' }}>
-                          <button type="button" onClick={() => handleRemoveRule(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}>
-                            <Trash2 size={16} />
+                        <div style={{ paddingTop: 14, textAlign: 'center' }}>
+                          <button type="button" onClick={() => handleRemoveRule(idx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}>
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, background: 'var(--bg-secondary)', padding: 14, borderRadius: 8, border: '1px dashed var(--border-color)', marginTop: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px dashed #cbd5e1', marginTop: 8 }}>
                     <div className="input-group">
-                      <label className="input-label">Mỗi nấc cân vượt (kg)</label>
+                      <label className="input-label" style={{ fontSize: 10.5 }}>Mỗi nấc cân vượt (kg)</label>
                       <input
                         type="number"
                         step="0.5"
@@ -603,11 +846,12 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightStep: parseFloat(e.target.value.replace(/^0+(?=\d)/, '')) || 1 })}
                         className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
                       />
                     </div>
 
                     <div className="input-group">
-                      <label className="input-label">Cộng thêm hoa hồng (+ VNĐ / kg)</label>
+                      <label className="input-label" style={{ fontSize: 10.5 }}>Cộng thêm hoa hồng (+ VNĐ / kg)</label>
                       <input
                         type="number"
                         step="500"
@@ -616,37 +860,27 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setEditingCtv({ ...editingCtv, extraWeightPrice: parseInt(e.target.value.replace(/^0+(?=\d)/, ''), 10) || 0 })}
                         className="input-field"
+                        style={{ padding: '4px 8px', fontSize: 12 }}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* 5. THỬ TÍNH HOA HỒNG LIVE */}
+                {/* 4. THỬ TÍNH HOA HỒNG LIVE */}
                 <div style={{
-                  background: 'rgba(79, 70, 229, 0.06)',
-                  padding: 12,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px dashed var(--primary)',
+                  background: 'rgba(79, 70, 229, 0.05)',
+                  padding: 10,
+                  borderRadius: 10,
+                  border: '1.5px dashed var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexWrap: 'wrap',
-                  gap: 10,
+                  gap: 8,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calculator size={16} color="var(--primary)" />
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>Thử tính hoa hồng cho hãng:</span>
-                    <select
-                      value={testCarrierId}
-                      onChange={(e) => setTestCarrierId(e.target.value)}
-                      className="select-field"
-                      style={{ padding: '2px 6px', fontSize: 11 }}
-                    >
-                      {AVAILABLE_CARRIERS.map(ac => (
-                        <option key={ac.id} value={ac.id}>{ac.name}</option>
-                      ))}
-                    </select>
-                    <span style={{ fontSize: 12 }}>với cân nặng:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calculator size={15} color="var(--primary)" />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>Thử tính với cân nặng:</span>
                     <input
                       type="number"
                       step="0.1"
@@ -654,34 +888,36 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
                       value={testWeight}
                       onChange={(e) => setTestWeight(parseFloat(e.target.value) || 0.1)}
                       className="input-field"
-                      style={{ width: 65, padding: '2px 6px', fontSize: 11 }}
+                      style={{ width: 65, padding: '3px 6px', fontSize: 12, textAlign: 'center' }}
                     />
                     <span style={{ fontSize: 12 }}>kg</span>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Hoa hồng CTV nhận:</span>
-                    <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
-                      {new Intl.NumberFormat('vi-VN').format(StorageService.calculateCtvCommission(editingCtv, testWeight, testCarrierId))} đ
-                    </span>
+                    <strong className="mono" style={{ fontSize: 14.5, color: '#059669' }}>
+                      {new Intl.NumberFormat('vi-VN').format(StorageService.calculateCtvCommission(editingCtv, testWeight, activeCarrierId))} đ
+                    </strong>
                   </div>
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Ghi chú CTV</label>
+                  <label className="input-label" style={{ fontSize: 11 }}>Ghi chú CTV</label>
                   <textarea
                     rows={2}
                     placeholder="Ghi chú khu vực quản lý, tỷ lệ chia thưởng..."
                     value={editingCtv.notes || ''}
                     onChange={(e) => setEditingCtv({ ...editingCtv, notes: e.target.value })}
                     className="input-field"
+                    style={{ padding: '6px 10px', fontSize: 12 }}
                   />
                 </div>
               </div>
 
-              <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, background: 'var(--bg-tertiary)', flexShrink: 0 }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">Hủy Bỏ</button>
-                <button type="submit" className="btn btn-primary"><Check size={16} /> <span>Lưu CTV</span></button>
+              {/* Modal Footer */}
+              <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, background: '#ffffff', flexShrink: 0 }}>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '6px 14px' }}>Hủy Bỏ</button>
+                <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '6px 18px', fontWeight: 800 }}><Check size={15} /> <span>Lưu CTV</span></button>
               </div>
             </form>
           </div>
@@ -695,3 +931,4 @@ export const CtvManagementView: React.FC<CtvManagementViewProps> = ({
 function editingShopBankAccount(ctv: CtvProfile) {
   return ctv.bankAccount || { bankName: 'MB Bank', accountNumber: '', accountHolder: ctv.name };
 }
+

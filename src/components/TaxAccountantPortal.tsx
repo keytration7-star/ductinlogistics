@@ -41,8 +41,8 @@ interface TaxAccountantPortalProps {
   carriers: CarrierWholesaleTier[];
   sessions: ReconciliationSession[];
   shops: Shop[];
-  theme: 'dark' | 'light';
-  setTheme: (t: 'dark' | 'light') => void;
+  theme?: 'dark' | 'light';
+  setTheme?: (t: 'dark' | 'light') => void;
   onLogout: () => void;
 }
 
@@ -1226,16 +1226,6 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               <span style={{ fontSize: 13, fontWeight: 700 }}>{currentUser.fullName || currentUser.username}</span>
               <span className="badge badge-primary" style={{ fontSize: 10, background: '#7c3aed', color: '#fff' }}>KẾ TOÁN THUẾ</span>
             </div>
-
-            {/* Theme Toggle */}
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="btn btn-secondary"
-              style={{ padding: '8px 12px', borderRadius: 8 }}
-              title="Đổi giao diện Sáng / Tối"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
 
             {/* Logout */}
             <button

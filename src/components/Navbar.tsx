@@ -84,14 +84,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em' }}>
-                GOMDON <span style={{ color: 'var(--primary)' }}>PRO</span>
+                KẾ TOÁN <span style={{ color: 'var(--primary)' }}>PRO</span>
               </span>
               <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>
-                LOGISTICS HUB
+                ENTERPRISE
               </span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-              Hệ Thống Quản Trị & Đối Soát Nhà Gom Đơn
+              Hệ Thống Kế Toán & Đối Soát Vận Chuyển
             </div>
           </div>
         </div>
@@ -113,52 +113,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  border: 'none',
-                  background: isActive ? 'var(--brand-gradient)' : 'transparent',
-                  color: isActive ? '#ffffff' : 'var(--text-muted)',
-                  fontSize: 13.5,
-                  fontWeight: isActive ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isActive ? '0 2px 10px var(--primary-glow)' : 'none',
-                }}
+                className={`nav-tab ${isActive ? 'active' : ''}`}
               >
-                <Icon size={16} />
+                <Icon size={18} />
                 <span>{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* 1-Click Demo Sample Button */}
+        {/* Header Actions */}
+        <div className="header-actions">
+          {/* Load Sample Data */}
           <button
             onClick={onLoadSampleData}
-            className="btn btn-primary btn-sm"
-            title="Tự động nạp 60 đơn mẫu gồm Shop A, Shop B, Shop C để chạy thử nghiệm đối soát ngay lập tức"
-          >
-            <Sparkles size={15} />
-            <span>Chạy Demo 1-Click</span>
-          </button>
-
-          {/* Download Sample Files Button */}
-          <button
-            onClick={() => SampleDataService.downloadSampleFiles()}
             className="btn btn-secondary btn-sm"
-            title="Tải về 2 file Excel mẫu (File NVC & File App) để xem thử định dạng"
+            style={{ fontSize: 12 }}
+            title="Nạp dữ liệu mẫu để thử nghiệm nhanh"
           >
-            <Download size={14} />
-            <span>Tải 2 File Mẫu</span>
+            <RefreshCw size={14} />
+            <span>Nạp Dữ Liệu Mẫu</span>
           </button>
 
-          {/* Backup / Restore Button */}
+          {/* Backup Database */}
           <button
             onClick={onOpenBackupModal}
             className="btn btn-secondary btn-sm"
@@ -166,16 +143,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Sao lưu & Khôi phục dữ liệu Shop / Biểu giá"
           >
             <Database size={16} />
-          </button>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="btn btn-secondary btn-sm"
-            style={{ padding: '8px' }}
-            title="Chuyển đổi giao diện Sáng / Tối"
-          >
-            {theme === 'dark' ? <Sun size={16} color="#fbbf24" /> : <Moon size={16} color="#6366f1" />}
           </button>
         </div>
       </div>

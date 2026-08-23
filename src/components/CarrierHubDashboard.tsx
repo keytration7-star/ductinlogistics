@@ -34,50 +34,173 @@ interface CarrierHubDashboardProps {
 }
 
 // Brand color palette helper for carrier cards
-const CARRIER_THEMES: Record<string, { bgGradient: string; border: string; badgeBg: string; badgeText: string; accentColor: string }> = {
-  jnt: {
-    bgGradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(220, 38, 38, 0.04) 100%)',
-    border: 'rgba(239, 68, 68, 0.35)',
-    badgeBg: '#fee2e2',
-    badgeText: '#b91c1c',
-    accentColor: '#dc2626',
-  },
-  ghn: {
-    bgGradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 88, 12, 0.04) 100%)',
-    border: 'rgba(249, 115, 22, 0.35)',
-    badgeBg: '#ffedd5',
-    badgeText: '#c2410c',
-    accentColor: '#ea580c',
-  },
-  vtp: {
-    bgGradient: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(29, 78, 216, 0.04) 100%)',
-    border: 'rgba(37, 99, 235, 0.35)',
-    badgeBg: '#dbeafe',
-    badgeText: '#1d4ed8',
-    accentColor: '#2563eb',
-  },
-  spx: {
-    bgGradient: 'linear-gradient(135deg, rgba(234, 88, 12, 0.12) 0%, rgba(244, 63, 94, 0.04) 100%)',
-    border: 'rgba(234, 88, 12, 0.35)',
-    badgeBg: '#ffedd5',
-    badgeText: '#c2410c',
-    accentColor: '#f97316',
-  },
-  ghtk: {
-    bgGradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%)',
-    border: 'rgba(16, 185, 129, 0.35)',
-    badgeBg: '#d1fae5',
-    badgeText: '#047857',
-    accentColor: '#059669',
-  },
-};
+export interface CarrierThemeStyle {
+  primary: string;
+  gradient: string;
+  cardBg: string;
+  border: string;
+  badgeBg: string;
+  badgeText: string;
+  buttonGradient: string;
+  shadowGlow: string;
+  accentColor: string;
+  tagline: string;
+  iconBg: string;
+}
 
-const DEFAULT_THEME = {
-  bgGradient: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(79, 70, 229, 0.04) 100%)',
-  border: 'rgba(99, 102, 241, 0.35)',
-  badgeBg: '#e0e7ff',
-  badgeText: '#4338ca',
-  accentColor: '#4f46e5',
+export const getCarrierTheme = (carrierId: string = '', carrierName: string = ''): CarrierThemeStyle => {
+  const key = `${carrierId} ${carrierName}`.toLowerCase();
+  
+  // 1. J&T Express (Vibrant Red)
+  if (key.includes('jnt') || key.includes('j&t') || key.includes('jt') || key.includes('express')) {
+    return {
+      primary: '#dc2626',
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+      cardBg: 'linear-gradient(180deg, #fff5f5 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(239, 68, 68, 0.45)',
+      badgeBg: '#fee2e2',
+      badgeText: '#b91c1c',
+      buttonGradient: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(220, 38, 38, 0.35)',
+      accentColor: '#dc2626',
+      tagline: 'Chuyển Phát Nhanh J&T Express',
+      iconBg: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+    };
+  }
+
+  // 2. Giao Hàng Nhanh (Signature GHN Orange)
+  if (key.includes('ghn') || key.includes('giao hang nhanh') || key.includes('giao hàng nhanh')) {
+    return {
+      primary: '#ea580c',
+      gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+      cardBg: 'linear-gradient(180deg, #fff7ed 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(249, 115, 22, 0.45)',
+      badgeBg: '#ffedd5',
+      badgeText: '#c2410c',
+      buttonGradient: 'linear-gradient(135deg, #f97316 0%, #c2410c 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(234, 88, 12, 0.35)',
+      accentColor: '#ea580c',
+      tagline: 'Giao Hàng Nhanh GHN',
+      iconBg: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+    };
+  }
+
+  // 3. Giao Hàng Tiết Kiệm (Signature Emerald/Forest Green)
+  if (key.includes('ghtk') || key.includes('tiet kiem') || key.includes('tiết kiệm')) {
+    return {
+      primary: '#059669',
+      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      cardBg: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(16, 185, 129, 0.45)',
+      badgeBg: '#d1fae5',
+      badgeText: '#047857',
+      buttonGradient: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(5, 150, 105, 0.35)',
+      accentColor: '#059669',
+      tagline: 'Giao Hàng Tiết Kiệm GHTK',
+      iconBg: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+    };
+  }
+
+  // 4. Viettel Post (Rose Crimson)
+  if (key.includes('vtp') || key.includes('viettel')) {
+    return {
+      primary: '#e11d48',
+      gradient: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+      cardBg: 'linear-gradient(180deg, #fff1f2 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(244, 63, 94, 0.45)',
+      badgeBg: '#ffe4e6',
+      badgeText: '#be123c',
+      buttonGradient: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(225, 29, 72, 0.35)',
+      accentColor: '#e11d48',
+      tagline: 'Bưu Chính Viettel Post',
+      iconBg: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+    };
+  }
+
+  // 5. Shopee Xpress (Shopee Orange)
+  if (key.includes('spx') || key.includes('shopee')) {
+    return {
+      primary: '#ee4d2d',
+      gradient: 'linear-gradient(135deg, #ff6433 0%, #ee4d2d 100%)',
+      cardBg: 'linear-gradient(180deg, #fff7ed 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(238, 77, 45, 0.45)',
+      badgeBg: '#ffedd5',
+      badgeText: '#c2410c',
+      buttonGradient: 'linear-gradient(135deg, #ff6433 0%, #ee4d2d 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(238, 77, 45, 0.35)',
+      accentColor: '#ee4d2d',
+      tagline: 'Shopee Xpress Logistics',
+      iconBg: 'linear-gradient(135deg, #ff6433 0%, #c2410c 100%)',
+    };
+  }
+
+  // 6. Best Express (Sapphire Blue)
+  if (key.includes('best')) {
+    return {
+      primary: '#2563eb',
+      gradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+      cardBg: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(37, 99, 235, 0.45)',
+      badgeBg: '#dbeafe',
+      badgeText: '#1e40af',
+      buttonGradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(37, 99, 235, 0.35)',
+      accentColor: '#2563eb',
+      tagline: 'Best Express Logistics',
+      iconBg: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+    };
+  }
+
+  // 7. Ninja Van (Burgundy Red)
+  if (key.includes('ninja')) {
+    return {
+      primary: '#be123c',
+      gradient: 'linear-gradient(135deg, #be123c 0%, #881337 100%)',
+      cardBg: 'linear-gradient(180deg, #fff1f2 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(190, 18, 60, 0.45)',
+      badgeBg: '#ffe4e6',
+      badgeText: '#881337',
+      buttonGradient: 'linear-gradient(135deg, #be123c 0%, #881337 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(190, 18, 60, 0.35)',
+      accentColor: '#be123c',
+      tagline: 'Ninja Van Logistics',
+      iconBg: 'linear-gradient(135deg, #be123c 0%, #881337 100%)',
+    };
+  }
+
+  // 8. EMS / VNPost (Golden Amber)
+  if (key.includes('ems') || key.includes('vnpost') || key.includes('bưu điện')) {
+    return {
+      primary: '#d97706',
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      cardBg: 'linear-gradient(180deg, #fffbeb 0%, #ffffff 40%, #ffffff 100%)',
+      border: 'rgba(217, 119, 6, 0.45)',
+      badgeBg: '#fef3c7',
+      badgeText: '#b45309',
+      buttonGradient: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+      shadowGlow: '0 8px 24px -4px rgba(217, 119, 6, 0.35)',
+      accentColor: '#d97706',
+      tagline: 'Bưu Điện EMS VNPost',
+      iconBg: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+    };
+  }
+
+  // Default Indigo SaaS
+  return {
+    primary: '#4f46e5',
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+    cardBg: 'linear-gradient(180deg, #f5f3ff 0%, #ffffff 40%, #ffffff 100%)',
+    border: 'rgba(99, 102, 241, 0.45)',
+    badgeBg: '#e0e7ff',
+    badgeText: '#4338ca',
+    buttonGradient: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+    shadowGlow: '0 8px 24px -4px rgba(79, 70, 229, 0.35)',
+    accentColor: '#4f46e5',
+    tagline: 'Đơn Vị Vận Chuyển',
+    iconBg: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+  };
 };
 
 const DEFAULT_NEW_WEIGHT_RULES: WeightStepRule[] = [
@@ -477,11 +600,11 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
         {/* CARRIER CARDS GRID */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-          gap: 20,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(370px, 1fr))',
+          gap: 22,
         }}>
           {filteredCarriers.map(carrier => {
-            const theme = CARRIER_THEMES[carrier.carrierId] || DEFAULT_THEME;
+            const theme = getCarrierTheme(carrier.carrierId, carrier.carrierName);
             const stats = carrierStats.get(carrier.carrierId) || { shopCount: 0, sessionCount: 0, orderCount: 0, totalCod: 0, totalProfit: 0, lastSessionDate: undefined };
             
             // Format weight tiers summary
@@ -494,82 +617,100 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
                 key={carrier.id}
                 onClick={() => onSelectCarrier(carrier.carrierId)}
                 style={{
-                  background: '#ffffff',
+                  background: theme.cardBg,
                   borderRadius: 20,
-                  border: `1.5px solid ${theme.border}`,
-                  padding: 24,
+                  border: `2px solid ${theme.border}`,
+                  padding: '24px 22px 20px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   gap: 16,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.06)',
+                  transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 30px -4px rgba(79, 70, 229, 0.15)';
-                  e.currentTarget.style.borderColor = 'var(--primary)';
+                  e.currentTarget.style.transform = 'translateY(-5px)';
+                  e.currentTarget.style.boxShadow = `0 16px 36px -6px rgba(15, 23, 42, 0.12), ${theme.shadowGlow}`;
+                  e.currentTarget.style.borderColor = theme.primary;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 20px -2px rgba(0, 0, 0, 0.05)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px -2px rgba(15, 23, 42, 0.06)';
                   e.currentTarget.style.borderColor = theme.border;
                 }}
               >
-                {/* Top subtle gradient decoration bar */}
+                {/* Top brand gradient decoration bar */}
                 <div style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 6,
-                  background: theme.bgGradient,
+                  height: 7,
+                  background: theme.gradient,
                 }} />
 
                 {/* Card Header */}
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{
-                        width: 46,
-                        height: 46,
+                        width: 48,
+                        height: 48,
                         borderRadius: 14,
-                        background: theme.bgGradient,
+                        background: theme.iconBg,
                         border: `1.5px solid ${theme.border}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: theme.accentColor,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        color: '#ffffff',
+                        boxShadow: `0 4px 14px -2px ${theme.border}`,
+                        flexShrink: 0,
                       }}>
-                        <Truck size={22} />
+                        <Truck size={24} />
                       </div>
                       <div>
-                        <h3 style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
-                          {carrier.carrierName}
-                        </h3>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', marginTop: 2 }}>
-                          MÃ HÃNG: <strong style={{ color: theme.accentColor }}>{carrier.carrierId.toUpperCase()}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <h3 style={{ fontSize: 17.5, fontWeight: 900, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
+                            {carrier.carrierName}
+                          </h3>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            background: theme.badgeBg,
+                            color: theme.badgeText,
+                            border: `1px solid ${theme.border}`,
+                            textTransform: 'uppercase',
+                          }}>
+                            {carrier.carrierId.toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+                            {theme.tagline}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <span style={{
                         background: theme.badgeBg,
                         color: theme.badgeText,
+                        border: `1px solid ${theme.border}`,
                         fontSize: 11,
                         fontWeight: 800,
                         padding: '4px 10px',
                         borderRadius: 20,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 5,
                       }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: theme.accentColor }} />
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: theme.primary }} />
                         Sẵn sàng
                       </span>
 
@@ -598,43 +739,45 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
                     display: 'grid',
                     gridTemplateColumns: 'repeat(3, 1fr)',
                     gap: 8,
-                    marginTop: 16,
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 12,
-                    padding: 12,
+                    marginTop: 14,
+                    background: 'rgba(255, 255, 255, 0.95)',
+                    border: `1.5px solid ${theme.border}`,
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)',
                   }}>
                     <div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Store size={12} />
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Store size={12} color={theme.accentColor} />
                         <span>Shop:</span>
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
-                        {stats.shopCount} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>shop</span>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: theme.accentColor, marginTop: 2 }}>
+                        {stats.shopCount} <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)' }}>shop</span>
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <FileSpreadsheet size={12} />
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <FileSpreadsheet size={12} color={theme.accentColor} />
                         <span>Kỳ ĐS:</span>
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-                        {stats.sessionCount} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>kỳ</span>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
+                        {stats.sessionCount} <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)' }}>kỳ</span>
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Package size={12} />
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Package size={12} color={theme.accentColor} />
                         <span>Tổng đơn:</span>
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-                        {stats.orderCount.toLocaleString('vi-VN')} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-dim)' }}>đơn</span>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
+                        {stats.orderCount.toLocaleString('vi-VN')} <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-dim)' }}>đơn</span>
                       </div>
                     </div>
 
-                    <div style={{ gridColumn: 'span 3', borderTop: '1px solid var(--border-color)', paddingTop: 8, marginTop: 2 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <div style={{ gridColumn: 'span 3', borderTop: `1px solid ${theme.border}`, paddingTop: 8, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, lineHeight: 1.4 }}>
                         Biểu cước gốc: <strong style={{ color: 'var(--text-main)' }}>{weightTiersSummary}</strong>
                       </div>
                     </div>
@@ -646,28 +789,33 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  borderTop: '1px solid var(--border-color)',
-                  paddingTop: 16,
+                  borderTop: `1px solid ${theme.border}`,
+                  paddingTop: 14,
                 }}>
                   <div style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Clock size={13} />
-                    <span>{stats.lastSessionDate ? `Đối soát gần nhất: ${new Date(stats.lastSessionDate).toLocaleDateString('vi-VN')}` : 'Chưa có kỳ đối soát'}</span>
+                    <span>{stats.lastSessionDate ? `Đối soát: ${new Date(stats.lastSessionDate).toLocaleDateString('vi-VN')}` : 'Chưa có kỳ đối soát'}</span>
                   </div>
 
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm"
                     style={{
+                      background: theme.buttonGradient,
+                      color: '#ffffff',
                       fontWeight: 800,
                       fontSize: 12.5,
-                      padding: '8px 16px',
+                      padding: '9px 18px',
                       borderRadius: 10,
+                      border: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
+                      cursor: 'pointer',
+                      boxShadow: theme.shadowGlow,
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <span>Vào Không Gian {carrier.carrierId.toUpperCase()}</span>
+                    <span>Vào Không Gian {carrier.carrierName}</span>
                     <ArrowRight size={14} />
                   </button>
                 </div>

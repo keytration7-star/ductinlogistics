@@ -113,9 +113,55 @@ function emailApiPlugin(): Plugin {
   };
 }
 
+import os from 'os';
+
+function systemStatusPlugin(): Plugin {
+  return {
+    name: 'system-status-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/system/status', (_req, res) => {
+        try {
+          const cpus = os.cpus() || [];
+          const totalMem = os.totalmem();
+          const freeMem = os.freemem();
+          const usedMem = totalMem - freeMem;
+          const memUsagePercent = Math.round((usedMem / totalMem) * 100);
+          const loadAvg = os.loadavg() || [0, 0, 0];
+          const cpuUsagePercent = Math.min(100, Math.max(1, Math.round((loadAvg[0] / (cpus.length || 1)) * 100)));
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            success: true,
+            timestamp: Date.now(),
+            vps: {
+              platform: os.platform(),
+              arch: os.arch(),
+              cpuCores: cpus.length,
+              cpuUsagePercent,
+              memory: {
+                totalMB: Math.round(totalMem / (1024 * 1024)),
+                usedMB: Math.round(usedMem / (1024 * 1024)),
+                freeMB: Math.round(freeMem / (1024 * 1024)),
+                usagePercent: memUsagePercent,
+              },
+              uptimeHours: (os.uptime() / 3600).toFixed(1),
+              nodeVersion: process.version,
+            }
+          }));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), emailApiPlugin()],
+  plugins: [react(), emailApiPlugin(), systemStatusPlugin()],
   // Keep local development behavior aligned with the VPS: database APIs are
   // served by Express, while Vite serves the React interface.
   server: {

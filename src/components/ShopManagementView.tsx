@@ -29,6 +29,7 @@ import type { DetectedNewShop } from '../services/reconciliationService';
 import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
 import { normalizeHeader, autoDetectColumns, parseNumber } from '../services/smartColumnDetector';
+import { getCarrierTheme } from './CarriersPricingView';
 
 interface ShopManagementViewProps {
   shops: Shop[];
@@ -85,8 +86,8 @@ const getInputStyle = (value: any, isRequired: boolean = false, customStyle?: Re
     };
   }
   return {
-    background: '#ffffff',
-    border: '1px solid #cbd5e1',
+    background: 'var(--bg-tertiary)',
+    border: '1px solid var(--border-color)',
     color: 'var(--text-main)',
     borderRadius: 'var(--radius-md)',
     transition: 'all 0.2s ease',
@@ -958,24 +959,52 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
     });
   };
 
+  const carrierTheme = useMemo(() => {
+    return getCarrierTheme(activeCarrierId || '', activeCarrierName || '');
+  }, [activeCarrierId, activeCarrierName]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       
       {/* Top Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+        padding: '10px 16px',
+        borderRadius: 14,
+        background: 'var(--bg-card)',
+        border: '1.5px solid var(--border-color)',
+        boxShadow: 'var(--shadow-sm)',
+      }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-              <Store size={24} color="var(--primary)" />
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: carrierTheme.cardBg,
+              color: carrierTheme.badgeText,
+              border: `1px solid ${carrierTheme.cardBorder}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Store size={18} />
+            </div>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
               Quản Lý Danh Sách Shop & Biểu Giá Riêng
             </h2>
             {activeCarrierName && (
-              <span className="badge badge-primary" style={{ fontSize: 12, padding: '4px 10px', fontWeight: 800, letterSpacing: '0.02em' }}>
+              <span className="badge" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 800, background: carrierTheme.gradient, color: '#ffffff', boxShadow: carrierTheme.shadowGlow }}>
                 HÃNG: {activeCarrierName.toUpperCase()}
               </span>
             )}
           </div>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '3px 0 0 42px' }}>
             {activeCarrierName
               ? `Không gian quản lý độc lập danh sách Shop, SĐT & Biểu cước bậc thang riêng cho đơn vị ${activeCarrierName}.`
               : 'Giao diện 2 bảng trực quan: Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết live ở bảng bên phải.'}
@@ -984,8 +1013,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       </div>
 
       {detectedNewShops.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '12px 14px', border: '1px solid #f4b860', borderRadius: 'var(--radius-md)', background: '#fffbeb' }}>
-          <div style={{ fontSize: 13, color: '#92400e' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '10px 14px', border: '1px solid var(--warning-border)', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)' }}>
+          <div style={{ fontSize: 12.5, color: 'var(--warning)' }}>
             <strong>{detectedNewShops.length} shop mới được đề xuất</strong> từ kỳ đối soát {sourceSession?.sessionName ? `“${sourceSession.sessionName}”` : ''}. Chưa shop nào được tự tạo.
           </div>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIsScanModalOpen(true)}>
@@ -1009,12 +1038,25 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       <div style={{
         display: 'grid',
         gridTemplateColumns: '360px 1fr',
-        gap: 16,
+        gap: 14,
         alignItems: 'start',
       }}>
         
         {/* 👈 LEFT PANEL: DANH SÁCH KHÁCH HÀNG (MASTER LIST) */}
-        <div className="glass-panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="glass-panel" style={{
+          padding: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border-color)',
+          borderRadius: 14,
+          boxShadow: 'var(--shadow-sm)',
+          position: 'sticky',
+          top: 10,
+          height: 'calc(100vh - 120px)',
+          overflow: 'hidden',
+        }}>
           
           {/* Action Header */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1340,12 +1382,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
           {/* Scrollable Shop List */}
           <div style={{
-            maxHeight: (isMergeMode || selectedBatchShopIds.length > 0) ? 'calc(100vh - 360px)' : 'calc(100vh - 240px)',
+            flex: 1,
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            paddingRight: 2,
+            paddingRight: 3,
           }}>
             {filteredShops.length === 0 ? (
               <div style={{
@@ -1615,14 +1657,16 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
         {/* 👉 RIGHT PANEL: BẢNG CHI TIẾT & SỬA TRỰC TIẾP (LIVE REVIEW & EDITOR) */}
         {editingShop ? (
           <div className="glass-panel" style={{
-            padding: 20,
+            padding: '14px 18px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16,
-            maxHeight: 'calc(100vh - 160px)',
+            gap: 12,
+            maxHeight: 'calc(100vh - 120px)',
             overflowY: 'auto',
-            border: '1.5px solid rgba(226, 232, 240, 0.95)',
-            borderRadius: 16,
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
+            borderRadius: 14,
+            boxShadow: 'var(--shadow-sm)',
           }}>
             
             {/* Top Toolbar Bar */}
@@ -1630,59 +1674,60 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              paddingBottom: 14,
+              paddingBottom: 10,
               borderBottom: '1px solid var(--border-color)',
               flexWrap: 'wrap',
-              gap: 12,
+              gap: 10,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary)',
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: carrierTheme.gradient,
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 800,
-                  fontSize: 16,
+                  fontSize: 14,
+                  boxShadow: carrierTheme.shadowGlow,
                 }}>
                   {editingShop.code.slice(0, 4)}
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
                     {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
                       <span
                         style={{
                           background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                           color: '#ffffff',
                           border: '1px solid #b45309',
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: 900,
-                          padding: '3px 10px',
+                          padding: '2px 8px',
                           borderRadius: 6,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4,
+                          gap: 3,
                           boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
                           letterSpacing: '0.02em',
                         }}
                         title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
                       >
-                        <GitMerge size={12} />
+                        <GitMerge size={11} />
                         <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Mã Shop: <strong className="mono" style={{ color: 'var(--primary)' }}>{editingShop.code}</strong>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 1 }}>
+                    Mã Shop: <strong className="mono" style={{ color: carrierTheme.accentColor }}>{editingShop.code}</strong>
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {(() => {
                   const usage = getShopUsage(editingShop.id);
                   const deleteTitle = usage.canDelete
@@ -1694,33 +1739,45 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                       onClick={() => handleDeleteEmptyShop(editingShop)}
                       className="btn btn-danger btn-sm"
                       disabled={!usage.canDelete}
-                      style={{ padding: '6px 12px', opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
+                      style={{ padding: '5px 10px', fontSize: 11.5, opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
                       title={deleteTitle}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                       <span>Xóa shop trống</span>
                     </button>
                   );
                 })()}
-                {editingShop.active && <button
-                  type="button"
-                  onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}
-                  className="btn btn-danger btn-sm"
-                  style={{ padding: '6px 12px' }}
-                  title="Ngừng hoạt động, không xóa lịch sử"
-                >
-                  <Ban size={14} />
-                  <span>Ngừng hoạt động</span>
-                </button>
-                }
+                {editingShop.active && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '5px 10px', fontSize: 11.5, color: '#dc2626', borderColor: '#fca5a5' }}
+                    title="Ngừng hoạt động, không xóa lịch sử"
+                  >
+                    <Ban size={13} />
+                    <span>Ngừng hoạt động</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={handleSaveCurrentShop}
-                  className="btn btn-primary"
-                  style={{ padding: '6px 16px' }}
+                  className="btn btn-sm"
+                  style={{
+                    padding: '6px 16px',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    background: carrierTheme.gradient,
+                    color: '#ffffff',
+                    boxShadow: carrierTheme.shadowGlow,
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
                 >
-                  <Save size={16} />
+                  <Save size={14} />
                   <span>Lưu Thay Đổi</span>
                 </button>
               </div>
@@ -1728,20 +1785,20 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
             {/* Section 1: Thông tin cơ bản */}
             <div style={{
-              background: '#ffffff',
-              border: '1.5px solid rgba(226, 232, 240, 0.95)',
-              borderRadius: 16,
-              padding: 20,
-              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: 'var(--shadow-sm)',
             }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-                <Store size={15} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: carrierTheme.accentColor || 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Store size={14} /> 1. THÔNG TIN CƠ BẢN CỦA SHOP
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 <div className="input-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label className="input-label" style={{ margin: 0 }}>Tên Shop / Thương hiệu (*)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="input-label" style={{ margin: 0, fontSize: 11.5 }}>Tên Shop / Thương hiệu (*)</label>
                     {renderFieldAlert(editingShop.name, true, 'Bắt buộc')}
                   </div>
                   <input
@@ -1751,13 +1808,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.name}
                     onChange={(e) => setEditingShop({ ...editingShop, name: e.target.value })}
                     className="input-field"
-                    style={getInputStyle(editingShop.name, true)}
+                    style={getInputStyle(editingShop.name, true, { padding: '5px 9px', fontSize: 12.5 })}
                   />
                 </div>
 
                 <div className="input-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label className="input-label" style={{ margin: 0 }}>Các tên nhãn gửi phụ (Gom đơn)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="input-label" style={{ margin: 0, fontSize: 11.5 }}>Các tên nhãn gửi phụ (Gom đơn)</label>
                     {renderFieldAlert(editingShop.nameAliases && editingShop.nameAliases.length > 0 ? 'filled' : '', false)}
                   </div>
                   <input
@@ -1773,13 +1830,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                       });
                     }}
                     className="input-field"
-                    style={getInputStyle(editingShop.nameAliases && editingShop.nameAliases.length > 0 ? 'filled' : '', false)}
+                    style={getInputStyle(editingShop.nameAliases && editingShop.nameAliases.length > 0 ? 'filled' : '', false, { padding: '5px 9px', fontSize: 12.5 })}
                   />
                 </div>
 
                 <div className="input-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label className="input-label" style={{ margin: 0 }}>Mã Shop (Duy nhất)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="input-label" style={{ margin: 0, fontSize: 11.5 }}>Mã Shop (Duy nhất)</label>
                     {renderFieldAlert(editingShop.code, true, 'Bắt buộc')}
                   </div>
                   <input
@@ -1788,13 +1845,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.code}
                     onChange={(e) => setEditingShop({ ...editingShop, code: e.target.value.toUpperCase() })}
                     className="input-field mono"
-                    style={getInputStyle(editingShop.code, true)}
+                    style={getInputStyle(editingShop.code, true, { padding: '5px 9px', fontSize: 12.5 })}
                   />
                 </div>
 
                 <div className="input-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label className="input-label" style={{ margin: 0 }}>Số điện thoại gửi (*)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="input-label" style={{ margin: 0, fontSize: 11.5 }}>Số điện thoại gửi (*)</label>
                     {renderFieldAlert(editingShop.phone, true, 'Bắt buộc')}
                   </div>
                   <input
@@ -1804,13 +1861,13 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.phone}
                     onChange={(e) => setEditingShop({ ...editingShop, phone: e.target.value })}
                     className="input-field"
-                    style={getInputStyle(editingShop.phone, true)}
+                    style={getInputStyle(editingShop.phone, true, { padding: '5px 9px', fontSize: 12.5 })}
                   />
                 </div>
 
                 <div className="input-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label className="input-label" style={{ margin: 0 }}>Email nhận đối soát</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label className="input-label" style={{ margin: 0, fontSize: 11.5 }}>Email nhận đối soát</label>
                     {renderFieldAlert(editingShop.email, false)}
                   </div>
                   <input
@@ -1819,12 +1876,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     value={editingShop.email}
                     onChange={(e) => setEditingShop({ ...editingShop, email: e.target.value })}
                     className="input-field"
-                    style={getInputStyle(editingShop.email, false)}
+                    style={getInputStyle(editingShop.email, false, { padding: '5px 9px', fontSize: 12.5 })}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label" style={{ margin: 0, marginBottom: 4 }}>
+                  <label className="input-label" style={{ margin: 0, marginBottom: 2, fontSize: 11.5 }}>
                     Telegram Chat ID (Nhóm / Kênh / Chat của Shop)
                   </label>
                   <input
@@ -1893,25 +1950,25 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                   value={editingShop.address}
                   onChange={(e) => setEditingShop({ ...editingShop, address: e.target.value })}
                   className="input-field"
-                  style={getInputStyle(editingShop.address, false)}
+                  style={getInputStyle(editingShop.address, false, { padding: '5px 9px', fontSize: 12.5 })}
                 />
               </div>
             </div>
 
             {/* Section 2: Tài khoản ngân hàng & VietQR Code Preview */}
             <div style={{
-              background: '#ffffff',
-              border: '1.5px solid rgba(226, 232, 240, 0.95)',
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
               borderRadius: 16,
               padding: 20,
-              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+              boxShadow: 'var(--shadow-sm)',
             }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
                 <CreditCard size={15} /> 2. THÔNG TIN TÀI KHOẢN NGÂN HÀNG NHẬN COD & MÃ VIETQR LIVE
               </div>
 
               <div style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(79, 70, 229, 0.05) 100%)',
+                background: 'var(--bg-tertiary)',
                 padding: 16,
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-color)',
@@ -1990,8 +2047,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                       <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Mã VietQR Chuyển Khoản</div>
                     </>
                   ) : (
-                    <div style={{ fontSize: 11, color: '#d97706', fontStyle: 'italic', background: '#fffbeb', padding: '10px 6px', borderRadius: 8, border: '1px dashed #f59e0b' }}>
-                      <AlertTriangle size={14} color="#d97706" style={{ margin: '0 auto 4px', display: 'block' }} />
+                    <div style={{ fontSize: 11, color: 'var(--warning)', fontStyle: 'italic', background: 'var(--warning-bg)', padding: '10px 6px', borderRadius: 8, border: '1px dashed var(--warning-border)' }}>
+                      <AlertTriangle size={14} color="var(--warning)" style={{ margin: '0 auto 4px', display: 'block' }} />
                       Nhập STK để tạo VietQR Live
                     </div>
                   )}
@@ -2001,11 +2058,11 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
 
             {/* Section 3: Biểu giá cước bậc thang */}
             <div style={{
-              background: '#ffffff',
-              border: '1.5px solid rgba(226, 232, 240, 0.95)',
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
               borderRadius: 16,
               padding: 20,
-              boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.04)',
+              boxShadow: 'var(--shadow-sm)',
             }}>
               <div style={{
                 fontSize: 13,

@@ -47,7 +47,7 @@ export const DEFAULT_ZALO_ZNS_SETTINGS: ZaloZnsSettings = {
   templateId: '',
   isTestMode: true,
   testPhoneNumber: '',
-  companyName: 'ĐỨC TÍN LOGISTICS',
+  companyName: '',
 };
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
@@ -222,7 +222,7 @@ export const StorageService = {
       const result = await res.json();
       if (!result.success || !result.data) return false;
 
-      const { shops, carriers, sessions, companyInfo, emailSettings, exportColumns, carrierData, users, payments, ctvs, auditLogs } = result.data;
+      const { shops, carriers, sessions, companyInfo, emailSettings, zaloSettings, telegramSettings, exportColumns, carrierData, users, payments, ctvs, auditLogs } = result.data;
 
       if (shops && Array.isArray(shops)) {
         localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
@@ -242,6 +242,12 @@ export const StorageService = {
           emailSettings.emailPassword = localSettings.emailPassword;
         }
         localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(emailSettings));
+      }
+      if (zaloSettings && Object.keys(zaloSettings).length > 0) {
+        localStorage.setItem(ZALO_ZNS_SETTINGS_KEY, JSON.stringify(zaloSettings));
+      }
+      if (telegramSettings && Object.keys(telegramSettings).length > 0) {
+        localStorage.setItem(TELEGRAM_SETTINGS_KEY, JSON.stringify(telegramSettings));
       }
       if (exportColumns && Object.keys(exportColumns).length > 0) {
         localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(exportColumns));
@@ -286,6 +292,14 @@ export const StorageService = {
       const localLogs = localStorage.getItem('gomdon_audit_logs_v1');
       if (!auditLogs && localLogs) {
         postServerSync('/api/db/audit-logs', { logs: JSON.parse(localLogs) });
+      }
+      const localZalo = localStorage.getItem(ZALO_ZNS_SETTINGS_KEY);
+      if (!zaloSettings && localZalo) {
+        postServerSync('/api/db/zalo-settings', { zaloSettings: JSON.parse(localZalo) });
+      }
+      const localTelegram = localStorage.getItem(TELEGRAM_SETTINGS_KEY);
+      if (!telegramSettings && localTelegram) {
+        postServerSync('/api/db/telegram-settings', { telegramSettings: JSON.parse(localTelegram) });
       }
 
       return true;
@@ -435,15 +449,22 @@ export const StorageService = {
   },
 
   getZaloZnsSettings(): ZaloZnsSettings {
+    const companyInfo = this.getCompanyInfo();
     const data = localStorage.getItem(ZALO_ZNS_SETTINGS_KEY);
     if (!data) {
-      this.saveZaloZnsSettings(DEFAULT_ZALO_ZNS_SETTINGS);
-      return DEFAULT_ZALO_ZNS_SETTINGS;
+      const initialSettings = { ...DEFAULT_ZALO_ZNS_SETTINGS, companyName: companyInfo.companyName };
+      this.saveZaloZnsSettings(initialSettings);
+      return initialSettings;
     }
     try {
-      return { ...DEFAULT_ZALO_ZNS_SETTINGS, ...JSON.parse(data) };
+      const parsed = JSON.parse(data);
+      if (!parsed.companyName || parsed.companyName === 'ĐỨC TÍN LOGISTICS') {
+        parsed.companyName = companyInfo.companyName;
+        this.saveZaloZnsSettings({ ...DEFAULT_ZALO_ZNS_SETTINGS, ...parsed });
+      }
+      return { ...DEFAULT_ZALO_ZNS_SETTINGS, ...parsed };
     } catch {
-      return DEFAULT_ZALO_ZNS_SETTINGS;
+      return { ...DEFAULT_ZALO_ZNS_SETTINGS, companyName: companyInfo.companyName };
     }
   },
 
@@ -483,6 +504,9 @@ export const StorageService = {
   saveColumnMappings(nvcMapping: any, appMapping: any): void {
     const data = { nvc: nvcMapping, app: appMapping };
     localStorage.setItem(COLUMN_MAPPINGS_KEY, JSON.stringify(data));
+    postServerSync('/api/db/carrier-data', {
+      carrierData: { [COLUMN_MAPPINGS_KEY]: data },
+    });
   },
 
   getCarrierMapping(carrierId: string): { nvc?: any; app?: any } {

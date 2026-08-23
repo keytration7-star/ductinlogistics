@@ -357,15 +357,15 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        background: 'var(--bg-card, #ffffff)',
+        background: 'var(--bg-card)',
         padding: '10px 16px 12px',
         borderRadius: 14,
-        border: '1px solid var(--border-color, #e2e8f0)',
-        boxShadow: '0 4px 14px -3px rgba(0, 0, 0, 0.07)',
+        border: '1.5px solid var(--border-color)',
+        boxShadow: 'var(--shadow-sm)',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(16px)',
       }}>
         
         {/* Row 1: Title & 3 Sub-Tabs */}
@@ -375,7 +375,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
               width: 32,
               height: 32,
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(79, 70, 229, 0.12)',
+              background: 'rgba(79, 70, 229, 0.15)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -395,11 +395,11 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
           </div>
 
           {/* Sub-Tab Navigation */}
-          <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 10, padding: 3, gap: 4 }}>
+          <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 10, padding: 3, gap: 4, border: '1px solid var(--border-color)' }}>
             <button
               onClick={() => setActiveSubTab('sessions')}
               className={`btn btn-sm ${activeSubTab === 'sessions' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28, fontWeight: activeSubTab === 'sessions' ? 700 : 500 }}
             >
               <Layers size={13} />
               <span>Đi Tiền Theo Kỳ ({sessions.length})</span>
@@ -407,7 +407,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             <button
               onClick={() => setActiveSubTab('shops')}
               className={`btn btn-sm ${activeSubTab === 'shops' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28, fontWeight: activeSubTab === 'shops' ? 700 : 500 }}
             >
               <Building2 size={13} />
               <span>Sổ Nợ Khách Hàng ({shops.length})</span>
@@ -415,7 +415,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             <button
               onClick={() => setActiveSubTab('history')}
               className={`btn btn-sm ${activeSubTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: 11.5, padding: '4px 12px', height: 28 }}
+              style={{ fontSize: 11.5, padding: '4px 12px', height: 28, fontWeight: activeSubTab === 'history' ? 700 : 500 }}
             >
               <History size={13} />
               <span>Nhật Ký Chuyển Khoản ({payments.length})</span>
@@ -431,19 +431,20 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
         }}>
           {/* Stat 1: Total Payout Needed */}
           <div style={{
-            background: 'var(--bg-tertiary, #f8fafc)',
-            border: '1px solid var(--border-color, #e2e8f0)',
+            background: 'var(--bg-tertiary)',
+            border: '1.5px solid var(--border-color)',
             borderRadius: 10,
             padding: '7px 12px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            boxShadow: 'var(--shadow-sm)',
           }}>
             <div style={{
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: 'rgba(79, 70, 229, 0.12)',
+              background: 'rgba(79, 70, 229, 0.15)',
               color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
@@ -464,19 +465,20 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
           {/* Stat 2: Total Paid Amount */}
           <div style={{
-            background: 'var(--bg-tertiary, #f8fafc)',
-            border: '1px solid var(--border-color, #e2e8f0)',
+            background: 'var(--success-bg)',
+            border: '1.5px solid var(--success-border)',
             borderRadius: 10,
             padding: '7px 12px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            boxShadow: 'var(--shadow-sm)',
           }}>
             <div style={{
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: 'rgba(16, 185, 129, 0.12)',
+              background: 'rgba(16, 185, 129, 0.15)',
               color: 'var(--success)',
               display: 'flex',
               alignItems: 'center',
@@ -497,19 +499,20 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
           {/* Stat 3: Remaining Unpaid Debt */}
           <div style={{
-            background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-tertiary, #f8fafc)',
-            border: `1px solid ${grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.25)' : 'var(--border-color, #e2e8f0)'}`,
+            background: grandRemainingDebt > 0 ? 'var(--danger-bg)' : 'var(--success-bg)',
+            border: `1.5px solid ${grandRemainingDebt > 0 ? 'var(--danger-border)' : 'var(--success-border)'}`,
             borderRadius: 10,
             padding: '7px 12px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            boxShadow: 'var(--shadow-sm)',
           }}>
             <div style={{
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+              background: grandRemainingDebt > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
               color: grandRemainingDebt > 0 ? 'var(--danger)' : 'var(--success)',
               display: 'flex',
               alignItems: 'center',
@@ -533,7 +536,13 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
       {/* SUB-TAB 1: SESSION PAYOUT TRACKER */}
       {activeSubTab === 'sessions' && (
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="glass-panel" style={{
+          padding: '18px 20px',
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border-color)',
+          boxShadow: 'var(--shadow-sm)',
+          borderRadius: 16,
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Layers size={18} color="var(--primary)" />
@@ -573,7 +582,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
               Chưa có kỳ đối soát nào được lưu trong hệ thống.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {sessions
                 .filter(session => {
                   const q = searchQuery.toLowerCase();
@@ -610,41 +619,42 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   }
 
                   return (
-                    <div key={session.id} className="glass-panel" style={{
+                    <div key={session.id} className="card-3d" style={{
                       border: '1px solid var(--border-color)',
+                      borderLeft: sessionDebt > 0 ? '4px solid var(--danger)' : '4px solid var(--success)',
                       borderRadius: 'var(--radius-lg)',
                       overflow: 'hidden',
-                      padding: '16px 20px',
+                      padding: '14px 18px',
                       background: 'var(--bg-card)',
                       boxShadow: 'var(--shadow-sm)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       flexWrap: 'wrap',
-                      gap: 16,
+                      gap: 14,
                       transition: 'all 0.2s ease',
                     }}>
                       {/* Session Info & Badges */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 260 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)' }}>
                             {cleanSessionName(session.sessionName, session.createdAt, session.carrierName)}
                           </strong>
                           <span className="badge badge-primary" style={{ fontSize: 10, padding: '2px 7px' }}>{session.carrierName}</span>
                           {session.isSupplementary && (
-                            <span className="badge badge-warning" style={{ fontSize: 10, padding: '2px 8px', background: '#8b5cf6', color: '#ffffff', fontWeight: 700 }}>
+                            <span className="badge" style={{ fontSize: 10, padding: '2px 8px', background: '#8b5cf6', color: '#ffffff', fontWeight: 700 }}>
                               🏷️ KỲ BÙ DỮ LIỆU SÓT
                             </span>
                           )}
                           <div>
                             {sessionStatus === 'HOLD' && <span className="badge badge-warning" style={{ fontSize: 10, padding: '2px 8px' }}>Cần xử lý đơn chưa khớp</span>}
-                            {sessionStatus === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 8px' }}>🟢 Đã đi đủ</span>}
-                            {sessionStatus === 'PARTIAL' && <span className="badge badge-info" style={{ fontSize: 10, padding: '2px 8px' }}>🔵 Chuyển 1 phần</span>}
-                            {sessionStatus === 'UNPAID' && <span className="badge badge-danger" style={{ fontSize: 10, padding: '2px 8px' }}>🔴 Chưa đi tiền</span>}
+                            {sessionStatus === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 8px' }}>✓ Đã đi tiền đủ</span>}
+                            {sessionStatus === 'PARTIAL' && <span className="badge badge-warning" style={{ fontSize: 10, padding: '2px 8px' }}>⚡ Đang đi tiền dở dang</span>}
+                            {sessionStatus === 'UNPAID' && <span className="badge badge-danger" style={{ fontSize: 10, padding: '2px 8px' }}>● Chưa đi tiền</span>}
                           </div>
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
-                          Quy mô đối soát: <strong style={{ color: 'var(--text-main)' }}>{session.statements.length} Shop</strong> • <strong style={{ color: 'var(--text-main)' }}>{session.totalOrders} đơn hàng</strong>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                          Quy mô đối soát: <strong>{session.statements.length} Shop</strong> • <strong>{session.totalOrders.toLocaleString('vi-VN')}</strong> đơn hàng
                         </div>
                       </div>
 
@@ -652,43 +662,43 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 20,
+                        gap: 16,
                         background: 'var(--bg-tertiary)',
-                        padding: '10px 16px',
+                        padding: '8px 14px',
                         borderRadius: 'var(--radius-md)',
                         border: '1px solid var(--border-color)',
                       }}>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cần Chuyển</div>
-                          <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>{formatVND(sessionNetPayout)}</div>
+                          <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cần Chuyển</div>
+                          <div className="mono" style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>{formatVND(sessionNetPayout)}</div>
                         </div>
 
-                        <div style={{ width: 1, height: 24, background: 'var(--border-color)' }} />
+                        <div style={{ width: 1, height: 20, background: 'var(--border-color)' }} />
 
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Đã Đi Tiền</div>
-                          <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>{formatVND(sessionPaid)}</div>
+                          <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Đã Đi Tiền</div>
+                          <div className="mono" style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>{formatVND(sessionPaid)}</div>
                         </div>
 
-                        <div style={{ width: 1, height: 24, background: 'var(--border-color)' }} />
+                        <div style={{ width: 1, height: 20, background: 'var(--border-color)' }} />
 
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dư Nợ Còn Lại</div>
-                          <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: sessionDebt > 0 ? 'var(--danger)' : 'var(--success)', marginTop: 2 }}>{formatVND(sessionDebt)}</div>
+                          <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dư Nợ Còn Lại</div>
+                          <div className="mono" style={{ fontSize: 13.5, fontWeight: 800, color: sessionDebt > 0 ? 'var(--danger)' : 'var(--success)', marginTop: 2 }}>{formatVND(sessionDebt)}</div>
                         </div>
                       </div>
 
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           onClick={() => handleExportSessionPayoutExcel(session)}
                           className="btn btn-secondary btn-sm"
-                          style={{ fontSize: 12, padding: '7px 12px' }}
+                          style={{ fontSize: 11.5, padding: '5px 10px', background: 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)', border: '1px solid #86efac', color: '#15803d', fontWeight: 600 }}
                           title="Xuất file Excel chứa danh sách STK Ngân Hàng và Số Tiền để nộp/tải lên iBanking"
                           disabled={isBlocked}
                         >
-                          <FileSpreadsheet size={14} color="var(--success)" />
+                          <FileSpreadsheet size={13} color="#15803d" />
                           <span>Xuất iBanking</span>
                         </button>
 
@@ -696,10 +706,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           type="button"
                           onClick={() => onNavigateToEmail && onNavigateToEmail(session)}
                           className="btn btn-secondary btn-sm"
-                          style={{ fontSize: 12, padding: '7px 10px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                          style={{ fontSize: 11.5, padding: '5px 10px', background: 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #93c5fd', color: '#1d4ed8', fontWeight: 600 }}
                           title="Chuyển sang màn hình Gửi Email đối soát cho kỳ này"
                         >
-                          <Mail size={14} />
+                          <Mail size={13} />
                           <span>Gửi Mail</span>
                         </button>
 
@@ -707,10 +717,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           type="button"
                           onClick={() => onNavigateToZalo && onNavigateToZalo(session)}
                           className="btn btn-secondary btn-sm"
-                          style={{ fontSize: 12, padding: '7px 10px', color: '#0068ff', borderColor: '#0068ff' }}
+                          style={{ fontSize: 11.5, padding: '5px 10px', background: 'linear-gradient(180deg, #ecfeff 0%, #cffafe 100%)', border: '1px solid #67e8f9', color: '#0e7490', fontWeight: 600 }}
                           title="Chuyển sang màn hình Gửi Zalo ZNS đối soát cho kỳ này"
                         >
-                          <MessageSquare size={14} />
+                          <MessageSquare size={13} />
                           <span>Gửi Zalo</span>
                         </button>
 
@@ -719,10 +729,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             type="button"
                             onClick={() => handleBatchMarkPaid(session)}
                             className="btn btn-secondary btn-sm"
-                            style={{ fontSize: 12, padding: '7px 12px' }}
+                            style={{ fontSize: 11.5, padding: '5px 10px', background: 'linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%)', border: '1px solid #fde68a', color: '#b45309', fontWeight: 700 }}
                             title="Đánh dấu tất cả Shop trong kỳ này đã chuyển khoản xong"
                           >
-                            <Zap size={14} color="var(--warning)" />
+                            <Zap size={13} color="#b45309" />
                             <span>Đi Tiền Hàng Loạt</span>
                           </button>
                         )}
@@ -734,9 +744,9 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             setModalSearchQuery('');
                           }}
                           className="btn btn-primary btn-sm"
-                          style={{ fontSize: 12, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                          style={{ fontSize: 11.5, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, background: 'var(--brand-gradient)', color: '#ffffff', boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)' }}
                         >
-                          <Eye size={15} />
+                          <Eye size={14} />
                           <span>Xem Chi Tiết</span>
                         </button>
                       </div>

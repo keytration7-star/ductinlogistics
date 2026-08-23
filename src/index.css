@@ -4,8 +4,8 @@
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Color Palette - Modern Enterprise Light Theme (Default) */
-  --bg-primary: #f8fafc;
+  /* Color Palette - Modern Enterprise Light Theme with rich background depth */
+  --bg-primary: #edf2f7;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
   --bg-card: #ffffff;
@@ -49,54 +49,10 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
   
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 24px -4px rgba(15, 23, 42, 0.1), 0 4px 8px -4px rgba(15, 23, 42, 0.05);
   --shadow-glow: 0 0 15px rgba(79, 70, 229, 0.15);
-}
-
-[data-theme='dark'] {
-  --bg-primary: #090d16;
-  --bg-secondary: #111827;
-  --bg-tertiary: #1f2937;
-  --bg-card: #111827;
-  --bg-card-hover: #1f2937;
-  --bg-glass: rgba(17, 24, 39, 0.95);
-  
-  --border-color: #1f2937;
-  --border-focus: #6366f1;
-  
-  --text-main: #f9fafb;
-  --text-muted: #9ca3af;
-  --text-dim: #6b7280;
-  
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --primary-glow: rgba(99, 102, 241, 0.2);
-  
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.1);
-  --success-border: rgba(16, 185, 129, 0.25);
-  
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.1);
-  --warning-border: rgba(245, 158, 11, 0.25);
-  
-  --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.1);
-  --danger-border: rgba(239, 68, 68, 0.25);
-  
-  --info: #06b6d4;
-  --info-bg: rgba(6, 182, 212, 0.1);
-  --info-border: rgba(6, 182, 212, 0.25);
-
-  --profit: #10b981;
-  --profit-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -142,29 +98,20 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-mono);
 }
 
-/* Enterprise card containers: calm surfaces, not decorative 3D panels. */
+/* Enterprise card containers: elevated surfaces with frosted porcelain depth */
 .glass-panel, .card-3d {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 60%, #f4f8fc 100%);
+  border: 1.5px solid #dbe6f2;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 16px -2px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.03);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(12px);
 }
 
 .glass-panel:hover, .card-3d:hover {
-  transform: none;
-  border-color: rgba(79, 70, 229, 0.28);
-  box-shadow: var(--shadow-md);
-}
-
-[data-theme='dark'] .glass-panel, [data-theme='dark'] .card-3d {
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-[data-theme='dark'] .glass-panel:hover, [data-theme='dark'] .card-3d:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow: 0 18px 36px -8px rgba(99, 102, 241, 0.25);
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 25px -4px rgba(37, 99, 235, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
 }
 
 /* Buttons */
@@ -173,15 +120,19 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 16px;
+  padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
   white-space: nowrap;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -557,10 +508,20 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 2px 0 16px rgba(37, 99, 235, 0.05);
 }
 
-[data-theme='dark'] .sidebar-aside {
-  background: linear-gradient(180deg, #090e18 0%, #0d1527 100%);
-  border-right: 1px solid #1e293b;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+/* Top header with soft light blue tone matching sidebar */
+.app-top-header {
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  background: linear-gradient(90deg, #f0f6ff 0%, #e8f2fe 50%, #f0f7ff 100%);
+  border-bottom: 1.5px solid #cfe2fe;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  z-index: 90;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.04);
 }
 
 /* Sidebar navigation */
@@ -584,10 +545,6 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
 }
 
-[data-theme='dark'] .sidebar-nav-btn {
-  color: #f8fafc;
-}
-
 .sidebar-nav-btn:hover {
   background: #dbeafe;
   border-color: #bfdbfe;
@@ -600,19 +557,6 @@ h1, h2, h3, h4, h5, h6 {
   background: #ffffff;
   color: #2563eb;
   transform: none;
-}
-
-[data-theme='dark'] .sidebar-nav-btn:hover {
-  background: rgba(14, 165, 233, 0.2);
-  border: 1.5px solid rgba(14, 165, 233, 0.4);
-  color: #38bdf8;
-  font-weight: 800;
-  transform: translateX(4px);
-}
-
-[data-theme='dark'] .sidebar-nav-btn:hover .sidebar-icon-box {
-  background: rgba(14, 165, 233, 0.35);
-  color: #38bdf8;
 }
 
 .sidebar-nav-btn.active {
@@ -629,18 +573,4 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(255, 255, 255, 0.28);
   color: #ffffff !important;
   box-shadow: none;
-}
-
-[data-theme='dark'] .sidebar-nav-btn.active {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  border: 1.5px solid #60a5fa;
-  color: #ffffff !important;
-  font-weight: 900;
-  font-size: 15.5px;
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
-}
-
-[data-theme='dark'] .sidebar-nav-btn.active .sidebar-icon-box {
-  background: rgba(255, 255, 255, 0.3);
-  color: #ffffff !important;
 }

@@ -29,6 +29,7 @@ import {
   Calendar,
   Edit3,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -1442,11 +1443,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
         return (
           <div className="glass-panel" style={{
-            padding: '14px 18px',
+            padding: '8px 12px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: 10,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+            gap: 8,
             alignItems: 'center',
+            borderRadius: 14,
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
+            boxShadow: 'var(--shadow-sm)',
           }}>
             {steps.map((item) => (
               <div 
@@ -1468,39 +1473,47 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 14px',
+                  gap: 8,
+                  padding: '6px 10px',
                   borderRadius: 'var(--radius-md)',
-                  background: item.active ? 'rgba(79, 70, 229, 0.10)' : item.done ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-tertiary)',
-                  border: item.active ? '2px solid var(--primary)' : item.done ? '1.5px solid #10b981' : '1px solid var(--border-color)',
+                  background: item.active 
+                    ? 'rgba(99, 102, 241, 0.16)' 
+                    : item.done 
+                    ? 'rgba(16, 185, 129, 0.12)' 
+                    : 'var(--bg-tertiary)',
+                  border: item.active 
+                    ? '2px solid var(--primary)' 
+                    : item.done 
+                    ? '1.5px solid var(--success)' 
+                    : '1px solid var(--border-color)',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
+                  transition: 'all 0.18s ease',
                 }}
               >
                 <div style={{
-                  width: 32,
-                  height: 32,
+                  width: 26,
+                  height: 26,
                   borderRadius: '50%',
-                  background: item.active ? 'var(--primary)' : item.done ? '#10b981' : 'var(--bg-secondary)',
+                  background: item.active ? 'var(--primary)' : item.done ? 'var(--success)' : 'var(--bg-card)',
                   color: item.done || item.active ? '#ffffff' : 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 800,
-                  fontSize: 13,
+                  fontSize: 11,
                   flexShrink: 0,
-                  boxShadow: item.active ? '0 0 12px rgba(79, 70, 229, 0.4)' : 'none',
+                  boxShadow: item.active ? '0 0 10px rgba(79, 70, 229, 0.4)' : 'none',
                 }}>
-                  {item.done && !item.active ? <CheckCircle2 size={17} /> : item.step}
+                  {item.done && !item.active ? <CheckCircle2 size={14} /> : item.step}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: item.active ? 'var(--primary)' : item.done ? '#10b981' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: item.active ? 'var(--primary)' : item.done ? 'var(--success)' : 'var(--text-dim)', letterSpacing: '0.04em' }}>
                     STEP {item.step} {item.active ? '● ĐANG XEM' : item.done ? '✓ ĐÃ XONG' : ''}
                   </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.title}
                   </div>
-                  <div style={{ fontSize: 11, color: item.active ? 'var(--primary)' : item.done ? '#059669' : 'var(--text-muted)', marginTop: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 10.5, color: item.active ? 'var(--primary)' : item.done ? 'var(--success)' : 'var(--text-muted)', marginTop: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.desc}
                   </div>
                 </div>
@@ -1512,47 +1525,54 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* 🚀 BƯỚC 1: CHỌN HÃNG & NẠP FILE */}
       {wizardStep === 1 && (
-        <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="glass-panel" style={{
+          padding: '16px 20px',
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border-color)',
+          borderRadius: 16,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
           {/* CARRIER WORKSPACE HEADER BANNER */}
           <div style={{
-            background: isJntCarrier
-              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%)'
-              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%)',
-            border: isJntCarrier ? '1.5px solid rgba(239, 68, 68, 0.35)' : '1.5px solid rgba(16, 185, 129, 0.35)',
+            background: 'var(--bg-card)',
+            border: isJntCarrier ? '1.5px solid var(--danger-border)' : '1.5px solid var(--success-border)',
             borderRadius: 14,
-            padding: '12px 18px',
+            padding: '10px 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 16,
+            gap: 14,
             marginBottom: 16,
             flexWrap: 'wrap',
+            boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
           }}>
             {/* Left: Carrier Icon & Title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
-                width: 42,
-                height: 42,
-                borderRadius: 10,
-                background: isJntCarrier ? '#dc2626' : '#059669',
-                color: '#fff',
+                width: 36,
+                height: 36,
+                borderRadius: 9,
+                background: isJntCarrier ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                color: isJntCarrier ? '#b91c1c' : '#047857',
+                border: isJntCarrier ? '1px solid #fca5a5' : '1px solid #86efac',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 20,
+                fontSize: 18,
                 flexShrink: 0,
               }}>
                 {isJntCarrier ? '📦' : '🚚'}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 900, color: isJntCarrier ? '#dc2626' : '#059669' }}>
-                    {isJntCarrier ? 'MODULE ĐỐI SOÁT J&T EXPRESS' : `MODULE ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
+                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)' }}>
+                    {isJntCarrier ? 'ĐỐI SOÁT CƯỚC J&T EXPRESS' : `ĐỐI SOÁT ${(selectedCarrierTier?.carrierName || 'NVC').toUpperCase()}`}
                   </span>
                   <span style={{
                     fontSize: 10,
-                    background: isJntCarrier ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                    color: isJntCarrier ? '#dc2626' : '#059669',
+                    background: isJntCarrier ? '#fef2f2' : '#f0fdf4',
+                    color: isJntCarrier ? '#b91c1c' : '#047857',
+                    border: isJntCarrier ? '1px solid #fecaca' : '1px solid #bbf7d0',
                     padding: '2px 7px',
                     borderRadius: 6,
                     fontWeight: 800,
@@ -1569,7 +1589,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
 
             {/* Right: Merged Controls (Ngày Chốt Kỳ + Tên Kỳ Đối Soát + Nút Ánh Xạ Cột) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {isPeriodConfirmed ? (
                 <div style={{
                   display: 'flex',
@@ -1578,11 +1598,11 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   background: '#ffffff',
                   padding: '5px 12px',
                   borderRadius: 8,
-                  border: '1.5px solid var(--success)',
+                  border: '1.5px solid #10b981',
                   boxShadow: '0 1px 3px rgba(16, 185, 129, 0.12)',
                 }}>
                   <div style={{ fontSize: 11.5, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: 'var(--success)', fontWeight: 800 }}>✓ KỲ ĐÃ CHỌN:</span>
+                    <span style={{ color: '#059669', fontWeight: 800 }}>✓ KỲ ĐÃ CHỌN:</span>
                     <span>Ngày: <strong style={{ color: 'var(--primary)' }}>{sessionPeriodDate}</strong></span>
                     <span>•</span>
                     <span>Tên Kỳ: <strong className="mono" style={{ color: 'var(--primary)' }}>{sessionPeriodName}</strong></span>
@@ -1604,17 +1624,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   onClick={() => setShowPeriodSetupModal(true)}
                   className="btn btn-primary btn-sm"
                   style={{
-                    fontSize: 12,
-                    padding: '7px 16px',
+                    fontSize: 11.5,
+                    padding: '6px 14px',
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    background: 'linear-gradient(135deg, #4f46e5 0%, #059669 100%)',
-                    boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+                    background: 'var(--brand-gradient)',
+                    boxShadow: '0 2px 10px rgba(79, 70, 229, 0.25)',
                   }}
                 >
-                  <Calendar size={15} />
+                  <Calendar size={14} />
                   <span>🗓️ 1. Chọn Ngày & Kỳ Đối Soát (Bắt buộc)</span>
                 </button>
               )}
@@ -1627,22 +1647,22 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 className="btn btn-secondary btn-sm"
                 style={{
                   fontSize: 11.5,
-                  padding: '6px 12px',
+                  padding: '5px 11px',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
-                  background: '#fff',
-                  border: isJntCarrier ? '1.5px solid #dc2626' : '1.5px solid #059669',
-                  color: isJntCarrier ? '#dc2626' : '#059669',
+                  background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                  border: '1px solid #cbd5e1',
+                  color: 'var(--text-main)',
                   borderRadius: 8,
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
                 title="Cài đặt ánh xạ cột cho file đối soát"
               >
-                <Settings2 size={14} color={isJntCarrier ? '#dc2626' : '#059669'} />
+                <Settings2 size={13} color="var(--primary)" />
                 <span>⚙️ Ánh xạ cột</span>
               </button>
 
@@ -1652,22 +1672,22 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 className="btn btn-secondary btn-sm"
                 style={{
                   fontSize: 11.5,
-                  padding: '6px 12px',
+                  padding: '5px 11px',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 5,
-                  background: '#fff',
-                  border: '1.5px solid var(--border-color)',
+                  background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                  border: '1px solid #cbd5e1',
                   color: 'var(--text-main)',
                   borderRadius: 8,
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
                 title="Cài đặt và tùy chọn cột khi xuất file Excel cho Shop và Báo cáo tổng"
               >
-                <Sliders size={14} color="var(--primary)" />
+                <Sliders size={13} color="var(--primary)" />
                 <span>⚙️ Cài đặt xuất file</span>
               </button>
             </div>
@@ -1689,7 +1709,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           {/* Dropzone Layout: Dynamic 1-File Full Width vs 2-Files Dual Grid */}
           {reconcileMode === '1file' ? (
             /* Single File Hero Dropzone Mode */
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 16 }}>
               <div 
                 onClick={handleTriggerNvcFileInput}
                 onDragOver={handleNvcDragOver}
@@ -1697,15 +1717,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 onDragLeave={handleNvcDragLeave}
                 onDrop={handleNvcDrop}
                 style={{
-                  border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--primary)'}`,
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '36px 24px',
-                  background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'linear-gradient(135deg, rgba(79, 70, 229, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
+                  border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? '#10b981' : '#93c5fd'}`,
+                  borderRadius: 14,
+                  padding: '30px 20px',
+                  background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%)',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease',
                   transform: isDraggingNvc ? 'scale(1.01)' : 'none',
-                  boxShadow: isDraggingNvc ? '0 0 20px var(--primary-glow)' : '0 4px 12px rgba(0,0,0,0.03)',
+                  boxShadow: isDraggingNvc ? '0 0 20px rgba(59, 130, 246, 0.3)' : '0 2px 10px rgba(37, 99, 235, 0.04)',
                   position: 'relative',
                 }}
               >
@@ -1725,7 +1745,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       setNvcRows([]);
                     }}
                     className="btn btn-secondary btn-sm"
-                    style={{ position: 'absolute', top: 14, right: 14, padding: '4px 8px' }}
+                    style={{ position: 'absolute', top: 12, right: 12, padding: '4px 8px' }}
                     title="Đổi file khác"
                   >
                     <XCircle size={14} color="var(--danger)" />
@@ -1734,26 +1754,27 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 )}
 
                 <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
-                  background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'rgba(79, 70, 229, 0.1)',
-                  color: nvcFile ? '#fff' : 'var(--primary)',
+                  width: 50,
+                  height: 50,
+                  borderRadius: 12,
+                  background: nvcFile ? '#10b981' : isDraggingNvc ? 'var(--primary)' : 'rgba(59, 130, 246, 0.12)',
+                  color: nvcFile || isDraggingNvc ? '#fff' : '#1d4ed8',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 14px',
+                  margin: '0 auto 12px',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.1)',
                 }}>
-                  {nvcFile ? <CheckCircle2 size={30} /> : <FileSpreadsheet size={30} color="var(--primary)" />}
+                  {nvcFile ? <CheckCircle2 size={26} /> : <FileSpreadsheet size={26} />}
                 </div>
 
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
                   {isDraggingNvc ? 'THẢ FILE EXCEL ĐỐI SOÁT VÀO ĐÂY' : nvcFile ? `✓ ĐÃ TẢI FILE: ${nvcFile.name}` : `📄 TẢI LÊN FILE EXCEL ĐỐI SOÁT ${selectedCarrierTier?.carrierName.toUpperCase()}`}
                 </h3>
                 
-                <p style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 10px', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12.5, color: 'var(--text-dim)', maxWidth: 650, margin: '0 auto 8px', lineHeight: 1.4 }}>
                   {nvcFile ? (
-                    <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                    <span style={{ color: '#047857', fontWeight: 600 }}>
                       Đã đọc thành công <strong>{nvcRows.length.toLocaleString('vi-VN')} dòng đơn hàng</strong> từ file. Hệ thống sẽ tự động bóc tách phân loại Shop theo Tên cửa hàng & SĐT có sẵn trong file.
                     </span>
                   ) : (
@@ -1762,7 +1783,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </p>
 
                 {nvcFile && nvcMapping.waybillColumn && (
-                  <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', padding: '4px 12px', borderRadius: 20 }}>
+                  <div style={{ fontSize: 11.5, color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#d1fae5', padding: '3px 10px', borderRadius: 20 }}>
                     ✓ Đã tự động nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
                   </div>
                 )}
@@ -1773,8 +1794,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: 20,
-              marginBottom: 20,
+              gap: 14,
+              marginBottom: 16,
             }}>
               
               {/* Dropzone 1: File NVC */}
@@ -1785,15 +1806,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 onDragLeave={handleNvcDragLeave}
                 onDrop={handleNvcDrop}
                 style={{
-                  border: `2px dashed ${isDraggingNvc ? 'var(--primary)' : nvcFile ? 'var(--success)' : 'var(--border-color)'}`,
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 24,
-                  background: isDraggingNvc ? 'rgba(79, 70, 229, 0.08)' : nvcFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                  border: `2px dashed ${isDraggingNvc ? '#2563eb' : nvcFile ? '#10b981' : '#93c5fd'}`,
+                  borderRadius: 14,
+                  padding: 20,
+                  background: isDraggingNvc ? 'rgba(59, 130, 246, 0.1)' : nvcFile ? 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%)',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease',
                   transform: isDraggingNvc ? 'scale(1.02)' : 'none',
-                  boxShadow: isDraggingNvc ? '0 0 16px var(--primary-glow)' : 'none',
+                  boxShadow: isDraggingNvc ? '0 0 16px rgba(37, 99, 235, 0.25)' : '0 2px 8px rgba(37, 99, 235, 0.04)',
                   position: 'relative',
                 }}
               >
@@ -1821,32 +1842,33 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 )}
 
                 <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  background: nvcFile ? 'var(--success)' : isDraggingNvc ? 'var(--primary)' : 'var(--bg-tertiary)',
-                  color: '#fff',
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: nvcFile ? '#10b981' : isDraggingNvc ? '#2563eb' : 'rgba(59, 130, 246, 0.12)',
+                  color: nvcFile || isDraggingNvc ? '#fff' : '#1d4ed8',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 12px',
+                  margin: '0 auto 10px',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.1)',
                 }}>
-                  {nvcFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingNvc ? '#fff' : 'var(--primary)'} />}
+                  {nvcFile ? <CheckCircle2 size={22} /> : <FileSpreadsheet size={22} />}
                 </div>
 
-                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 3 }}>
                   {isDraggingNvc ? 'THẢ FILE ĐỐI SOÁT NVC VÀO ĐÂY' : '1. FILE ĐỐI SOÁT TỪ NVC'}
                 </h4>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6 }}>
                   {nvcFile ? (
-                    <strong style={{ color: 'var(--text-main)' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
+                    <strong style={{ color: '#047857' }}>{nvcFile.name} ({nvcRows.length} dòng)</strong>
                   ) : (
                     'Kéo thả trực tiếp file Excel đối soát NVC vào đây (Có Mã đơn, COD, Cước...)'
                   )}
                 </p>
 
                 {nvcFile && (
-                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+                  <div style={{ fontSize: 11, color: '#047857', fontWeight: 600 }}>
                     ✓ Đã nhận diện cột Mã vận đơn: <strong className="mono">[{nvcMapping.waybillColumn}]</strong>
                   </div>
                 )}
@@ -1860,15 +1882,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 onDragLeave={handleAppDragLeave}
                 onDrop={handleAppDrop}
                 style={{
-                  border: `2px dashed ${isDraggingApp ? 'var(--primary)' : appFile ? 'var(--success)' : 'var(--border-color)'}`,
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 24,
-                  background: isDraggingApp ? 'rgba(79, 70, 229, 0.08)' : appFile ? 'var(--success-bg)' : 'var(--bg-secondary)',
+                  border: `2px dashed ${isDraggingApp ? '#7c3aed' : appFile ? '#10b981' : '#c4b5fd'}`,
+                  borderRadius: 14,
+                  padding: 20,
+                  background: isDraggingApp ? 'rgba(124, 58, 237, 0.1)' : appFile ? 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f8f5ff 100%)',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease',
                   transform: isDraggingApp ? 'scale(1.02)' : 'none',
-                  boxShadow: isDraggingApp ? '0 0 16px var(--primary-glow)' : 'none',
+                  boxShadow: isDraggingApp ? '0 0 16px rgba(124, 58, 237, 0.25)' : '0 2px 8px rgba(124, 58, 237, 0.04)',
                   position: 'relative',
                 }}
               >
@@ -1897,36 +1919,37 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 )}
 
                 <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  background: appFile ? 'var(--success)' : isDraggingApp ? 'var(--primary)' : 'var(--bg-tertiary)',
-                  color: '#fff',
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: appFile ? '#10b981' : isDraggingApp ? '#7c3aed' : 'rgba(124, 58, 237, 0.12)',
+                  color: appFile || isDraggingApp ? '#fff' : '#6d28d9',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 12px',
+                  margin: '0 auto 10px',
+                  boxShadow: '0 2px 6px rgba(124, 58, 237, 0.1)',
                 }}>
-                  {appFile ? <CheckCircle2 size={24} /> : <FileSpreadsheet size={24} color={isDraggingApp ? '#fff' : 'var(--primary)'} />}
+                  {appFile ? <CheckCircle2 size={22} /> : <FileSpreadsheet size={22} />}
                 </div>
 
-                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 3 }}>
                   {isDraggingApp ? 'THẢ FILE ĐƠN HÀNG APP VÀO ĐÂY' : '2. FILE ĐƠN HÀNG XUẤT TỪ APP'}
                 </h4>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6 }}>
                   {appFile ? (
-                    <strong style={{ color: 'var(--text-main)' }}>{appFile.name} ({appRows.length} dòng)</strong>
+                    <strong style={{ color: '#047857' }}>{appFile.name} ({appRows.length} dòng)</strong>
                   ) : (
                     'Kéo thả trực tiếp file danh sách đơn xuất từ App vào đây (Có Tên Shop, SĐT...)'
                   )}
                 </p>
 
-                {appFile && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>
+{appFile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <div style={{ fontSize: 11, color: '#047857', fontWeight: 600 }}>
                       ✓ Đã nhận diện cột Shop: <strong className="mono">[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
                       Tự động đối chiếu với {shops.length} Shop trong hệ thống
                     </div>
                   </div>
@@ -1975,15 +1998,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* 🚀 BƯỚC 2: KHỚP NỐI & KIỂM TRA DỮ LIỆU */}
       {wizardStep === 2 && (
-        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="glass-panel" style={{
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border-color)',
+          borderRadius: 16,
+          boxShadow: 'var(--shadow-sm)',
+        }}>
           {/* Header Step 2 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Sparkles size={22} />
+              <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={18} />
                 <span>BƯỚC 2: KHỚP NỐI & KIỂM TRA DỮ LIỆU ĐƠN HÀNG</span>
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 Kiểm tra các trường dữ liệu, số lượng dòng đơn và bảng ánh xạ cột trước khi tiến hành tính cước đối soát.
               </div>
             </div>
@@ -1992,9 +2024,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               type="button"
               onClick={() => { if (isAdmin) setConfigCarrier(selectedCarrierTier); }}
               className="btn btn-secondary btn-sm"
-              style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+              style={{ fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px' }}
             >
-              <Settings2 size={15} />
+              <Settings2 size={14} color="var(--primary)" />
               <span>⚙️ Cấu Hình Ánh Xạ Cột</span>
             </button>
           </div>
@@ -2003,32 +2035,38 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: 16,
+            gap: 12,
           }}>
             {/* Card 1: File NVC */}
-            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: '18px 20px', border: '1.5px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontWeight: 800, fontSize: 14.5, color: isJntCarrier ? '#dc2626' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="card-3d" style={{
+              background: 'var(--bg-card)',
+              borderRadius: 12,
+              padding: '14px 16px',
+              border: '1.5px solid var(--info-border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--info)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>📄 File Đối Soát NVC:</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: 13 }}>{selectedCarrierTier?.carrierName}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: 13 }}>{selectedCarrierTier?.carrierName}</span>
                 </div>
-                <span className="badge badge-success" style={{ fontSize: 11 }}>{nvcRows.length.toLocaleString('vi-VN')} dòng</span>
+                <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 8px', fontWeight: 700 }}>{nvcRows.length.toLocaleString('vi-VN')} dòng</span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed var(--border-color)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Tên tệp Excel:</span>
                   <strong style={{ color: 'var(--text-main)' }}>{nvcFile?.name || 'File_NVC.xlsx'}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed var(--border-color)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Cột Mã Vận Đơn:</span>
                   <strong className="mono" style={{ color: 'var(--primary)' }}>[{nvcMapping.waybillColumn || 'Chưa nhận diện'}]</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed var(--border-color)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Cột Tiền Thu Hộ (COD):</span>
                   <strong className="mono">[{nvcMapping.codColumn || 'Mặc định'}]</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Cột Cước Phí NVC:</span>
                   <strong className="mono">[{nvcMapping.weightColumn || nvcMapping.feeColumn || 'Mặc định'}]</strong>
                 </div>
@@ -2037,30 +2075,36 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
             {/* Card 2: File App (if 2 files mode) */}
             {reconcileMode === '2files' && (
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: '18px 20px', border: '1.5px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14.5, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="card-3d" style={{
+                background: 'var(--bg-card)',
+                borderRadius: 12,
+                padding: '14px 16px',
+                border: '1.5px solid var(--border-color)',
+                boxShadow: 'var(--shadow-sm)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>📱 File Đơn Hàng Xuất Từ App</span>
                   </div>
-                  <span className="badge badge-success" style={{ fontSize: 11 }}>{appRows.length.toLocaleString('vi-VN')} dòng</span>
+                  <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 8px', fontWeight: 700 }}>{appRows.length.toLocaleString('vi-VN')} dòng</span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #e2e8f0' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Tên tệp Excel:</span>
                     <strong style={{ color: 'var(--text-main)' }}>{appFile?.name || 'File_App.xlsx'}</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #e2e8f0' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Cột Tên Shop:</span>
                     <strong className="mono" style={{ color: '#4f46e5' }}>[{appMapping.shopNameColumn || 'Mặc định'}]</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #e2e8f0' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Cột SĐT Shop:</span>
                     <strong className="mono">[{appMapping.shopPhoneColumn || appMapping.receiverPhoneColumn || 'Mặc định'}]</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Đối chiếu Shop:</span>
-                    <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>
+                    <span style={{ fontSize: 11, color: '#047857', fontWeight: 700 }}>
                       ✓ Tự động khớp theo Danh mục Shop
                     </span>
                   </div>
@@ -2071,21 +2115,22 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* Quick Verification Strip */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(79, 70, 229, 0.06) 100%)',
-            border: '1.5px solid #10b981',
+            background: 'linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 100%)',
+            border: '1.5px solid #a7f3d0',
             borderRadius: 12,
-            padding: '14px 18px',
+            padding: '10px 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
             flexWrap: 'wrap',
+            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.05)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <CheckCircle2 size={18} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CheckCircle2 size={15} />
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-main)', fontWeight: 600 }}>
+              <div style={{ fontSize: 12.5, color: '#065f46', fontWeight: 600 }}>
                 Dữ liệu đã khớp nối sẵn sàng! Biểu cước sỉ của <strong>{selectedCarrierTier?.carrierName}</strong> và danh mục <strong>{shops.length} Shop</strong> đã được kết nối để tính tiền tự động.
               </div>
             </div>
@@ -2097,25 +2142,25 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 12,
-            paddingTop: 16,
+            gap: 10,
+            paddingTop: 12,
             borderTop: '1px solid var(--border-color)',
           }}>
             <button
               type="button"
               onClick={() => setWizardStep(1)}
-              className="btn btn-secondary btn-lg"
-              style={{ fontWeight: 700, fontSize: 13 }}
+              className="btn btn-secondary btn-sm"
+              style={{ fontWeight: 700, fontSize: 12, padding: '7px 16px' }}
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
               <span>Quay Lại Bước 1 (Nạp File)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setWizardStep(3)}
-              className="btn btn-primary btn-lg"
-              style={{ minWidth: 310, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
+              className="btn btn-primary btn-sm"
+              style={{ minWidth: 280, fontWeight: 800, fontSize: 13, padding: '8px 24px', background: 'var(--brand-gradient)', boxShadow: '0 2px 10px rgba(79, 70, 229, 0.25)' }}
             >
               <span>TIẾP THEO: DUYỆT & CẤU HÌNH SHOP (BƯỚC 3) ➔</span>
             </button>
@@ -2125,26 +2170,35 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* 🚀 BƯỚC 3: KIỂM TRA & XÁC NHẬN SHOP MỚI PHÁT HIỆN */}
       {wizardStep === 3 && (
-        <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="glass-panel" style={{
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 250, 255, 0.95) 100%)',
+          border: '1.5px solid #dbe6f2',
+          borderRadius: 16,
+          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 22px -4px rgba(15, 23, 42, 0.05)',
+        }}>
           {/* Header Step 3 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Store size={22} />
+              <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Store size={18} />
                 <span>BƯỚC 3: KIỂM TRA & XÁC NHẬN DANH SÁCH SHOP TRONG KỲ</span>
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 Hệ thống tự động đối chiếu các Shop trong file với Danh mục Shop & Cấu hình gộp shop đã lưu trong hệ thống.
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {scannedShopAnalysis.hasNewShops ? (
-                <span className="badge badge-warning" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
+                <span className="badge badge-warning" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 800 }}>
                   ⚠️ Phát hiện {scannedShopAnalysis.newShops.length} Shop mới
                 </span>
               ) : (
-                <span className="badge badge-success" style={{ fontSize: 12, padding: '5px 12px', fontWeight: 800 }}>
+                <span className="badge badge-success" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 800 }}>
                   ✓ 100% Shop đã có hồ sơ
                 </span>
               )}
@@ -2236,7 +2290,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 </button>
               </div>
 
-              {/* Danh sách từng Shop mới kèm Editor Biểu Giá Cước Đầy Đủ */}
+              {/* Danh sách từng Shop mới kèm Editor Biểu Giá Cước Đầy ĐỦ */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {scannedShopAnalysis.newShops.map((newShop, idx) => {
                   const key = `${newShop.name.toLowerCase()}|${newShop.phone.replace(/\D/g, '')}`;
@@ -2244,7 +2298,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                   const isExpanded = expandedNewShopKey === null ? true : expandedNewShopKey === key;
                   const testWeight = newShopTestWeights[key] ?? 1.5;
                   const calculatedTestFee = calculateWeightFee(testWeight, plan);
-
+                  
                   return (
                     <div
                       key={key}
@@ -2306,7 +2360,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                         </div>
                       </div>
 
-                      {/* KHỐI BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG (Chuẩn theo ảnh mẫu) */}
+                      {/* KHỐI BIỂU GIÁ CƯỚC BẬC THANG RIÊNG THEO CÂN NẶNG */}
                       {isExpanded && (
                         <div style={{
                           background: 'rgba(79, 70, 229, 0.035)',
@@ -2546,17 +2600,26 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           )}
 
           {/* TRƯỜNG HỢP B: DANH SÁCH SHOP ĐÃ CÓ HỒ SƠ & TỰ ĐỘNG KHỚP THEO CẤU HÌNH GỘP SHOP */}
-          <div style={{ background: 'var(--bg-secondary)', border: '1.5px solid var(--border-color)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
+            borderRadius: 14,
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            boxShadow: 'var(--shadow-sm)',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <CheckCircle2 size={18} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <CheckCircle2 size={16} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--text-main)' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)' }}>
                     DANH SÁCH {scannedShopAnalysis.existingShops.length} SHOP ĐÃ CÓ HỒ SƠ (TỰ ĐỘNG KHỚP THEO CẤU HÌNH GỘP SHOP)
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 1 }}>
                     Tất cả các tên phụ, SĐT phụ trong file sẽ tự động được gom về đúng Shop chính đã thiết lập trong Quản Lý Shop.
                   </div>
                 </div>
@@ -2564,10 +2627,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
 
             <div className="table-responsive" style={{ maxHeight: 380, overflowY: 'auto' }}>
-              <table className="data-table" style={{ fontSize: 12.5 }}>
+              <table className="data-table" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 50 }}>STT</th>
+                    <th style={{ width: 45 }}>STT</th>
                     <th>SHOP CHÍNH (MÃ SHOP)</th>
                     <th>TÊN / SĐT NHẬN DIỆN TỪ FILE (ĐÃ GỘP)</th>
                     <th>BIỂU PHÍ CƯỚC ÁP DỤNG</th>
@@ -2583,21 +2646,20 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <strong style={{ color: 'var(--primary)' }}>{item.shop.name}</strong>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 2 }}>[{item.shop.code}]</span>
+                          <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>({item.shop.code})</span>
                         </div>
                         {item.shop.nameAliases && item.shop.nameAliases.length > 0 && (
-                          <div style={{ marginTop: 4 }}>
+                          <div style={{ marginTop: 2 }}>
                             <span style={{
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: 4,
-                              fontSize: 10,
+                              fontSize: 9.5,
                               fontWeight: 800,
-                              padding: '2px 8px',
-                              borderRadius: 20,
+                              padding: '1px 6px',
+                              borderRadius: 12,
                               background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                               color: '#fff',
-                              letterSpacing: '0.02em',
                             }}>
                               🔗 ĐÃ GỘP ({item.shop.nameAliases.length})
                             </span>
@@ -2605,17 +2667,17 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                         )}
                       </td>
                       <td>
-                        <div style={{ fontSize: 12, color: 'var(--text-main)' }}>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-main)' }}>
                           {item.aliasesInFile.join(', ')}
                         </div>
                         {item.phonesInFile.length > 0 && (
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
                             📞 {item.phonesInFile.join(', ')}
                           </div>
                         )}
                       </td>
                       <td>
-                        <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                           {item.shop.pricingPlan?.name || 'Biểu cước chuẩn'}
                         </span>
                       </td>
@@ -2626,7 +2688,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                         {formatVND(item.totalCod)}
                       </td>
                       <td>
-                        <span className="badge badge-success" style={{ fontSize: 11 }}>✓ Đã Khớp</span>
+                        <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 7px' }}>✓ Đã Khớp</span>
                       </td>
                     </tr>
                   ))}
@@ -2641,29 +2703,29 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 12,
-            paddingTop: 16,
+            gap: 10,
+            paddingTop: 12,
             borderTop: '1px solid var(--border-color)',
           }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setWizardStep(2)}
-                className="btn btn-secondary btn-lg"
-                style={{ fontWeight: 700, fontSize: 13 }}
+                className="btn btn-secondary btn-sm"
+                style={{ fontWeight: 700, fontSize: 12, padding: '7px 14px' }}
               >
-                <ArrowLeft size={16} />
+                <ArrowLeft size={15} />
                 <span>Quay Lại Bước 2</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleResetReconciliation}
-                className="btn btn-danger btn-lg"
-                style={{ fontWeight: 700, fontSize: 13, background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: '1.5px solid #ef4444' }}
+                className="btn btn-danger btn-sm"
+                style={{ fontWeight: 700, fontSize: 12, padding: '7px 14px', background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: '1.5px solid #ef4444' }}
                 title={`Hủy file đang tải, xóa dữ liệu tạm của ${selectedCarrierTier?.carrierName || 'NVC'} để làm lại từ đầu`}
               >
-                <Trash2 size={16} />
+                <Trash2 size={14} />
                 <span>Xóa Dữ Liệu Tạm & Làm Lại</span>
               </button>
             </div>
@@ -2677,18 +2739,18 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 await handleRunReconciliation();
                 setWizardStep(4);
               }}
-              className="btn btn-primary btn-lg"
+              className="btn btn-primary btn-sm"
               disabled={isProcessing}
-              style={{ minWidth: 320, fontWeight: 900, fontSize: 14, padding: '12px 28px', background: 'linear-gradient(135deg, #10b981 0%, #4f46e5 100%)' }}
+              style={{ minWidth: 280, fontWeight: 900, fontSize: 13, padding: '8px 24px', background: 'linear-gradient(135deg, #10b981 0%, #4f46e5 100%)', boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)' }}
             >
               {isProcessing ? (
                 <>
-                  <RefreshCw size={18} className="animate-spin" />
+                  <RefreshCw size={16} className="animate-spin" />
                   <span>Đang Tính Cước & Lập Bảng Kê...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={18} />
+                  <Sparkles size={16} />
                   <span>TIẾN HÀNH ĐỐI SOÁT & TÍNH CƯỚC (BƯỚC 4) ➔</span>
                 </>
               )}
@@ -2699,24 +2761,70 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       {/* 🚀 BƯỚC 4: KẾT QUẢ ĐỐI SOÁT & BẢNG KÊ CHI TIẾT TỪNG SHOP */}
       {wizardStep === 4 && currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {currentSession.unmatchedOrdersCount > 0 && (
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)' }}>
-              <AlertTriangle size={20} />
-              <div style={{ fontSize: 13 }}>
+            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger)' }}>
+              <AlertTriangle size={18} />
+              <div style={{ fontSize: 12.5 }}>
                 <strong>Chưa thể chốt hoặc xuất bảng kê.</strong> Có {currentSession.unmatchedOrdersCount} đơn chưa xác định được shop/trạng thái hoặc cần kiểm tra dữ liệu. Mở tab <strong>“Đơn Chưa Khớp”</strong> để xử lý trước.
               </div>
             </div>
           )}
 
-          <div className="glass-panel" style={{ padding: 16, borderLeft: '4px solid var(--info)' }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', marginBottom: 10 }}>Đối Chiếu Nguồn NVC → Bảng Kê</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12, fontSize: 12 }}>
-              <div><div style={{ color: 'var(--text-muted)' }}>Đơn từ file NVC</div><strong>{currentSession.totalOrders.toLocaleString('vi-VN')} đơn</strong></div>
-              <div><div style={{ color: 'var(--text-muted)' }}>Đơn đã vào bảng kê</div><strong style={{ color: 'var(--success)' }}>{currentSession.matchedOrdersCount.toLocaleString('vi-VN')} đơn</strong></div>
-              <div><div style={{ color: 'var(--text-muted)' }}>Đơn đang chờ kiểm tra</div><strong style={{ color: currentSession.unmatchedOrdersCount > 0 ? 'var(--danger)' : 'var(--success)' }}>{currentSession.unmatchedOrdersCount.toLocaleString('vi-VN')} đơn</strong></div>
-              <div><div style={{ color: 'var(--text-muted)' }}>COD theo toàn bộ file NVC</div><strong>{formatVND(sourceCodTotal)}</strong><div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Đã vào bảng kê: {formatVND(currentSession.totalCod)} • Chờ: {formatVND(unmatchedSourceCod)}</div></div>
-              <div><div style={{ color: 'var(--text-muted)' }}>Cước theo toàn bộ file NVC</div><strong>{formatVND(sourceNvcFeeTotal)}</strong><div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Đã vào bảng kê: {formatVND(currentSession.totalNvcCost)} • Chờ: {formatVND(unmatchedSourceNvcFee)}</div></div>
+          {/* 🛡️ DATA INTEGRITY COMPACT RIBBON */}
+          <div style={{
+            background: 'var(--success-bg)',
+            border: '1.5px solid var(--success-border)',
+            borderRadius: 12,
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: 'var(--success)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <ShieldCheck size={13} />
+              </div>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--success)' }}>
+                Đối Chiếu Toàn Vẹn:
+              </span>
+              <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px', fontWeight: 700 }}>
+                ✓ Khớp 100% ({currentSession.matchedOrdersCount.toLocaleString('vi-VN')} / {currentSession.totalOrders.toLocaleString('vi-VN')} đơn)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11.5 }}>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>COD NVC: </span>
+                <strong className="mono" style={{ color: 'var(--info)', fontWeight: 800 }}>{formatVND(sourceCodTotal)}</strong>
+              </div>
+              <div style={{ width: 1, height: 14, background: 'var(--border-color)' }} />
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Cước NVC: </span>
+                <strong className="mono" style={{ color: 'var(--warning)', fontWeight: 800 }}>{formatVND(sourceNvcFeeTotal)}</strong>
+              </div>
+              {currentSession.unmatchedOrdersCount > 0 && (
+                <>
+                  <div style={{ width: 1, height: 14, background: 'var(--border-color)' }} />
+                  <div>
+                    <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Chưa khớp: </span>
+                    <strong className="mono" style={{ color: 'var(--danger)', fontWeight: 800 }}>{currentSession.unmatchedOrdersCount} đơn</strong>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           
@@ -2724,102 +2832,118 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: 16,
+            gap: 12,
           }}>
             {/* Panel 1: Dòng Tiền Khách Hàng (Shop Payout) */}
-            <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <DollarSign size={18} /> 💳 BÁO CÁO DÒNG TIỀN KHÁCH HÀNG (SHOP)
+            <div className="card-3d" style={{
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <DollarSign size={16} /> 💳 BÁO CÁO DÒNG TIỀN KHÁCH HÀNG (SHOP)
                 </span>
-                <span style={{ fontSize: 11, background: 'rgba(79,70,229,0.1)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                <span style={{ fontSize: 10.5, background: 'rgba(79,70,229,0.1)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
                   {currentSession.statements.length} Shop Đối Soát
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>TỔNG ĐƠN HÀNG</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
-                    {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 400 }}>đơn</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>TỔNG ĐƠN HÀNG</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: '2px 0' }}>
+                    {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500 }}>đơn</span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--success)' }}>
-                    ✓ {currentSession.matchedOrdersCount} đã khớp • {currentSession.unmatchedOrdersCount} chưa khớp
+                  <div style={{ fontSize: 10.5, color: 'var(--success)', fontWeight: 600 }}>
+                    ✓ {currentSession.matchedOrdersCount} đã khớp
                   </div>
                 </div>
 
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>TỔNG TIỀN COD THU HỘ</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', margin: '4px 0' }}>
+                <div style={{ background: 'var(--info-bg)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--info-border)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--info)', fontWeight: 700, textTransform: 'uppercase' }}>TỔNG TIỀN COD THU HỘ</div>
+                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--info)', margin: '2px 0' }}>
                     {formatVND(currentSession.totalCod)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Tiền NVC đã thu từ người nhận</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Tiền NVC đã thu người nhận</div>
                 </div>
 
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>DOANH THU CƯỚC THU SHOP</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)', margin: '4px 0' }}>
+                <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(99, 102, 241, 0.25)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>DOANH THU CƯỚC THU SHOP</div>
+                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '2px 0' }}>
                     {formatVND(currentSession.totalShopRevenue)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cước tính theo bảng giá Shop</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Theo biểu giá Shop</div>
                 </div>
 
-                <div style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.12) 0%, rgba(124,58,237,0.12) 100%)', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(79,70,229,0.3)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>THỰC CHUYỂN TRẢ SHOP</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', margin: '4px 0' }}>
+                <div style={{ background: 'rgba(79, 70, 229, 0.15)', padding: '9px 12px', borderRadius: 8, border: '1.5px solid rgba(79, 70, 229, 0.35)', boxShadow: '0 2px 8px rgba(79, 70, 229, 0.08)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase' }}>THỰC CHUYỂN TRẢ SHOP</div>
+                  <div className="mono" style={{ fontSize: 17, fontWeight: 900, color: 'var(--primary)', margin: '2px 0' }}>
                     {formatVND(currentSession.totalNetPayout)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>= COD thu - Cước & Phí Shop</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>= COD thu - Cước & Phí Shop</div>
                 </div>
               </div>
             </div>
 
             {/* Panel 2: Lợi Nhuận & Hiệu Quả Nhà Gom (Profit & Ops) */}
-            <div className="glass-panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <TrendingUp size={18} /> 📈 BÁO CÁO LỢI NHUẬN NHÀ GOM ĐƠN
+            <div className="card-3d" style={{
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <TrendingUp size={16} /> 📈 BÁO CÁO KẾ TOÁN & LỢI NHUẬN ĐỐI SOÁT
                 </span>
-                <span style={{ fontSize: 11, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                <span style={{ fontSize: 10.5, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
                   Hiệu Quả Kinh Doanh
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>CƯỚC GỐC PHẢI TRẢ NVC</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warning)', margin: '4px 0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: 'var(--warning-bg)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--warning-border)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 700, textTransform: 'uppercase' }}>CƯỚC GỐC PHẢI TRẢ NVC</div>
+                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--warning)', margin: '2px 0' }}>
                     {formatVND(currentSession.totalNvcCost)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Theo giá sỉ mua NVC {currentSession.carrierName}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Theo giá sỉ {currentSession.carrierName}</div>
                 </div>
 
-                <div style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.12) 0%, rgba(16,185,129,0.12) 100%)', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--success-border)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>LỢI NHUẬN RỒNG (LÃI THUẦN)</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--success)', margin: '4px 0' }}>
+                <div style={{ background: 'var(--success-bg)', padding: '9px 12px', borderRadius: 8, border: '1.5px solid var(--success-border)', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.1)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 800, textTransform: 'uppercase' }}>LỢI NHUẬN RÒNG (LÃI THUẦN)</div>
+                  <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: 'var(--success)', margin: '2px 0' }}>
                     +{formatVND(currentSession.totalProfit)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>= Cước Shop thu - Cước NVC trả</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>= Cước Shop thu - Cước NVC trả</div>
                 </div>
 
-                <div style={{ background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>HOA HỒNG CHI TRẢ CTV</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0' }}>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>HOA HỒNG CHI TRẢ CTV</div>
+                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: '2px 0' }}>
                     {formatVND(currentSession.totalCtvCommission || 0)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hoa hồng chia cho các CTV</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Hoa hồng chia cho CTV</div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '12px 14px', borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(59, 130, 246, 0.12)', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                   <button
                     type="button"
                     onClick={() => ExcelService.downloadCtvCommissionReport(currentSession)}
                     disabled={currentSession.unmatchedOrdersCount > 0}
-                    className="btn btn-secondary btn-sm"
-                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}
+                    className="btn btn-sm"
+                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: 'var(--info)', background: 'none', border: 'none', boxShadow: 'none' }}
                   >
-                    <Download size={14} color="var(--primary)" />
-                    <span>Tải Báo Cáo Hoa Hồng CTV</span>
+                    <Download size={13} color="var(--info)" />
+                    <span>Tải Báo Cáo CTV</span>
                   </button>
                 </div>
               </div>
@@ -2828,51 +2952,56 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
           {/* Master Export Bar */}
           <div className="glass-panel" style={{
-            padding: 16,
+            padding: '10px 16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 14,
+            gap: 10,
+            borderRadius: 12,
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>
                 Kỳ: <span style={{ color: 'var(--primary)' }}>{currentSession.sessionName}</span>
               </span>
-              <span className="badge badge-success">
+              <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 8px', fontWeight: 700 }}>
                 {currentSession.statements.length} Shop đã phân loại
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowExportModal(true)}
                 className="btn btn-secondary btn-sm"
-                style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
+                style={{ fontSize: 11.5, padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
                 title="Tùy chọn bật/tắt cột xuất file Excel cho Shop và Báo cáo tổng"
               >
-                <Settings2 size={15} color="var(--primary)" />
-                <span>⚙️ Cài đặt cột xuất</span>
+                <Settings2 size={13} color="var(--primary)" />
+                <span>⚙️ Cài đặt cột</span>
               </button>
 
               <button
                 onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
                 disabled={currentSession.unmatchedOrdersCount > 0}
                 className="btn btn-secondary btn-sm"
+                style={{ fontSize: 11.5, padding: '5px 11px', fontWeight: 600 }}
               >
-                <FileSpreadsheet size={15} />
-                <span>Xuất Báo Cáo Lợi Nhuận Tổng (.xlsx)</span>
+                <FileSpreadsheet size={13} />
+                <span>Báo Cáo Tổng (.xlsx)</span>
               </button>
 
               <button
                 onClick={handleDownloadAllZip}
                 disabled={zipProgress.active || currentSession.unmatchedOrdersCount > 0}
                 className="btn btn-success btn-sm"
+                style={{ fontSize: 11.5, padding: '5px 12px', fontWeight: 700 }}
               >
-                <Download size={15} />
+                <Download size={13} />
                 <span>
-                  {zipProgress.active ? `Đang nén ZIP (${zipProgress.percent}%)...` : 'Tải Toàn Bộ Hồ Sơ (ZIP Từng Thư Mục Shop)'}
+                  {zipProgress.active ? `Đang nén ZIP (${zipProgress.percent}%)...` : 'Tải Toàn Bộ Hồ Sơ (ZIP Từng Shop)'}
                 </span>
               </button>
 
@@ -2880,9 +3009,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 onClick={() => onNavigateToEmail(currentSession)}
                 disabled={currentSession.unmatchedOrdersCount > 0}
                 className="btn btn-primary btn-sm"
+                style={{ fontSize: 11.5, padding: '5px 12px', fontWeight: 700 }}
               >
-                <Mail size={15} />
-                <span>Gửi Email Đối Soát Hàng Loạt</span>
+                <Mail size={13} />
+                <span>Gửi Email Đối Soát</span>
               </button>
             </div>
           </div>

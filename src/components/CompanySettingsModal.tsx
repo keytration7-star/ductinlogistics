@@ -34,7 +34,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!info.companyName.trim()) {
-      showToast('Vui lòng nhập Tên Công Ty / Nhà Gom Đơn', 'warning');
+      showToast('Vui lòng nhập Tên Công Ty / Doanh Nghiệp', 'warning');
       return;
     }
 
@@ -50,37 +50,44 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div 
         className="modal-content" 
-        style={{ maxWidth: 580 }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} 
+        style={{ 
+          maxWidth: 580, 
+          width: '90%', 
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: 'var(--radius-xl)',
+        }}
       >
         {/* Header */}
         <div style={{
-          padding: '18px 24px',
+          padding: '20px 24px',
           borderBottom: '1px solid var(--border-color)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'var(--bg-secondary)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
-              width: 36,
-              height: 36,
+              width: 40,
+              height: 40,
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, var(--primary), #6366f1)',
-              color: '#fff',
+              background: 'var(--brand-gradient)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: '#fff',
             }}>
               <Building2 size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: 17, fontWeight: 700 }}>
-                Cấu Hình Thông Tin Công Ty / Nhà Gom Đơn
+                Cấu Hình Thông Tin Công Ty / Doanh Nghiệp
               </h3>
               <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                 Thông tin này sẽ được in ở tiêu đề đầu trang của các tệp Excel xuất đối soát
@@ -94,7 +101,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} style={{ overflowY: 'auto' }}>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             
             {!isAdmin && (
@@ -115,7 +122,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             {/* Tên công ty */}
             <div className="input-group">
               <label className="input-label" style={{ fontWeight: 700 }}>
-                🏢 Tên Công Ty / Nhà Gom Đơn (*)
+                🏢 Tên Công Ty / Doanh Nghiệp (*)
               </label>
               <input
                 type="text"

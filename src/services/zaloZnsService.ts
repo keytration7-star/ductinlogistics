@@ -28,7 +28,7 @@ export class ZaloZnsService {
   static buildTemplateData(
     statement: ShopSettlementStatement,
     session: ReconciliationSession,
-    companyName: string = 'ĐỨC TÍN LOGISTICS'
+    companyName: string = ''
   ): Record<string, any> {
     const totalFee = statement.totalShopFee + statement.totalShopOtherFee;
     return {

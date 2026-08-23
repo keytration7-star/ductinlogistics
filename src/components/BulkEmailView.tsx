@@ -31,9 +31,7 @@ import { EmailService } from '../services/emailService';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storage';
 import { ZaloZnsService } from '../services/zaloZnsService';
-import { ZaloZnsConfigModal } from './ZaloZnsConfigModal';
 import { TelegramService } from '../services/telegramService';
-import { TelegramConfigModal } from './TelegramConfigModal';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
@@ -42,6 +40,7 @@ interface BulkEmailViewProps {
   activeCarrierId?: string;
   activeCarrierName?: string;
   initialChannel?: 'zalo' | 'email' | 'telegram';
+  onChannelChange?: (channel: 'zalo' | 'email' | 'telegram') => void;
 }
 
 const MOCK_DEMO_STATEMENT: ShopSettlementStatement = {
@@ -78,6 +77,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   activeCarrierId,
   activeCarrierName,
   initialChannel = 'email',
+  onChannelChange,
 }) => {
   const { showToast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
@@ -178,8 +178,15 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       setActiveChannel(initialChannel);
     }
   }, [initialChannel]);
+
+  React.useEffect(() => {
+    setZaloSettings(StorageService.getZaloZnsSettings());
+    setTelegramSettings(StorageService.getTelegramSettings());
+    setSettings(StorageService.getEmailSettings());
+    onChannelChange?.(activeChannel);
+  }, [activeChannel, onChannelChange]);
+
   const [zaloSettings, setZaloSettings] = useState<ZaloZnsSettings>(() => StorageService.getZaloZnsSettings());
-  const [isZaloConfigOpen, setIsZaloConfigOpen] = useState(false);
   const [isSendingZaloBatch, setIsSendingZaloBatch] = useState(false);
   const [zaloProgress, setZaloProgress] = useState<{ sent: number; total: number; success: number; failed: number }>({ sent: 0, total: 0, success: 0, failed: 0 });
   const [zaloStatuses, setZaloStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string; messageId?: string }>>({});
@@ -187,7 +194,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   // Telegram Bot State
   const [telegramSettings, setTelegramSettings] = useState<TelegramSettings>(() => StorageService.getTelegramSettings());
-  const [isTelegramConfigOpen, setIsTelegramConfigOpen] = useState(false);
   const [isSendingTelegramBatch, setIsSendingTelegramBatch] = useState(false);
   const [telegramProgress, setTelegramProgress] = useState<{ sent: number; total: number; success: number; failed: number }>({ sent: 0, total: 0, success: 0, failed: 0 });
   const [telegramStatuses, setTelegramStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string; messageId?: string | number }>>({});
@@ -530,16 +536,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const handleOpenZaloDirectChat = (phone: string, stmt: ShopSettlementStatement) => {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const memo = `Kính gửi ${stmt.shopName},\n${zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'} gửi bảng kê đối soát kỳ ${activeSession?.sessionName || ''}:\n- Tổng đơn: ${stmt.totalOrders} đơn\n- Thu hộ COD: ${new Intl.NumberFormat('vi-VN').format(stmt.totalCod)} đ\n- Tổng cước: ${new Intl.NumberFormat('vi-VN').format(stmt.totalShopFee + stmt.totalShopOtherFee)} đ\n- THỰC NHẬN: ${new Intl.NumberFormat('vi-VN').format(stmt.totalNetPayout)} đ\nSTK: ${stmt.bankInfo?.bankName || ''} - ${stmt.bankInfo?.accountNumber || ''} (${stmt.bankInfo?.accountHolder || ''})\nTrân trọng cảm ơn Quý Khách!`;
+    const companyName = zaloSettings.companyName?.trim() || StorageService.getCompanyInfo().companyName?.trim() || 'LOGISTICS';
+    const memo = `Kính gửi ${stmt.shopName},\n${companyName} gửi bảng kê đối soát kỳ ${activeSession?.sessionName || ''}:\n- Tổng đơn: ${stmt.totalOrders} đơn\n- Thu hộ COD: ${new Intl.NumberFormat('vi-VN').format(stmt.totalCod)} đ\n- Tổng cước: ${new Intl.NumberFormat('vi-VN').format(stmt.totalShopFee + stmt.totalShopOtherFee)} đ\n- THỰC NHẬN: ${new Intl.NumberFormat('vi-VN').format(stmt.totalNetPayout)} đ\nSTK: ${stmt.bankInfo?.bankName || ''} - ${stmt.bankInfo?.accountNumber || ''} (${stmt.bankInfo?.accountHolder || ''})\nTrân trọng cảm ơn Quý Khách!`;
     navigator.clipboard.writeText(memo);
     showToast(`Đã sao chép nội dung tóm tắt đối soát & mở Zalo chat với ${phone}`, 'success');
     window.open(`https://zalo.me/${cleanPhone}`, '_blank');
-  };
-
-  // Telegram Bot Handlers
-  const handleSaveTelegramSettings = (newSettings: TelegramSettings) => {
-    setTelegramSettings(newSettings);
-    StorageService.saveTelegramSettings(newSettings);
   };
 
   const handleSendSingleTelegram = async (stmt: ShopSettlementStatement) => {
@@ -721,16 +722,16 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
-      {/* 🌟 3 CHANNEL SELECTOR TABS: ZALO ZNS • TELEGRAM BOT • EMAIL */}
+      {/* Top Channel Switcher Navigation */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        background: '#ffffff',
-        padding: '8px 12px',
-        borderRadius: 16,
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        gap: 6,
+        background: 'var(--bg-card)',
+        padding: '6px',
+        borderRadius: 14,
+        border: '1.5px solid var(--border-color)',
+        boxShadow: 'var(--shadow-sm)',
       }}>
         {/* Tab 1: Zalo ZNS */}
         <button
@@ -742,27 +743,27 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            padding: '12px 16px',
-            borderRadius: 12,
+            padding: '9px 14px',
+            borderRadius: 10,
             border: activeChannel === 'zalo' ? '1.5px solid #0068ff' : '1px solid transparent',
             background: activeChannel === 'zalo' ? 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)' : '#f8fafc',
             color: activeChannel === 'zalo' ? '#ffffff' : '#334155',
             fontWeight: 800,
-            fontSize: 13.5,
+            fontSize: 12.5,
             cursor: 'pointer',
-            boxShadow: activeChannel === 'zalo' ? '0 4px 14px rgba(0, 104, 255, 0.3)' : 'none',
+            boxShadow: activeChannel === 'zalo' ? '0 4px 12px rgba(0, 104, 255, 0.25)' : 'none',
             transition: 'all 0.2s ease',
           }}
         >
-          <MessageSquare size={18} />
+          <MessageSquare size={16} />
           <span>💬 GỬI ZALO ZNS (OA)</span>
           <span style={{
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: 800,
             background: activeChannel === 'zalo' ? '#ffffff' : '#e0f2fe',
             color: activeChannel === 'zalo' ? '#0068ff' : '#0369a1',
-            padding: '2px 7px',
-            borderRadius: 10,
+            padding: '2px 6px',
+            borderRadius: 6,
             textTransform: 'uppercase',
           }}>
             Tích Xanh
@@ -779,27 +780,27 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            padding: '12px 16px',
-            borderRadius: 12,
+            padding: '9px 14px',
+            borderRadius: 10,
             border: activeChannel === 'telegram' ? '1.5px solid #0088cc' : '1px solid transparent',
             background: activeChannel === 'telegram' ? 'linear-gradient(135deg, #0088cc 0%, #006699 100%)' : '#f8fafc',
             color: activeChannel === 'telegram' ? '#ffffff' : '#334155',
             fontWeight: 800,
-            fontSize: 13.5,
+            fontSize: 12.5,
             cursor: 'pointer',
-            boxShadow: activeChannel === 'telegram' ? '0 4px 14px rgba(0, 136, 204, 0.3)' : 'none',
+            boxShadow: activeChannel === 'telegram' ? '0 4px 12px rgba(0, 136, 204, 0.25)' : 'none',
             transition: 'all 0.2s ease',
           }}
         >
-          <Send size={18} />
+          <Send size={16} />
           <span>✈️ GỬI TELEGRAM BOT</span>
           <span style={{
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: 800,
             background: activeChannel === 'telegram' ? '#ffffff' : '#e0f2fe',
             color: activeChannel === 'telegram' ? '#0088cc' : '#0369a1',
-            padding: '2px 7px',
-            borderRadius: 10,
+            padding: '2px 6px',
+            borderRadius: 6,
             textTransform: 'uppercase',
           }}>
             Bot API
@@ -816,19 +817,19 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            padding: '12px 16px',
-            borderRadius: 12,
-            border: activeChannel === 'email' ? '1.5px solid var(--primary)' : '1px solid transparent',
-            background: activeChannel === 'email' ? 'linear-gradient(135deg, var(--primary) 0%, #4338ca 100%)' : '#f8fafc',
+            padding: '9px 14px',
+            borderRadius: 10,
+            border: activeChannel === 'email' ? '1.5px solid #4f46e5' : '1px solid transparent',
+            background: activeChannel === 'email' ? 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' : '#f8fafc',
             color: activeChannel === 'email' ? '#ffffff' : '#334155',
             fontWeight: 800,
-            fontSize: 13.5,
+            fontSize: 12.5,
             cursor: 'pointer',
-            boxShadow: activeChannel === 'email' ? '0 4px 14px rgba(79, 70, 229, 0.3)' : 'none',
+            boxShadow: activeChannel === 'email' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
             transition: 'all 0.2s ease',
           }}
         >
-          <Mail size={18} />
+          <Mail size={16} />
           <span>✉️ GỬI EMAIL ĐỐI SOÁT</span>
           <span style={{
             fontSize: 10,
@@ -847,35 +848,50 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       {/* ======================= TAB 1: ZALO ZNS DOANH NGHIỆP ======================= */}
       {activeChannel === 'zalo' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Top Toolbar */}
+          {/* 🌟 Top Toolbar Frosted Porcelain */}
           <div style={{
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
+            borderRadius: 16,
+            padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 16,
-            background: '#ffffff',
-            padding: '18px 24px',
-            borderRadius: 16,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 4px 15px -3px rgba(0,0,0,0.04)',
+            gap: 12,
+            boxShadow: 'var(--shadow-sm)',
           }}>
-            <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: 'var(--text-main)' }}>
-                <MessageSquare size={24} color="#0068ff" />
-                Gửi Thông Báo Đối Soát Qua Zalo ZNS (Tích Xanh Doanh Nghiệp)
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Gửi tin nhắn thông báo đối soát trực tiếp đến Số Điện Thoại của khách hàng qua Zalo Notification Service.
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 10px rgba(0, 104, 255, 0.3)',
+                flexShrink: 0,
+              }}>
+                <MessageSquare size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
+                  Gửi Thông Báo Đối Soát Qua Zalo ZNS (Tích Xanh Doanh Nghiệp)
+                </h2>
+                <p style={{ fontSize: 11.5, color: 'var(--text-dim)', margin: '2px 0 0 0' }}>
+                  Gửi tin nhắn thông báo đối soát trực tiếp đến Số Điện Thoại của khách hàng qua Zalo Notification Service.
+                </p>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {/* Session Selector */}
               {displaySessions.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1' }}>
-                  <Layers size={16} color="#0068ff" />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-tertiary)', padding: '4px 10px', borderRadius: 8, border: '1.5px solid var(--border-color)' }}>
+                  <Layers size={14} color="#0068ff" />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)' }}>Kỳ:</span>
                   <select
                     value={selectedSessionId}
                     onChange={(e) => {
@@ -889,12 +905,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                       fontSize: 12,
                       fontWeight: 800,
                       color: '#0068ff',
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 6,
-                      padding: '4px 8px',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
                       cursor: 'pointer',
-                      maxWidth: 260,
+                      maxWidth: 240,
                     }}
                   >
                     {displaySessions.map((ses, idx) => (
@@ -906,59 +921,33 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 </div>
               )}
 
-              {/* Mode Indicator */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 10,
-                background: zaloSettings.isTestMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                border: `1px solid ${zaloSettings.isTestMode ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
-                fontSize: 12,
-                fontWeight: 700,
-                color: zaloSettings.isTestMode ? '#b45309' : '#047857',
-              }}>
-                {zaloSettings.isTestMode ? <Zap size={15} /> : <ShieldCheck size={15} />}
-                <span>{zaloSettings.isTestMode ? '⚡ Chế độ Thử Nghiệm / Demo' : '🟢 Zalo OA Live Production'}</span>
-              </div>
-
-              {/* Zalo Config Button */}
-              <button
-                type="button"
-                onClick={() => setIsZaloConfigOpen(true)}
-                className="btn btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', fontWeight: 700 }}
-              >
-                <SettingsIcon size={16} />
-                <span>Cấu Hình Zalo ZNS</span>
-              </button>
-
               {/* Send Zalo Bulk Button */}
               <button
                 type="button"
                 onClick={handleStartZaloBatchSend}
                 disabled={isSendingZaloBatch || hasUnmatchedOrders || statements.length === 0}
-                className="btn btn-primary"
+                className="btn btn-primary btn-sm"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 18px',
+                  gap: 6,
+                  padding: '6px 16px',
                   fontWeight: 800,
+                  fontSize: 12.5,
                   background: 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)',
                   borderColor: '#0068ff',
+                  boxShadow: '0 2px 10px rgba(0, 104, 255, 0.25)',
                 }}
               >
                 {isSendingZaloBatch ? (
                   <>
-                    <RotateCcw size={16} className="animate-spin" />
-                    <span>Đang gửi ZNS ({zaloProgress.sent}/{zaloProgress.total})...</span>
+                    <RotateCcw size={14} className="animate-spin" />
+                    <span>Đang gửi ({zaloProgress.sent}/{zaloProgress.total})...</span>
                   </>
                 ) : (
                   <>
-                    <Send size={16} />
-                    <span>GỬI ZALO ZNS TẤT CẢ {statements.length > 0 ? `(${statements.length} SHOP)` : 'HÀNG LOẠT'}</span>
+                    <Send size={14} />
+                    <span>GỬI ZALO ZNS {statements.length > 0 ? `(${statements.length} SHOP)` : 'HÀNG LOẠT'}</span>
                   </>
                 )}
               </button>
@@ -1009,7 +998,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             alignItems: 'start',
           }}>
             {/* Left Column: Shop Table */}
-            <div className="glass-panel" style={{ padding: 20, borderRadius: 16, background: '#ffffff' }}>
+            <div className="glass-panel" style={{ padding: 20, borderRadius: 16, background: 'var(--bg-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
@@ -1033,41 +1022,40 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 </div>
               </div>
 
-              <div style={{ maxHeight: 520, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--border-color)' }}>
-                <table className="data-table" style={{ margin: 0 }}>
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-tertiary)' }}>
+              <div className="table-responsive" style={{ maxHeight: 440, overflowY: 'auto' }}>
+                <table className="data-table" style={{ fontSize: 12 }}>
+                  <thead>
                     <tr>
-                      <th>STT</th>
-                      <th>Tên Shop & Mã</th>
-                      <th>SĐT Zalo</th>
-                      <th style={{ textAlign: 'right' }}>Thực Nhận</th>
-                      <th style={{ textAlign: 'center' }}>Trạng Thái ZNS</th>
-                      <th style={{ textAlign: 'right' }}>Hành Động</th>
+                      <th style={{ width: 45 }}>STT</th>
+                      <th>SHOP NHẬN TIN</th>
+                      <th>SỐ ĐIỆN THOẠI ZALO</th>
+                      <th style={{ textAlign: 'right' }}>THỰC NHẬN</th>
+                      <th style={{ textAlign: 'center', width: 90 }}>TRẠNG THÁI</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredZaloStatements.map((stmt, idx) => {
+                      const status = zaloDeliveryStatuses[stmt.shopId] || 'IDLE';
                       const isSelected = selectedShopId === stmt.shopId;
-                      const statusObj = zaloStatuses[stmt.shopId];
+                      const hasPhone = Boolean(stmt.shopPhone && stmt.shopPhone.trim());
                       return (
                         <tr 
-                          key={stmt.shopId}
+                          key={stmt.shopId} 
                           onClick={() => setSelectedShopId(stmt.shopId)}
-                          style={{
-                            background: isSelected ? 'rgba(0, 104, 255, 0.05)' : undefined,
-                            cursor: 'pointer',
+                          style={{ 
+                            cursor: 'pointer', 
+                            background: isSelected ? 'rgba(0, 104, 255, 0.08)' : 'transparent',
+                            borderLeft: isSelected ? '3px solid #0068ff' : '3px solid transparent',
                           }}
                         >
-                          <td>{idx + 1}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-dim)' }}>{idx + 1}</td>
                           <td>
-                            <div>
-                              <strong style={{ fontSize: 13, color: isSelected ? '#0068ff' : undefined }}>{stmt.shopName}</strong>
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode}</div>
-                            </div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{stmt.shopName}</div>
+                            <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>{stmt.shopCode}</div>
                           </td>
                           <td>
-                            {stmt.shopPhone ? (
-                              <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{stmt.shopPhone}</span>
+                            {hasPhone ? (
+                              <span className="mono" style={{ fontWeight: 600, color: 'var(--text-main)' }}>{stmt.shopPhone}</span>
                             ) : (
                               <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Thiếu SĐT</span>
                             )}
@@ -1184,18 +1172,18 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   height: 38,
                   borderRadius: '50%',
                   background: '#0068ff',
-                  color: '#fff',
+                  color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 800,
                   fontSize: 14,
                 }}>
-                  {zaloSettings.companyName ? zaloSettings.companyName.charAt(0) : 'D'}
+                  {(zaloSettings.companyName || StorageService.getCompanyInfo().companyName || 'L').charAt(0).toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <strong style={{ fontSize: 13, color: '#0f172a' }}>{zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'}</strong>
+                    <strong style={{ fontSize: 13, color: '#0f172a' }}>{zaloSettings.companyName || StorageService.getCompanyInfo().companyName || 'CÔNG TY LOGISTICS'}</strong>
                     <span style={{ color: '#0068ff', fontSize: 13 }}>✓</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#64748b' }}>Zalo Official Account</div>
@@ -1287,7 +1275,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 </div>
 
                 <div style={{ fontSize: 10.5, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4 }}>
-                  Tin nhắn tự động từ {zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'}. Vui lòng liên hệ kế toán nếu có thắc mắc.
+                  Tin nhắn tự động từ {zaloSettings.companyName || StorageService.getCompanyInfo().companyName || 'CÔNG TY LOGISTICS'}. Vui lòng liên hệ kế toán nếu có thắc mắc.
                 </div>
               </div>
             </div>
@@ -1299,35 +1287,50 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       {/* ======================= TAB 2: TELEGRAM BOT ĐỐI SOÁT ======================= */}
       {activeChannel === "telegram" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Top Toolbar */}
+          {/* 🌟 Top Toolbar Frosted Porcelain */}
           <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 16,
-            background: "#ffffff",
-            padding: "18px 24px",
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border-color)',
             borderRadius: 16,
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 4px 15px -3px rgba(0,0,0,0.04)",
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            boxShadow: 'var(--shadow-sm)',
           }}>
-            <div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, display: "flex", alignItems: "center", gap: 10, margin: 0, color: "var(--text-main)" }}>
-                <Send size={24} color="#0088cc" />
-                Gửi Báo Cáo Đối Soát Qua Telegram Bot
-              </h2>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0 0" }}>
-                Tự động gửi bảng kê COD, cước phí và đính kèm file Excel vào Nhóm, Kênh hoặc Chat riêng của từng Shop.
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #0088cc 0%, #006699 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 10px rgba(0, 136, 204, 0.3)',
+                flexShrink: 0,
+              }}>
+                <Send size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
+                  Gửi Thông Báo Đối Soát Qua Telegram Bot
+                </h2>
+                <p style={{ fontSize: 11.5, color: 'var(--text-dim)', margin: '2px 0 0 0' }}>
+                  Gửi tin nhắn thông báo đối soát trực tiếp vào Nhóm / Kênh / Chat ID của từng Shop qua Telegram Bot API.
+                </p>
+              </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {/* Session Selector */}
               {displaySessions.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", padding: "6px 12px", borderRadius: 10, border: "1.5px solid #cbd5e1" }}>
-                  <Layers size={16} color="#0088cc" />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>Kỳ:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ffffff', padding: '4px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1' }}>
+                  <Layers size={14} color="#0088cc" />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
                   <select
                     value={selectedSessionId}
                     onChange={(e) => {
@@ -1340,66 +1343,39 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                     style={{
                       fontSize: 12,
                       fontWeight: 800,
-                      color: "#0088cc",
-                      background: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: 6,
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                      maxWidth: 260,
+                      color: '#0088cc',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      maxWidth: 240,
                     }}
                   >
                     {displaySessions.map((ses, idx) => (
                       <option key={ses.id || idx} value={ses.id}>
-                        {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop • {ses.carrierName || "NVC"})
+                        {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop • {ses.carrierName || 'NVC'})
                       </option>
                     ))}
                   </select>
                 </div>
               )}
 
-              {/* Mode Indicator */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 10,
-                background: telegramSettings.isSandbox ? "rgba(245, 158, 11, 0.1)" : "rgba(16, 185, 129, 0.1)",
-                border: `1px solid ${telegramSettings.isSandbox ? "rgba(245, 158, 11, 0.3)" : "rgba(16, 185, 129, 0.3)"}`,
-                fontSize: 12,
-                fontWeight: 700,
-                color: telegramSettings.isSandbox ? "#b45309" : "#047857",
-              }}>
-                {telegramSettings.isSandbox ? <Zap size={15} /> : <ShieldCheck size={15} />}
-                <span>{telegramSettings.isSandbox ? "⚡ Demo / Thử Nghiệm Sandbox" : "🟢 Telegram Bot Live Production"}</span>
-              </div>
-
-              {/* Telegram Config Button */}
-              <button
-                type="button"
-                onClick={() => setIsTelegramConfigOpen(true)}
-                className="btn btn-secondary"
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", fontWeight: 700 }}
-              >
-                <SettingsIcon size={16} />
-                <span>Cấu Hình Telegram Bot</span>
-              </button>
-
               {/* Send Telegram Bulk Button */}
               <button
                 type="button"
                 onClick={handleStartTelegramBatchSend}
                 disabled={isSendingTelegramBatch || hasUnmatchedOrders || statements.length === 0}
-                className="btn btn-primary"
+                className="btn btn-primary btn-sm"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 18px",
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 16px',
                   fontWeight: 800,
-                  background: "linear-gradient(135deg, #0088cc 0%, #006699 100%)",
-                  borderColor: "#0088cc",
+                  fontSize: 12.5,
+                  background: 'linear-gradient(135deg, #0088cc 0%, #006699 100%)',
+                  borderColor: '#0088cc',
+                  boxShadow: '0 2px 10px rgba(0, 136, 204, 0.25)',
                 }}
               >
                 {isSendingTelegramBatch ? (
@@ -1799,38 +1775,53 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
       {/* ======================= TAB 2: EMAIL HÀNG LOẠT ======================= */}
       {activeChannel === 'email' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Top Header & Action Controls Bar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 🌟 1. Top Header & Action Controls Bar */}
       <div style={{
+        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 250, 255, 0.95) 100%)',
+        border: '1.5px solid #dbe6f2',
+        borderRadius: 16,
+        padding: '12px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 16,
-        background: '#ffffff',
-        padding: '18px 24px',
-        borderRadius: 16,
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 4px 15px -3px rgba(0,0,0,0.04)',
+        gap: 12,
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 22px -4px rgba(15, 23, 42, 0.05)',
       }}>
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: 'var(--text-main)' }}>
-            <Mail size={24} color="var(--primary)" />
-            Gửi Email Đối Soát & Bảng Kê Tự Động Cho Từng Shop
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-            Hệ thống cá nhân hóa nội dung email (Tên Shop, tiền COD, tiền thực nhận, STK) và tự động đính kèm file Excel bảng kê chi tiết.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 10px rgba(79, 70, 229, 0.3)',
+            flexShrink: 0,
+          }}>
+            <Mail size={20} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
+              Gửi Email Đối Soát & Bảng Kê Tự Động Cho Từng Shop
+            </h2>
+            <p style={{ fontSize: 11.5, color: 'var(--text-dim)', margin: '2px 0 0' }}>
+              Cá nhân hóa nội dung email (Tên Shop, tiền COD, thực nhận, STK) và tự động đính kèm file Excel bảng kê chi tiết.
+            </p>
+          </div>
         </div>
 
         {/* Action Controls & Settings */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           
           {/* Session Selector */}
           {displaySessions.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1' }}>
-              <Layers size={16} color="var(--primary)" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ffffff', padding: '4px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1' }}>
+              <Layers size={14} color="var(--primary)" />
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
               <select
                 value={selectedSessionId}
                 onChange={(e) => {
@@ -1844,12 +1835,11 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   fontSize: 12,
                   fontWeight: 800,
                   color: 'var(--primary)',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  padding: '4px 8px',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
                   cursor: 'pointer',
-                  maxWidth: 260,
+                  maxWidth: 240,
                 }}
               >
                 {displaySessions.map((ses, idx) => (
@@ -1862,9 +1852,9 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
           )}
 
           {/* Send Interval / Rate Limit Control */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1px solid #cbd5e1' }}>
-            <Timer size={16} color="var(--primary)" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Giãn cách gửi:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ffffff', padding: '4px 10px', borderRadius: 8, border: '1.5px solid #cbd5e1' }}>
+            <Timer size={14} color="var(--primary)" />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#475569' }}>Giãn cách:</span>
             <select
               value={sendIntervalSec}
               onChange={(e) => setSendIntervalSec(Number(e.target.value))}
@@ -1872,10 +1862,9 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 fontSize: 12,
                 fontWeight: 700,
                 color: 'var(--primary)',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: 6,
-                padding: '3px 8px',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
                 cursor: 'pointer',
               }}
               title="Khoảng thời gian nghỉ giữa mỗi lượt gửi để chống bị Gmail khóa rate limit"
@@ -1883,7 +1872,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               <option value={1}>1 giây / mail</option>
               <option value={2}>2 giây / mail (Khuyên dùng)</option>
               <option value={3}>3 giây / mail</option>
-              <option value={5}>5 giây / mail (An toàn nhất)</option>
+              <option value={5}>5 giây / mail (An toàn)</option>
               <option value={10}>10 giây / mail</option>
             </select>
           </div>
@@ -1893,29 +1882,38 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             type="button"
             onClick={() => setIsScheduleModalOpen(true)}
             disabled={hasUnmatchedOrders || statements.length === 0}
-            className={`btn ${scheduledTargetTime ? 'btn-warning' : 'btn-secondary'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', fontWeight: 700 }}
+            className={`btn ${scheduledTargetTime ? 'btn-warning' : 'btn-secondary'} btn-sm`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontWeight: 700, fontSize: 12 }}
             title="Hẹn giờ để hệ thống tự động gửi email"
           >
-            <Clock size={16} />
-            <span>{scheduledTargetTime ? '⏰ Đang Hẹn Giờ' : 'Hẹn Giờ Gửi Tự Động'}</span>
+            <Clock size={14} />
+            <span>{scheduledTargetTime ? '⏰ Đang Hẹn Giờ' : 'Hẹn Giờ Gửi'}</span>
           </button>
 
           {/* Send Immediately Button */}
           <button
             onClick={handleStartBatchSend}
             disabled={isSendingBatch || hasUnmatchedOrders || statements.length === 0}
-            className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 18px', fontWeight: 800 }}
+            className="btn btn-primary btn-sm"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 16px',
+              fontWeight: 800,
+              fontSize: 12.5,
+              background: 'var(--brand-gradient)',
+              boxShadow: '0 2px 10px rgba(79, 70, 229, 0.25)',
+            }}
           >
             {isSendingBatch ? (
               <>
-                <RotateCcw size={16} className="animate-spin" />
+                <RotateCcw size={14} className="animate-spin" />
                 <span>Đang gửi ({sendProgress.sent}/{sendProgress.total})...</span>
               </>
             ) : (
               <>
-                <Send size={16} />
+                <Send size={14} />
                 <span>GỬI EMAIL {statements.length > 0 ? `TẤT CẢ ${statements.length} SHOP` : 'HÀNG LOẠT'}</span>
               </>
             )}
@@ -1926,25 +1924,37 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       {/* SENDER EMAIL MISSING ALERT BANNER */}
       {(!settings.senderEmail || !settings.emailPassword) && (
         <div style={{
-          background: 'rgba(239, 68, 68, 0.08)',
-          border: '1px solid var(--danger)',
-          borderRadius: 'var(--radius-md)',
-          padding: '12px 16px',
+          background: 'linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%)',
+          border: '1.5px solid #fecaca',
+          borderRadius: 12,
+          padding: '8px 14px',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          color: 'var(--danger)',
-          fontSize: 13,
+          color: '#b91c1c',
+          fontSize: 12.5,
           fontWeight: 700,
+          boxShadow: '0 2px 6px rgba(239, 68, 68, 0.04)',
         }}>
-          <AlertCircle size={20} style={{ flexShrink: 0 }} />
-          <span>Chưa cài đặt Gmail người gửi! Vui lòng mở menu Cài Đặt ⚙️ ở góc màn hình để thiết lập Gmail & Mật khẩu ứng dụng 16 ký tự.</span>
+          <AlertCircle size={17} style={{ flexShrink: 0, color: '#dc2626' }} />
+          <span>Chưa cài đặt Gmail người gửi! Vui lòng mở menu <strong>Cài Đặt ⚙️</strong> ở góc màn hình để thiết lập Gmail & Mật khẩu ứng dụng 16 ký tự.</span>
         </div>
       )}
 
       {hasUnmatchedOrders && (
-        <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--danger)', fontSize: 13, fontWeight: 700 }}>
-          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+        <div style={{
+          background: 'linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%)',
+          border: '1.5px solid #fecaca',
+          borderRadius: 12,
+          padding: '8px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          color: '#b91c1c',
+          fontSize: 12.5,
+          fontWeight: 700,
+        }}>
+          <AlertCircle size={17} style={{ flexShrink: 0 }} />
           <span>Kỳ này còn {activeSession?.unmatchedOrdersCount} đơn chưa khớp. Email, file Excel và lịch hẹn gửi bị khóa cho đến khi đối soát hoàn tất.</span>
         </div>
       )}
@@ -1952,68 +1962,68 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       {/* ACTIVE SCHEDULE COUNTDOWN BANNER */}
       {scheduledTargetTime && (
         <div style={{
-          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(79, 70, 229, 0.12) 100%)',
-          border: '2px solid var(--warning)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '16px 24px',
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)',
+          border: '1.5px solid #f59e0b',
+          borderRadius: 12,
+          padding: '12px 18px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: 16,
-          boxShadow: 'var(--shadow-md)',
+          gap: 12,
+          boxShadow: '0 4px 14px rgba(245, 158, 11, 0.1)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: 'var(--warning)',
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: '#f59e0b',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}>
-              <Clock size={24} />
+              <Clock size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)' }}>
                 ĐÃ BẬT HẸN GIỜ GỬI TỰ ĐỘNG CHO {statements.length} SHOP
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                Sẽ tự động gửi vào lúc: <strong style={{ color: 'var(--primary)' }}>{scheduledTargetTime.toLocaleTimeString('vi-VN')} ({scheduledTargetTime.toLocaleDateString('vi-VN')})</strong>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                Sẽ tự động gửi vào: <strong style={{ color: 'var(--primary)' }}>{scheduledTargetTime.toLocaleTimeString('vi-VN')} ({scheduledTargetTime.toLocaleDateString('vi-VN')})</strong>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
                 Thời gian còn lại:
               </div>
-              <div className="mono" style={{ fontSize: 24, fontWeight: 900, color: 'var(--warning)' }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 900, color: 'var(--warning-color)' }}>
                 {timeRemainingStr || '00:00:00'}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={handleStartBatchSend}
                 disabled={hasUnmatchedOrders}
                 className="btn btn-primary btn-sm"
-                style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700 }}
+                style={{ padding: '6px 12px', fontSize: 11.5, fontWeight: 700 }}
               >
-                <Play size={14} />
-                <span>Gửi Luôn Bây Giờ</span>
+                <Play size={13} />
+                <span>Gửi Ngay</span>
               </button>
 
               <button
                 onClick={handleCancelSchedule}
                 className="btn btn-secondary btn-sm"
-                style={{ padding: '8px 12px', fontSize: 12, color: 'var(--danger)' }}
+                style={{ padding: '6px 10px', fontSize: 11.5, color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
               >
-                <X size={14} />
+                <X size={13} />
                 <span>Hủy Hẹn Giờ</span>
               </button>
             </div>
@@ -2025,22 +2035,21 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-        gap: 20,
+        gap: 14,
       }}>
         {/* 1. Template Config */}
-        <div className="glass-panel" style={{
-          padding: 24,
-          background: 'linear-gradient(180deg, rgba(79, 70, 229, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
-          border: '1.5px solid rgba(79, 70, 229, 0.25)',
-          borderRadius: 16,
-          boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+        <div style={{
+          padding: 16,
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border-color)',
+          borderRadius: 14,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--primary)', margin: 0 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--primary)', margin: 0 }}>
                 1. Cấu Hình Mẫu Email Đối Soát {activeCarrierName ? `Cho ${activeCarrierName}` : ''}
               </h3>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2 }}>
                 {activeCarrierName 
                   ? `Mẫu email đối soát tùy biến riêng cho các đơn hàng của hãng ${activeCarrierName}.`
                   : 'Tùy biến nội dung email gửi cho khách hàng.'}
@@ -2048,12 +2057,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </div>
             {activeCarrierName && (
               <span style={{
-                fontSize: 11,
-                background: 'rgba(79, 70, 229, 0.1)',
+                fontSize: 10.5,
+                background: 'var(--bg-secondary)',
                 color: 'var(--primary)',
-                padding: '3px 10px',
-                borderRadius: 20,
-                fontWeight: 700,
+                border: '1px solid var(--border-color)',
+                padding: '2px 8px',
+                borderRadius: 6,
+                fontWeight: 800,
               }}>
                 🚚 Mẫu Riêng: {activeCarrierName}
               </span>
@@ -2062,7 +2072,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
           {/* Carrier Template Tabs */}
           {!activeCarrierId && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, background: '#f8fafc', padding: 6, borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12, background: 'var(--bg-secondary)', padding: 4, borderRadius: 8 }}>
               {CARRIER_TABS.map(tab => {
                 const isSelected = selectedCarrierTab === tab.id;
                 return (
@@ -2072,13 +2082,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                     onClick={() => setSelectedCarrierTab(tab.id)}
                     className="btn btn-sm"
                     style={{
-                      padding: '5px 10px',
+                      padding: '4px 8px',
                       fontSize: 11,
                       fontWeight: isSelected ? 800 : 600,
-                      background: isSelected ? 'var(--primary)' : '#ffffff',
-                      color: isSelected ? '#ffffff' : '#334155',
-                      border: isSelected ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
-                      boxShadow: isSelected ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+                      background: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                      color: isSelected ? '#ffffff' : 'var(--text-main)',
+                      border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                      borderRadius: 6,
                       transition: 'all 0.15s ease',
                     }}
                   >
@@ -2089,8 +2099,8 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </div>
           )}
 
-          <div className="input-group">
-            <label className="input-label">
+          <div className="input-group" style={{ marginBottom: 10 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>
               Tiêu đề Email {activeCarrierName ? `(${activeCarrierName})` : `(${CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})`}
             </label>
             <input
@@ -2098,14 +2108,15 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               value={activeSubject}
               onChange={(e) => handleUpdateActiveSubject(e.target.value)}
               className="input-field"
+              style={{ padding: '6px 10px', fontSize: 12.5 }}
             />
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label className="input-label" style={{ marginBottom: 8, display: 'block', fontWeight: 700, color: '#1e293b' }}>
+          <div style={{ marginBottom: 10 }}>
+            <label className="input-label" style={{ marginBottom: 6, display: 'block', fontWeight: 700, fontSize: 11, color: 'var(--text-main)' }}>
               Chèn biến động nhanh:
             </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {[
                 { tag: '{TEN_SHOP}', label: 'Tên Shop', bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' },
                 { tag: '{KY_DOI_SOAT}', label: 'Kỳ Đối Soát', bg: '#f3e8ff', color: '#7e22ce', border: '#e9d5ff' },
@@ -2123,13 +2134,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   onClick={() => handleInsertVariable(item.tag)}
                   className="btn btn-sm"
                   style={{
-                    fontSize: 11,
-                    padding: '4px 9px',
+                    fontSize: 10.5,
+                    padding: '3px 7px',
                     fontWeight: 700,
                     background: item.bg,
                     color: item.color,
                     border: `1px solid ${item.border}`,
-                    borderRadius: 8,
+                    borderRadius: 6,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease-in-out',
                   }}
@@ -2140,19 +2151,19 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </div>
           </div>
 
-          <div className="input-group">
-            <label className="input-label">Nội dung Email ({CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})</label>
+          <div className="input-group" style={{ marginBottom: 10 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>Nội dung Email ({CARRIER_TABS.find(t => t.id === selectedCarrierTab)?.label})</label>
             <textarea
-              rows={11}
+              rows={9}
               value={activeBody}
               onChange={(e) => handleUpdateActiveBody(e.target.value)}
               className="textarea-field"
-              style={{ fontSize: 13, lineHeight: 1.6 }}
+              style={{ fontSize: 12.5, lineHeight: 1.5, padding: '8px 10px' }}
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button onClick={handleSaveSettings} className="btn btn-primary btn-sm" style={{ padding: '7px 14px', fontWeight: 700 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={handleSaveSettings} className="btn btn-primary btn-sm" style={{ padding: '5px 12px', fontSize: 11.5, fontWeight: 700 }}>
               💾 Lưu Mẫu Email Này
             </button>
           </div>
@@ -2162,46 +2173,46 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         <div 
           ref={previewRef}
           id="email-preview-panel"
-          className="glass-panel" 
           style={{
-            padding: 24,
-            background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 1) 100%)',
-            border: '1.5px solid rgba(16, 185, 129, 0.25)',
-            borderRadius: 16,
-            boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.03)',
+            padding: 16,
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--success-border)',
+            borderRadius: 14,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {/* Preview Header & Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Eye size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#047857', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Eye size={16} />
                 2. Xem Trước Email (Bản Shop Nhận)
               </h3>
               
               {isMockPreview && (
                 <span style={{
-                  fontSize: 11,
+                  fontSize: 10.5,
                   background: 'rgba(245, 158, 11, 0.12)',
                   color: '#b45309',
                   border: '1px solid #fde68a',
-                  padding: '2px 8px',
-                  borderRadius: 12,
+                  padding: '1px 6px',
+                  borderRadius: 6,
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 3,
                 }}>
-                  <Sparkles size={12} /> Mẫu Minh Họa Trực Quan
+                  <Sparkles size={11} /> Mẫu Minh Họa
                 </span>
               )}
 
-              <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', padding: 2 }}>
+              <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 6, padding: 2 }}>
                 <button
                   type="button"
                   onClick={() => setPreviewMode('html')}
                   className={`btn btn-sm ${previewMode === 'html' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 8px', fontSize: 11 }}
+                  style={{ padding: '2px 7px', fontSize: 10.5, borderRadius: 4 }}
                 >
                   ✨ Giao Diện Logistics
                 </button>
@@ -2209,7 +2220,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   type="button"
                   onClick={() => setPreviewMode('text')}
                   className={`btn btn-sm ${previewMode === 'text' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ padding: '3px 8px', fontSize: 11 }}
+                  style={{ padding: '2px 7px', fontSize: 10.5, borderRadius: 4 }}
                 >
                   📝 Văn Bản Thuần
                 </button>
@@ -2744,25 +2755,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
       {/* Close Email Tab Container */}
       </div>
-      )}
-
-      
-      {/* Telegram Bot Configuration Modal */}
-      {isTelegramConfigOpen && (
-        <TelegramConfigModal
-          settings={telegramSettings}
-          onSave={handleSaveTelegramSettings}
-          onClose={() => setIsTelegramConfigOpen(false)}
-        />
-      )}
-
-      {/* Zalo ZNS Configuration Modal */}
-      {isZaloConfigOpen && (
-        <ZaloZnsConfigModal
-          settings={zaloSettings}
-          onSave={handleSaveZaloSettings}
-          onClose={() => setIsZaloConfigOpen(false)}
-        />
       )}
 
     </div>

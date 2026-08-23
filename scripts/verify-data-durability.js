@@ -36,6 +36,8 @@ const dbFiles = [
   'users.json',
   'company_info.json',
   'email_settings.json',
+  'zalo_settings.json',
+  'telegram_settings.json',
   'export_columns.json',
   'carrier_data.json',
   'payments.json',

@@ -5,32 +5,34 @@ import {
   FileSpreadsheet, ArrowRight, Smartphone,
   Filter, CheckCircle2, Info, Monitor, Lock, Users,
   Settings, Eye, EyeOff, Server, HelpCircle, ExternalLink,
-  Send, ShieldCheck as ShieldOk
+  Send, ShieldCheck as ShieldOk, MessageSquare,
+  Zap, Bot, RotateCcw, Database, Download, Upload,
+  RefreshCcw, FolderArchive, Trash2, AlertTriangle
 } from 'lucide-react';
-import type { CompanyInfo, EmailSettings } from '../types';
+import type { CompanyInfo, EmailSettings, ZaloZnsSettings, TelegramSettings, UserAccount } from '../types';
 import { StorageService } from '../services/storage';
 import { EmailService } from '../services/emailService';
+import { TelegramService } from '../services/telegramService';
 import { UserManagementView } from './UserManagementView';
-import { useToast } from './UIFeedback';
-import type { UserAccount } from '../types';
+import { useToast, useConfirm } from './UIFeedback';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  theme: 'dark' | 'light';
-  setTheme: (t: 'dark' | 'light') => void;
+  theme?: 'dark' | 'light';
+  setTheme?: (t: 'dark' | 'light') => void;
   userRole?: string;
   currentUser?: UserAccount;
   onSaved?: () => void;
   onNavigateTo?: (tab: string) => void;
 }
 
-type SettingsTab = 'company' | 'ui' | 'email' | 'security' | 'accounts' | 'guide';
+type SettingsTab = 'company' | 'notifications' | 'backup' | 'security' | 'accounts' | 'guide';
 
 const BASE_TABS: { id: SettingsTab; icon: React.ReactNode; label: string }[] = [
   { id: 'company', icon: <Building2 size={15} />, label: 'Công Ty' },
-  { id: 'ui', icon: <Palette size={15} />, label: 'Giao Diện' },
-  { id: 'email', icon: <Mail size={15} />, label: 'Cài Đặt Mail' },
+  { id: 'notifications', icon: <Send size={15} />, label: 'Gửi Thông Báo' },
+  { id: 'backup', icon: <Database size={15} />, label: 'Sao Lưu Dữ Liệu' }, // ADMIN only
   { id: 'security', icon: <ShieldCheck size={15} />, label: 'Bảo Mật' },
   { id: 'accounts', icon: <Users size={15} />, label: 'Tài Khoản' }, // ADMIN only
   { id: 'guide', icon: <BookOpen size={15} />, label: 'Hướng Dẫn' },
@@ -76,12 +78,12 @@ const TabCompany: React.FC<{ onSaved?: () => void; isAdmin: boolean }> = ({ onSa
           <Building2 size={22} color="#fff" />
         </div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)' }}>Thông Tin Công Ty / Nhà Gom Đơn</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)' }}>Thông Tin Công Ty / Doanh Nghiệp</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Hiển thị trên Email gửi khách & báo cáo đối soát</div>
         </div>
       </div>
 
-      {field('Tên Công Ty / Nhà Gom Đơn (*)', 'companyName', 'VD: Đức Tín Logistics', <Building2 size={13} />)}
+      {field('Tên Công Ty / Doanh Nghiệp (*)', 'companyName', 'VD: Công Ty Logistics & Đối Soát Vận Chuyển', <Building2 size={13} />)}
       {field('Địa Chỉ Trụ Sở', 'address', 'Số nhà, Đường, Quận, Tỉnh/TP', <Filter size={13} />)}
       {field('Số Điện Thoại / Hotline', 'phone', '0988 xxx xxx', <Smartphone size={13} />)}
       {field('Mã Số Thuế', 'taxCode', '0101234567', <FileSpreadsheet size={13} />)}
@@ -159,157 +161,750 @@ const TabUI: React.FC<{ theme: 'dark' | 'light'; setTheme: (t: 'dark' | 'light')
   </div>
 );
 
-/* ─────────────── TAB: EMAIL (Full Config) ─────────────── */
-const TabEmail: React.FC = () => {
+/* ─────────────── TAB: THÔNG BÁO ĐA KÊNH (EMAIL • ZALO • TELEGRAM) ─────────────── */
+const TabNotifications: React.FC = () => {
   const { showToast } = useToast();
-  const [form, setForm] = useState<EmailSettings>(() => ({
-    ...StorageService.getEmailSettings(),
-  }));
-  const [showPwd, setShowPwd] = useState(false);
-  const [testEmail, setTestEmail] = useState('');
-  const [testStatus, setTestStatus] = useState<{ type: 'success' | 'error' | 'sending'; msg: string } | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [channel, setChannel] = useState<'email' | 'zalo' | 'telegram'>('email');
 
-  const handleSave = (e: React.FormEvent) => {
+  /* 1. Email State */
+  const [emailForm, setEmailForm] = useState<EmailSettings>(() => StorageService.getEmailSettings());
+  const [showEmailPwd, setShowEmailPwd] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testEmailStatus, setTestEmailStatus] = useState<{ type: 'success' | 'error' | 'sending'; msg: string } | null>(null);
+  const [emailSaved, setEmailSaved] = useState(false);
+
+  /* 2. Zalo ZNS State */
+  const [zaloForm, setZaloForm] = useState<ZaloZnsSettings>(() => StorageService.getZaloZnsSettings());
+  const [zaloSaved, setZaloSaved] = useState(false);
+
+  /* 3. Telegram State */
+  const [telegramForm, setTelegramForm] = useState<TelegramSettings>(() => StorageService.getTelegramSettings());
+  const [isCheckingBot, setIsCheckingBot] = useState(false);
+  const [isTestingPing, setIsTestingPing] = useState(false);
+  const [telegramSaved, setTelegramSaved] = useState(false);
+
+  /* Handlers: Email */
+  const handleSaveEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.senderEmail.trim()) { showToast('Vui lòng nhập địa chỉ Email gửi', 'warning'); return; }
-    if (!(form.emailPassword ?? '').trim()) { showToast('Vui lòng nhập Mật khẩu ứng dụng (App Password)', 'warning'); return; }
-    StorageService.saveEmailSettings(form);
-    setSaved(true);
-    showToast('Đã lưu cài đặt Email thành công!', 'success');
-    setTimeout(() => setSaved(false), 2500);
+    if (!emailForm.senderEmail.trim()) { showToast('Vui lòng nhập địa chỉ Email gửi', 'warning'); return; }
+    if (!(emailForm.emailPassword ?? '').trim()) { showToast('Vui lòng nhập Mật khẩu ứng dụng (App Password)', 'warning'); return; }
+    StorageService.saveEmailSettings(emailForm);
+    setEmailSaved(true);
+    showToast('Đã lưu cài đặt Gmail thành công!', 'success');
+    setTimeout(() => setEmailSaved(false), 2000);
   };
 
-  const handleTest = async () => {
-    if (!form.senderEmail || !form.emailPassword) {
-      setTestStatus({ type: 'error', msg: 'Vui lòng điền Email gửi và Mật khẩu App Password trước.' });
+  const handleTestEmail = async () => {
+    if (!emailForm.senderEmail || !emailForm.emailPassword) {
+      setTestEmailStatus({ type: 'error', msg: 'Vui lòng điền Email gửi và Mật khẩu App Password trước.' });
       return;
     }
     if (!testEmail.trim()) {
-      setTestStatus({ type: 'error', msg: 'Vui lòng nhập email nhận để gửi thử.' });
+      setTestEmailStatus({ type: 'error', msg: 'Vui lòng nhập email nhận để gửi thử.' });
       return;
     }
-    setTestStatus({ type: 'sending', msg: 'Đang kết nối SMTP và gửi email thử...' });
+    setTestEmailStatus({ type: 'sending', msg: 'Đang kết nối SMTP và gửi email thử...' });
     const res = await EmailService.sendRealEmail({
-      senderName: form.senderName,
-      senderEmail: form.senderEmail,
-      emailPassword: form.emailPassword,
-      smtpHost: form.smtpHost || 'smtp.gmail.com',
-      smtpPort: form.smtpPort || 465,
+      senderName: emailForm.senderName,
+      senderEmail: emailForm.senderEmail,
+      emailPassword: emailForm.emailPassword,
+      smtpHost: emailForm.smtpHost || 'smtp.gmail.com',
+      smtpPort: emailForm.smtpPort || 465,
       to: testEmail.trim(),
-      subject: `【KIỂM TRA】Thử nghiệm kết nối Email từ ${form.senderName}`,
-      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống Kế Toán PRO.\nTài khoản gửi: ${form.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình đã hoàn toàn chính xác!`,
+      subject: `【KIỂM TRA】Thử nghiệm kết nối Email từ ${emailForm.senderName}`,
+      text: `Xin chào,\n\nĐây là email gửi thử nghiệm tự động từ hệ thống Kế Toán PRO.\nTài khoản gửi: ${emailForm.senderEmail}\nThời gian: ${new Date().toLocaleString('vi-VN')}\n\nNếu bạn nhận được email này, cấu hình đã hoàn toàn chính xác!`,
     });
-    setTestStatus(res.success
-      ? { type: 'success', msg: `✓ Thành công! Đã gửi email thử tới: ${testEmail}. Kiểm tra hộp thư đến.` }
+    setTestEmailStatus(res.success
+      ? { type: 'success', msg: `✓ Thành công! Đã gửi email thử tới: ${testEmail}.` }
       : { type: 'error', msg: `✕ Lỗi: ${res.error}` }
     );
   };
 
+  /* Handlers: Zalo */
+  const handleSaveZalo = (e: React.FormEvent) => {
+    e.preventDefault();
+    StorageService.saveZaloZnsSettings(zaloForm);
+    setZaloSaved(true);
+    showToast('Đã lưu cấu hình Zalo ZNS thành công!', 'success');
+    setTimeout(() => setZaloSaved(false), 2000);
+  };
+
+  /* Handlers: Telegram */
+  const handleSaveTelegram = (e: React.FormEvent) => {
+    e.preventDefault();
+    StorageService.saveTelegramSettings(telegramForm);
+    setTelegramSaved(true);
+    showToast('Đã lưu cấu hình Telegram Bot thành công!', 'success');
+    setTimeout(() => setTelegramSaved(false), 2000);
+  };
+
+  const handleCheckTelegramBot = async () => {
+    if (!telegramForm.botToken?.trim()) {
+      showToast('Vui lòng nhập Bot Token trước khi kiểm tra!', 'warning');
+      return;
+    }
+    setIsCheckingBot(true);
+    const res = await TelegramService.getBotInfo(telegramForm.botToken);
+    setIsCheckingBot(false);
+    if (res.success) {
+      showToast(`✅ Kết nối Bot thành công: ${res.botName} (@${res.username})`, 'success');
+    } else {
+      showToast(`❌ Lỗi Bot: ${res.error}`, 'error');
+    }
+  };
+
+  const handleTestTelegramPing = async () => {
+    if (!telegramForm.botToken?.trim() || !telegramForm.defaultChatId?.trim()) {
+      showToast('Vui lòng nhập đầy đủ Bot Token và Chat ID trước khi test!', 'warning');
+      return;
+    }
+    setIsTestingPing(true);
+    const res = await TelegramService.testConnection(telegramForm.botToken, telegramForm.defaultChatId);
+    setIsTestingPing(false);
+    if (res.success) {
+      showToast('🚀 Đã gửi tin nhắn kiểm tra thành công vào Telegram!', 'success');
+    } else {
+      showToast(`❌ Lỗi gửi tin: ${res.error}`, 'error');
+    }
+  };
+
   return (
-    <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(16,185,129,.06))', borderRadius: 'var(--radius-md)', padding: '12px 16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Mail size={18} color="#fff" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      {/* 🌟 3 SUB-TABS: GMAIL • ZALO ZNS • TELEGRAM BOT */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 250, 255, 0.95) 100%)',
+        padding: '5px',
+        borderRadius: 12,
+        border: '1.5px solid #dbe6f2',
+        boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+      }}>
+        {/* Sub-tab 1: Gmail */}
+        <button
+          type="button"
+          onClick={() => setChannel('email')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: channel === 'email' ? '1.5px solid #4f46e5' : '1px solid transparent',
+            background: channel === 'email' ? 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' : 'transparent',
+            color: channel === 'email' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 12,
+            cursor: 'pointer',
+            boxShadow: channel === 'email' ? '0 3px 10px rgba(79, 70, 229, 0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Mail size={15} />
+          <span>1. Cài Đặt Gmail / SMTP</span>
+        </button>
+
+        {/* Sub-tab 2: Zalo ZNS */}
+        <button
+          type="button"
+          onClick={() => setChannel('zalo')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: channel === 'zalo' ? '1.5px solid #0068ff' : '1px solid transparent',
+            background: channel === 'zalo' ? 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)' : 'transparent',
+            color: channel === 'zalo' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 12,
+            cursor: 'pointer',
+            boxShadow: channel === 'zalo' ? '0 3px 10px rgba(0, 104, 255, 0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <MessageSquare size={15} />
+          <span>2. Cài Đặt Zalo ZNS (OA)</span>
+        </button>
+
+        {/* Sub-tab 3: Telegram Bot */}
+        <button
+          type="button"
+          onClick={() => setChannel('telegram')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: channel === 'telegram' ? '1.5px solid #0088cc' : '1px solid transparent',
+            background: channel === 'telegram' ? 'linear-gradient(135deg, #0088cc 0%, #006699 100%)' : 'transparent',
+            color: channel === 'telegram' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 12,
+            cursor: 'pointer',
+            boxShadow: channel === 'telegram' ? '0 3px 10px rgba(0, 136, 204, 0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Send size={15} />
+          <span>3. Cài Đặt Telegram Bot</span>
+        </button>
+      </div>
+
+      {/* ──────────────── 1. SUB-TAB: GMAIL / SMTP ──────────────── */}
+      {channel === 'email' && (
+        <form onSubmit={handleSaveEmail} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(16,185,129,.06))', borderRadius: 'var(--radius-md)', padding: '12px 16px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Mail size={18} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>Cài Đặt Gmail / SMTP Gửi Email Đối Soát</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Thiết lập tài khoản Gmail để tự động gửi bảng kê COD và đính kèm file Excel cho các Shop</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Tên Hiển Thị Người Gửi (*)</label>
+              <input type="text" className="input-field" required placeholder="VD: Công Ty Logistics & Gom Đơn"
+                value={emailForm.senderName} onChange={e => setEmailForm({ ...emailForm, senderName: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Địa Chỉ Email Gửi (*)</label>
+              <input type="email" className="input-field" required placeholder="doisoat@gmail.com"
+                value={emailForm.senderEmail} onChange={e => setEmailForm({ ...emailForm, senderEmail: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+          </div>
+
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+              <Lock size={13} /> Mật Khẩu Ứng Dụng — Gmail App Password (16 ký tự) (*)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showEmailPwd ? 'text' : 'password'}
+                className="input-field"
+                required
+                placeholder="Nhập 16 ký tự App Password (VD: abcd efgh ijkl mnop)..."
+                value={emailForm.emailPassword}
+                onChange={e => setEmailForm({ ...emailForm, emailPassword: e.target.value })}
+                style={{ paddingRight: 40, fontFamily: showEmailPwd ? 'monospace' : 'inherit', padding: '7px 10px', fontSize: 12.5 }}
+              />
+              <button type="button" onClick={() => setShowEmailPwd(!showEmailPwd)}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex' }}>
+                {showEmailPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}><Server size={13} /> SMTP Host</label>
+              <input type="text" className="input-field" placeholder="smtp.gmail.com"
+                value={emailForm.smtpHost || 'smtp.gmail.com'} onChange={e => setEmailForm({ ...emailForm, smtpHost: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Port</label>
+              <input type="number" className="input-field" placeholder="465"
+                value={emailForm.smtpPort || 465} onChange={e => setEmailForm({ ...emailForm, smtpPort: parseInt(e.target.value) || 465 })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+          </div>
+
+          {/* Guide */}
+          <div style={{ background: 'rgba(79,70,229,.06)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 11.5 }}>
+            <div style={{ fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <HelpCircle size={13} /> Cách lấy "Mật khẩu ứng dụng" Gmail (16 ký tự):
+            </div>
+            <ol style={{ paddingLeft: 18, margin: 0, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              <li>Vào: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 2 }}>myaccount.google.com/security <ExternalLink size={10} /></a></li>
+              <li>Bật <strong style={{ color: 'var(--text-main)' }}>"Xác minh 2 bước"</strong></li>
+              <li>Tìm <strong style={{ color: 'var(--text-main)' }}>"Mật khẩu ứng dụng"</strong> → Tạo mới → Copy 16 ký tự → Dán vào ô trên</li>
+            </ol>
+          </div>
+
+          {/* Test Ping */}
+          <div style={{ background: 'var(--bg-tertiary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)' }}>🧪 Gửi Email Test Kết Nối:</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="email" className="input-field" placeholder="Email nhận thử (ví dụ: your@gmail.com)..."
+                value={testEmail} onChange={e => setTestEmail(e.target.value)}
+                style={{ flex: 1, padding: '5px 10px', fontSize: 12 }} />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleTestEmail} style={{ whiteSpace: 'nowrap', fontSize: 11.5 }}>
+                <Send size={12} /> Gửi Test
+              </button>
+            </div>
+            {testEmailStatus && (
+              <div className={`badge ${testEmailStatus.type === 'success' ? 'badge-success' : testEmailStatus.type === 'error' ? 'badge-danger' : 'badge-warning'}`}
+                style={{ padding: '4px 8px', fontSize: 11 }}>
+                {testEmailStatus.msg}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <ShieldOk size={13} color="var(--success)" /> Mật khẩu lưu trữ an toàn trên thiết bị của bạn.
+            </div>
+            <button type="submit" className={`btn ${emailSaved ? 'btn-success' : 'btn-primary'} btn-sm`} style={{ minWidth: 140, fontWeight: 700 }}>
+              {emailSaved ? <><CheckCircle2 size={14} /> Đã Lưu!</> : <><Check size={14} /> Lưu Cài Đặt Gmail</>}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ──────────────── 2. SUB-TAB: ZALO ZNS (OA) ──────────────── */}
+      {channel === 'zalo' && (
+        <form onSubmit={handleSaveZalo} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(0, 104, 255, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)', borderRadius: 'var(--radius-md)', padding: '12px 16px', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#0068ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <MessageSquare size={18} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>Cấu Hình Zalo ZNS (Zalo Notification Service)</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Gửi tin nhắn đối soát tự động có Tích Xanh Doanh Nghiệp đến SĐT khách hàng</div>
+            </div>
+          </div>
+
+          {/* Test mode banner */}
+          <div style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: zaloForm.isTestMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+            border: `1px solid ${zaloForm.isTestMode ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {zaloForm.isTestMode ? <Zap size={16} color="#d97706" /> : <ShieldCheck size={16} color="#059669" />}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: zaloForm.isTestMode ? '#b45309' : '#047857' }}>
+                  {zaloForm.isTestMode ? 'Chế độ Thử Nghiệm / Demo (Mô Phỏng Gửi)' : 'Chế độ Chạy Thật (Live Production)'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {zaloForm.isTestMode ? 'Cho phép test gửi tin nhắn ZNS không tốn phí Zalo' : 'Tin nhắn sẽ được gửi thật qua Zalo API chính thức'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setZaloForm({ ...zaloForm, isTestMode: !zaloForm.isTestMode })}
+              className={`btn btn-sm ${zaloForm.isTestMode ? 'btn-warning' : 'btn-success'}`}
+              style={{ fontSize: 11, padding: '4px 10px', fontWeight: 700 }}
+            >
+              {zaloForm.isTestMode ? 'Chuyển sang Live 🟢' : 'Chuyển sang Test ⚡'}
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Tên Doanh Nghiệp Hiển Thị (*)</label>
+              <input type="text" className="input-field" placeholder="VD: CÔNG TY LOGISTICS & GOM ĐƠN"
+                value={zaloForm.companyName || ''} onChange={e => setZaloForm({ ...zaloForm, companyName: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Template ID (Mã mẫu ZNS)</label>
+              <input type="text" className="input-field" placeholder="VD: 312890"
+                value={zaloForm.templateId || ''} onChange={e => setZaloForm({ ...zaloForm, templateId: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Zalo App ID</label>
+              <input type="text" className="input-field" placeholder="VD: 123456789012345"
+                value={zaloForm.appId || ''} onChange={e => setZaloForm({ ...zaloForm, appId: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label" style={{ fontSize: 11 }}>Secret Key</label>
+              <input type="password" className="input-field" placeholder="Zalo App Secret Key"
+                value={zaloForm.secretKey || ''} onChange={e => setZaloForm({ ...zaloForm, secretKey: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+            </div>
+          </div>
+
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>Access Token (OA Token)</label>
+            <input type="password" className="input-field" placeholder="Dán Access Token Zalo OA vào đây..."
+              value={zaloForm.accessToken || ''} onChange={e => setZaloForm({ ...zaloForm, accessToken: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <ShieldOk size={13} color="var(--success)" /> Cấu hình Zalo ZNS lưu trữ an toàn.
+            </div>
+            <button type="submit" className={`btn ${zaloSaved ? 'btn-success' : 'btn-primary'} btn-sm`} style={{ minWidth: 140, fontWeight: 700 }}>
+              {zaloSaved ? <><CheckCircle2 size={14} /> Đã Lưu!</> : <><Check size={14} /> Lưu Cài Đặt Zalo</>}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ──────────────── 3. SUB-TAB: TELEGRAM BOT ──────────────── */}
+      {channel === 'telegram' && (
+        <form onSubmit={handleSaveTelegram} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(0, 136, 204, 0.08) 0%, rgba(34, 158, 217, 0.06) 100%)', borderRadius: 'var(--radius-md)', padding: '12px 16px', border: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Send size={18} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>Cấu Hình Telegram Bot Đối Soát</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Tự động gửi bảng kê COD, cước phí và file Excel vào nhóm/kênh Telegram</div>
+            </div>
+          </div>
+
+          {/* Sandbox mode toggle */}
+          <div style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: telegramForm.isSandbox ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+            border: `1px solid ${telegramForm.isSandbox ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {telegramForm.isSandbox ? <Zap size={16} color="#d97706" /> : <ShieldCheck size={16} color="#059669" />}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: telegramForm.isSandbox ? '#b45309' : '#047857' }}>
+                  {telegramForm.isSandbox ? 'Chế độ Demo Sandbox (Giả lập gửi)' : 'Chế độ Chạy Thật (Live Production)'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {telegramForm.isSandbox ? 'Kiểm tra giao diện gửi Telegram mà không bắn API thật' : 'Tin nhắn và tài liệu sẽ được gửi trực tiếp tới Telegram Bot API'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTelegramForm({ ...telegramForm, isSandbox: !telegramForm.isSandbox })}
+              className={`btn btn-sm ${telegramForm.isSandbox ? 'btn-warning' : 'btn-success'}`}
+              style={{ fontSize: 11, padding: '4px 10px', fontWeight: 700 }}
+            >
+              {telegramForm.isSandbox ? 'Chuyển sang Live 🟢' : 'Chuyển sang Sandbox ⚡'}
+            </button>
+          </div>
+
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>Telegram Bot Token (*)</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="password"
+                className="input-field mono"
+                placeholder="VD: 7123456789:AAFlm3..."
+                value={telegramForm.botToken || ''}
+                onChange={e => setTelegramForm({ ...telegramForm, botToken: e.target.value })}
+                style={{ flex: 1, padding: '7px 10px', fontSize: 12 }}
+              />
+              <button
+                type="button"
+                onClick={handleCheckTelegramBot}
+                disabled={isCheckingBot}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: 11.5, padding: '6px 12px', whiteSpace: 'nowrap', fontWeight: 700 }}
+              >
+                {isCheckingBot ? <RotateCcw size={13} className="animate-spin" /> : <Bot size={13} />}
+                <span>Kiểm Tra Bot</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>Chat ID / Nhóm Mặc Định</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                className="input-field mono"
+                placeholder="VD: -100123456789 hoặc @ten_channel"
+                value={telegramForm.defaultChatId || ''}
+                onChange={e => setTelegramForm({ ...telegramForm, defaultChatId: e.target.value })}
+                style={{ flex: 1, padding: '7px 10px', fontSize: 12 }}
+              />
+              <button
+                type="button"
+                onClick={handleTestTelegramPing}
+                disabled={isTestingPing}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: 11.5, padding: '6px 12px', whiteSpace: 'nowrap', fontWeight: 700 }}
+              >
+                {isTestingPing ? <RotateCcw size={13} className="animate-spin" /> : <Send size={13} />}
+                <span>Gửi Test Thử</span>
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <ShieldOk size={13} color="var(--success)" /> Bot Token lưu trữ an toàn trên thiết bị.
+            </div>
+            <button type="submit" className={`btn ${telegramSaved ? 'btn-success' : 'btn-primary'} btn-sm`} style={{ minWidth: 140, fontWeight: 700 }}>
+              {telegramSaved ? <><CheckCircle2 size={14} /> Đã Lưu!</> : <><Check size={14} /> Lưu Cài Đặt Telegram</>}
+            </button>
+          </div>
+        </form>
+      )}
+
+    </div>
+  );
+};
+
+/* ─────────────── TAB: SAO LƯU & DỮ LIỆU ─────────────── */
+const TabBackup: React.FC<{ onDataReloaded?: () => void }> = ({ onDataReloaded }) => {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
+  const [importJson, setImportJson] = useState('');
+  const [serverSnapshots, setServerSnapshots] = useState<{ filename: string; sizeBytes: number; createdAt: string; modifiedAt: string }[]>([]);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState('');
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+
+  const hasConfirmedOperationalReset = resetConfirmation
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase() === 'XOA DU LIEU';
+
+  const loadSnapshots = async () => {
+    setLoadingSnapshots(true);
+    try {
+      const list = await StorageService.getServerSnapshots();
+      setServerSnapshots(list);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSnapshots(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSnapshots();
+  }, []);
+
+  const handleExport = () => {
+    const jsonStr = StorageService.exportDatabaseBackup();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GomDonPro_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Đã xuất file sao lưu JSON thành công!', 'success');
+  };
+
+  const handleImport = async () => {
+    if (!importJson.trim()) {
+      showToast('Vui lòng dán chuỗi JSON sao lưu vào ô dưới.', 'warning');
+      return;
+    }
+    const ok = await showConfirm({
+      title: 'Khôi Phục Dữ Liệu',
+      message: 'Hành động này sẽ ghi đè dữ liệu hiện tại bằng dữ liệu từ file sao lưu. Bạn có chắc chắn muốn tiếp tục?',
+      confirmText: 'Khôi Phục Ngay',
+      warning: true,
+    });
+    if (!ok) return;
+
+    const res = StorageService.importDatabaseBackup(importJson);
+    if (res) {
+      showToast('Khôi phục dữ liệu thành công!', 'success');
+      onDataReloaded?.();
+    } else {
+      showToast('Định dạng JSON không hợp lệ. Vui lòng kiểm tra lại.', 'error');
+    }
+  };
+
+  const handleCreateSnapshot = async () => {
+    setIsCreatingSnapshot(true);
+    const ok = await StorageService.createManualServerSnapshot();
+    setIsCreatingSnapshot(false);
+    if (ok) {
+      showToast('Đã tạo bản snapshot trên server thành công!', 'success');
+      loadSnapshots();
+    } else {
+      showToast('Không thể tạo snapshot trên server.', 'error');
+    }
+  };
+
+  const handleRestoreSnapshot = async (filename: string) => {
+    const ok = await showConfirm({
+      title: 'Khôi Phục Snapshot VPS',
+      message: `Khôi phục toàn bộ dữ liệu hệ thống về thời điểm của bản snapshot "${filename}"?`,
+      confirmText: 'Khôi Phục Snapshot',
+      warning: true,
+    });
+    if (!ok) return;
+
+    const res = await StorageService.restoreServerSnapshot(filename);
+    if (res) {
+      showToast('Đã khôi phục snapshot thành công!', 'success');
+      onDataReloaded?.();
+    } else {
+      showToast('Khôi phục snapshot thất bại.', 'error');
+    }
+  };
+
+  const handleClearOperationalData = async () => {
+    if (!hasConfirmedOperationalReset) return;
+    const ok = await showConfirm({
+      title: 'Xóa Dữ Liệu Vận Hành',
+      message: 'App sẽ xóa toàn bộ kỳ đối soát, công nợ/phiếu đi tiền và nhật ký vận hành. Danh sách shop, biểu giá, hãng vận chuyển, tài khoản và cấu hình được giữ nguyên. Một snapshot VPS sẽ được tạo tự động trước khi xóa.',
+      confirmText: 'Xóa Dữ Liệu Vận Hành',
+      danger: true,
+    });
+    if (!ok) return;
+
+    const snapshotted = await StorageService.createManualServerSnapshot();
+    if (!snapshotted) {
+      showToast('Không tạo được snapshot VPS nên dữ liệu chưa bị xóa.', 'error');
+      return;
+    }
+
+    await StorageService.clearOperationalData();
+    onDataReloaded?.();
+    setResetConfirmation('');
+    showToast('Đã xóa dữ liệu vận hành. Danh sách shop & cấu hình vẫn được giữ nguyên.', 'success');
+    loadSnapshots();
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* 1. XUẤT SAO LƯU */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Download size={16} color="var(--primary)" />
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>1. Xuất Dữ Liệu Sao Lưu (Backup JSON)</div>
+          </div>
+          <button onClick={handleExport} className="btn btn-primary btn-sm" style={{ fontWeight: 700 }}>
+            <Download size={13} /> Tải File Backup (.JSON)
+          </button>
         </div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>Cài Đặt Gmail / SMTP Gửi Email Đối Soát</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Thiết lập tài khoản Gmail để tự động gửi bảng kê COD cho các Shop</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          Tải toàn bộ cơ sở dữ liệu hiện tại (Danh sách Shop, Biểu giá, Hãng vận chuyển, Kỳ đối soát, Công nợ, Cấu hình) về máy tính cá nhân để lưu trữ an toàn.
         </div>
       </div>
 
-      {/* Sender Info */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="input-group" style={{ marginBottom: 0 }}>
-          <label className="input-label">Tên Hiển Thị Người Gửi (*)</label>
-          <input type="text" className="input-field" required placeholder="VD: Đức Tín Logistics"
-            value={form.senderName} onChange={e => setForm({ ...form, senderName: e.target.value })} />
+      {/* 2. KHÔI PHỤC TỪ JSON */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Upload size={16} color="var(--success)" />
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>2. Khôi Phục Dữ Liệu Từ File JSON</div>
         </div>
-        <div className="input-group" style={{ marginBottom: 0 }}>
-          <label className="input-label">Địa Chỉ Email Gửi (*)</label>
-          <input type="email" className="input-field" required placeholder="doisoat@gmail.com"
-            value={form.senderEmail} onChange={e => setForm({ ...form, senderEmail: e.target.value })} />
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>
+          Dán nội dung file JSON sao lưu vào ô dưới đây rồi nhấn Khôi Phục.
         </div>
-      </div>
-
-      {/* App Password */}
-      <div className="input-group" style={{ marginBottom: 0 }}>
-        <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <Lock size={13} /> Mật Khẩu Ứng Dụng — Gmail App Password (*)
-        </label>
-        <div style={{ position: 'relative' }}>
-          <input
-            type={showPwd ? 'text' : 'password'}
-            className="input-field"
-            required
-            placeholder="Nhập 16 ký tự App Password (VD: abcd efgh ijkl mnop)..."
-            value={form.emailPassword}
-            onChange={e => setForm({ ...form, emailPassword: e.target.value })}
-            style={{ paddingRight: 40, fontFamily: showPwd ? 'monospace' : 'inherit' }}
-          />
-          <button type="button" onClick={() => setShowPwd(!showPwd)}
-            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex' }}>
-            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+        <textarea
+          className="input-field"
+          rows={3}
+          placeholder="Dán nội dung file JSON sao lưu vào đây..."
+          value={importJson}
+          onChange={e => setImportJson(e.target.value)}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: 11, marginBottom: 10, resize: 'vertical' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            onClick={() => setImportJson('')}
+            disabled={!importJson.trim()}
+            className="btn btn-secondary btn-sm"
+            style={{ fontSize: 11.5 }}
+          >
+            Xóa Trắng Ô
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={!importJson.trim()}
+            className="btn btn-success btn-sm"
+            style={{ fontWeight: 700, fontSize: 11.5 }}
+          >
+            <Upload size={13} /> Khôi Phục Dữ Liệu
           </button>
         </div>
       </div>
 
-      {/* SMTP */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-        <div className="input-group" style={{ marginBottom: 0 }}>
-          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Server size={13} /> SMTP Host</label>
-          <input type="text" className="input-field" placeholder="smtp.gmail.com"
-            value={form.smtpHost || 'smtp.gmail.com'} onChange={e => setForm({ ...form, smtpHost: e.target.value })} />
-        </div>
-        <div className="input-group" style={{ marginBottom: 0 }}>
-          <label className="input-label">Port</label>
-          <input type="number" className="input-field" placeholder="465"
-            value={form.smtpPort || 465} onChange={e => setForm({ ...form, smtpPort: parseInt(e.target.value) || 465 })} />
-        </div>
-      </div>
-
-      {/* How to get App Password */}
-      <div style={{ background: 'rgba(79,70,229,.06)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 14px', fontSize: 12 }}>
-        <div style={{ fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <HelpCircle size={14} /> Cách lấy "Mật khẩu ứng dụng" Gmail:
-        </div>
-        <ol style={{ paddingLeft: 18, margin: 0, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-          <li>Vào: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 2 }}>myaccount.google.com/security <ExternalLink size={10} /></a></li>
-          <li>Bật <strong style={{ color: 'var(--text-main)' }}>"Xác minh 2 bước"</strong></li>
-          <li>Tìm <strong style={{ color: 'var(--text-main)' }}>"Mật khẩu ứng dụng"</strong> → Tạo mới → Copy 16 ký tự → Dán vào ô trên</li>
-        </ol>
-      </div>
-
-      {/* Test send */}
-      <div style={{ background: 'var(--bg-tertiary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>🧪 Gửi Email Test Kết Nối:</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="email" className="input-field" placeholder="Email nhận thử (ví dụ: your@gmail.com)..."
-            value={testEmail} onChange={e => setTestEmail(e.target.value)}
-            style={{ flex: 1, padding: '7px 12px', fontSize: 12.5 }} />
-          <button type="button" className="btn btn-secondary btn-sm" onClick={handleTest} style={{ whiteSpace: 'nowrap' }}>
-            <Send size={13} /> Gửi Test
+      {/* 3. SNAPSHOT SERVER VPS */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FolderArchive size={16} color="#0284c7" />
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>3. Bản Sao Lưu Trên Server (VPS Snapshot)</div>
+          </div>
+          <button
+            onClick={handleCreateSnapshot}
+            disabled={isCreatingSnapshot}
+            className="btn btn-secondary btn-sm"
+            style={{ fontWeight: 700, fontSize: 11.5 }}
+          >
+            {isCreatingSnapshot ? <RotateCcw size={13} className="animate-spin" /> : <RefreshCcw size={13} />}
+            <span>Tạo Snapshot Ngay</span>
           </button>
         </div>
-        {testStatus && (
-          <div className={`badge ${testStatus.type === 'success' ? 'badge-success' : testStatus.type === 'error' ? 'badge-danger' : 'badge-warning'}`}
-            style={{ padding: '6px 10px', fontSize: 11.5 }}>
-            {testStatus.msg}
+        
+        {loadingSnapshots ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>Đang tải danh sách snapshot...</div>
+        ) : serverSnapshots.length === 0 ? (
+          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', fontStyle: 'italic', padding: '8px 0' }}>Chưa có bản snapshot nào trên server.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+            {serverSnapshots.map((snp, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--bg-tertiary)', borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 11.5 }}>
+                <div>
+                  <strong style={{ color: 'var(--text-main)' }}>{snp.filename}</strong>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 1 }}>
+                    {snp.modifiedAt ? new Date(snp.modifiedAt).toLocaleString('vi-VN') : ''} • {(snp.sizeBytes / 1024).toFixed(1)} KB
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRestoreSnapshot(snp.filename)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '3px 8px' }}
+                >
+                  Khôi Phục
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Footer save */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
-        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ShieldOk size={13} color="var(--success)" /> Mật khẩu lưu trữ an toàn trên thiết bị của bạn.
+      {/* 4. XÓA DỮ LIỆU VẬN HÀNH (RESET) */}
+      <div style={{ background: 'rgba(239, 68, 68, 0.04)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <AlertTriangle size={16} color="var(--danger)" />
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--danger)' }}>4. Xóa Dữ Liệu Vận Hành Cũ (Reset Kỳ Đối Soát)</div>
         </div>
-        <button type="submit" className={`btn ${saved ? 'btn-success' : 'btn-primary'}`} style={{ minWidth: 160 }}>
-          {saved ? <><CheckCircle2 size={15} /> Đã Lưu!</> : <><Check size={15} /> Lưu Cài Đặt Mail</>}
-        </button>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+          Chỉ xóa toàn bộ các kỳ đối soát, phiếu đi tiền và lịch sử vận hành. <strong style={{ color: 'var(--text-main)' }}>Danh sách Shop, Biểu giá, Hãng vận chuyển và Tài khoản được giữ nguyên 100%.</strong>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="text"
+            className="input-field"
+            placeholder="Nhập chữ 'XOA DU LIEU' để xác nhận..."
+            value={resetConfirmation}
+            onChange={e => setResetConfirmation(e.target.value)}
+            style={{ flex: 1, padding: '6px 10px', fontSize: 12 }}
+          />
+          <button
+            onClick={handleClearOperationalData}
+            disabled={!hasConfirmedOperationalReset}
+            className="btn btn-danger btn-sm"
+            style={{ fontWeight: 700, whiteSpace: 'nowrap', opacity: hasConfirmedOperationalReset ? 1 : 0.4 }}
+          >
+            <Trash2 size={13} /> Xóa Dữ Liệu Vận Hành
+          </button>
+        </div>
       </div>
-    </form>
+    </div>
   );
 };
 
@@ -418,7 +1013,7 @@ const TabGuide: React.FC = () => {
       content: (
         <div>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 12 }}>
-            <strong style={{ color: 'var(--text-main)' }}>Kế Toán PRO Enterprise</strong> là hệ thống quản lý đối soát COD & logistics dành riêng cho các nhà gom đơn vận chuyển. Hệ thống giúp bạn tự động tính tiền, gửi email đối soát và quản lý công nợ cho hàng chục Shop cùng lúc.
+            <strong style={{ color: 'var(--text-main)' }}>Kế Toán PRO Enterprise</strong> là hệ thống quản lý kế toán & đối soát COD vận chuyển chuyên nghiệp. Hệ thống giúp bạn tự động tính tiền cước, xuất bảng kê, gửi thông báo đối soát và quản lý công nợ cho hàng chục Shop cùng lúc.
           </p>
           <VisualDiagram arrows items={[
             { icon: '📁', label: 'File NVC', color: '#4f46e5' },
@@ -659,7 +1254,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const isAdmin = userRole === 'ADMIN';
-  const TAB_LIST = isAdmin ? BASE_TABS : BASE_TABS.filter(t => t.id !== 'accounts');
+  const TAB_LIST = isAdmin ? BASE_TABS : BASE_TABS.filter(t => t.id !== 'accounts' && t.id !== 'backup');
 
   useEffect(() => {
     if (isOpen) setActiveTab('company');
@@ -721,8 +1316,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Tab Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: activeTab === 'accounts' ? 0 : '20px 24px' }}>
           {activeTab === 'company' && <TabCompany onSaved={onSaved} isAdmin={isAdmin} />}
-          {activeTab === 'ui' && <TabUI theme={theme} setTheme={setTheme} />}
-          {activeTab === 'email' && <TabEmail />}
+          {activeTab === 'notifications' && <TabNotifications />}
+          {activeTab === 'backup' && isAdmin && <TabBackup onDataReloaded={onSaved} />}
           {activeTab === 'security' && <TabSecurity isAdmin={isAdmin} onNavigateTo={onNavigateTo} onClose={onClose} />}
           {activeTab === 'accounts' && isAdmin && <TabAccounts currentUser={currentUser} />}
           {activeTab === 'guide' && <TabGuide />}

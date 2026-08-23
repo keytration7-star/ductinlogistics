@@ -15,8 +15,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
-import { TaxAccountantPortal } from './components/TaxAccountantPortal';
-import { Truck, Database, Sun, Moon, Settings } from 'lucide-react';
+import { Truck, Database, Sun, Moon, Settings, LogOut } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -29,7 +28,6 @@ import { StorageService } from './services/storage';
 import { AuthService } from './services/authService';
 
 export function App() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
   // Sessions created before server-side authentication have no access token.
   // Treat them as logged out so the UI can never look authenticated while its
   // data requests are correctly rejected by the server.
@@ -43,6 +41,7 @@ export function App() {
   });
 
   const [activeTab, setActiveTab] = useState<string>('reconciliation');
+  const [reportsChannel, setReportsChannel] = useState<'zalo' | 'email' | 'telegram'>('email');
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [carriers, setCarriers] = useState<CarrierWholesaleTier[]>([]);
@@ -54,6 +53,50 @@ export function App() {
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [dataConnection, setDataConnection] = useState<'checking' | 'connected' | 'offline'>('checking');
+  const [networkPing, setNetworkPing] = useState<number | null>(null);
+  const [vpsStats, setVpsStats] = useState<{
+    cpuUsagePercent: number;
+    memoryUsagePercent: number;
+    totalMB: number;
+    usedMB: number;
+    uptimeHours: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const measureHealth = async () => {
+      const t0 = performance.now();
+      try {
+        const res = await fetch('/api/system/status');
+        const ping = Math.round(performance.now() - t0);
+        if (!isMounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          setNetworkPing(ping);
+          if (data?.vps) {
+            setVpsStats({
+              cpuUsagePercent: data.vps.cpuUsagePercent ?? 0,
+              memoryUsagePercent: data.vps.memory?.usagePercent ?? 0,
+              totalMB: data.vps.memory?.totalMB ?? 0,
+              usedMB: data.vps.memory?.usedMB ?? 0,
+              uptimeHours: data.vps.uptimeHours ?? '0',
+            });
+          }
+        } else {
+          setNetworkPing(null);
+        }
+      } catch {
+        if (isMounted) setNetworkPing(null);
+      }
+    };
+
+    measureHealth();
+    const timer = setInterval(measureHealth, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     // Data APIs require a server-issued session. Loading before login would
@@ -61,10 +104,6 @@ export function App() {
     if (currentUser) loadAllData();
     else setDataConnection('offline');
   }, [currentUser]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
 
   // Synchronize currentSession with activeCarrierId: When switching carrier, load the matching carrier session or reset to null
   useEffect(() => {
@@ -172,8 +211,6 @@ export function App() {
           carriers={carriers}
           sessions={sessions}
           shops={shops}
-          theme={theme}
-          setTheme={setTheme}
           onLogout={handleLogout}
         />
       </UIFeedbackProvider>
@@ -186,36 +223,39 @@ export function App() {
       <UIFeedbackProvider>
         <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
           {/* Top Bar for Hub */}
-          <header style={{
-            height: 56,
-            background: 'var(--bg-secondary)',
-            borderBottom: '1px solid var(--border-color)',
+          <header className="app-top-header" style={{
             padding: '0 32px',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            position: 'sticky',
-            top: 0,
-            zIndex: 40,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: 'var(--primary)',
-                color: '#fff',
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: 'var(--brand-gradient)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: 13,
+                boxShadow: 'var(--shadow-glow)',
+                color: '#ffffff',
+                fontWeight: 900,
+                fontSize: 16,
               }}>
-                KT
+                GD
               </div>
-              <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-main)' }}>
-                KẾ TOÁN PRO ENTERPRISE
-              </span>
+              <div>
+                <h1 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.02em' }}>
+                  HỆ THỐNG QUẢN TRỊ ĐỐI SOÁT DÒNG TIỀN
+                </h1>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Trung Tâm Điều Hành & Vận Hành Đa Hãng Vận Chuyển
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -236,17 +276,6 @@ export function App() {
                   <span>Sao Lưu Dữ Liệu</span>
                 </button>
               )}
-
-              {/* 🌙 / ☀️ Theme Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '6px 10px', borderRadius: 8 }}
-                title="Đổi giao diện Sáng / Tối"
-              >
-                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
 
               {/* ⚙️ Cài Đặt Hệ Thống Button */}
               <button
@@ -314,8 +343,6 @@ export function App() {
           <SettingsModal
             isOpen={isSettingsModalOpen}
             onClose={() => setIsSettingsModalOpen(false)}
-            theme={theme}
-            setTheme={setTheme}
             userRole={currentUser.role}
             currentUser={currentUser}
             onSaved={loadAllData}
@@ -346,13 +373,16 @@ export function App() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        theme={theme}
-        setTheme={setTheme}
-        onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
+        activeCarrierId={activeCarrierId}
+        activeCarrierName={activeCarrierObj.carrierName}
+        onSwitchCarrier={() => {
+          setActiveCarrierId(null);
+          sessionStorage.removeItem('gomdon_active_carrier_id');
+        }}
       />
 
       {/* Main Right Content Panel */}
@@ -365,24 +395,11 @@ export function App() {
         overflow: 'hidden',
       }}>
         {/* Minimal Enterprise Top Header - 100% FIXED STICKY AT TOP */}
-        <header style={{
-          height: 56,
-          minHeight: 56,
-          maxHeight: 56,
-          background: 'var(--bg-secondary)',
-          borderBottom: '1px solid var(--border-color)',
+        <header className="app-top-header" style={{
           padding: '0 28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-          zIndex: 90,
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
         }}>
           {/* Breadcrumb with Active Carrier */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-            <span style={{ fontWeight: 600 }}>KẾ TOÁN PRO ENTERPRISE</span>
-            <span>/</span>
             <span 
               onClick={() => {
                 setActiveCarrierId(null);
@@ -406,94 +423,95 @@ export function App() {
               <span>{activeCarrierObj.carrierName}</span>
             </span>
             <span>/</span>
-            <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-              {activeTab === 'reconciliation' && 'Đối Soát Kéo Thả'}
-              {activeTab === 'shops' && 'Danh Sách Shop & Biểu Giá'}
-              {activeTab === 'debt' && 'Công Nợ & Đi Tiền Bank'}
-              {activeTab === 'audit' && 'Rà Soát Dữ Liệu'}
-              {activeTab === 'carriers' && 'Bảng Giá NVC Gốc'}
-              {activeTab === 'ctv' && 'Cộng Tác Viên (CTV)'}
-              {activeTab === 'emails' && 'Gửi Email Hàng Loạt'}
-              {activeTab === 'history' && 'Lịch Sử & Lợi Nhuận'}
-            </span>
+            {activeTab === 'reconciliation' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Đối Soát Kéo Thả</span>}
+            {activeTab === 'shops' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Shop & Biểu Phí</span>}
+            {activeTab === 'debt' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Công Nợ & Đi Tiền Bank</span>}
+            {activeTab === 'audit' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Rà Soát Dữ Liệu</span>}
+            {activeTab === 'carriers' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Bảng Giá NVC Gốc</span>}
+            {activeTab === 'ctv' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Cộng Tác Viên (CTV)</span>}
+            {activeTab === 'history' && <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Lịch Sử & Báo Cáo</span>}
+            {(activeTab === 'reports' || activeTab === 'emails' || activeTab === 'zalo' || activeTab === 'telegram') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span 
+                  onClick={() => { setActiveTab('reports'); }}
+                  style={{ fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  Gửi Báo Cáo Đối Soát
+                </span>
+                <span>/</span>
+                <span style={{ 
+                  fontWeight: 800, 
+                  color: reportsChannel === 'zalo' ? '#0068ff' : reportsChannel === 'telegram' ? '#0088cc' : 'var(--primary)' 
+                }}>
+                  {reportsChannel === 'zalo' && '💬 Zalo ZNS (OA)'}
+                  {reportsChannel === 'telegram' && '✈️ Telegram Bot'}
+                  {reportsChannel === 'email' && '✉️ Gmail / SMTP'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right Header Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Active Carrier Card / Switcher Widget */}
-            <div 
-              onClick={() => {
-                setActiveCarrierId(null);
-                sessionStorage.removeItem('gomdon_active_carrier_id');
-              }}
-              style={{
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)',
-                border: '1.5px solid var(--primary)',
-                borderRadius: 10,
-                padding: '4px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.08)',
-                transition: 'all 0.15s ease',
-              }}
-              title="Bấm để đổi sang Hãng khác hoặc quay về Dashboard Đơn Vị Vận Chuyển"
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '4px 9px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
+              {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
+            </span>
+
+            {/* User Profile & Logout Block on Top Right */}
+            <div style={{
+              background: 'var(--bg-card)',
+              padding: '4px 8px 4px 6px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: 'var(--shadow-sm)',
+            }}>
+              <div 
+                onClick={() => {
+                  if (currentUser.role === 'ADMIN') setIsCompanyModalOpen(true);
+                }}
+                title={currentUser.role === 'ADMIN' ? "Bấm để cài đặt thông tin Công Ty / Doanh Nghiệp" : `Tài khoản ${currentUser.fullName}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: currentUser.role === 'ADMIN' ? 'pointer' : 'default' }}
+              >
                 <div style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 7,
+                  width: 27,
+                  height: 27,
+                  borderRadius: '50%',
                   background: 'var(--primary)',
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 11,
                   flexShrink: 0,
                 }}>
-                  <Truck size={14} />
+                  {currentUser.fullName ? currentUser.fullName.slice(0, 2).toUpperCase() : 'U'}
                 </div>
                 <div>
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                    HÃNG ĐANG CHỌN
+                  <div style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-main)', lineHeight: 1.2 }}>
+                    {currentUser.fullName}
                   </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 900, color: 'var(--primary)', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-                    {activeCarrierObj.carrierName}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
+                    {currentUser.role === 'ADMIN' && <span className="badge badge-danger" style={{ fontSize: 8.5, padding: '1px 4px' }}>👑 Admin</span>}
+                    {currentUser.role === 'ACCOUNTANT' && <span className="badge badge-primary" style={{ fontSize: 8.5, padding: '1px 4px', fontWeight: 700 }}>💼 Kế Toán</span>}
+                    {currentUser.role === 'STAFF' && <span className="badge badge-success" style={{ fontSize: 8.5, padding: '1px 4px' }}>🧑‍💼 Vận Hành</span>}
+                    {currentUser.role === 'VIEWER' && <span className="badge badge-neutral" style={{ fontSize: 8.5, padding: '1px 4px' }}>👁️ Xem</span>}
                   </div>
                 </div>
               </div>
+
               <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveCarrierId(null);
-                  sessionStorage.removeItem('gomdon_active_carrier_id');
-                }}
-                style={{
-                  fontSize: 11,
-                  color: 'var(--primary)',
-                  fontWeight: 800,
-                  padding: '3px 8px',
-                  background: '#fff',
-                  borderRadius: 6,
-                  border: '1.5px solid var(--primary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
-                }}
+                onClick={handleLogout}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '3px 6px', color: 'var(--danger)', marginLeft: 2 }}
+                title="Đăng xuất khỏi hệ thống"
               >
-                <span>Đổi Hãng</span>
-                <span style={{ fontSize: 12 }}>↻</span>
+                <LogOut size={13} />
               </button>
             </div>
-
-            <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '4px 9px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
-              {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
-            </span>
           </div>
         </header>
 
@@ -585,36 +603,15 @@ export function App() {
               />
             )}
 
-            {activeTab === 'emails' && (
+            {(activeTab === 'reports' || activeTab === 'emails' || activeTab === 'zalo' || activeTab === 'telegram') && (
               <BulkEmailView
                 currentSession={currentSession}
                 emailSettings={emailSettings}
                 onSaveEmailSettings={handleSaveEmailSettings}
                 activeCarrierId={activeCarrierId}
                 activeCarrierName={activeCarrierObj.carrierName}
-                initialChannel="email"
-              />
-            )}
-
-            {activeTab === 'zalo' && (
-              <BulkEmailView
-                currentSession={currentSession}
-                emailSettings={emailSettings}
-                onSaveEmailSettings={handleSaveEmailSettings}
-                activeCarrierId={activeCarrierId}
-                activeCarrierName={activeCarrierObj.carrierName}
-                initialChannel="zalo"
-              />
-            )}
-
-            {activeTab === 'telegram' && (
-              <BulkEmailView
-                currentSession={currentSession}
-                emailSettings={emailSettings}
-                onSaveEmailSettings={handleSaveEmailSettings}
-                activeCarrierId={activeCarrierId}
-                activeCarrierName={activeCarrierObj.carrierName}
-                initialChannel="telegram"
+                initialChannel={activeTab === 'zalo' ? 'zalo' : activeTab === 'telegram' ? 'telegram' : 'email'}
+                onChannelChange={(ch) => setReportsChannel(ch)}
               />
             )}
 
@@ -668,9 +665,8 @@ export function App() {
           alignItems: 'center',
         }}>
           <div style={{
-            maxWidth: 1600,
+            maxWidth: '100%',
             width: '100%',
-            margin: '0 auto',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -678,11 +674,11 @@ export function App() {
             gap: 16,
             overflow: 'hidden',
           }}>
-            {/* Left Info: Single line */}
+            {/* Left Info: Status, User, Real-time Ping & VPS Server Metrics */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 9,
               fontSize: 11,
               color: 'var(--text-muted)',
               whiteSpace: 'nowrap',
@@ -690,16 +686,53 @@ export function App() {
               textOverflow: 'ellipsis',
               flexShrink: 1,
             }}>
-              <strong style={{ color: 'var(--primary)', fontWeight: 800 }}>KẾ TOÁN PRO ENTERPRISE</strong>
-              <span>—</span>
-              <span style={{ color: 'var(--text-main)' }}>Hệ thống quản trị & đối soát dòng tiền COD</span>
+              <span>Phiên làm việc: <strong style={{ color: 'var(--text-main)' }}>{currentUser.fullName}</strong> ({currentUser.username})</span>
+
               <span>•</span>
-              <span>Đang đăng nhập: <strong style={{ color: 'var(--text-main)' }}>{currentUser.fullName}</strong> ({currentUser.username})</span>
+
+              {/* Real-time Network Ping */}
+              <div 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '2px 7px',
+                  borderRadius: 6,
+                  background: networkPing === null ? 'rgba(239, 68, 68, 0.08)' : networkPing < 80 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                  border: `1px solid ${networkPing === null ? 'rgba(239, 68, 68, 0.25)' : networkPing < 80 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+                  color: networkPing === null ? 'var(--danger)' : networkPing < 80 ? 'var(--success)' : '#d97706',
+                  fontWeight: 700,
+                  fontSize: 10.5,
+                }}
+                title="Tốc độ đường truyền mạng thực tế (Network Latency / Ping)"
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: networkPing === null ? 'var(--danger)' : networkPing < 80 ? 'var(--success)' : '#d97706' }}></span>
+                <span>{networkPing !== null ? `⚡ Ping: ${networkPing}ms` : '⚡ Mất kết nối'}</span>
+              </div>
+
               <span>•</span>
-              <span style={{ color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
-                Hoạt động
-              </span>
+
+              {/* VPS Server Status: CPU & RAM */}
+              <div 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(79, 70, 229, 0.06)',
+                  border: '1px solid rgba(79, 70, 229, 0.18)',
+                  color: 'var(--text-main)',
+                  fontWeight: 650,
+                  fontSize: 10.5,
+                }}
+                title={`Tình trạng hệ thống VPS Server: CPU: ${vpsStats?.cpuUsagePercent || 0}% | RAM: ${vpsStats?.usedMB || 0}/${vpsStats?.totalMB || 0}MB (${vpsStats?.memoryUsagePercent || 0}%) | Uptime: ${vpsStats?.uptimeHours || 0}h`}
+              >
+                <span style={{ color: 'var(--primary)', fontWeight: 800 }}>🖥️ VPS:</span>
+                <span>CPU: <strong style={{ color: (vpsStats?.cpuUsagePercent || 0) > 80 ? 'var(--danger)' : 'var(--primary)' }}>{vpsStats ? `${vpsStats.cpuUsagePercent}%` : 'Đang đo...'}</strong></span>
+                <span style={{ color: 'var(--border-color)' }}>|</span>
+                <span>RAM: <strong style={{ color: (vpsStats?.memoryUsagePercent || 0) > 85 ? 'var(--danger)' : 'var(--primary)' }}>{vpsStats ? `${vpsStats.memoryUsagePercent}%` : 'Đang đo...'}</strong></span>
+              </div>
             </div>
 
             {/* Right Info: TQ Digital Developer branding on single line */}
@@ -732,8 +765,6 @@ export function App() {
               </span>
               <span style={{ color: 'var(--text-muted)' }}>Phát triển bởi:</span>
               <strong style={{ color: 'var(--text-main)' }}>CÔNG TY TNHH MTV CÔNG NGHỆ VÀ THƯƠNG MẠI TQ DIGITAL</strong>
-              <span style={{ color: 'var(--border-color)' }}>|</span>
-              <span style={{ color: 'var(--text-muted)' }}>Thôn Đại Lai 1, Trần Hưng Đạo, Hưng Yên</span>
               <span style={{ color: 'var(--border-color)' }}>|</span>
               <a href="tel:0936833319" style={{ color: 'var(--primary)', fontWeight: 800, textDecoration: 'none' }}>
                 📞 09368.333.19
@@ -768,8 +799,6 @@ export function App() {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        theme={theme}
-        setTheme={setTheme}
         userRole={currentUser.role}
         currentUser={currentUser}
         onSaved={loadAllData}

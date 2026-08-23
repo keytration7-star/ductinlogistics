@@ -1,41 +1,33 @@
-import React from 'react';
-import { useConfirm } from './UIFeedback';
 import { 
   FileSpreadsheet, 
   Store, 
   Truck, 
-  Mail,
   BarChart3, 
-  Sun, 
-  Moon, 
-  Database,
   ShieldCheck,
-  LogOut,
-  UserCheck,
   CreditCard,
-  Settings,
   Award,
-  MessageSquare,
-  Send
+  Send,
+  Settings,
+  UserCheck
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  theme: 'dark' | 'light';
-  setTheme: (theme: 'dark' | 'light') => void;
-  onOpenBackupModal: () => void;
-  onOpenCompanyModal: () => void;
+  theme?: 'dark' | 'light';
+  setTheme?: (theme: 'dark' | 'light') => void;
   onOpenSettingsModal: () => void;
   currentUser: UserAccount;
-  onLogout: () => void;
+  activeCarrierId?: string | null;
+  activeCarrierName?: string;
+  onSwitchCarrier?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab, setActiveTab, theme, setTheme, onOpenBackupModal, onOpenCompanyModal, onOpenSettingsModal, currentUser, onLogout,
+  activeTab, setActiveTab, onOpenSettingsModal, currentUser,
+  activeCarrierId, activeCarrierName, onSwitchCarrier,
 }) => {
-  const { showConfirm } = useConfirm();
   // Grouped Navigation Items per business domain
   const navGroups = [
     {
@@ -60,49 +52,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { 
           id: 'audit', 
           label: 'Rà Soát Dữ Liệu', 
-          desc: 'Rà soát đa kỳ & đơn sót',
+          desc: 'Lọc lệch & đơn hoàn',
           icon: ShieldCheck,
-          badge: 'Mới',
+          badge: null,
           roles: ['ADMIN', 'ACCOUNTANT', 'STAFF']
         },
         { 
-          id: 'carriers', 
-          label: 'Bảng Giá NVC Gốc', 
-          desc: 'J&T, SPX, GHN, GHTK...',
-          icon: Truck,
-          badge: null,
-          roles: ['ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER']
-        },
-      ]
-    },
-    {
-      title: 'QUẢN TRỊ',
-      items: [
-        { 
           id: 'shops', 
-          label: 'Danh Sách Shop & Biểu Giá', 
-          desc: 'Bảng giá riêng từng khách',
+          label: 'Shop & Biểu Phí', 
+          desc: 'Cấu hình giá shop theo bậc',
           icon: Store,
           badge: null,
           roles: ['ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER']
         },
-        { 
-          id: 'ctv', 
-          label: 'Cộng Tác Viên (CTV)', 
-          desc: 'Bảng hoa hồng & chia thưởng',
-          icon: Award,
-          badge: null,
-          roles: ['ADMIN', 'ACCOUNTANT']
-        }
       ]
     },
     {
-      title: 'TÀI CHÍNH & BÁO CÁO',
+      title: 'ĐỐI TÁC & BẢNG GIÁ',
       items: [
         { 
+          id: 'carriers', 
+          label: 'Bảng Giá NVC Gốc', 
+          desc: 'Biểu phí gốc từ nhà vận chuyển',
+          icon: Truck,
+          badge: null,
+          roles: ['ADMIN', 'ACCOUNTANT']
+        },
+        { 
+          id: 'ctv', 
+          label: 'Cộng Tác Viên (CTV)', 
+          desc: 'Quản lý hoa hồng & lệch giá',
+          icon: Award,
+          badge: null,
+          roles: ['ADMIN', 'ACCOUNTANT']
+        },
+        { 
           id: 'history', 
-          label: 'Lợi Nhuận & Lịch Sử', 
-          desc: 'Dòng tiền & Lợi nhuận ròng',
+          label: 'Lịch Sử & Báo Cáo', 
+          desc: 'Doanh thu & lợi nhuận các kỳ',
           icon: BarChart3,
           badge: null,
           roles: ['ADMIN', 'ACCOUNTANT', 'STAFF', 'VIEWER']
@@ -113,57 +100,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'HỆ THỐNG',
       items: [
         { 
-          id: 'emails', 
-          label: 'Gửi Email Đối Soát', 
-          desc: 'Bảng kê HTML & File Excel',
-          icon: Mail,
-          badge: null,
-          roles: ['ADMIN', 'ACCOUNTANT']
-        },
-        { 
-          id: 'zalo', 
-          label: 'Gửi Zalo ZNS (OA)', 
-          desc: 'Tự động gửi SĐT khách hàng',
-          icon: MessageSquare,
-          badge: 'Tích Xanh',
-          roles: ['ADMIN', 'ACCOUNTANT']
-        },
-        { 
-          id: 'telegram', 
-          label: 'Gửi Telegram Bot', 
-          desc: 'Nhóm / Kênh / Từng Shop',
+          id: 'reports', 
+          label: 'Gửi Báo Cáo Đối Soát', 
+          desc: 'Email • Zalo ZNS • Telegram',
           icon: Send,
-          badge: 'Bot API',
+          badge: 'Đa Kênh',
           roles: ['ADMIN', 'ACCOUNTANT']
         },
       ]
     }
   ];
 
-  const getRoleBadge = () => {
-    switch (currentUser.role) {
-      case 'ADMIN':
-        return <span className="badge badge-danger" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>👑 Admin</span>;
-      case 'ACCOUNTANT':
-        return <span className="badge badge-primary" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>💼 Kế Toán</span>;
-      case 'STAFF':
-        return <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>🧑‍💼 Vận Hành</span>;
-      case 'VIEWER':
-        return <span className="badge badge-neutral" style={{ fontSize: 10, padding: '2px 6px' }}>👁️ Xem</span>;
-      default:
-        return null;
-    }
-  };
-
-  const handleConfirmLogout = async () => {
-    const ok = await showConfirm({
-      title: 'Đăng Xuất',
-      message: 'Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?',
-      confirmText: 'Đăng Xuất',
-      warning: true,
-    });
-    if (ok) onLogout();
-  };
 
   return (
     <aside className="sidebar-aside">
@@ -215,59 +162,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
           </div>
-
-          {/* 2. USER PROFILE BLOCK */}
-          <div style={{
-            background: 'var(--bg-card, #ffffff)',
-            padding: '7px 9px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid #cfe2fe',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 4px rgba(37, 99, 235, 0.06)',
-          }}>
-            <div 
-              onClick={() => {
-                if (currentUser.role === 'ADMIN') onOpenCompanyModal();
-              }}
-              title={currentUser.role === 'ADMIN' ? "Bấm để cài đặt thông tin Công Ty / Nhà Gom Đơn" : `Tài khoản ${currentUser.fullName}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, cursor: currentUser.role === 'ADMIN' ? 'pointer' : 'default', flex: 1 }}
-            >
-              <div style={{
-                width: 29,
-                height: 29,
-                borderRadius: '50%',
-                background: 'var(--primary)',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: 11.5,
-                flexShrink: 0,
-              }}>
-                {currentUser.fullName ? currentUser.fullName.slice(0, 2).toUpperCase() : 'U'}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-main)' }}>
-                  {currentUser.fullName}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                  {getRoleBadge()}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleConfirmLogout}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '4px 6px', color: 'var(--danger)', flexShrink: 0, marginLeft: 4 }}
-              title="Đăng xuất"
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
         </div>
 
         {/* Grouped Navigation Menu */}
@@ -290,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {allowedItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = activeTab === item.id;
+                    const isActive = activeTab === item.id || (item.id === 'reports' && (activeTab === 'emails' || activeTab === 'zalo' || activeTab === 'telegram'));
                     return (
                       <button
                         key={item.id}
@@ -302,8 +196,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             width: 30,
                             height: 30,
                             borderRadius: 9,
-                            background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-tertiary)',
-                            color: isActive ? '#ffffff' : 'var(--primary)',
+                            background: isActive 
+                              ? 'rgba(255, 255, 255, 0.25)' 
+                              : 'var(--bg-tertiary)',
+                            color: isActive 
+                              ? '#ffffff' 
+                              : 'var(--primary)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -342,44 +240,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
         background: 'rgba(219, 234, 254, 0.45)',
       }}>
 
+        {/* Switch Carrier Row (if handler provided) */}
+        {onSwitchCarrier && (
+          <button
+            onClick={onSwitchCarrier}
+            className="btn btn-secondary btn-sm"
+            style={{ 
+              width: '100%', 
+              fontSize: 12, 
+              padding: '7px 10px', 
+              justifyContent: 'space-between',
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)',
+              border: '1.5px solid rgba(79, 70, 229, 0.25)',
+              color: 'var(--primary)',
+              fontWeight: 800,
+              borderRadius: 8,
+              boxShadow: '0 1px 3px rgba(79, 70, 229, 0.06)',
+            }}
+            title="Bấm để đổi sang Hãng vận chuyển khác hoặc quay về Hub Đơn Vị Vận Chuyển"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+              <Truck size={15} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeCarrierName ? `Hãng: ${activeCarrierName}` : 'Đổi Hãng Vận Chuyển'}
+              </span>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Đổi 🔄
+            </span>
+          </button>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           
-          {/* Backup / Restore - Admin only */}
-          {currentUser.role === 'ADMIN' ? (
-            <button
-              onClick={onOpenBackupModal}
-              className="btn btn-secondary btn-sm"
-              style={{ flex: 1, fontSize: 11.5, padding: '6px 8px', justifyContent: 'flex-start' }}
-              title="Sao lưu hoặc khôi phục cơ sở dữ liệu"
-            >
-              <Database size={13} />
-              <span>Sao Lưu Dữ Liệu</span>
-            </button>
-          ) : (
-            <div style={{ flex: 1, fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <UserCheck size={13} color="var(--success)" />
-              <span>Phiên làm việc bảo mật</span>
-            </div>
-          )}
-
-          {/* Theme Toggle */}
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="btn btn-secondary btn-sm"
-            style={{ padding: '6px 8px', fontSize: 11.5 }}
-            title="Chuyển đổi giao diện Sáng / Tối"
-          >
-            {theme === 'dark' ? <Sun size={13} color="#f59e0b" /> : <Moon size={13} color="#4f46e5" />}
-          </button>
+          {/* User role status */}
+          <div style={{ flex: 1, fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <UserCheck size={13} color="var(--success)" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentUser.role === 'ADMIN' ? 'Quản Trị Viên' : 'Vận Hành'}
+            </span>
+          </div>
 
           {/* Settings Button */}
           <button
             onClick={onOpenSettingsModal}
             className="btn btn-secondary btn-sm"
-            style={{ padding: '6px 8px', fontSize: 11.5 }}
-            title="Cài đặt hệ thống & hướng dẫn sử dụng"
+            style={{ padding: '6px 10px', fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
+            title="Cài đặt hệ thống, Sao lưu dữ liệu & Hướng dẫn"
           >
             <Settings size={13} />
+            <span>Cài Đặt</span>
           </button>
         </div>
 

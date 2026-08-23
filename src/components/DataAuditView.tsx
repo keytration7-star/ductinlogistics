@@ -13,7 +13,8 @@ import {
   Truck,
   Store,
   Trash2,
-  ClipboardList
+  ClipboardList,
+  X
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount } from '../types';
 import { StorageService } from '../services/storage';
@@ -73,7 +74,18 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const [activeBucketFilter, setActiveBucketFilter] = useState<'ALL' | 'MISSING' | 'DUPLICATE' | 'NEW_SHOP' | 'VALID'>('ALL');
   const [selectedCarrierFilter, setSelectedCarrierFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const auditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogs().slice(0, 30) : [];
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [auditLogSearch, setAuditLogSearch] = useState('');
+  const allAuditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogs() : [];
+  const filteredAuditLogs = allAuditLogs.filter(log => {
+    if (!auditLogSearch) return true;
+    const q = auditLogSearch.toLowerCase();
+    return (
+      log.username.toLowerCase().includes(q) ||
+      log.action.toLowerCase().includes(q) ||
+      log.details.toLowerCase().includes(q)
+    );
+  });
 
   // Reset uploaded audit files whenever switching carrier workspace
   React.useEffect(() => {
@@ -546,95 +558,242 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Top Header Title */}
-      <div className="glass-panel" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
-              <ShieldCheck size={26} color="var(--primary)" />
-              {isTwoFilesMode 
-                ? 'Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả File)' 
-                : `Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (1 Vùng Kéo Thả File NVC)`}
-            </h2>
-            {activeCarrierName && (
-              <span className="badge badge-primary" style={{ fontSize: 12, padding: '3px 10px', fontWeight: 800 }}>
-                📦 HÃNG: {activeCarrierName.toUpperCase()} {isTwoFilesMode ? '(CHẾ ĐỘ 2 FILE)' : '(CHẾ ĐỘ 1 FILE)'}
-              </span>
-            )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 🏛️ UNIFIED COMPACT STICKY TOP HEADER */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+        background: 'var(--bg-card, #ffffff)',
+        padding: '10px 16px',
+        borderRadius: 14,
+        border: '1px solid var(--border-color, #e2e8f0)',
+        boxShadow: '0 4px 14px -3px rgba(0, 0, 0, 0.07)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 10,
+        backdropFilter: 'blur(12px)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(79, 70, 229, 0.12)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <ShieldCheck size={18} />
           </div>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-            {isTwoFilesMode
-              ? 'Kéo thả hàng loạt File Đối Soát J&T và File Đơn Xuất App để khớp nối chuẩn xác 100% Khách Hàng, phát hiện đơn bị thiếu & lập Kỳ Bù.'
-              : `Kéo thả hàng loạt File Đối Soát ${activeCarrierName || 'NVC'} các kỳ để rà soát đơn trùng lặp, phát hiện đơn bị thiếu/chưa đối soát và phân tách tự động theo từng Shop.`}
-          </p>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                {isTwoFilesMode 
+                  ? 'Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (2 Vùng Kéo Thả)' 
+                  : `Rà Soát Dữ Liệu & Kiểm Thử Đối Soát Đa Kỳ (1 Vùng Kéo Thả)`}
+              </h2>
+              {activeCarrierName && (
+                <span className="badge badge-primary" style={{ fontSize: 10.5, padding: '2px 7px', fontWeight: 800 }}>
+                  📦 {activeCarrierName.toUpperCase()} {isTwoFilesMode ? '(2 FILE)' : '(1 FILE)'}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {isTwoFilesMode
+                ? 'Khớp nối file J&T & Đơn Xuất App để rà soát đơn sót, đơn lệch và lập Kỳ Bù tự động.'
+                : `Rà soát đối soát đa kỳ ${activeCarrierName || 'NVC'} để phát hiện đơn thiếu/chưa đối soát.`}
+            </div>
+          </div>
         </div>
 
-        {auditOrders.length > 0 && (
-          <div style={{ maxWidth: 360, fontSize: 12, color: 'var(--warning)', fontWeight: 700, lineHeight: 1.45 }}>
-            Các đơn sót chỉ được liệt kê để kiểm tra. Tạo kỳ bù phải thực hiện tại luồng Đối soát, sau khi xác nhận file và ánh xạ cột.
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {currentUser.role === 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => setIsAuditModalOpen(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: 11.5, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              title="Xem lịch sử và nhật ký thao tác tài chính"
+            >
+              <ClipboardList size={14} color="var(--primary)" />
+              <span>Nhật Ký Thao Tác ({allAuditLogs.length})</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {currentUser.role === 'ADMIN' && (
-        <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid var(--primary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <ClipboardList size={20} color="var(--primary)" />
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>Nhật Ký Thao Tác Tài Chính</h3>
-            <span className="badge badge-primary" style={{ fontSize: 10 }}>{auditLogs.length} bản ghi gần nhất</span>
-          </div>
-          {auditLogs.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Chưa có thao tác tài chính hoặc đối soát nào được ghi nhận.</p>
-          ) : (
-            <div style={{ overflowX: 'auto', maxHeight: 280 }}>
-              <table className="data-table" style={{ minWidth: 760 }}>
-                <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Chi tiết</th></tr></thead>
-                <tbody>{auditLogs.map(log => (
-                  <tr key={log.id}>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: 11 }}>{new Date(log.timestamp).toLocaleString('vi-VN')}</td>
-                    <td><strong>{log.username}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({log.userRole})</span></td>
-                    <td><span className="badge badge-primary" style={{ fontSize: 10 }}>{log.action}</span></td>
-                    <td style={{ fontSize: 12 }}>{log.details}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+      {/* 📋 POPUP MODAL: NHẬT KÝ THAO TÁC TÀI CHÍNH */}
+      {isAuditModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAuditModalOpen(false)}>
+          <div 
+            className="modal-content" 
+            style={{ maxWidth: 880, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--primary)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <ClipboardList size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>
+                    Nhật Ký Thao Tác Tài Chính & Đối Soát
+                  </h3>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    Ghi vết lịch sử mọi thay đổi tài chính, đi tiền, chốt kỳ và điều chỉnh công nợ
+                  </div>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setIsAuditModalOpen(false)}
+                style={{ padding: '4px 6px' }}
+              >
+                <X size={16} />
+              </button>
             </div>
-          )}
+
+            {/* Modal Filter Toolbar */}
+            <div style={{
+              padding: '10px 20px',
+              borderBottom: '1px solid var(--border-color)',
+              background: 'var(--bg-tertiary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}>
+              <div style={{ position: 'relative', width: 280 }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
+                <input
+                  type="text"
+                  placeholder="Tìm theo người dùng, thao tác, chi tiết..."
+                  value={auditLogSearch}
+                  onChange={(e) => setAuditLogSearch(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '5px 10px 5px 30px', fontSize: 12 }}
+                />
+              </div>
+              <span className="badge badge-primary" style={{ fontSize: 11, padding: '3px 8px' }}>
+                Tổng {filteredAuditLogs.length} bản ghi
+              </span>
+            </div>
+
+            {/* Modal Table Content */}
+            <div style={{ padding: '12px 20px', overflowY: 'auto', flex: 1, maxHeight: '55vh' }}>
+              {filteredAuditLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Không tìm thấy bản ghi nhật ký nào phù hợp.
+                </div>
+              ) : (
+                <table className="data-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 140 }}>Thời Gian</th>
+                      <th style={{ width: 150 }}>Người Thực Hiện</th>
+                      <th style={{ width: 170 }}>Thao Tác</th>
+                      <th>Nội Dung Chi Tiết</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAuditLogs.map(log => (
+                      <tr key={log.id}>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: 11, color: 'var(--text-muted)' }}>
+                          {new Date(log.timestamp).toLocaleString('vi-VN')}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{log.username}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{log.userRole}</div>
+                        </td>
+                        <td>
+                          <span className="badge badge-primary" style={{ fontSize: 10, fontWeight: 700 }}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-main)', lineHeight: 1.4 }}>
+                          {log.details}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '10px 20px',
+              borderTop: '1px solid var(--border-color)',
+              background: 'var(--bg-tertiary)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setIsAuditModalOpen(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* DRAG & DROP ZONES (1 VÙNG CHO GHN/SPX HOẶC 2 VÙNG CHO J&T) */}
-      <div style={{ display: 'grid', gridTemplateColumns: isTwoFilesMode ? 'repeat(auto-fit, minmax(360px, 1fr))' : '1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isTwoFilesMode ? 'repeat(auto-fit, minmax(360px, 1fr))' : '1fr', gap: 14 }}>
         
         {/* ZONE 1: FILE ĐỐI SOÁT NVC */}
         <div 
           className="glass-panel" 
           style={{ 
-            padding: 24, 
+            padding: '14px 18px', 
             border: '2px dashed var(--primary)', 
             borderRadius: 'var(--radius-lg)',
-            background: 'linear-gradient(180deg, rgba(79, 70, 229, 0.03) 0%, rgba(79, 70, 229, 0.08) 100%)',
+            background: 'linear-gradient(180deg, rgba(79, 70, 229, 0.02) 0%, rgba(79, 70, 229, 0.05) 100%)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 14,
+            gap: 10,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Truck size={15} />
               </div>
               <div>
-                <strong style={{ fontSize: 15, color: 'var(--primary)' }}>
+                <strong style={{ fontSize: 13.5, color: 'var(--primary)' }}>
                   {isTwoFilesMode ? 'VÙNG 1: File Đối Soát J&T Express' : `VÙNG KÉO THẢ: File Đối Soát ${activeCarrierName?.toUpperCase() || 'NVC'}`}
                 </strong>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {isTwoFilesMode ? 'File Excel đối soát do J&T Express gửi' : `File Excel đối soát từ ${activeCarrierName || 'Hãng'} (đã có Tên Shop, SĐT, COD, Cước...)`}
+                  {isTwoFilesMode ? 'File Excel đối soát do J&T Express gửi' : `File Excel đối soát từ ${activeCarrierName || 'Hãng'} (có Tên Shop, COD, Cước...)`}
                 </div>
               </div>
             </div>
-            <span className="badge badge-primary">{nvcFiles.length} file</span>
+            <span className="badge badge-primary" style={{ fontSize: 10.5, padding: '2px 7px' }}>{nvcFiles.length} file</span>
           </div>
 
           <input 
@@ -649,7 +808,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
             htmlFor="nvc-batch-input" 
             style={{ 
               cursor: 'pointer', 
-              padding: '24px 16px', 
+              padding: '12px 14px', 
               borderRadius: 'var(--radius-md)', 
               border: '1px dashed var(--primary)', 
               background: 'rgba(79, 70, 229, 0.05)',
@@ -657,17 +816,17 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 8,
+              gap: 4,
             }}
           >
-            <UploadCloud size={32} color="var(--primary)" />
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
-              + Thêm / Kéo thả các File Đối Soát {activeCarrierName ? activeCarrierName.toUpperCase() : 'NVC'}
+            <UploadCloud size={24} color="var(--primary)" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>
+              + Thêm / Kéo thả File Đối Soát {activeCarrierName ? activeCarrierName.toUpperCase() : 'NVC'}
             </span>
-            <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {isTwoFilesMode 
                 ? 'Hỗ trợ kéo thả đồng thời nhiều file đối soát J&T qua các kỳ'
-                : `Hỗ trợ kéo thả đồng thời nhiều file đối soát ${activeCarrierName || 'GHN'} qua các kỳ (tự động phân tách Shop)`}
+                : `Hỗ trợ kéo thả đồng thời nhiều file đối soát ${activeCarrierName || 'GHN'} qua các kỳ`}
             </span>
           </label>
 
@@ -720,26 +879,26 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
           <div 
             className="glass-panel" 
             style={{ 
-              padding: 24, 
+              padding: '14px 18px', 
               border: '2px dashed var(--success)', 
               borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, rgba(16, 185, 129, 0.08) 100%)',
+              background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.02) 0%, rgba(16, 185, 129, 0.05) 100%)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 14,
+              gap: 10,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Store size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Store size={15} />
                 </div>
                 <div>
-                  <strong style={{ fontSize: 15, color: 'var(--success)' }}>VÙNG 2: File Đơn Xuất App / Hệ Thống</strong>
+                  <strong style={{ fontSize: 13.5, color: 'var(--success)' }}>VÙNG 2: File Đơn Xuất App / Hệ Thống</strong>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>File đơn xuất từ phần mềm Shop (Pancake, TPOS, Nhanh...)</div>
                 </div>
               </div>
-              <span className="badge badge-success">{appFiles.length} file</span>
+              <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 7px' }}>{appFiles.length} file</span>
             </div>
 
             <input 
@@ -754,7 +913,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
               htmlFor="app-batch-input" 
               style={{ 
                 cursor: 'pointer', 
-                padding: '24px 16px', 
+                padding: '12px 14px', 
                 borderRadius: 'var(--radius-md)', 
                 border: '1px dashed var(--success)', 
                 background: 'rgba(16, 185, 129, 0.05)',
@@ -762,12 +921,12 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 8,
+                gap: 4,
               }}
             >
-              <UploadCloud size={32} color="var(--success)" />
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>+ Thêm/Kéo thả các File Đơn Xuất App</span>
-              <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>File Excel xuất danh sách đơn của Shop/Hệ thống</span>
+              <UploadCloud size={24} color="var(--success)" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>+ Thêm / Kéo thả File Đơn Xuất App</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>File Excel danh sách đơn từ Shop / Phần mềm bán hàng</span>
             </label>
 
             {/* List of uploaded App files */}

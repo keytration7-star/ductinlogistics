@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 
@@ -13,6 +14,42 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// ──────────────────────────────────────────
+// 🖥️ VPS & SYSTEM HEALTH METRICS
+// ──────────────────────────────────────────
+app.get('/api/system/status', (req, res) => {
+  try {
+    const cpus = os.cpus() || [];
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memUsagePercent = Math.round((usedMem / totalMem) * 100);
+    const loadAvg = os.loadavg() || [0, 0, 0];
+    const cpuUsagePercent = Math.min(100, Math.max(1, Math.round((loadAvg[0] / (cpus.length || 1)) * 100)));
+
+    res.json({
+      success: true,
+      timestamp: Date.now(),
+      vps: {
+        platform: os.platform(),
+        arch: os.arch(),
+        cpuCores: cpus.length,
+        cpuUsagePercent,
+        memory: {
+          totalMB: Math.round(totalMem / (1024 * 1024)),
+          usedMB: Math.round(usedMem / (1024 * 1024)),
+          freeMB: Math.round(freeMem / (1024 * 1024)),
+          usagePercent: memUsagePercent,
+        },
+        uptimeHours: (os.uptime() / 3600).toFixed(1),
+        nodeVersion: process.version,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ──────────────────────────────────────────
 // 📁 SERVER-SIDE PERSISTENT STORAGE (JSON DATABASE)
@@ -367,6 +404,8 @@ function createSnapshot(reason = 'auto') {
       sessions: readJsonFile('sessions.json', []),
       companyInfo: readJsonFile('company_info.json', {}),
       emailSettings: readJsonFile('email_settings.json', {}),
+      zaloSettings: readJsonFile('zalo_settings.json', {}),
+      telegramSettings: readJsonFile('telegram_settings.json', {}),
       exportColumns: readJsonFile('export_columns.json', {}),
       carrierData: readJsonFile('carrier_data.json', {}),
       users: readJsonFile('users.json', []),
@@ -407,6 +446,8 @@ app.get('/api/db/all', requireAuth, (req, res) => {
     const sessions = readJsonFile('sessions.json', null);
     const companyInfo = readJsonFile('company_info.json', null);
     const emailSettings = readJsonFile('email_settings.json', null);
+    const zaloSettings = readJsonFile('zalo_settings.json', null);
+    const telegramSettings = readJsonFile('telegram_settings.json', null);
     const exportColumns = readJsonFile('export_columns.json', null);
     const carrierData = readJsonFile('carrier_data.json', {});
     const users = readJsonFile('users.json', null);
@@ -422,6 +463,8 @@ app.get('/api/db/all', requireAuth, (req, res) => {
         sessions,
         companyInfo,
         emailSettings,
+        zaloSettings,
+        telegramSettings,
         exportColumns,
         carrierData,
         users: Array.isArray(users) ? users.map(publicUser) : users,
@@ -533,6 +576,18 @@ app.post('/api/db/email-settings', requireAuth, requireAdmin, (req, res) => {
   res.json({ success });
 });
 
+// POST save zalo zns settings
+app.post('/api/db/zalo-settings', requireAuth, requireAdmin, (req, res) => {
+  const success = writeJsonFile('zalo_settings.json', req.body.zaloSettings || {});
+  res.json({ success });
+});
+
+// POST save telegram settings
+app.post('/api/db/telegram-settings', requireAuth, requireAdmin, (req, res) => {
+  const success = writeJsonFile('telegram_settings.json', req.body.telegramSettings || {});
+  res.json({ success });
+});
+
 // POST save export columns
 app.post('/api/db/export-columns', requireAuth, requireAdmin, (req, res) => {
   const success = writeJsonFile('export_columns.json', req.body.exportColumns || {});
@@ -610,6 +665,8 @@ app.post('/api/db/snapshots/restore', requireAuth, requireAdmin, (req, res) => {
     if (backup.sessions) writeJsonFile('sessions.json', backup.sessions);
     if (backup.companyInfo) writeJsonFile('company_info.json', backup.companyInfo);
     if (backup.emailSettings) writeJsonFile('email_settings.json', backup.emailSettings);
+    if (backup.zaloSettings) writeJsonFile('zalo_settings.json', backup.zaloSettings);
+    if (backup.telegramSettings) writeJsonFile('telegram_settings.json', backup.telegramSettings);
     if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
     if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
     if (backup.users) writeJsonFile('users.json', backup.users);
@@ -633,6 +690,8 @@ app.post('/api/db/backup/import', requireAuth, requireAdmin, (req, res) => {
     if (backup.sessions) writeJsonFile('sessions.json', backup.sessions);
     if (backup.companyInfo) writeJsonFile('company_info.json', backup.companyInfo);
     if (backup.emailSettings) writeJsonFile('email_settings.json', backup.emailSettings);
+    if (backup.zaloSettings) writeJsonFile('zalo_settings.json', backup.zaloSettings);
+    if (backup.telegramSettings) writeJsonFile('telegram_settings.json', backup.telegramSettings);
     if (backup.exportColumns) writeJsonFile('export_columns.json', backup.exportColumns);
     if (backup.carrierData) writeJsonFile('carrier_data.json', backup.carrierData);
     if (backup.users) writeJsonFile('users.json', backup.users);
