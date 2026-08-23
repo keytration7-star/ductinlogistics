@@ -1000,11 +1000,11 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
+            {/* Modal Header Pro */}
             <div style={{
               padding: '16px 24px',
-              background: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border-color)',
+              background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+              borderBottom: '1.5px solid var(--border-color, #e2e8f0)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1013,27 +1013,29 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--primary)' }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
                     {cleanSessionName(activeDetailSession.sessionName, activeDetailSession.createdAt, activeDetailSession.carrierName)}
                   </h3>
-                  <span className="badge badge-primary">{activeDetailSession.carrierName}</span>
+                  <span className="badge badge-primary" style={{ padding: '3px 10px', fontSize: 11.5, borderRadius: 6 }}>
+                    {activeDetailSession.carrierName}
+                  </span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontWeight: 500 }}>
-                  Bảng kê đi tiền chi tiết cho {activeDetailSession.statements.length} Shop • Tổng {activeDetailSession.totalOrders} đơn hàng đối soát
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, fontWeight: 500 }}>
+                  Bảng kê đi tiền chi tiết cho <strong>{activeDetailSession.statements.length} Shop</strong> • Tổng <strong>{activeDetailSession.totalOrders}</strong> đơn hàng đối soát
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {/* Search Bar inside Modal */}
-                <div style={{ position: 'relative', width: 220 }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
+                <div style={{ position: 'relative', width: 240 }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-dim)' }} />
                   <input
                     type="text"
-                    placeholder="Tìm shop trong kỳ..."
+                    placeholder="Tìm theo tên shop, mã, SĐT..."
                     value={modalSearchQuery}
                     onChange={(e) => setModalSearchQuery(e.target.value)}
                     className="input-field"
-                    style={{ padding: '6px 10px 6px 30px', fontSize: 12 }}
+                    style={{ padding: '6px 10px 6px 32px', fontSize: 12, height: 34, borderRadius: 8 }}
                   />
                 </div>
 
@@ -1041,7 +1043,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   type="button"
                   onClick={() => setActiveDetailSession(null)} 
                   className="btn btn-secondary btn-sm" 
-                  style={{ padding: '6px 8px' }}
+                  style={{ padding: '7px 9px', borderRadius: 8 }}
                   title="Đóng cửa sổ"
                 >
                   <X size={18} />
@@ -1051,20 +1053,20 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
             {/* Modal Content Table */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
-              <table className="data-table" style={{ margin: 0 }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                  <tr>
-                    <th>Mã Shop</th>
-                    <th>Tên Shop</th>
-                    <th>Thông Tin Ngân Hàng</th>
-                    <th style={{ textAlign: 'right' }}>Tiền COD</th>
-                    <th style={{ textAlign: 'right' }}>Cước Shop</th>
-                    <th style={{ textAlign: 'right', color: '#d97706' }}>Nợ Cũ Dồn Sang</th>
-                    <th style={{ textAlign: 'right', color: 'var(--primary)' }}>Thực Chuyển</th>
-                    <th style={{ textAlign: 'right' }}>Đã Chuyển</th>
-                    <th style={{ textAlign: 'right' }}>Còn Nợ</th>
-                    <th style={{ textAlign: 'center' }}>Trạng Thái</th>
-                    <th style={{ textAlign: 'right' }}>Thao Tác</th>
+              <table className="data-table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+                  <tr style={{ borderBottom: '2px solid var(--border-color, #e2e8f0)', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.3, color: '#475569' }}>
+                    <th style={{ padding: '10px 12px', width: 100 }}>Mã Shop</th>
+                    <th style={{ padding: '10px 14px' }}>Tên Shop / Đơn Vị</th>
+                    <th style={{ padding: '10px 14px' }}>Thông Tin Ngân Hàng</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tiền COD</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Cước Shop</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>Nợ Cũ Dồn</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#4f46e5' }}>Thực Chuyển</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>Đã Chuyển</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626' }}>Còn Nợ</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Trạng Thái</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right' }}>Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1072,7 +1074,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     .filter(stmt => {
                       if (!modalSearchQuery) return true;
                       const q = modalSearchQuery.toLowerCase();
-                      return stmt.shopName.toLowerCase().includes(q) || stmt.shopCode.toLowerCase().includes(q);
+                      return stmt.shopName.toLowerCase().includes(q) || stmt.shopCode.toLowerCase().includes(q) || (stmt.shopPhone && stmt.shopPhone.includes(q));
                     })
                     .map(stmt => {
                       const { paidAmount, remainingDebt, openingDebt, amountPayable, shopOwes, status } = getStatementPayoutInfo(activeDetailSession.id, stmt);
@@ -1081,90 +1083,200 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       const aliasesList = [...(matchedShopObj?.nameAliases || []), ...(matchedShopObj?.phoneList || [])];
 
                       return (
-                        <tr key={stmt.shopId}>
-                          <td><strong className="mono" style={{ color: 'var(--primary)', fontSize: 12 }}>{stmt.shopCode}</strong></td>
-                          <td>
+                        <tr
+                          key={stmt.shopId}
+                          style={{
+                            borderBottom: '1px solid var(--border-color, #f1f5f9)',
+                            fontSize: 12.5,
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              padding: '2px 7px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 800,
+                              fontFamily: 'monospace',
+                            }}>
+                              {stmt.shopCode}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>{stmt.shopName}</strong>
                               {aliasesList.length > 0 && (
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 800,
-                                  background: 'rgba(245, 158, 11, 0.14)',
-                                  color: '#b45309',
-                                  padding: '2px 7px',
+                                  background: '#fef3c7',
+                                  color: '#92400e',
+                                  padding: '1px 6px',
                                   borderRadius: 4,
-                                  border: '1px solid #f59e0b',
+                                  border: '1px solid #fde68a',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: 3,
                                 }}>
-                                  🔗 Đã gộp {aliasesList.length} nhánh
+                                  🔗 {aliasesList.length} nhánh
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>SĐT: {stmt.shopPhone || 'N/A'}</div>
-                            {aliasesList.length > 0 && (
-                              <div style={{ fontSize: 10.5, color: '#92400e', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, color: '#b45309' }}>Gộp từ:</span>
-                                {aliasesList.map((alias, aIdx) => (
-                                  <span key={aIdx} style={{ background: '#fef3c7', padding: '1px 6px', borderRadius: 4, border: '1px solid #fde68a', color: '#92400e', fontSize: 10, fontWeight: 600 }}>
-                                    {alias}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, fontFamily: 'monospace' }}>
+                              SĐT: {stmt.shopPhone || 'N/A'}
+                            </div>
                           </td>
-                          <td>
+                          <td style={{ padding: '10px 14px' }}>
                             {(() => {
                               const liveBank = getLiveShopBankInfo(stmt);
                               return liveBank.accountNumber ? (
-                                <div style={{ fontSize: 12 }}>
-                                  <div><strong>{liveBank.bankName}</strong> • <span className="mono">{liveBank.accountNumber}</span></div>
-                                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{liveBank.accountHolder}</div>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <span style={{
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      padding: '1px 6px',
+                                      borderRadius: 4,
+                                      fontSize: 10.5,
+                                      fontWeight: 800,
+                                    }}>
+                                      {liveBank.bankName || 'NH'}
+                                    </span>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1e293b' }}>
+                                      {liveBank.accountNumber}
+                                    </span>
+                                  </div>
+                                  {liveBank.accountHolder && (
+                                    <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', marginTop: 2, fontWeight: 600 }}>
+                                      {liveBank.accountHolder}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
-                                <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Chưa có STK</span>
+                                <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Chưa cập nhật STK</span>
                               );
                             })()}
                           </td>
-                          <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(stmt.totalCod)}</td>
-                          <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', fontFamily: 'monospace' }}>
+                            {formatVND(stmt.totalCod)}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
+                            -{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
                             {openingDebt > 0 ? (
-                              <span style={{ color: '#d97706', fontWeight: 700 }}>+{formatVND(openingDebt)}</span>
+                              <span style={{ color: '#d97706' }}>+{formatVND(openingDebt)}</span>
                             ) : openingDebt < 0 ? (
-                              <span style={{ color: '#ef4444', fontWeight: 700 }}>-{formatVND(Math.abs(openingDebt))}</span>
+                              <span style={{ color: '#ef4444' }}>-{formatVND(Math.abs(openingDebt))}</span>
                             ) : (
                               <span style={{ color: 'var(--text-muted)' }}>0 đ</span>
                             )}
                           </td>
-                          <td className="mono" style={{ fontWeight: 800, color: shopOwes > 0 ? 'var(--danger)' : 'var(--primary)', textAlign: 'right' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: shopOwes > 0 ? '#dc2626' : '#4f46e5', fontSize: 13, fontFamily: 'monospace' }}>
                             {formatVND(amountPayable)}
                           </td>
-                          <td className="mono" style={{ fontWeight: 700, color: 'var(--success)', textAlign: 'right' }}>{formatVND(paidAmount)}</td>
-                          <td className="mono" style={{ fontWeight: 800, color: remainingDebt > 0 ? 'var(--danger)' : 'var(--success)', textAlign: 'right' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
+                            {formatVND(paidAmount)}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: remainingDebt > 0 ? '#dc2626' : '#059669', fontSize: 13, fontFamily: 'monospace' }}>
                             {formatVND(remainingDebt)}
                           </td>
-                          <td style={{ textAlign: 'center' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                             {shopOwes > 0 ? (
-                              <span className="badge badge-warning" style={{ fontSize: 10 }}>
-                                🔴 Shop nợ {formatVND(shopOwes)}
+                              <span style={{
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '2px 7px',
+                                borderRadius: 6,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}>
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626' }} />
+                                Shop nợ
                               </span>
                             ) : (
                               <>
-                                {status === 'PAID' && <span className="badge badge-success" style={{ fontSize: 10 }}>🟢 Đã đủ</span>}
-                                {status === 'PARTIAL' && <span className="badge badge-info" style={{ fontSize: 10 }}>🔵 1 phần</span>}
-                                {status === 'UNPAID' && <span className="badge badge-danger" style={{ fontSize: 10 }}>🔴 Chưa đi</span>}
+                                {status === 'PAID' && (
+                                  <span style={{
+                                    background: '#ecfdf5',
+                                    color: '#047857',
+                                    border: '1px solid #a7f3d0',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}>
+                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981' }} />
+                                    Đã đi đủ
+                                  </span>
+                                )}
+                                {status === 'PARTIAL' && (
+                                  <span style={{
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    border: '1px solid #bfdbfe',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}>
+                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3b82f6' }} />
+                                    1 phần
+                                  </span>
+                                )}
+                                {status === 'UNPAID' && (
+                                  <span style={{
+                                    background: '#fef2f2',
+                                    color: '#dc2626',
+                                    border: '1px solid #fecaca',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}>
+                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626' }} />
+                                    Chưa đi
+                                  </span>
+                                )}
                               </>
                             )}
                           </td>
-                          <td style={{ textAlign: 'right' }}>
+                          <td style={{ padding: '10px 14px', textAlign: 'right' }}>
                             <button
                               type="button"
                               onClick={() => handleOpenPayModal(activeDetailSession, stmt)}
-                              className={`btn btn-sm ${remainingDebt > 0 ? 'btn-primary' : 'btn-secondary'}`}
-                              style={{ padding: '4px 12px', fontSize: 11 }}
+                              className="btn btn-sm"
+                              style={{
+                                background: remainingDebt > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' : '#f1f5f9',
+                                color: remainingDebt > 0 ? '#ffffff' : '#334155',
+                                border: remainingDebt > 0 ? 'none' : '1px solid #cbd5e1',
+                                padding: '5px 12px',
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                borderRadius: 6,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                boxShadow: remainingDebt > 0 ? '0 2px 6px rgba(79, 70, 229, 0.3)' : 'none',
+                              }}
                             >
                               <DollarSign size={13} />
                               <span>{remainingDebt > 0 ? 'Đi Tiền' : 'Chi Tiết'}</span>
@@ -1177,16 +1289,18 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
               </table>
             </div>
 
-            {/* Modal Footer */}
+            {/* Modal Footer Pro */}
             <div style={{
               padding: '14px 24px',
-              background: 'var(--bg-secondary)',
-              borderTop: '1px solid var(--border-color)',
+              background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+              borderTop: '1.5px solid var(--border-color, #e2e8f0)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
             }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                 Hiển thị <strong>{activeDetailSession.statements.length} Shop</strong> trong kỳ đối soát
               </div>
 
@@ -1194,18 +1308,30 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleExportSessionPayoutExcel(activeDetailSession)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 12, padding: '6px 12px' }}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: 'transparent',
+                    color: '#ffffff',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                  }}
                 >
-                  <FileSpreadsheet size={14} color="var(--success)" />
-                  <span>Xuất File Excel iBanking</span>
+                  <FileSpreadsheet size={15} />
+                  <span>Xuất File Excel iBanking (.xlsx)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveDetailSession(null)}
                   className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 12, padding: '6px 16px' }}
+                  style={{ fontSize: 12.5, padding: '7px 18px', borderRadius: 8, fontWeight: 700 }}
                 >
                   Đóng
                 </button>

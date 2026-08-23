@@ -2353,42 +2353,53 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
       {/* 3. Queue Table: Shop List & Per-Shop Preview/Send Actions */}
       {statements.length > 0 ? (
-        <div className="glass-panel" style={{ padding: 24, borderRadius: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div className="glass-panel" style={{ padding: '18px 22px', borderRadius: 16, border: '1.5px solid var(--border-color, #e2e8f0)', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, margin: 0, color: 'var(--text-main)' }}>
                 <Layers size={18} color="var(--primary)" />
-                Danh Sách Hàng Đợi Gửi Mail ({statements.length} Shop)
+                <span>Danh Sách Hàng Đợi Gửi Mail ({statements.length} Shop)</span>
               </h3>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 Click nút <strong style={{ color: 'var(--primary)' }}>👁️ Xem Trước</strong> ở từng dòng để kiểm tra nội dung email và bảng kê riêng của Shop đó.
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="badge badge-primary" style={{ fontSize: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span className="badge badge-primary" style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8 }}>
                 ✉️ {statements.length - missingShopEmailsCount}/{statements.length} Shop đã có Email
               </span>
               {missingShopEmailsCount > 0 && (
-                <span className="badge badge-warning" style={{ fontSize: 12 }}>
+                <span className="badge badge-warning" style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8 }}>
                   ⚠️ {missingShopEmailsCount} Shop chưa có Email
                 </span>
               )}
             </div>
           </div>
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: 45 }}>STT</th>
-                <th>Shop Nhận Đối Soát</th>
-                <th>Địa Chỉ Email</th>
-                <th>Số Tiền Thực Trả</th>
-                <th>Trạng Thái Gửi</th>
-                <th style={{ textAlign: 'right' }}>Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody>
+          {/* 📜 Scrollable Table Container with Sticky Header */}
+          <div style={{
+            maxHeight: 'calc(100vh - 280px)',
+            minHeight: 380,
+            overflowY: 'auto',
+            overflowX: 'auto',
+            borderRadius: 12,
+            border: '1.5px solid var(--border-color, #e2e8f0)',
+            background: 'var(--bg-card, #ffffff)',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            <table className="data-table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-tertiary, #f8fafc)', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+                <tr style={{ borderBottom: '2px solid var(--border-color, #e2e8f0)', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  <th style={{ width: 45, textAlign: 'center', background: 'inherit' }}>STT</th>
+                  <th style={{ background: 'inherit' }}>Shop Nhận Đối Soát</th>
+                  <th style={{ background: 'inherit' }}>Địa Chỉ Email</th>
+                  <th style={{ textAlign: 'right', background: 'inherit' }}>Số Tiền Thực Trả</th>
+                  <th style={{ textAlign: 'center', background: 'inherit' }}>Trạng Thái Gửi</th>
+                  <th style={{ textAlign: 'right', background: 'inherit' }}>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
               {statements.map((stmt, idx) => {
                 const statusObj = shopStatuses[stmt.shopId] || { status: 'idle' };
                 const isSelected = stmt.shopId === selectedShopId;
@@ -2577,6 +2588,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
       ) : (
         <div className="glass-panel" style={{
           padding: '36px 24px',
