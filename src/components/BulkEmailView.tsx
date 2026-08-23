@@ -78,14 +78,23 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const { showToast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
   
-  // All stored sessions for switching
+  // All stored sessions
   const allStoredSessions = StorageService.getSessions();
 
-  // Filter stored sessions by active carrier
-  const carrierFilteredSessions = React.useMemo(() => {
-    if (!activeCarrierId) return allStoredSessions;
+  // Combine currentSession if not present in storage
+  const allAvailableSessions = React.useMemo(() => {
+    const list = [...allStoredSessions];
+    if (currentSession && !list.some(s => s.id === currentSession.id)) {
+      list.unshift(currentSession);
+    }
+    return list;
+  }, [allStoredSessions, currentSession]);
+
+  // Filter by active carrier, or fallback to all available sessions if no carrier-match
+  const displaySessions = React.useMemo(() => {
+    if (!activeCarrierId) return allAvailableSessions;
     const target = activeCarrierId.toLowerCase();
-    return allStoredSessions.filter(s => {
+    const filtered = allAvailableSessions.filter(s => {
       const sCarrier = (s.carrierId || '').toLowerCase();
       const sCarrierName = (s.carrierName || '').toLowerCase();
       if (target === 'ghn' || target.includes('ghn') || target.includes('nhanh')) {
@@ -105,44 +114,23 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
       }
       return sCarrier === target || sCarrier.includes(target) || target.includes(sCarrier);
     });
-  }, [allStoredSessions, activeCarrierId]);
-
-  // Check if currentSession passed via props matches current active carrier
-  const isCurrentSessionMatchingCarrier = React.useMemo(() => {
-    if (!currentSession) return false;
-    if (!activeCarrierId) return true;
-    const target = activeCarrierId.toLowerCase();
-    const sCarrier = (currentSession.carrierId || '').toLowerCase();
-    const sCarrierName = (currentSession.carrierName || '').toLowerCase();
-    if (target === 'ghn' || target.includes('ghn') || target.includes('nhanh')) {
-      return sCarrier === 'ghn' || sCarrier.includes('ghn') || sCarrierName.includes('nhanh') || sCarrierName.includes('ghn');
-    }
-    if (target === 'jnt' || target.includes('jnt') || target.includes('j&t')) {
-      return sCarrier === 'jnt' || sCarrier.includes('jnt') || sCarrierName.includes('j&t') || sCarrierName.includes('jnt');
-    }
-    if (target === 'ghtk' || target.includes('ghtk')) {
-      return sCarrier === 'ghtk' || sCarrier.includes('ghtk') || sCarrierName.includes('tiet kiem');
-    }
-    if (target === 'vtp' || target.includes('vtp')) {
-      return sCarrier === 'vtp' || sCarrier.includes('vtp') || sCarrierName.includes('viettel');
-    }
-    return sCarrier === target;
-  }, [currentSession, activeCarrierId]);
+    return filtered.length > 0 ? filtered : allAvailableSessions;
+  }, [allAvailableSessions, activeCarrierId]);
 
   const [selectedSessionId, setSelectedSessionId] = useState<string>(() => {
-    if (isCurrentSessionMatchingCarrier && currentSession?.id) return currentSession.id;
-    return carrierFilteredSessions[0]?.id ?? '';
+    if (currentSession?.id) return currentSession.id;
+    return displaySessions[0]?.id ?? '';
   });
 
   React.useEffect(() => {
-    if (isCurrentSessionMatchingCarrier && currentSession?.id) {
+    if (currentSession?.id) {
       setSelectedSessionId(currentSession.id);
-    } else {
-      setSelectedSessionId(carrierFilteredSessions[0]?.id ?? '');
+    } else if (displaySessions.length > 0 && !displaySessions.some(s => s.id === selectedSessionId)) {
+      setSelectedSessionId(displaySessions[0].id);
     }
-  }, [activeCarrierId, currentSession, isCurrentSessionMatchingCarrier, carrierFilteredSessions]);
+  }, [currentSession, displaySessions]);
 
-  const activeSession = (carrierFilteredSessions.find(s => s.id === selectedSessionId) || (isCurrentSessionMatchingCarrier ? currentSession : null)) ?? null;
+  const activeSession = displaySessions.find(s => s.id === selectedSessionId) || currentSession || displaySessions[0] || null;
   const statements = activeSession?.statements || [];
   const hasUnmatchedOrders = (activeSession?.unmatchedOrdersCount || 0) > 0;
 
@@ -676,6 +664,41 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Session Selector */}
+              {displaySessions.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1' }}>
+                  <Layers size={16} color="#0068ff" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
+                  <select
+                    value={selectedSessionId}
+                    onChange={(e) => {
+                      setSelectedSessionId(e.target.value);
+                      const target = displaySessions.find(s => s.id === e.target.value);
+                      if (target?.statements?.length) {
+                        setSelectedShopId(target.statements[0].shopId);
+                      }
+                    }}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: '#0068ff',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      maxWidth: 260,
+                    }}
+                  >
+                    {displaySessions.map((ses, idx) => (
+                      <option key={ses.id || idx} value={ses.id}>
+                        {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop • {ses.carrierName || 'NVC'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Mode Indicator */}
               <div style={{
                 display: 'flex',
@@ -1094,6 +1117,41 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         {/* Action Controls & Settings */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           
+          {/* Session Selector */}
+          {displaySessions.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1' }}>
+              <Layers size={16} color="var(--primary)" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Kỳ:</span>
+              <select
+                value={selectedSessionId}
+                onChange={(e) => {
+                  setSelectedSessionId(e.target.value);
+                  const target = displaySessions.find(s => s.id === e.target.value);
+                  if (target?.statements?.length) {
+                    setSelectedShopId(target.statements[0].shopId);
+                  }
+                }}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: 'var(--primary)',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  maxWidth: 260,
+                }}
+              >
+                {displaySessions.map((ses, idx) => (
+                  <option key={ses.id || idx} value={ses.id}>
+                    {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop • {ses.carrierName || 'NVC'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Send Interval / Rate Limit Control */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 10, border: '1px solid #cbd5e1' }}>
             <Timer size={16} color="var(--primary)" />
@@ -1466,7 +1524,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   ))}
                 </select>
               </div>
-            ) : carrierFilteredSessions.length > 0 && (
+            ) : displaySessions.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Xem kỳ khác:</span>
                 <select
@@ -1475,7 +1533,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   className="select-field"
                   style={{ width: 200, padding: '3px 6px', fontSize: 11 }}
                 >
-                  {carrierFilteredSessions.map((ses, idx) => (
+                  {displaySessions.map((ses, idx) => (
                     <option key={ses.id || idx} value={ses.id}>
                       {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop)
                     </option>
