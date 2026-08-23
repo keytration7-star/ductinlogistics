@@ -26,12 +26,14 @@ import {
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
-import type { ReconciliationSession, EmailSettings, ShopSettlementStatement, ZaloZnsSettings } from '../types';
+import type { ReconciliationSession, EmailSettings, ShopSettlementStatement, ZaloZnsSettings, TelegramSettings } from '../types';
 import { EmailService } from '../services/emailService';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storage';
 import { ZaloZnsService } from '../services/zaloZnsService';
 import { ZaloZnsConfigModal } from './ZaloZnsConfigModal';
+import { TelegramService } from '../services/telegramService';
+import { TelegramConfigModal } from './TelegramConfigModal';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
@@ -39,7 +41,7 @@ interface BulkEmailViewProps {
   onSaveEmailSettings: (settings: EmailSettings) => void;
   activeCarrierId?: string;
   activeCarrierName?: string;
-  initialChannel?: 'zalo' | 'email';
+  initialChannel?: 'zalo' | 'email' | 'telegram';
 }
 
 const MOCK_DEMO_STATEMENT: ShopSettlementStatement = {
@@ -168,8 +170,8 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);
 
-  // Active Notification Channel: 'zalo' | 'email'
-  const [activeChannel, setActiveChannel] = useState<'zalo' | 'email'>(initialChannel);
+  // Active Notification Channel: 'zalo' | 'email' | 'telegram'
+  const [activeChannel, setActiveChannel] = useState<'zalo' | 'email' | 'telegram'>(initialChannel);
 
   React.useEffect(() => {
     if (initialChannel) {
@@ -182,6 +184,17 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   const [zaloProgress, setZaloProgress] = useState<{ sent: number; total: number; success: number; failed: number }>({ sent: 0, total: 0, success: 0, failed: 0 });
   const [zaloStatuses, setZaloStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string; messageId?: string }>>({});
   const [zaloSearchQuery, setZaloSearchQuery] = useState('');
+
+  // Telegram Bot State
+  const [telegramSettings, setTelegramSettings] = useState<TelegramSettings>(() => StorageService.getTelegramSettings());
+  const [isTelegramConfigOpen, setIsTelegramConfigOpen] = useState(false);
+  const [isSendingTelegramBatch, setIsSendingTelegramBatch] = useState(false);
+  const [telegramProgress, setTelegramProgress] = useState<{ sent: number; total: number; success: number; failed: number }>({ sent: 0, total: 0, success: 0, failed: 0 });
+  const [telegramStatuses, setTelegramStatuses] = useState<Record<string, { status: 'idle' | 'sending' | 'sent' | 'failed'; message?: string; messageId?: string | number }>>({});
+  const [telegramSearchQuery, setTelegramSearchQuery] = useState('');
+  const [telegramSelectedShopId, setTelegramSelectedShopId] = useState<string>(statements[0]?.shopId || '');
+  const [telegramCustomChatMap, setTelegramCustomChatMap] = useState<Record<string, string>>({});
+  const telegramSendDelay = 1.5;
 
   const [selectedShopId, setSelectedShopId] = useState<string>(
     statements[0]?.shopId || ''
@@ -523,6 +536,112 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     window.open(`https://zalo.me/${cleanPhone}`, '_blank');
   };
 
+  // Telegram Bot Handlers
+  const handleSaveTelegramSettings = (newSettings: TelegramSettings) => {
+    setTelegramSettings(newSettings);
+    StorageService.saveTelegramSettings(newSettings);
+  };
+
+  const handleSendSingleTelegram = async (stmt: ShopSettlementStatement) => {
+    if (hasUnmatchedOrders) {
+      showToast('Kỳ đối soát còn đơn chưa khớp nên chưa thể gửi Telegram.', 'warning');
+      return;
+    }
+    const customChatId = telegramCustomChatMap[stmt.shopId] || stmt.telegramChatId;
+    setTelegramStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sending' } }));
+    const res = await TelegramService.sendSingleShopTelegram(
+      stmt,
+      activeSession,
+      telegramSettings,
+      customChatId,
+      telegramSettings.autoAttachExcel !== false
+    );
+    if (res.success) {
+      setTelegramStatuses(prev => ({
+        ...prev,
+        [stmt.shopId]: { status: 'sent', messageId: res.messageId, message: 'Đã gửi thành công qua Telegram' }
+      }));
+      showToast(`✅ Đã gửi Telegram cho Shop ${stmt.shopName}!`, 'success');
+    } else {
+      setTelegramStatuses(prev => ({
+        ...prev,
+        [stmt.shopId]: { status: 'failed', message: res.error }
+      }));
+      showToast(`❌ Lỗi gửi Telegram: ${res.error}`, 'error');
+    }
+  };
+
+  const handleStartTelegramBatchSend = async () => {
+    if (hasUnmatchedOrders) {
+      showToast('Kỳ đối soát còn đơn chưa khớp nên không thể gửi Telegram cho shop.', 'warning');
+      return;
+    }
+    if (statements.length === 0) {
+      showToast('Chưa có danh sách shop đối soát nào trong kỳ này.', 'warning');
+      return;
+    }
+
+    setIsSendingTelegramBatch(true);
+    setTelegramProgress({ sent: 0, total: statements.length, success: 0, failed: 0 });
+
+    const newStatuses = { ...telegramStatuses };
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      newStatuses[stmt.shopId] = { status: 'sending' };
+      setTelegramStatuses({ ...newStatuses });
+
+      const customChatId = telegramCustomChatMap[stmt.shopId] || stmt.telegramChatId;
+      const res = await TelegramService.sendSingleShopTelegram(
+        stmt,
+        activeSession,
+        telegramSettings,
+        customChatId,
+        telegramSettings.autoAttachExcel !== false
+      );
+
+      if (res.success) {
+        successCount++;
+        newStatuses[stmt.shopId] = { status: 'sent', messageId: res.messageId, message: 'Đã gửi thành công' };
+      } else {
+        failedCount++;
+        newStatuses[stmt.shopId] = { status: 'failed', message: res.error || 'Lỗi gửi tin nhắn' };
+      }
+
+      setTelegramStatuses({ ...newStatuses });
+      setTelegramProgress({
+        sent: i + 1,
+        total: statements.length,
+        success: successCount,
+        failed: failedCount,
+      });
+
+      if (i < statements.length - 1 && telegramSendDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, telegramSendDelay * 1000));
+      }
+    }
+
+    setIsSendingTelegramBatch(false);
+    showToast(`Đã hoàn tất gửi Telegram! Thành công: ${successCount}, Thất bại: ${failedCount}`, successCount > 0 ? 'success' : 'warning');
+  };
+
+  // Filtered Telegram Statements
+  const filteredTelegramStatements = React.useMemo(() => {
+    if (!telegramSearchQuery.trim()) return statements;
+    const q = telegramSearchQuery.toLowerCase();
+    return statements.filter(s => 
+      s.shopName.toLowerCase().includes(q) ||
+      s.shopCode.toLowerCase().includes(q) ||
+      (s.telegramChatId && s.telegramChatId.toLowerCase().includes(q))
+    );
+  }, [statements, telegramSearchQuery]);
+
+  const activeTelegramStatement = React.useMemo(() => {
+    return statements.find(s => s.shopId === telegramSelectedShopId) || statements[0] || MOCK_DEMO_STATEMENT;
+  }, [statements, telegramSelectedShopId]);
+
   // Schedule Helpers
   const setQuickSchedule = (minutesFromNow: number) => {
     if (hasUnmatchedOrders) {
@@ -602,7 +721,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
-      {/* 🌟 CHANNEL SELECTOR TABS: ZALO ZNS VS GMAIL */}
+      {/* 🌟 3 CHANNEL SELECTOR TABS: ZALO ZNS • TELEGRAM BOT • EMAIL */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -613,6 +732,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         border: '1px solid #e2e8f0',
         boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
       }}>
+        {/* Tab 1: Zalo ZNS */}
         <button
           type="button"
           onClick={() => setActiveChannel('zalo')}
@@ -621,34 +741,72 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 10,
-            padding: '12px 20px',
+            gap: 8,
+            padding: '12px 16px',
             borderRadius: 12,
             border: activeChannel === 'zalo' ? '1.5px solid #0068ff' : '1px solid transparent',
             background: activeChannel === 'zalo' ? 'linear-gradient(135deg, #0068ff 0%, #0052cc 100%)' : '#f8fafc',
             color: activeChannel === 'zalo' ? '#ffffff' : '#334155',
             fontWeight: 800,
-            fontSize: 14,
+            fontSize: 13.5,
             cursor: 'pointer',
             boxShadow: activeChannel === 'zalo' ? '0 4px 14px rgba(0, 104, 255, 0.3)' : 'none',
             transition: 'all 0.2s ease',
           }}
         >
-          <MessageSquare size={20} />
-          <span>💬 GỬI ZALO ZNS DOANH NGHIỆP (TỰ ĐỘNG 100%)</span>
+          <MessageSquare size={18} />
+          <span>💬 GỬI ZALO ZNS (OA)</span>
           <span style={{
             fontSize: 10,
             fontWeight: 800,
             background: activeChannel === 'zalo' ? '#ffffff' : '#e0f2fe',
             color: activeChannel === 'zalo' ? '#0068ff' : '#0369a1',
-            padding: '2px 8px',
-            borderRadius: 12,
+            padding: '2px 7px',
+            borderRadius: 10,
             textTransform: 'uppercase',
           }}>
-            Tích Xanh OA
+            Tích Xanh
           </span>
         </button>
 
+        {/* Tab 2: Telegram Bot */}
+        <button
+          type="button"
+          onClick={() => setActiveChannel('telegram')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '12px 16px',
+            borderRadius: 12,
+            border: activeChannel === 'telegram' ? '1.5px solid #0088cc' : '1px solid transparent',
+            background: activeChannel === 'telegram' ? 'linear-gradient(135deg, #0088cc 0%, #006699 100%)' : '#f8fafc',
+            color: activeChannel === 'telegram' ? '#ffffff' : '#334155',
+            fontWeight: 800,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            boxShadow: activeChannel === 'telegram' ? '0 4px 14px rgba(0, 136, 204, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Send size={18} />
+          <span>✈️ GỬI TELEGRAM BOT</span>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 800,
+            background: activeChannel === 'telegram' ? '#ffffff' : '#e0f2fe',
+            color: activeChannel === 'telegram' ? '#0088cc' : '#0369a1',
+            padding: '2px 7px',
+            borderRadius: 10,
+            textTransform: 'uppercase',
+          }}>
+            Bot API
+          </span>
+        </button>
+
+        {/* Tab 3: Email */}
         <button
           type="button"
           onClick={() => setActiveChannel('email')}
@@ -657,21 +815,32 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 10,
-            padding: '12px 20px',
+            gap: 8,
+            padding: '12px 16px',
             borderRadius: 12,
             border: activeChannel === 'email' ? '1.5px solid var(--primary)' : '1px solid transparent',
             background: activeChannel === 'email' ? 'linear-gradient(135deg, var(--primary) 0%, #4338ca 100%)' : '#f8fafc',
             color: activeChannel === 'email' ? '#ffffff' : '#334155',
             fontWeight: 800,
-            fontSize: 14,
+            fontSize: 13.5,
             cursor: 'pointer',
             boxShadow: activeChannel === 'email' ? '0 4px 14px rgba(79, 70, 229, 0.3)' : 'none',
             transition: 'all 0.2s ease',
           }}
         >
-          <Mail size={20} />
-          <span>✉️ GỬI EMAIL HÀNG LOẠT (HTML & FILE EXCEL)</span>
+          <Mail size={18} />
+          <span>✉️ GỬI EMAIL ĐỐI SOÁT</span>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 800,
+            background: activeChannel === 'email' ? '#ffffff' : '#ede9fe',
+            color: activeChannel === 'email' ? 'var(--primary)' : '#6d28d9',
+            padding: '2px 7px',
+            borderRadius: 10,
+            textTransform: 'uppercase',
+          }}>
+            HTML & Excel
+          </span>
         </button>
       </div>
 
@@ -1119,6 +1288,508 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
                 <div style={{ fontSize: 10.5, color: '#94a3b8', textAlign: 'center', lineHeight: 1.4 }}>
                   Tin nhắn tự động từ {zaloSettings.companyName || 'ĐỨC TÍN LOGISTICS'}. Vui lòng liên hệ kế toán nếu có thắc mắc.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
+      {/* ======================= TAB 2: TELEGRAM BOT ĐỐI SOÁT ======================= */}
+      {activeChannel === "telegram" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Top Toolbar */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+            background: "#ffffff",
+            padding: "18px 24px",
+            borderRadius: 16,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 15px -3px rgba(0,0,0,0.04)",
+          }}>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, display: "flex", alignItems: "center", gap: 10, margin: 0, color: "var(--text-main)" }}>
+                <Send size={24} color="#0088cc" />
+                Gửi Báo Cáo Đối Soát Qua Telegram Bot
+              </h2>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0 0" }}>
+                Tự động gửi bảng kê COD, cước phí và đính kèm file Excel vào Nhóm, Kênh hoặc Chat riêng của từng Shop.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              {/* Session Selector */}
+              {displaySessions.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f8fafc", padding: "6px 12px", borderRadius: 10, border: "1.5px solid #cbd5e1" }}>
+                  <Layers size={16} color="#0088cc" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>Kỳ:</span>
+                  <select
+                    value={selectedSessionId}
+                    onChange={(e) => {
+                      setSelectedSessionId(e.target.value);
+                      const target = displaySessions.find(s => s.id === e.target.value);
+                      if (target?.statements?.length) {
+                        setTelegramSelectedShopId(target.statements[0].shopId);
+                      }
+                    }}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: "#0088cc",
+                      background: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      maxWidth: 260,
+                    }}
+                  >
+                    {displaySessions.map((ses, idx) => (
+                      <option key={ses.id || idx} value={ses.id}>
+                        {ses.sessionName || `Kỳ ${ses.id}`} ({ses.statements.length} Shop • {ses.carrierName || "NVC"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Mode Indicator */}
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 10,
+                background: telegramSettings.isSandbox ? "rgba(245, 158, 11, 0.1)" : "rgba(16, 185, 129, 0.1)",
+                border: `1px solid ${telegramSettings.isSandbox ? "rgba(245, 158, 11, 0.3)" : "rgba(16, 185, 129, 0.3)"}`,
+                fontSize: 12,
+                fontWeight: 700,
+                color: telegramSettings.isSandbox ? "#b45309" : "#047857",
+              }}>
+                {telegramSettings.isSandbox ? <Zap size={15} /> : <ShieldCheck size={15} />}
+                <span>{telegramSettings.isSandbox ? "⚡ Demo / Thử Nghiệm Sandbox" : "🟢 Telegram Bot Live Production"}</span>
+              </div>
+
+              {/* Telegram Config Button */}
+              <button
+                type="button"
+                onClick={() => setIsTelegramConfigOpen(true)}
+                className="btn btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", fontWeight: 700 }}
+              >
+                <SettingsIcon size={16} />
+                <span>Cấu Hình Telegram Bot</span>
+              </button>
+
+              {/* Send Telegram Bulk Button */}
+              <button
+                type="button"
+                onClick={handleStartTelegramBatchSend}
+                disabled={isSendingTelegramBatch || hasUnmatchedOrders || statements.length === 0}
+                className="btn btn-primary"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 18px",
+                  fontWeight: 800,
+                  background: "linear-gradient(135deg, #0088cc 0%, #006699 100%)",
+                  borderColor: "#0088cc",
+                }}
+              >
+                {isSendingTelegramBatch ? (
+                  <>
+                    <RotateCcw size={16} className="animate-spin" />
+                    <span>Đang gửi Telegram ({telegramProgress.sent}/{telegramProgress.total})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    <span>GỬI TELEGRAM TẤT CẢ {statements.length > 0 ? `(${statements.length} SHOP)` : "HÀNG LOẠT"}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Live Progress Banner when batch sending */}
+          {isSendingTelegramBatch && (
+            <div style={{
+              background: "linear-gradient(135deg, rgba(0, 136, 204, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)",
+              border: "1.5px solid #0088cc",
+              borderRadius: 14,
+              padding: "16px 20px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, fontWeight: 700 }}>
+                <span style={{ color: "#0088cc", display: "flex", alignItems: "center", gap: 6 }}>
+                  <RotateCcw size={16} className="animate-spin" />
+                  Đang gửi tin nhắn Telegram tới các Shop...
+                </span>
+                <span>
+                  Tiến độ: <strong>{telegramProgress.sent} / {telegramProgress.total}</strong> ({Math.round((telegramProgress.sent / (telegramProgress.total || 1)) * 100)}%)
+                </span>
+              </div>
+              <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{
+                  width: `${Math.round((telegramProgress.sent / (telegramProgress.total || 1)) * 100)}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #0088cc 0%, #10b981 100%)",
+                  transition: "width 0.2s ease",
+                }} />
+              </div>
+              <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
+                <span style={{ color: "var(--success)", fontWeight: 700 }}>✓ Thành công: {telegramProgress.success}</span>
+                <span style={{ color: "var(--danger)", fontWeight: 700 }}>✗ Lỗi: {telegramProgress.failed}</span>
+              </div>
+            </div>
+          )}
+
+          {/* 2 Columns: Left (Shop Table) + Right (Telegram Mockup Preview) */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(450px, 1fr) 400px",
+            gap: 20,
+            alignItems: "start",
+          }}>
+            {/* Left Column: Shop Table */}
+            <div className="glass-panel" style={{ padding: 20, borderRadius: 16, background: "#ffffff" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "var(--text-main)" }}>
+                    Danh Sách Shop Nhận Tin Telegram ({filteredTelegramStatements.length})
+                  </h3>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                    Kỳ đối soát: <strong>{activeSession?.sessionName || "Chưa chọn"}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ position: "relative" }}>
+                    <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Tìm Shop, Mã, Chat ID..."
+                      value={telegramSearchQuery}
+                      onChange={(e) => setTelegramSearchQuery(e.target.value)}
+                      style={{ paddingLeft: 30, fontSize: 12, height: 34, width: 200 }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 12 }}>
+                <table className="data-table" style={{ fontSize: 12.5, width: "100%" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <th style={{ width: 40, textAlign: "center" }}>STT</th>
+                      <th>Mã Shop</th>
+                      <th>Tên Shop</th>
+                      <th>Telegram Chat ID</th>
+                      <th style={{ textAlign: "right" }}>COD Thu Hộ</th>
+                      <th style={{ textAlign: "right" }}>Thực Chuyển</th>
+                      <th style={{ textAlign: "center", width: 110 }}>Trạng Thái</th>
+                      <th style={{ textAlign: "center", width: 110 }}>Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTelegramStatements.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--text-muted)" }}>
+                          Không có shop nào trong kỳ đối soát này.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTelegramStatements.map((stmt, idx) => {
+                        const statusObj = telegramStatuses[stmt.shopId] || { status: "idle" };
+                        const isSelected = stmt.shopId === telegramSelectedShopId;
+
+                        return (
+                          <tr 
+                            key={stmt.shopId || idx}
+                            style={{ 
+                              background: isSelected ? "rgba(0, 136, 204, 0.05)" : undefined,
+                              cursor: "pointer",
+                            }}
+                            onClick={() => setTelegramSelectedShopId(stmt.shopId)}
+                          >
+                            <td style={{ textAlign: "center", color: "var(--text-muted)" }}>{idx + 1}</td>
+                            <td>
+                              <span style={{ fontWeight: 700, color: "#0088cc" }}>{stmt.shopCode}</span>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700 }}>{stmt.shopName}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{stmt.totalOrders} đơn hàng</div>
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                className="input-field mono"
+                                placeholder={telegramSettings.defaultChatId ? `Mặc định: ${telegramSettings.defaultChatId}` : "Nhập Chat ID"}
+                                value={telegramCustomChatMap[stmt.shopId] ?? (stmt.telegramChatId || "")}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTelegramCustomChatMap(prev => ({ ...prev, [stmt.shopId]: val }));
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ fontSize: 11.5, height: 28, padding: "2px 6px", maxWidth: 140 }}
+                              />
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 600 }}>
+                              {new Intl.NumberFormat("vi-VN").format(stmt.totalCod)} đ
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 800, color: "#16a34a" }}>
+                              {new Intl.NumberFormat("vi-VN").format(stmt.totalNetPayout)} đ
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {statusObj.status === "idle" && (
+                                <span className="badge badge-neutral" style={{ fontSize: 11 }}>Chưa gửi</span>
+                              )}
+                              {statusObj.status === "sending" && (
+                                <span className="badge badge-warning" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <RotateCcw size={10} className="animate-spin" /> Đang gửi
+                                </span>
+                              )}
+                              {statusObj.status === "sent" && (
+                                <span className="badge badge-success" style={{ fontSize: 11 }} title={statusObj.message}>
+                                  ✓ Đã gửi
+                                </span>
+                              )}
+                              {statusObj.status === "failed" && (
+                                <span className="badge badge-danger" style={{ fontSize: 11 }} title={statusObj.message}>
+                                  ✗ Lỗi
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => handleSendSingleTelegram(stmt)}
+                                disabled={statusObj.status === "sending"}
+                                className="btn btn-primary btn-sm"
+                                style={{
+                                  fontSize: 11,
+                                  padding: "4px 8px",
+                                  background: "#0088cc",
+                                  borderColor: "#0088cc",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                                title="Gửi tin nhắn Telegram ngay cho Shop này"
+                              >
+                                <Send size={12} />
+                                <span>Gửi</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Right Column: Telegram Phone Mockup Preview */}
+            <div style={{
+              background: "#0f172a",
+              borderRadius: 24,
+              padding: 14,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
+              position: "sticky",
+              top: 20,
+            }}>
+              {/* Telegram Phone Screen Frame */}
+              <div style={{
+                background: "#17212b",
+                borderRadius: 18,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                border: "1px solid #232e3c",
+              }}>
+                {/* Telegram App Header */}
+                <div style={{
+                  background: "#242f3d",
+                  padding: "12px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  borderBottom: "1px solid #1c2733",
+                }}>
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #0088cc 0%, #229ed9 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    fontSize: 15,
+                  }}>
+                    <Send size={18} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#ffffff", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>{activeCarrierName || "Hệ Thống Đối Soát"} Bot</span>
+                      <span style={{ fontSize: 9, background: "#0088cc", color: "#ffffff", padding: "1px 4px", borderRadius: 4, textTransform: "uppercase" }}>bot</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#6c7883" }}>
+                      Shop: {activeTelegramStatement.shopName}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Telegram Chat Body Background */}
+                <div style={{
+                  padding: 14,
+                  minHeight: 360,
+                  maxHeight: 520,
+                  overflowY: "auto",
+                  background: "#0e1621",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                }}>
+                  {/* Date badge */}
+                  <div style={{
+                    alignSelf: "center",
+                    background: "rgba(0,0,0,0.3)",
+                    color: "#7e8b99",
+                    fontSize: 11,
+                    padding: "2px 10px",
+                    borderRadius: 12,
+                  }}>
+                    Hôm nay, {new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+
+                  {/* Telegram Message Bubble */}
+                  <div style={{
+                    background: "#182533",
+                    borderRadius: "12px 12px 12px 2px",
+                    padding: "12px 14px",
+                    color: "#f5f5f5",
+                    fontSize: 12.5,
+                    lineHeight: 1.6,
+                    border: "1px solid #2b394a",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  }}>
+                    <div 
+                      dangerouslySetInnerHTML={{ 
+                        __html: TelegramService.renderTelegramMessage(activeTelegramStatement, telegramSettings, activeSession)
+                          .replace(/\n/g, "<br/>") 
+                      }} 
+                    />
+
+                    {/* Attached Excel document card preview if enabled */}
+                    {telegramSettings.autoAttachExcel !== false && (
+                      <div style={{
+                        marginTop: 10,
+                        padding: "8px 10px",
+                        background: "#242f3d",
+                        borderRadius: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        border: "1px solid #313d4f",
+                      }}>
+                        <div style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 6,
+                          background: "#107c41",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#ffffff",
+                        }}>
+                          <FileSpreadsheet size={18} />
+                        </div>
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            Bang_Ke_Doi_Soat_{activeTelegramStatement.shopCode}.xlsx
+                          </div>
+                          <div style={{ fontSize: 10, color: "#8291a1" }}>
+                            {activeTelegramStatement.totalOrders} đơn hàng • Microsoft Excel
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timestamp & read receipts */}
+                    <div style={{ textAlign: "right", fontSize: 10, color: "#6c7883", marginTop: 6, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                      <span>{new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
+                      <Check size={12} color="#0088cc" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Telegram Mockup Bottom Bar */}
+                <div style={{
+                  background: "#242f3d",
+                  padding: "10px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderTop: "1px solid #1c2733",
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = TelegramService.renderTelegramMessage(activeTelegramStatement, telegramSettings, activeSession);
+                      navigator.clipboard.writeText(text);
+                      showToast("Đã sao chép nội dung tin nhắn Telegram!", "success");
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #3b4a5a",
+                      borderRadius: 6,
+                      color: "#0088cc",
+                      padding: "4px 10px",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Copy size={13} />
+                    <span>Sao chép text</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendSingleTelegram(activeTelegramStatement)}
+                    style={{
+                      background: "#0088cc",
+                      border: "none",
+                      borderRadius: 6,
+                      color: "#ffffff",
+                      padding: "4px 12px",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Send size={13} />
+                    <span>Gửi Shop này</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2073,6 +2744,16 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
       {/* Close Email Tab Container */}
       </div>
+      )}
+
+      
+      {/* Telegram Bot Configuration Modal */}
+      {isTelegramConfigOpen && (
+        <TelegramConfigModal
+          settings={telegramSettings}
+          onSave={handleSaveTelegramSettings}
+          onClose={() => setIsTelegramConfigOpen(false)}
+        />
       )}
 
       {/* Zalo ZNS Configuration Modal */}

@@ -1,4 +1,4 @@
-import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile, ZaloZnsSettings } from '../types';
+import type { Shop, CarrierWholesaleTier, ReconciliationSession, EmailSettings, ExportColumnSettings, CompanyInfo, PaymentRecord, CtvProfile, ZaloZnsSettings, TelegramSettings } from '../types';
 import { getAuthHeaders } from './authService';
 
 const SHOPS_KEY = 'gomdon_shops_v1';
@@ -6,10 +6,39 @@ const CARRIERS_KEY = 'gomdon_carriers_v1';
 const SESSIONS_KEY = 'gomdon_sessions_v1';
 const EMAIL_SETTINGS_KEY = 'gomdon_email_settings_v1';
 const ZALO_ZNS_SETTINGS_KEY = 'gomdon_zalo_zns_settings_v1';
+const TELEGRAM_SETTINGS_KEY = 'gomdon_telegram_settings_v1';
 const COLUMN_MAPPINGS_KEY = 'gomdon_column_mappings_v1';
 const COMPANY_INFO_KEY = 'gomdon_company_info_v1';
 const EXPORT_COLUMNS_KEY = 'gomdon_export_columns_v1';
 const PAYMENTS_KEY = 'gomdon_payments_v1';
+
+export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
+  botToken: '',
+  defaultChatId: '',
+  enabled: true,
+  isSandbox: true,
+  parseMode: 'HTML',
+  autoAttachExcel: true,
+  messageTemplate: `📦 <b>BẢNG KÊ ĐỐI SOÁT COD & CƯỚC PHÍ</b>
+━━━━━━━━━━━━━━━━━━━━
+🏢 <b>Khách hàng:</b> {TEN_SHOP} ({MA_SHOP})
+📅 <b>Kỳ đối soát:</b> {KY_DOI_SOAT}
+📊 <b>Tổng đơn:</b> {TONG_DON} đơn (Giao TC: {DON_THANH_CONG} | Hoàn: {DON_HOAN})
+
+💰 <b>Tổng COD thu hộ:</b> +{TONG_COD} đ
+🚚 <b>Tổng cước dịch vụ:</b> -{TONG_CUOC} đ
+📌 <b>Phí phụ thu / khác:</b> -{PHI_KHAC} đ
+🔄 <b>Nợ cũ dồn sang:</b> {CONG_NO_DAU_KY} đ
+━━━━━━━━━━━━━━━━━━━━
+💵 <b>THỰC CHUYỂN CHO SHOP:</b> <b><u>{THUC_TRA} đ</u></b>
+━━━━━━━━━━━━━━━━━━━━
+🏦 <b>Thông tin thanh toán:</b>
+• Ngân hàng: {NGAN_HANG}
+• STK: <code>{SO_TAI_KHOAN}</code>
+• Chủ TK: {CHU_TAI_KHOAN}
+
+<i>Cảm ơn Quý khách đã tin tưởng và đồng hành cùng dịch vụ gom đơn!</i>`,
+};
 
 export const DEFAULT_ZALO_ZNS_SETTINGS: ZaloZnsSettings = {
   appId: '',
@@ -421,6 +450,24 @@ export const StorageService = {
   saveZaloZnsSettings(settings: ZaloZnsSettings): void {
     localStorage.setItem(ZALO_ZNS_SETTINGS_KEY, JSON.stringify(settings));
     postServerSync('/api/db/zalo-settings', { zaloSettings: settings });
+  },
+
+  getTelegramSettings(): TelegramSettings {
+    const data = localStorage.getItem(TELEGRAM_SETTINGS_KEY);
+    if (!data) {
+      this.saveTelegramSettings(DEFAULT_TELEGRAM_SETTINGS);
+      return DEFAULT_TELEGRAM_SETTINGS;
+    }
+    try {
+      return { ...DEFAULT_TELEGRAM_SETTINGS, ...JSON.parse(data) };
+    } catch {
+      return DEFAULT_TELEGRAM_SETTINGS;
+    }
+  },
+
+  saveTelegramSettings(settings: TelegramSettings): void {
+    localStorage.setItem(TELEGRAM_SETTINGS_KEY, JSON.stringify(settings));
+    postServerSync('/api/db/telegram-settings', { telegramSettings: settings });
   },
 
   getColumnMappings(): { nvc?: any; app?: any } {

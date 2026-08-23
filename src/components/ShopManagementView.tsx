@@ -1824,6 +1824,20 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                 </div>
 
                 <div className="input-group">
+                  <label className="input-label" style={{ margin: 0, marginBottom: 4 }}>
+                    Telegram Chat ID (Nhóm / Kênh / Chat của Shop)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: -1001234567890 hoặc 123456789"
+                    value={editingShop.telegramChatId || ''}
+                    onChange={(e) => setEditingShop({ ...editingShop, telegramChatId: e.target.value })}
+                    className="input-field mono"
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+
+                <div className="input-group">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                     <label className="input-label" style={{ margin: 0 }}>Cộng Tác Viên (CTV) Quản Lý</label>
                     {renderFieldAlert(editingShop.ctvId, false)}

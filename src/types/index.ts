@@ -78,6 +78,7 @@ export interface Shop {
   nameAliases?: string[]; // Tên shop/nhãn gửi khác, chỉ khớp chính xác với cùng một hồ sơ shop
   email: string;
   emailList?: string[]; // Multiple emails for receiving statements
+  telegramChatId?: string; // ID Chat / Nhóm Telegram riêng của Shop
   address: string;
   bankAccount: BankAccount;
   pricingPlan: ShopPricingPlan;
@@ -243,6 +244,9 @@ export interface ShopSettlementStatement {
   orders: ReconciledOrder[];
   emailStatus: 'idle' | 'queued' | 'sending' | 'sent' | 'failed';
   emailSentAt?: string;
+  telegramStatus?: 'idle' | 'queued' | 'sending' | 'sent' | 'failed';
+  telegramSentAt?: string;
+  telegramChatId?: string;
   payoutStatus?: PayoutStatus;
   paidAmount?: number;
   remainingDebt?: number;
@@ -283,11 +287,13 @@ export interface ReconciliationSession {
 }
 
 export interface CarrierEmailTemplateConfig {
-  senderName: string;
-  senderEmail: string;
+  senderName?: string;
+  senderEmail?: string;
   emailPassword?: string;
-  subjectTemplate: string;
-  bodyTemplate: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  subjectTemplate?: string;
+  bodyTemplate?: string;
 }
 
 export interface EmailSettings {
@@ -303,6 +309,28 @@ export interface EmailSettings {
   telegramChatId?: string;
   telegramEnabled?: boolean;
   carrierTemplates?: Record<string, CarrierEmailTemplateConfig>; // Per carrier template & sender!
+}
+
+export interface TelegramSettings {
+  botToken: string;
+  defaultChatId: string;
+  messageTemplate: string;
+  enabled: boolean;
+  isSandbox?: boolean;
+  parseMode?: 'HTML' | 'MarkdownV2' | 'Markdown';
+  autoAttachExcel?: boolean;
+  carrierTemplates?: Record<string, { messageTemplate: string }>;
+}
+
+export interface TelegramSendResult {
+  shopId: string;
+  shopCode: string;
+  shopName: string;
+  chatId: string;
+  success: boolean;
+  messageId?: string | number;
+  error?: string;
+  sentAt: string;
 }
 
 export interface ZaloZnsSettings {

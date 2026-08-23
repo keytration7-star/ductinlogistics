@@ -607,6 +607,17 @@ export function App() {
               />
             )}
 
+            {activeTab === 'telegram' && (
+              <BulkEmailView
+                currentSession={currentSession}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={handleSaveEmailSettings}
+                activeCarrierId={activeCarrierId}
+                activeCarrierName={activeCarrierObj.carrierName}
+                initialChannel="telegram"
+              />
+            )}
+
             {activeTab === 'history' && (
               <HistoryAndAnalyticsView
                 sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}

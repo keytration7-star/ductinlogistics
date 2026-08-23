@@ -15,7 +15,8 @@ import {
   CreditCard,
   Settings,
   Award,
-  MessageSquare
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 
@@ -125,6 +126,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           desc: 'Tự động gửi SĐT khách hàng',
           icon: MessageSquare,
           badge: 'Tích Xanh',
+          roles: ['ADMIN', 'ACCOUNTANT']
+        },
+        { 
+          id: 'telegram', 
+          label: 'Gửi Telegram Bot', 
+          desc: 'Nhóm / Kênh / Từng Shop',
+          icon: Send,
+          badge: 'Bot API',
           roles: ['ADMIN', 'ACCOUNTANT']
         },
       ]
