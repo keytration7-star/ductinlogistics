@@ -132,7 +132,13 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
     }
   }, [currentSession, displaySessions]);
 
-  const activeSession = displaySessions.find(s => s.id === selectedSessionId) || currentSession || displaySessions[0] || null;
+  const activeSession = React.useMemo(() => {
+    if (currentSession && currentSession.id === selectedSessionId) {
+      return currentSession;
+    }
+    const found = displaySessions.find(s => s.id === selectedSessionId);
+    return found || currentSession || displaySessions[0] || null;
+  }, [selectedSessionId, currentSession, displaySessions]);
 
   // Dynamically enrich statements with latest live shop info (phone, email, bank account)
   const statements = React.useMemo(() => {

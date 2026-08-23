@@ -18,6 +18,8 @@ import {
   Eye,
   QrCode,
   Copy,
+  Mail,
+  MessageSquare,
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
@@ -32,6 +34,8 @@ interface DebtAndPayoutViewProps {
   shops: Shop[];
   currentUser: UserAccount;
   onRefreshSessions?: () => void;
+  onNavigateToEmail?: (session: ReconciliationSession) => void;
+  onNavigateToZalo?: (session: ReconciliationSession) => void;
 }
 
 export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
@@ -39,6 +43,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   shops,
   currentUser,
   onRefreshSessions,
+  onNavigateToEmail,
+  onNavigateToZalo,
 }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -583,7 +589,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       </div>
 
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           onClick={() => handleExportSessionPayoutExcel(session)}
@@ -594,6 +600,28 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                         >
                           <FileSpreadsheet size={14} color="var(--success)" />
                           <span>Xuất iBanking</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToEmail && onNavigateToEmail(session)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 12, padding: '7px 10px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                          title="Chuyển sang màn hình Gửi Email đối soát cho kỳ này"
+                        >
+                          <Mail size={14} />
+                          <span>Gửi Mail</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToZalo && onNavigateToZalo(session)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 12, padding: '7px 10px', color: '#0068ff', borderColor: '#0068ff' }}
+                          title="Chuyển sang màn hình Gửi Zalo ZNS đối soát cho kỳ này"
+                        >
+                          <MessageSquare size={14} />
+                          <span>Gửi Zalo</span>
                         </button>
 
                         {sessionDebt > 0 && !isBlocked && (
@@ -619,7 +647,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           style={{ fontSize: 12, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
                         >
                           <Eye size={15} />
-                          <span>Xem Chi Tiết Bảng Đi Tiền</span>
+                          <span>Xem Chi Tiết</span>
                         </button>
                       </div>
                     </div>

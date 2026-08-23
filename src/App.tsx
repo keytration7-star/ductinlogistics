@@ -460,6 +460,14 @@ export function App() {
                   const updatedSessions = StorageService.getSessions();
                   setSessions(updatedSessions);
                 }}
+                onNavigateToEmail={(session) => {
+                  setCurrentSession(session);
+                  setActiveTab('emails');
+                }}
+                onNavigateToZalo={(session) => {
+                  setCurrentSession(session);
+                  setActiveTab('zalo');
+                }}
               />
             )}
 
