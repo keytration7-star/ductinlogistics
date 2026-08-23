@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  X, Building2, Palette, Mail, ShieldCheck, BookOpen,
-  Check, Sun, Moon, ChevronRight,
+  X, Building2, Mail, ShieldCheck, BookOpen,
+  Check, ChevronRight,
   FileSpreadsheet, ArrowRight, Smartphone,
-  Filter, CheckCircle2, Info, Monitor, Lock, Users,
+  Filter, CheckCircle2, Lock, Users,
   Settings, Eye, EyeOff, Server, HelpCircle, ExternalLink,
   Send, ShieldCheck as ShieldOk, MessageSquare,
   Zap, Bot, RotateCcw, Database, Download, Upload,
@@ -102,64 +102,6 @@ const TabCompany: React.FC<{ onSaved?: () => void; isAdmin: boolean }> = ({ onSa
   );
 };
 
-/* ─────────────── TAB: GIAO DIỆN ─────────────── */
-const TabUI: React.FC<{ theme: 'dark' | 'light'; setTheme: (t: 'dark' | 'light') => void }> = ({ theme, setTheme }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-    <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '18px 20px', border: '1px solid var(--border-color)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Monitor size={15} /> Chế Độ Giao Diện
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {(['light', 'dark'] as const).map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTheme(t)}
-            style={{
-              padding: '16px',
-              borderRadius: 'var(--radius-md)',
-              border: `2px solid ${theme === t ? 'var(--primary)' : 'var(--border-color)'}`,
-              background: theme === t ? 'rgba(79,70,229,.08)' : 'var(--bg-tertiary)',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 8,
-              transition: 'all .15s',
-            }}
-          >
-            {t === 'light'
-              ? <Sun size={24} color="#f59e0b" />
-              : <Moon size={24} color="#818cf8" />}
-            <span style={{ fontSize: 13, fontWeight: 600, color: theme === t ? 'var(--primary)' : 'var(--text-main)' }}>
-              {t === 'light' ? '☀️ Sáng' : '🌙 Tối'}
-            </span>
-            {theme === t && <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>✓ Đang dùng</span>}
-          </button>
-        ))}
-      </div>
-    </div>
-
-    <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '18px 20px', border: '1px solid var(--border-color)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Info size={15} /> Thông Tin Phiên Bản
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13 }}>
-        {[
-          ['Tên ứng dụng', 'Kế Toán PRO Enterprise'],
-          ['Phiên bản', 'v2.0 • 2026'],
-          ['Môi trường', 'Production (VPS)'],
-          ['Hỗ trợ trình duyệt', 'Chrome, Edge, Firefox, Safari'],
-        ].map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-color)' }}>
-            <span style={{ color: 'var(--text-muted)' }}>{k}</span>
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{v}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
 
 /* ─────────────── TAB: THÔNG BÁO ĐA KÊNH (EMAIL • ZALO • TELEGRAM) ─────────────── */
 const TabNotifications: React.FC = () => {
@@ -1250,7 +1192,7 @@ const TabAccounts: React.FC<{ currentUser?: UserAccount }> = ({ currentUser }) =
 
 /* ─────────────── MAIN MODAL ─────────────── */
 export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen, onClose, theme, setTheme, userRole = 'STAFF', currentUser, onSaved, onNavigateTo,
+  isOpen, onClose, theme: _theme, setTheme: _setTheme, userRole = 'STAFF', currentUser, onSaved, onNavigateTo,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const isAdmin = userRole === 'ADMIN';

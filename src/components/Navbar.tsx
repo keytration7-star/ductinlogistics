@@ -5,19 +5,13 @@ import {
   Truck, 
   Mail, 
   BarChart3, 
-  Sparkles, 
-  Sun, 
-  Moon, 
   Database,
-  Download
+  RefreshCw
 } from 'lucide-react';
-import { SampleDataService } from '../services/sampleDataService';
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  theme: 'dark' | 'light';
-  setTheme: (theme: 'dark' | 'light') => void;
   onLoadSampleData: () => void;
   onOpenBackupModal: () => void;
 }
@@ -25,8 +19,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
-  theme,
-  setTheme,
   onLoadSampleData,
   onOpenBackupModal,
 }) => {

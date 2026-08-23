@@ -21,7 +21,6 @@ import {
   Building2,
   MapPin,
   Phone,
-  Headphones
 } from 'lucide-react';
 import { AuthService } from '../services/authService';
 import type { UserAccount } from '../types';

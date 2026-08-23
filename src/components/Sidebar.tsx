@@ -26,7 +26,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab, setActiveTab, onOpenSettingsModal, currentUser,
-  activeCarrierId, activeCarrierName, onSwitchCarrier,
+  activeCarrierId: _activeCarrierId, activeCarrierName, onSwitchCarrier,
 }) => {
   // Grouped Navigation Items per business domain
   const navGroups = [

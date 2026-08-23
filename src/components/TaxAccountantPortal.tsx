@@ -11,8 +11,6 @@ import {
   Archive, 
   Search, 
   LogOut, 
-  Sun, 
-  Moon, 
   Eye, 
   X, 
   FileText,
@@ -41,8 +39,6 @@ interface TaxAccountantPortalProps {
   carriers: CarrierWholesaleTier[];
   sessions: ReconciliationSession[];
   shops: Shop[];
-  theme?: 'dark' | 'light';
-  setTheme?: (t: 'dark' | 'light') => void;
   onLogout: () => void;
 }
 
@@ -185,8 +181,6 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   carriers = [],
   sessions = [],
   shops = [],
-  theme,
-  setTheme,
   onLogout,
 }) => {
   const { showToast } = useToast();

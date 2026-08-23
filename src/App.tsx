@@ -15,7 +15,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
-import { Truck, Database, Sun, Moon, Settings, LogOut } from 'lucide-react';
+import { TaxAccountantPortal } from './components/TaxAccountantPortal';
+import { Truck, Database, Settings, LogOut } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -373,10 +374,8 @@ export function App() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         currentUser={currentUser}
-        onLogout={handleLogout}
         activeCarrierId={activeCarrierId}
         activeCarrierName={activeCarrierObj.carrierName}
         onSwitchCarrier={() => {

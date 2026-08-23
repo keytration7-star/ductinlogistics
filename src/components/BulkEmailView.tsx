@@ -21,10 +21,7 @@ import {
   Timer,
   Sparkles,
   MessageSquare,
-  ShieldCheck,
-  Zap,
   Search,
-  Settings as SettingsIcon,
 } from 'lucide-react';
 import type { ReconciliationSession, EmailSettings, ShopSettlementStatement, ZaloZnsSettings, TelegramSettings } from '../types';
 import { EmailService } from '../services/emailService';
@@ -464,10 +461,6 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   };
 
   // Zalo ZNS Handlers
-  const handleSaveZaloSettings = (newSettings: ZaloZnsSettings) => {
-    setZaloSettings(newSettings);
-    StorageService.saveZaloZnsSettings(newSettings);
-  };
 
   const handleStartZaloBatchSend = async () => {
     if (hasUnmatchedOrders) {
@@ -1035,7 +1028,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   </thead>
                   <tbody>
                     {filteredZaloStatements.map((stmt, idx) => {
-                      const status = zaloDeliveryStatuses[stmt.shopId] || 'IDLE';
+                      const statusObj = zaloStatuses[stmt.shopId];
                       const isSelected = selectedShopId === stmt.shopId;
                       const hasPhone = Boolean(stmt.shopPhone && stmt.shopPhone.trim());
                       return (
