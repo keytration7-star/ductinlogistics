@@ -56,16 +56,50 @@ export function calculateOpeningDebtForNewStatement(
   payments: PaymentRecord[]
 ): number {
   const statements = sessions
-    .flatMap(session => session.statements
+    .flatMap(session => (session.statements || [])
       .filter(statement => statement.shopId === shop.id || statement.shopCode === shop.code)
       .map(statement => ({ session, statement })))
-    .sort((a, b) => a.session.createdAt.localeCompare(b.session.createdAt));
+    .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
   if (statements.length === 0) return shop.previousDebt || 0;
 
-  const initialDebt = statements[0].statement.previousDebt ?? shop.previousDebt ?? 0;
+  const initialDebt = shop.previousDebt ?? 0;
   return statements.reduce((balance, { session, statement }) => {
     const paid = getStatementPaidAmount(statement, session.id, payments);
     return balance + statement.totalNetPayout - paid;
+  }, initialDebt);
+}
+
+/**
+ * Dynamically calculates the live unpaid opening debt from all prior sessions
+ * up to the current session. When a prior session is paid, subsequent sessions
+ * automatically reflect the reduced opening balance in real time.
+ */
+export function calculateLiveOpeningDebtForStatement(
+  statement: ShopSettlementStatement,
+  currentSession: ReconciliationSession,
+  sessions: ReconciliationSession[],
+  payments: PaymentRecord[],
+  shop?: Shop
+): number {
+  const shopId = statement.shopId;
+  const shopCode = statement.shopCode;
+
+  // Find all statements of this shop in sessions created strictly BEFORE currentSession
+  const priorItems = sessions
+    .filter(s => s.id !== currentSession.id && new Date(s.createdAt).getTime() < new Date(currentSession.createdAt).getTime())
+    .flatMap(session => (session.statements || [])
+      .filter(st => st.shopId === shopId || st.shopCode === shopCode)
+      .map(st => ({ session, statement: st })))
+    .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
+
+  const initialDebt = shop?.previousDebt ?? 0;
+  if (priorItems.length === 0) {
+    return initialDebt;
+  }
+
+  return priorItems.reduce((balance, { session, statement: st }) => {
+    const paid = getStatementPaidAmount(st, session.id, payments);
+    return balance + st.totalNetPayout - paid;
   }, initialDebt);
 }
