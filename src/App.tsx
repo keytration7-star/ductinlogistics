@@ -16,7 +16,7 @@ import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
 import { TaxAccountantPortal } from './components/TaxAccountantPortal';
-import { Truck } from 'lucide-react';
+import { Truck, Database, Sun, Moon, Settings } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -217,12 +217,48 @@ export function App() {
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11 }}>
                 {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
               </span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700 }}>
+              {/* 💾 Sao Lưu Dữ Liệu Button */}
+              {currentUser.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setIsBackupModalOpen(true)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 8 }}
+                  title="Sao lưu & Phục hồi cơ sở dữ liệu"
+                >
+                  <Database size={15} />
+                  <span>Sao Lưu Dữ Liệu</span>
+                </button>
+              )}
+
+              {/* 🌙 / ☀️ Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '6px 10px', borderRadius: 8 }}
+                title="Đổi giao diện Sáng / Tối"
+              >
+                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+
+              {/* ⚙️ Cài Đặt Hệ Thống Button */}
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '6px 10px', borderRadius: 8 }}
+                title="Cài đặt hệ thống, tài khoản & hướng dẫn"
+              >
+                <Settings size={15} />
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, marginLeft: 4 }}>
                 <span>{currentUser.fullName}</span>
                 <span className="badge badge-primary" style={{ fontSize: 10 }}>{currentUser.role}</span>
               </div>
@@ -231,7 +267,7 @@ export function App() {
                 type="button"
                 onClick={handleLogout}
                 className="btn btn-secondary btn-sm"
-                style={{ color: '#ef4444', fontWeight: 700 }}
+                style={{ color: '#ef4444', fontWeight: 700, borderRadius: 8 }}
               >
                 Đăng Xuất
               </button>
@@ -251,6 +287,42 @@ export function App() {
             onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
             onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
           />
+
+          {/* Database Backup / Restore Modal on Hub */}
+          <BackupModal
+            isOpen={isBackupModalOpen}
+            onClose={() => setIsBackupModalOpen(false)}
+            onDataReloaded={loadAllData}
+            onOperationalDataCleared={() => {
+              setCurrentSession(null);
+              setSessions([]);
+              loadAllData();
+            }}
+            currentUser={currentUser}
+          />
+
+          {/* Company Info Settings Modal on Hub */}
+          <CompanySettingsModal
+            isOpen={isCompanyModalOpen}
+            onClose={() => setIsCompanyModalOpen(false)}
+            onSaved={loadAllData}
+            userRole={currentUser.role}
+          />
+
+          {/* Settings Modal — Cài đặt & Hướng dẫn sử dụng on Hub */}
+          <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            theme={theme}
+            setTheme={setTheme}
+            userRole={currentUser.role}
+            currentUser={currentUser}
+            onSaved={loadAllData}
+            onNavigateTo={(tab) => { setActiveTab(tab); setIsSettingsModalOpen(false); }}
+          />
+
+          {/* Security Anti-Screenshot Watermark Overlay */}
+          <SecurityWatermark currentUser={currentUser} />
         </div>
       </UIFeedbackProvider>
     );
