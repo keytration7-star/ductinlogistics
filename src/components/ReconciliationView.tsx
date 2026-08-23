@@ -1,5 +1,4 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { generateSmartSessionName } from '../utils/periodUtils';
 import { 
   FileSpreadsheet, 
   CheckCircle2, 
@@ -376,19 +375,36 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     d.setDate(d.getDate() - 1);
     return d.toISOString().slice(0, 10);
   };
-  const [sessionPeriodName, setSessionPeriodName] = useState<string>('');
-  const [sessionPeriodDate, setSessionPeriodDate] = useState<string>(getYesterdayIso());
 
-  // Auto-generate smart session period name when carrier or file changes
+  // Helper to format default period name from settlement date: e.g. 2026-08-22 -> "22.8-22.8.2026"
+  const formatDefaultPeriodName = (isoDate: string) => {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      const day = parseInt(parts[2], 10);
+      const month = parseInt(parts[1], 10);
+      const year = parts[0];
+      return `${day}.${month}-${day}.${month}.${year}`;
+    }
+    const d = new Date(isoDate);
+    if (!isNaN(d.getTime())) {
+      const day = d.getDate();
+      const month = d.getMonth() + 1;
+      const year = d.getFullYear();
+      return `${day}.${month}-${day}.${month}.${year}`;
+    }
+    return '';
+  };
+
+  const [sessionPeriodDate, setSessionPeriodDate] = useState<string>(getYesterdayIso());
+  const [sessionPeriodName, setSessionPeriodName] = useState<string>(() => formatDefaultPeriodName(getYesterdayIso()));
+
+  // Auto-fill default session period name if empty
   React.useEffect(() => {
-    const existingSessions = StorageService.getSessions();
-    const carrierObj = carriers.find(c => c.id === selectedCarrierId || c.carrierId === selectedCarrierId);
-    const cName = carrierObj ? carrierObj.carrierName : selectedCarrierId;
-    const combinedRows = [...nvcRows, ...appRows];
-    
-    const smartName = generateSmartSessionName(cName, existingSessions, combinedRows);
-    setSessionPeriodName(smartName);
-  }, [selectedCarrierId, carriers, nvcRows, appRows]);
+    if (!sessionPeriodName && sessionPeriodDate) {
+      setSessionPeriodName(formatDefaultPeriodName(sessionPeriodDate));
+    }
+  }, [sessionPeriodDate, sessionPeriodName]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
@@ -1046,6 +1062,16 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       return;
     }
 
+    if (!sessionPeriodDate || sessionPeriodDate.trim() === '') {
+      showToast('Vui lòng chọn Ngày Chốt kỳ đối soát trước khi tiến hành.', 'warning');
+      return;
+    }
+
+    if (!sessionPeriodName || sessionPeriodName.trim() === '') {
+      showToast('Vui lòng nhập Tên Kỳ đối soát (ví dụ: 22.8-22.8.2026) trước khi tiến hành.', 'warning');
+      return;
+    }
+
     if (nvcRows.length === 0 || (reconcileMode === '2files' && appRows.length === 0)) {
       showToast(reconcileMode === '1file' ? 'Vui lòng tải lên File Excel Đối Soát.' : 'Vui lòng tải lên cả 2 file: File Đối Soát NVC và File Đơn Hàng từ App.', 'warning');
       return;
@@ -1481,12 +1507,22 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 padding: '4px 10px',
                 borderRadius: 8,
                 border: '1.5px solid var(--border-color)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               }}>
-                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>🗓️ Ngày Chốt:</label>
+                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  🗓️ Ngày Chốt <span style={{ color: '#ef4444' }}>*</span>:
+                </label>
                 <input
                   type="date"
                   value={sessionPeriodDate}
-                  onChange={(e) => setSessionPeriodDate(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSessionPeriodDate(val);
+                    if (val) {
+                      setSessionPeriodName(formatDefaultPeriodName(val));
+                    }
+                  }}
+                  required
                   className="input-field"
                   style={{ padding: '3px 8px', fontSize: 11.5, width: 130, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
                 />
@@ -1500,15 +1536,19 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 padding: '4px 10px',
                 borderRadius: 8,
                 border: '1.5px solid var(--border-color)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               }}>
-                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>Tên Kỳ:</label>
+                <label style={{ fontSize: 11.5, color: '#334155', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  Tên Kỳ <span style={{ color: '#ef4444' }}>*</span>:
+                </label>
                 <input
                   type="text"
                   value={sessionPeriodName}
                   onChange={(e) => setSessionPeriodName(e.target.value)}
+                  required
                   className="input-field"
-                  placeholder="Nhập tên kỳ đối soát..."
-                  style={{ padding: '3px 8px', fontSize: 11.5, width: 230, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
+                  placeholder="Ví dụ: 22.8-22.8.2026"
+                  style={{ padding: '3px 8px', fontSize: 11.5, width: 200, fontWeight: 700, color: 'var(--primary)', border: 'none', background: 'transparent' }}
                 />
               </div>
 
