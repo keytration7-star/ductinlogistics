@@ -2333,9 +2333,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             {/* Header & Export Button */}
             <div style={{
               background: 'var(--surface, #ffffff)',
-              padding: '10px 16px',
-              borderRadius: 12,
+              padding: '10px 18px',
+              borderRadius: 14,
               border: '1.5px solid var(--border, #e2e8f0)',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -2350,68 +2351,87 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="input-field"
-                  style={{ paddingLeft: 34, width: '100%', fontSize: 12.5 }}
+                  style={{ paddingLeft: 34, width: '100%', fontSize: 12.5, borderRadius: 8, height: 36 }}
                 />
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                  Tổng: <strong>{filteredShops.length}</strong> khách hàng ({currentCarrierTitle})
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>Tổng cộng:</span>
+                  <span style={{
+                    background: '#e0e7ff',
+                    color: '#4338ca',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    fontSize: 12
+                  }}>
+                    {filteredShops.length} Shop
+                  </span>
+                  <span>({currentCarrierTitle})</span>
                 </div>
 
                 <button
+                  type="button"
                   onClick={exportShopLegalDirectory}
-                  className="btn btn-primary"
+                  className="btn btn-sm"
                   style={{
-                    background: '#7c3aed',
-                    borderColor: '#7c3aed',
-                    padding: '7px 14px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: 'transparent',
+                    color: '#ffffff',
+                    padding: '8px 16px',
                     fontSize: 12.5,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6
+                    gap: 6,
+                    borderRadius: 8,
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
                   }}
                 >
-                  <Download size={14} />
-                  Xuất Danh Bạ Shop Khai Thuế (.xlsx)
+                  <Download size={15} />
+                  <span>Xuất Danh Bạ Shop Khai Thuế (.xlsx)</span>
                 </button>
               </div>
             </div>
 
-            {/* Shop Table */}
+            {/* Shop Table Pro */}
             <div style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 14,
               border: '1.5px solid var(--border, #e2e8f0)',
               overflow: 'hidden',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
+              boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
             }}>
               <div style={{
-                padding: '8px 16px',
-                background: 'var(--bg-app, #f8fafc)',
-                fontSize: 11.5,
-                color: 'var(--text-muted)',
+                padding: '10px 18px',
+                background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                fontSize: 12,
+                color: '#334155',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid var(--border, #e2e8f0)'
+                borderBottom: '1.5px solid var(--border, #e2e8f0)'
               }}>
-                <span style={{ fontWeight: 800 }}>DANH MỤC {filteredShops.length} KHÁCH HÀNG / SHOP:</span>
-                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
+                <span style={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  DANH MỤC {filteredShops.length} KHÁCH HÀNG / SHOP TRÊN HỆ THỐNG
+                </span>
+                <span style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>
+                  Khung cuộn tự động • Cố định tiêu đề
+                </span>
               </div>
 
-              <div style={{ maxHeight: 'calc(100vh - 220px)', minHeight: 400, overflowY: 'auto', overflowX: 'auto' }}>
+              <div style={{ maxHeight: 'calc(100vh - 230px)', minHeight: 400, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Đơn Vị</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Địa Chỉ Kinh Doanh</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Thông Tin Ngân Hàng</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Trạng Thái</th>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      <th style={{ padding: '10px 12px', width: 45, textAlign: 'center' }}>STT</th>
+                      <th style={{ padding: '10px 14px', width: 140 }}>Mã Khách</th>
+                      <th style={{ padding: '10px 14px' }}>Tên Khách Hàng / Đơn Vị</th>
+                      <th style={{ padding: '10px 14px', width: 130 }}>Số Điện Thoại</th>
+                      <th style={{ padding: '10px 14px' }}>Địa Chỉ Kinh Doanh</th>
+                      <th style={{ padding: '10px 14px' }}>Thông Tin Ngân Hàng</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'center', width: 110 }}>Trạng Thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2423,37 +2443,86 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       </tr>
                     ) : (
                       filteredShops.map((s, idx) => (
-                        <tr key={s.id || idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
-                          <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                          <td style={{ padding: '9px 12px', fontWeight: 700, color: '#7c3aed' }}>
-                            {s.code || '-'}
+                        <tr
+                          key={s.id || idx}
+                          style={{
+                            borderBottom: '1px solid var(--border, #f1f5f9)',
+                            fontSize: 12.5,
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 700 }}>
+                            {idx + 1}
                           </td>
-                          <td style={{ padding: '9px 12px', fontWeight: 700 }}>
-                            {s.name}
+                          <td style={{ padding: '10px 14px' }}>
+                            <span style={{
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              padding: '2px 7px',
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 800,
+                              fontFamily: 'monospace',
+                            }}>
+                              {s.code || '-'}
+                            </span>
                           </td>
-                          <td style={{ padding: '9px 12px' }}>
+                          <td style={{ padding: '10px 14px' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>
+                              {s.name}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 600, color: '#334155' }}>
                             {s.phone || '-'}
                           </td>
-                          <td style={{ padding: '9px 12px', maxWidth: 220, fontSize: 11.5 }}>
+                          <td style={{ padding: '10px 14px', maxWidth: 240, fontSize: 12, color: '#475569' }}>
                             {s.address || '-'}
                           </td>
-                          <td style={{ padding: '9px 12px' }}>
-                            <div style={{ fontWeight: 600, fontSize: 11.5 }}>
-                              {s.bankAccount?.bankName ? `${s.bankAccount.bankName} - ${s.bankAccount.accountNumber}` : 'Chưa cập nhật'}
-                            </div>
-                            <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
-                              {s.bankAccount?.accountHolder || ''}
-                            </div>
+                          <td style={{ padding: '10px 14px' }}>
+                            {s.bankAccount?.accountNumber ? (
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    fontSize: 10.5,
+                                    fontWeight: 800,
+                                  }}>
+                                    {s.bankAccount.bankName || 'Ngân Hàng'}
+                                  </span>
+                                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1e293b' }}>
+                                    {s.bankAccount.accountNumber}
+                                  </span>
+                                </div>
+                                {s.bankAccount.accountHolder && (
+                                  <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', marginTop: 2, fontWeight: 600 }}>
+                                    {s.bankAccount.accountHolder}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Chưa cập nhật STK</span>
+                            )}
                           </td>
-                          <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                             <span style={{
-                              background: s.active !== false ? '#dcfce7' : '#f1f5f9',
-                              color: s.active !== false ? '#166534' : '#64748b',
-                              fontSize: 10.5,
+                              background: s.active !== false ? '#ecfdf5' : '#f1f5f9',
+                              color: s.active !== false ? '#047857' : '#64748b',
+                              border: s.active !== false ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
+                              fontSize: 11,
                               fontWeight: 700,
-                              padding: '2px 7px',
-                              borderRadius: 6
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
                             }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.active !== false ? '#10b981' : '#94a3b8' }} />
                               {s.active !== false ? 'Hoạt động' : 'Tạm dừng'}
                             </span>
                           </td>
@@ -2471,178 +2540,259 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         {/* TAB 3: BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)                                 */}
         {/* ========================================================================= */}
         {activeTab === 'monthly' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Date Range Filter Bar */}
             <div style={{
               background: 'var(--surface, #ffffff)',
-              padding: '8px 16px',
-              borderRadius: 12,
+              padding: '10px 18px',
+              borderRadius: 14,
               border: '1.5px solid var(--border, #e2e8f0)',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: 10
+              gap: 12
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>Chọn khoảng thời gian:</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>Khoảng thời gian:</span>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Từ ngày:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Từ ngày:</span>
                   <input
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     className="input-field"
-                    style={{ padding: '4px 8px', fontSize: 12 }}
+                    style={{ padding: '4px 8px', fontSize: 12, height: 32, borderRadius: 6 }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Đến ngày:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Đến ngày:</span>
                   <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     className="input-field"
-                    style={{ padding: '4px 8px', fontSize: 12 }}
+                    style={{ padding: '4px 8px', fontSize: 12, height: 32, borderRadius: 6 }}
                   />
                 </div>
 
                 {/* Quick select buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
                   <button
+                    type="button"
                     onClick={() => {
                       setFromDate(firstDayOfMonth);
                       setToDate(todayStr);
                     }}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: 11, fontWeight: 600 }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6 }}
                   >
                     Tháng Này
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       const prevMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
                       const prevMonthLast = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
                       setFromDate(prevMonthFirst);
                       setToDate(prevMonthLast);
                     }}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: 11, fontWeight: 600 }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6 }}
                   >
                     Tháng Trước
                   </button>
                 </div>
               </div>
 
-              {/* Export Monthly Report Button */}
+              {/* Export Monthly Report Button (Emerald Green) */}
               <button
+                type="button"
                 onClick={exportMonthlyConsolidatedTaxReport}
-                className="btn btn-primary"
+                className="btn btn-sm"
                 style={{
-                  background: '#7c3aed',
-                  borderColor: '#7c3aed',
-                  padding: '7px 14px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  borderColor: 'transparent',
+                  color: '#ffffff',
+                  padding: '8px 16px',
                   fontSize: 12.5,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6
+                  gap: 6,
+                  borderRadius: 8,
+                  boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
                 }}
               >
-                <Download size={14} />
-                Xuất Báo Cáo Doanh Thu Thuế ({currentCarrierTitle})
+                <Download size={15} />
+                <span>Xuất Báo Cáo Doanh Thu Thuế ({currentCarrierTitle})</span>
               </button>
             </div>
 
-            {/* 4 Summary KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid var(--border, #e2e8f0)' }}>
-                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase' }}>Kỳ Đối Soát Trong Khoảng</div>
-                <div style={{ fontSize: 19, fontWeight: 800, marginTop: 2 }}>{monthlyAggregatedData.sessionCount} kỳ</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')} tổng đơn</div>
+            {/* 4 Summary KPI Cards Pro */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '1.5px solid var(--border, #e2e8f0)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#94a3b8' }} />
+                <div style={{ fontSize: 10.5, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Kỳ Đối Soát Trong Khoảng</div>
+                <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#1e293b' }}>{monthlyAggregatedData.sessionCount} kỳ</div>
+                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}><strong>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')}</strong> tổng đơn</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(37, 99, 235, 0.25)' }}>
-                <div style={{ fontSize: 10.5, color: '#2563eb', fontWeight: 800, textTransform: 'uppercase' }}>Tổng COD Thu Hộ Luân Chuyển</div>
-                <div style={{ fontSize: 19, fontWeight: 800, color: '#2563eb', marginTop: 2 }}>
-                  {monthlyAggregatedData.totalCod.toLocaleString('vi-VN')} đ
+              <div style={{
+                background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 60%)',
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '1.5px solid rgba(37, 99, 235, 0.3)',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.06)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #3b82f6, #1d4ed8)' }} />
+                <div style={{ fontSize: 10.5, color: '#1d4ed8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Tổng COD Thu Hộ Luân Chuyển</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#1d4ed8', marginTop: 4 }}>
+                  {monthlyAggregatedData.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tiền hàng thu hộ từ khách</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Tiền hàng thu hộ từ khách</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(124, 58, 237, 0.25)' }}>
-                <div style={{ fontSize: 10.5, color: '#7c3aed', fontWeight: 800, textTransform: 'uppercase' }}>Doanh Thu Cước Dịch Vụ</div>
-                <div style={{ fontSize: 19, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
-                  {monthlyAggregatedData.totalServiceRevenue.toLocaleString('vi-VN')} đ
+              <div style={{
+                background: 'linear-gradient(180deg, #faf5ff 0%, #ffffff 60%)',
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '1.5px solid rgba(147, 51, 234, 0.3)',
+                boxShadow: '0 2px 8px rgba(147, 51, 234, 0.06)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #c084fc, #7e22ce)' }} />
+                <div style={{ fontSize: 10.5, color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Doanh Thu Cước Dịch Vụ</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#7e22ce', marginTop: 4 }}>
+                  {monthlyAggregatedData.totalServiceRevenue.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Doanh thu chịu thuế GTGT/TNDN</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Doanh thu chịu thuế GTGT/TNDN</div>
               </div>
 
-              <div style={{ background: 'var(--surface, #ffffff)', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(22, 163, 74, 0.25)' }}>
-                <div style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 800, textTransform: 'uppercase' }}>Thực Chi Trả Khách Hàng</div>
-                <div style={{ fontSize: 19, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
-                  {monthlyAggregatedData.totalNetPayout.toLocaleString('vi-VN')} đ
+              <div style={{
+                background: 'linear-gradient(180deg, #ecfdf5 0%, #ffffff 60%)',
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                boxShadow: '0 2px 10px rgba(16, 185, 129, 0.08)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #10b981, #047857)' }} />
+                <div style={{ fontSize: 10.5, color: '#047857', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Thực Chi Trả Khách Hàng</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 4 }}>
+                  {monthlyAggregatedData.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tổng chuyển khoản cho các Shop</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Tổng chuyển khoản cho các Shop</div>
               </div>
             </div>
 
-            {/* Aggregated Shop Breakdown Table */}
+            {/* Aggregated Shop Breakdown Table Pro */}
             <div style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 14,
               border: '1.5px solid var(--border, #e2e8f0)',
               overflow: 'hidden',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
+              boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
             }}>
               <div style={{
-                padding: '10px 16px',
-                borderBottom: '1px solid var(--border, #e2e8f0)',
-                background: 'var(--bg-app, #f8fafc)',
+                padding: '10px 18px',
+                borderBottom: '1.5px solid var(--border, #e2e8f0)',
+                background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ fontWeight: 800, fontSize: 13 }}>
+                <span style={{ fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: '#334155' }}>
                   BẢNG PHÂN BỔ DOANH THU & DÒNG TIỀN THEO TỪNG KHÁCH HÀNG ({currentCarrierTitle})
                 </span>
-                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động cố định tiêu đề</span>
+                <span style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>
+                  Khung cuộn tự động • Cố định tiêu đề
+                </span>
               </div>
 
               <div style={{ maxHeight: 'calc(100vh - 310px)', minHeight: 350, overflowY: 'auto', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Mã Khách</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Tên Khách Hàng / Shop</th>
-                      <th style={{ padding: '10px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Điện Thoại</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Kỳ Tham Gia</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Tổng Số Đơn</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD Luân Chuyển</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Doanh Thu Cước Dịch Vụ</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng Thực Trả</th>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      <th style={{ padding: '10px 12px', width: 45, textAlign: 'center' }}>STT</th>
+                      <th style={{ padding: '10px 14px', width: 130 }}>Mã Khách</th>
+                      <th style={{ padding: '10px 14px' }}>Tên Khách Hàng / Shop</th>
+                      <th style={{ padding: '10px 14px', width: 120 }}>Số Điện Thoại</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', width: 110 }}>Số Kỳ</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', width: 100 }}>Tổng Số Đơn</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Tổng COD Luân Chuyển</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Doanh Thu Cước</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Tổng Thực Trả</th>
                     </tr>
                   </thead>
                   <tbody>
                     {monthlyAggregatedData.shopBreakdown.map((s, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
-                        <td style={{ padding: '9px 12px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                        <td style={{ padding: '9px 12px', fontWeight: 700, color: '#7c3aed' }}>{s.shopCode}</td>
-                        <td style={{ padding: '9px 12px', fontWeight: 700 }}>{s.shopName}</td>
-                        <td style={{ padding: '9px 12px' }}>{s.phone}</td>
-                        <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 600 }}>{s.sessionCount} kỳ</td>
-                        <td style={{ padding: '9px 12px', textAlign: 'center', fontWeight: 700 }}>{s.totalOrders.toLocaleString('vi-VN')}</td>
-                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: '1px solid var(--border, #f1f5f9)',
+                          fontSize: 12.5,
+                          transition: 'background 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 700 }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            padding: '2px 7px',
+                            borderRadius: 6,
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            fontFamily: 'monospace',
+                          }}>
+                            {s.shopCode}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                          {s.shopName}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: '#475569', fontWeight: 600 }}>
+                          {s.phone}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700 }}>
+                          <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
+                            {s.sessionCount} kỳ
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800 }}>
+                          <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
+                            {s.totalOrders.toLocaleString('vi-VN')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', fontFamily: 'monospace' }}>
                           {s.totalCod.toLocaleString('vi-VN')} đ
                         </td>
-                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
                           {s.totalServiceFee.toLocaleString('vi-VN')} đ
                         </td>
-                        <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, color: '#047857', fontSize: 13, fontFamily: 'monospace' }}>
                           {s.totalNetPayout.toLocaleString('vi-VN')} đ
                         </td>
                       </tr>
@@ -2658,12 +2808,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       {/* 🏢 FOOTER THÔNG TIN ĐƠN VỊ PHÁT TRIỂN PHẦN MỀM (TQ DIGITAL) */}
       <SoftwareDeveloperFooter />
 
-      {/* 👁️ MODAL: CHI TIẾT ĐƠN HÀNG CỦA SHOP                                     */}
+      {/* 👁️ MODAL: CHI TIẾT ĐƠN HÀNG CỦA SHOP PRO                                */}
       {selectedSession && selectedShopStmt && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
           zIndex: 100,
           display: 'flex',
           alignItems: 'center',
@@ -2672,63 +2823,122 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         }}>
           <div style={{
             background: 'var(--surface, #ffffff)',
-            borderRadius: 16,
+            borderRadius: 18,
             width: '100%',
-            maxWidth: 1000,
+            maxWidth: 1040,
             maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)'
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1.5px solid var(--border, #e2e8f0)'
           }}>
             {/* Modal Header */}
             <div style={{
-              padding: '18px 24px',
-              borderBottom: '1px solid var(--border, #e2e8f0)',
+              padding: '16px 22px',
+              borderBottom: '1.5px solid var(--border, #e2e8f0)',
+              background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>
-                  CHI TIẾT ĐƠN HÀNG: {selectedShopStmt.shopName}
+                <div style={{ fontSize: 16, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-main)' }}>
+                  <span>CHI TIẾT ĐƠN HÀNG:</span>
+                  <span style={{ color: '#4f46e5' }}>{selectedShopStmt.shopName}</span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  Kỳ đối soát: {selectedSession.sessionName} • Tổng cộng {selectedShopStmt.orders?.length || 0} đơn hàng
+                  Kỳ đối soát: <strong>{selectedSession.sessionName}</strong> • Tổng cộng <strong>{selectedShopStmt.orders?.length || 0}</strong> đơn hàng
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  setSelectedSession(null);
-                  setSelectedShopStmt(null);
-                }}
-                className="btn btn-secondary"
-                style={{ padding: '6px', borderRadius: 8 }}
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => exportSingleShopExcel(selectedSession.sessionName, selectedShopStmt)}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: 'transparent',
+                    color: '#ffffff',
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title="Xuất file Excel cho shop này"
+                >
+                  <Download size={13} />
+                  <span>Xuất Excel Shop</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSession(null);
+                    setSelectedShopStmt(null);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px', borderRadius: 8 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI in Modal */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 10,
+              padding: '12px 22px',
+              background: '#f8fafc',
+              borderBottom: '1px solid var(--border, #e2e8f0)'
+            }}>
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10.5, color: '#1d4ed8', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG TIỀN COD</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#1d4ed8', marginTop: 2, fontFamily: 'monospace' }}>
+                  {selectedShopStmt.totalCod.toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10.5, color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase' }}>CƯỚC DỊCH VỤ</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#7e22ce', marginTop: 2, fontFamily: 'monospace' }}>
+                  {(selectedShopStmt.totalShopFee + selectedShopStmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                <div style={{ fontSize: 10.5, color: '#047857', fontWeight: 800, textTransform: 'uppercase' }}>THỰC TRẢ SHOP</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', marginTop: 2, fontFamily: 'monospace' }}>
+                  {selectedShopStmt.totalNetPayout.toLocaleString('vi-VN')} đ
+                </div>
+              </div>
             </div>
 
             {/* Modal Table Content */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 22px 16px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                    <th style={{ padding: '8px' }}>STT</th>
-                    <th style={{ padding: '8px' }}>Mã Vận Đơn</th>
-                    <th style={{ padding: '8px' }}>Người Nhận</th>
-                    <th style={{ padding: '8px' }}>SĐT</th>
-                    <th style={{ padding: '8px' }}>Trạng Thái</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Tiền COD</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Cước Dịch Vụ</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Thực Chuyển</th>
+                <thead style={{ position: 'sticky', top: 0, background: '#ffffff', zIndex: 10 }}>
+                  <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    <th style={{ padding: '10px 8px', width: 40, textAlign: 'center' }}>STT</th>
+                    <th style={{ padding: '10px 10px' }}>Mã Vận Đơn</th>
+                    <th style={{ padding: '10px 10px' }}>Người Nhận</th>
+                    <th style={{ padding: '10px 10px' }}>SĐT</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'center' }}>Trạng Thái</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tiền COD</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Cước Dịch Vụ</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Thực Chuyển</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(selectedShopStmt.orders || []).map((ord: ReconciledOrder, idx: number) => (
                     <tr key={ord.id || idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12 }}>
-                      <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                      <td style={{ padding: '8px', color: 'var(--text-muted)', textAlign: 'center' }}>{idx + 1}</td>
                       <td style={{ padding: '8px', fontWeight: 700, fontFamily: 'monospace' }}>{ord.waybill}</td>
                       <td style={{ padding: '8px' }}>{ord.receiverName || '-'}</td>
                       <td style={{ padding: '8px' }}>{ord.receiverPhone || '-'}</td>
