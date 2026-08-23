@@ -9,16 +9,24 @@ interface VietQRModalProps {
 
 import { BANK_CODES, toVietQrMemo } from '../constants/banks';
 import { calculateStatementSettlement } from '../services/settlementService';
+import { StorageService } from '../services/storage';
 
 export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) => {
   const [copied, setCopied] = useState(false);
 
   if (!statement) return null;
 
-  const bankName = statement.bankInfo.bankName || 'MB Bank';
+  const liveShop = StorageService.getShops().find(s => 
+    s.id === statement.shopId || 
+    s.code === statement.shopCode || 
+    (s.name && statement.shopName && s.name.trim().toLowerCase() === statement.shopName.trim().toLowerCase())
+  );
+  const liveBank = (liveShop?.bankAccount?.accountNumber?.trim() ? liveShop.bankAccount : statement.bankInfo) || { bankName: '', accountNumber: '', accountHolder: '' };
+
+  const bankName = liveBank.bankName || 'MB Bank';
   const bankCode = BANK_CODES[bankName] || 'MB';
-  const accountNumber = statement.bankInfo.accountNumber.replace(/[^0-9]/g, '') || '091234567899';
-  const accountHolder = encodeURIComponent(statement.bankInfo.accountHolder || statement.shopName);
+  const accountNumber = (liveBank.accountNumber || '').replace(/[^0-9]/g, '') || '091234567899';
+  const accountHolder = encodeURIComponent(liveBank.accountHolder || statement.shopName);
   const settlement = calculateStatementSettlement(statement);
   const amount = settlement.amountPayable;
   const rawMemo = `DOI SOAT ${statement.shopCode} ${statement.periodName}`;

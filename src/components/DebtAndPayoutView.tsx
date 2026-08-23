@@ -121,6 +121,27 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
   const grandRemainingDebt = Math.max(0, grandTotalNetPayout - grandTotalPaid);
 
+  // Helper to get latest live bank account from shop database (fallback to statement snapshot)
+  const getLiveShopBankInfo = (stmt: ShopSettlementStatement) => {
+    const liveShop = shops.find(s => 
+      s.id === stmt.shopId || 
+      s.code === stmt.shopCode || 
+      (s.name && stmt.shopName && s.name.trim().toLowerCase() === stmt.shopName.trim().toLowerCase())
+    );
+    if (liveShop?.bankAccount?.accountNumber?.trim()) {
+      return {
+        bankName: liveShop.bankAccount.bankName || 'MB Bank',
+        accountNumber: liveShop.bankAccount.accountNumber.trim(),
+        accountHolder: liveShop.bankAccount.accountHolder || liveShop.name || stmt.shopName,
+      };
+    }
+    return {
+      bankName: stmt.bankInfo?.bankName || '',
+      accountNumber: stmt.bankInfo?.accountNumber || '',
+      accountHolder: stmt.bankInfo?.accountHolder || stmt.shopName,
+    };
+  };
+
   // Open Payout Modal
   const handleOpenPayModal = (session: ReconciliationSession, statement: ShopSettlementStatement) => {
     if (!isSessionEligibleForPayout(session)) {
@@ -128,11 +149,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       return;
     }
     const { remainingDebt } = getStatementPayoutInfo(session.id, statement);
+    const liveBank = getLiveShopBankInfo(statement);
     setTargetSession(session);
     setTargetStatement(statement);
     setPayAmount(remainingDebt.toString());
     setPayRef('');
-    setPayBank(statement.bankInfo?.bankName || 'Vietcombank');
+    setPayBank(liveBank.bankName || 'Vietcombank');
     const smartPeriodTitle = cleanSessionName(session.sessionName, session.createdAt, session.carrierName);
     setPayNote(`Thanh toán đối soát kỳ ${smartPeriodTitle}`);
     setIsModalOpen(true);
@@ -217,12 +239,14 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       if (status === 'UNPAID') statusText = 'Chưa đi tiền';
       if (status === 'PARTIAL') statusText = 'Đã đi 1 phần';
 
+      const liveBank = getLiveShopBankInfo(stmt);
+
       return [{
         shopCode: stmt.shopCode,
         shopName: stmt.shopName,
-        bankName: stmt.bankInfo?.bankName || '',
-        accountNumber: stmt.bankInfo?.accountNumber || '',
-        accountHolder: stmt.bankInfo?.accountHolder || stmt.shopName,
+        bankName: liveBank.bankName,
+        accountNumber: liveBank.accountNumber,
+        accountHolder: liveBank.accountHolder,
         amount: remainingDebt,
         sessionName: session.sessionName,
         statusText,
@@ -250,7 +274,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     });
 
     if (unpaidStmts.length === 0) {
-      showToast('Tất cả Shop trong kỳ này đã được đi tiền đủ!', 'info');
+      showToast('Tất cả các Shop trong kỳ này đã được đi tiền đầy đủ.', 'info');
       return;
     }
 
@@ -268,6 +292,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     if (ok) {
       unpaidStmts.forEach(stmt => {
         const { remainingDebt } = getStatementPayoutInfo(session.id, stmt);
+        const liveBank = getLiveShopBankInfo(stmt);
         if (remainingDebt > 0) {
           StorageService.savePaymentRecord({
             sessionId: session.id,
@@ -278,7 +303,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
             amount: remainingDebt,
             paidByUsername: currentUser.username,
             paidByFullName: currentUser.fullName,
-            bankName: stmt.bankInfo?.bankName || 'Chuyển khoản hàng loạt',
+            bankName: liveBank.bankName || 'Chuyển khoản hàng loạt',
             transactionRef: `BATCH_${Date.now()}`,
             note: `Thanh toán hàng loạt kỳ đối soát ${session.sessionName}`,
           });
@@ -963,14 +988,17 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             )}
                           </td>
                           <td>
-                            {stmt.bankInfo?.bankName ? (
-                              <div style={{ fontSize: 12 }}>
-                                <div><strong>{stmt.bankInfo.bankName}</strong> • <span className="mono">{stmt.bankInfo.accountNumber}</span></div>
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo.accountHolder}</div>
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Chưa có STK</span>
-                            )}
+                            {(() => {
+                              const liveBank = getLiveShopBankInfo(stmt);
+                              return liveBank.accountNumber ? (
+                                <div style={{ fontSize: 12 }}>
+                                  <div><strong>{liveBank.bankName}</strong> • <span className="mono">{liveBank.accountNumber}</span></div>
+                                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{liveBank.accountHolder}</div>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>⚠️ Chưa có STK</span>
+                              );
+                            })()}
                           </td>
                           <td className="mono" style={{ color: 'var(--info)', textAlign: 'right' }}>{formatVND(stmt.totalCod)}</td>
                           <td className="mono" style={{ color: '#92400e', textAlign: 'right' }}>-{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}</td>
@@ -1050,11 +1078,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
       {/* PAYOUT FORM MODAL WITH LIVE VIETQR & SESSION TRANSFER MEMO */}
       {isModalOpen && targetSession && targetStatement && (() => {
-        const bankName = targetStatement.bankInfo?.bankName || 'MB Bank';
+        const liveBank = getLiveShopBankInfo(targetStatement);
+        const bankName = liveBank.bankName || 'MB Bank';
         const bankCode = getBankCode(bankName);
-        const rawAccountNum = targetStatement.bankInfo?.accountNumber || '';
+        const rawAccountNum = liveBank.accountNumber || '';
         const cleanAccountNum = rawAccountNum.replace(/[^0-9]/g, '');
-        const accountHolder = targetStatement.bankInfo?.accountHolder || targetStatement.shopName || '';
+        const accountHolder = liveBank.accountHolder || targetStatement.shopName || '';
         const amountNum = Math.max(0, parseFloat(payAmount.replace(/[^0-9.]/g, '')) || 0);
         const transferMemo = payNote.trim() || `Thanh toán đối soát kỳ ${cleanSessionName(targetSession.sessionName, targetSession.createdAt, targetSession.carrierName)}`;
         const qrMemo = toVietQrMemo(transferMemo);

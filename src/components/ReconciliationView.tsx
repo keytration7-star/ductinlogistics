@@ -3032,7 +3032,15 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                               Mã: <strong className="mono">{stmt.shopCode}</strong> • SĐT: {stmt.shopPhone || '—'}
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                              {stmt.bankInfo.bankName} - {stmt.bankInfo.accountNumber} ({stmt.bankInfo.accountHolder})
+                              {(() => {
+                                const liveShop = shops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode || (s.name && stmt.shopName && s.name.trim().toLowerCase() === stmt.shopName.trim().toLowerCase()));
+                                const liveBank = (liveShop?.bankAccount?.accountNumber?.trim() ? liveShop.bankAccount : stmt.bankInfo) || { bankName: '', accountNumber: '', accountHolder: '' };
+                                return liveBank.accountNumber ? (
+                                  <span>{liveBank.bankName} - <strong className="mono">{liveBank.accountNumber}</strong> ({liveBank.accountHolder})</span>
+                                ) : (
+                                  <span style={{ color: 'var(--danger)', fontWeight: 600 }}>⚠️ Chưa có STK</span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </td>
