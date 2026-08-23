@@ -24,6 +24,7 @@ import {
   Globe
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
+import { getCarrierTheme } from './CarrierHubDashboard';
 import { StorageService } from '../services/storage';
 import type { 
   ReconciliationSession, 
@@ -42,52 +43,6 @@ interface TaxAccountantPortalProps {
   onLogout: () => void;
 }
 
-// Brand color palette helper for carrier cards
-const CARRIER_THEMES: Record<string, { bgGradient: string; border: string; badgeBg: string; badgeText: string; accentColor: string }> = {
-  jnt: {
-    bgGradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(220, 38, 38, 0.04) 100%)',
-    border: 'rgba(239, 68, 68, 0.35)',
-    badgeBg: '#fee2e2',
-    badgeText: '#b91c1c',
-    accentColor: '#dc2626',
-  },
-  ghn: {
-    bgGradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 88, 12, 0.04) 100%)',
-    border: 'rgba(249, 115, 22, 0.35)',
-    badgeBg: '#ffedd5',
-    badgeText: '#c2410c',
-    accentColor: '#ea580c',
-  },
-  vtp: {
-    bgGradient: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(29, 78, 216, 0.04) 100%)',
-    border: 'rgba(37, 99, 235, 0.35)',
-    badgeBg: '#dbeafe',
-    badgeText: '#1d4ed8',
-    accentColor: '#2563eb',
-  },
-  spx: {
-    bgGradient: 'linear-gradient(135deg, rgba(234, 88, 12, 0.12) 0%, rgba(244, 63, 94, 0.04) 100%)',
-    border: 'rgba(234, 88, 12, 0.35)',
-    badgeBg: '#ffedd5',
-    badgeText: '#c2410c',
-    accentColor: '#f97316',
-  },
-  ghtk: {
-    bgGradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%)',
-    border: 'rgba(16, 185, 129, 0.35)',
-    badgeBg: '#d1fae5',
-    badgeText: '#047857',
-    accentColor: '#059669',
-  },
-};
-
-const DEFAULT_THEME = {
-  bgGradient: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(79, 70, 229, 0.04) 100%)',
-  border: 'rgba(99, 102, 241, 0.35)',
-  badgeBg: '#e0e7ff',
-  badgeText: '#4338ca',
-  accentColor: '#4f46e5',
-};
 
 const SoftwareDeveloperFooter: React.FC = () => (
   <footer style={{
@@ -1375,7 +1330,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             gap: 20,
           }}>
             {filteredCarriers.map(carrier => {
-              const theme = CARRIER_THEMES[carrier.carrierId] || DEFAULT_THEME;
+              const theme = getCarrierTheme(carrier.carrierId, carrier.carrierName);
               const stats = carrierStats.get(carrier.carrierId) || { shopCount: 0, sessionCount: 0, orderCount: 0, totalCod: 0, totalServiceFee: 0, totalNetPayout: 0, lastSessionDate: undefined };
 
               return (
@@ -1386,7 +1341,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     setActiveTab('sessions');
                   }}
                   style={{
-                    background: 'var(--surface, #ffffff)',
+                    background: theme.cardBg,
                     borderRadius: 20,
                     border: `1.5px solid ${theme.border}`,
                     padding: 24,
@@ -1402,8 +1357,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 12px 30px -4px rgba(124, 58, 237, 0.2)';
-                    e.currentTarget.style.borderColor = '#7c3aed';
+                    e.currentTarget.style.boxShadow = theme.shadowGlow;
+                    e.currentTarget.style.borderColor = theme.primary;
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
@@ -1418,7 +1373,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     left: 0,
                     right: 0,
                     height: 6,
-                    background: theme.bgGradient,
+                    background: theme.gradient,
                   }} />
 
                   {/* Card Header */}
@@ -1429,13 +1384,12 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                           width: 46,
                           height: 46,
                           borderRadius: 14,
-                          background: theme.bgGradient,
-                          border: `1.5px solid ${theme.border}`,
+                          background: theme.iconBg,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: theme.accentColor,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          color: '#ffffff',
+                          boxShadow: theme.shadowGlow,
                         }}>
                           <Truck size={22} />
                         </div>
@@ -1471,7 +1425,9 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       gridTemplateColumns: 'repeat(3, 1fr)',
                       gap: 8,
                       marginTop: 16,
-                      background: 'var(--bg-app, #f8fafc)',
+                      background: 'rgba(255, 255, 255, 0.85)',
+                      backdropFilter: 'blur(6px)',
+                      border: '1px solid rgba(0, 0, 0, 0.05)',
                       borderRadius: 12,
                       padding: 12,
                     }}>
@@ -1480,7 +1436,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                           <Store size={12} />
                           <span>Shop:</span>
                         </div>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: theme.primary, marginTop: 2 }}>
                           {stats.shopCount} <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--text-muted)' }}>shop</span>
                         </div>
                       </div>
@@ -1530,15 +1486,16 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       }}
                       className="btn btn-primary btn-sm"
                       style={{
-                        background: '#7c3aed',
-                        borderColor: '#7c3aed',
+                        background: theme.buttonGradient,
+                        borderColor: 'transparent',
+                        color: '#ffffff',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6,
                         fontWeight: 700,
                         padding: '8px 16px',
                         borderRadius: 10,
-                        boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                        boxShadow: theme.shadowGlow,
                       }}
                     >
                       <span>Vào Không Gian {carrier.carrierName.split(' ')[0]}</span>
@@ -1632,7 +1589,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     ? 'HỢP NHẤT TOÀN BỘ HÃNG' 
     : (activeCarrierObj?.carrierName || activeCarrierId.toUpperCase());
   
-  const currentCarrierTheme = CARRIER_THEMES[activeCarrierId] || DEFAULT_THEME;
+  const currentCarrierTheme = getCarrierTheme(activeCarrierId, activeCarrierObj?.carrierName);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-app, #f8fafc)', color: 'var(--text-main, #1e293b)', display: 'flex', flexDirection: 'column', paddingBottom: 48 }}>
@@ -1680,12 +1637,12 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               width: 34,
               height: 34,
               borderRadius: 8,
-              background: activeCarrierId === 'all' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : currentCarrierTheme.bgGradient,
+              background: activeCarrierId === 'all' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : currentCarrierTheme.iconBg,
               border: `1.5px solid ${currentCarrierTheme.border}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: activeCarrierId === 'all' ? '#fff' : currentCarrierTheme.accentColor,
+              color: '#ffffff',
             }}>
               <Truck size={18} />
             </div>
