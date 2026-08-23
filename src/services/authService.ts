@@ -68,13 +68,14 @@ export const AuthService = {
 
   async syncUsersFromServer(): Promise<UserAccount[]> {
     try {
-      const res = await fetch('/api/db/all', { headers: getAuthHeaders() });
+      const res = await fetch('/api/auth/users', { headers: getAuthHeaders() });
       if (res.ok) {
         const result = await res.json();
-        let serverUsers: UserAccount[] = (result.success && result.data && Array.isArray(result.data.users)) ? result.data.users : [];
-
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(serverUsers));
-        return serverUsers;
+        let serverUsers: UserAccount[] = (result.success && Array.isArray(result.users)) ? result.users : [];
+        if (serverUsers.length > 0) {
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(serverUsers));
+          return serverUsers;
+        }
       }
     } catch (err) {
       console.warn('[Sync Users Fail]:', err);
@@ -183,107 +184,120 @@ export const AuthService = {
     return { isKicked: false };
   },
 
-  createUser(data: {
+  async createUser(data: {
     username: string;
     password: string;
     fullName: string;
     role: UserRole;
     phone?: string;
     email?: string;
-  }): { success: boolean; user?: UserAccount; error?: string } {
+  }): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
     const username = data.username.trim();
-    if (!username || !data.password.trim() || !data.fullName.trim()) {
+    const password = data.password.trim();
+    const fullName = data.fullName.trim();
+    if (!username || !password || !fullName) {
       return { success: false, error: 'Vui lòng nhập đủ Tên đăng nhập, Mật khẩu và Họ tên.' };
     }
 
-    const users = this.getUsers();
-    if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-      return { success: false, error: `Tên đăng nhập "${username}" đã tồn tại. Vui lòng chọn tên khác.` };
+    try {
+      const response = await fetch('/api/auth/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          username,
+          password,
+          fullName,
+          role: data.role || 'STAFF',
+          phone: data.phone?.trim() || '',
+          email: data.email?.trim() || '',
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return { success: false, error: result?.error || 'Không thể tạo tài khoản trên máy chủ.' };
+      }
+
+      await this.syncUsersFromServer();
+      return { success: true, user: result.user };
+    } catch (err: any) {
+      return { success: false, error: 'Lỗi kết nối máy chủ: ' + (err?.message || err) };
     }
-
-    const newUser: UserAccount = {
-      id: `user_${Date.now()}`,
-      username,
-      password: data.password.trim(),
-      fullName: data.fullName.trim(),
-      role: data.role || 'STAFF',
-      phone: data.phone?.trim() || '',
-      email: data.email?.trim() || '',
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(newUser);
-    this.saveUsers(users);
-
-    return { success: true, user: newUser };
   },
 
-  updateUser(
+  async updateUser(
     userId: string,
     updates: Partial<Omit<UserAccount, 'id' | 'username' | 'createdAt'>>
-  ): { success: boolean; error?: string } {
-    const users = this.getUsers();
-    const index = users.findIndex(u => u.id === userId);
-    if (index === -1) return { success: false, error: 'Không tìm thấy người dùng.' };
-
-    users[index] = {
-      ...users[index],
-      ...updates,
-    };
-
-    this.saveUsers(users);
-
-    // If current logged-in user was updated, refresh session
-    const current = this.getCurrentUser();
-    if (current && current.id === userId) {
-      const refreshed = { ...users[index] };
-      delete refreshed.password;
-      this.setCurrentUser(refreshed);
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch('/api/auth/users/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ id: userId, ...updates }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return { success: false, error: result?.error || 'Không thể cập nhật tài khoản trên máy chủ.' };
+      }
+      await this.syncUsersFromServer();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Lỗi kết nối máy chủ: ' + (err?.message || err) };
     }
-
-    return { success: true };
   },
 
-  deleteUser(userId: string): { success: boolean; error?: string } {
-    const users = this.getUsers();
-    const user = users.find(u => u.id === userId);
-
-    if (!user) return { success: false, error: 'Không tìm thấy người dùng.' };
-    if (user.username.toLowerCase() === DEFAULT_ADMIN_USER.username.toLowerCase()) {
-      return { success: false, error: 'Không thể xóa tài khoản Quản trị viên tối cao (Super Admin).' };
+  async deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch('/api/auth/users/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ id: userId }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return { success: false, error: result?.error || 'Không thể xóa người dùng.' };
+      }
+      await this.syncUsersFromServer();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Lỗi kết nối: ' + (err?.message || err) };
     }
-
-    const filtered = users.filter(u => u.id !== userId);
-    this.saveUsers(filtered);
-    return { success: true };
   },
 
-  changePassword(userId: string, newPassword: string): { success: boolean; error?: string } {
+  async changePassword(userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
     if (!newPassword || newPassword.trim().length < 4) {
       return { success: false, error: 'Mật khẩu phải có ít nhất 4 ký tự.' };
     }
-
-    const users = this.getUsers();
-    const user = users.find(u => u.id === userId);
-    if (!user) return { success: false, error: 'Không tìm thấy người dùng.' };
-
-    user.password = newPassword.trim();
-    this.saveUsers(users);
-    return { success: true };
+    try {
+      const response = await fetch('/api/auth/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ id: userId, newPassword }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return { success: false, error: result?.error || 'Không thể đổi mật khẩu.' };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Lỗi kết nối: ' + (err?.message || err) };
+    }
   },
 
-  toggleUserActive(userId: string): { success: boolean; error?: string } {
-    const users = this.getUsers();
-    const user = users.find(u => u.id === userId);
-    if (!user) return { success: false, error: 'Không tìm thấy người dùng.' };
-
-    if (user.username.toLowerCase() === DEFAULT_ADMIN_USER.username.toLowerCase()) {
-      return { success: false, error: 'Không thể khóa tài khoản Quản trị viên tối cao.' };
+  async toggleUserActive(userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch('/api/auth/users/toggle-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ id: userId }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return { success: false, error: result?.error || 'Không thể thay đổi trạng thái tài khoản.' };
+      }
+      await this.syncUsersFromServer();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Lỗi kết nối: ' + (err?.message || err) };
     }
-
-    user.active = !user.active;
-    this.saveUsers(users);
-    return { success: true };
   },
 };

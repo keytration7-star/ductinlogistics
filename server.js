@@ -214,6 +214,144 @@ app.post('/api/auth/verify-password', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ──────────────────────────────────────────
+// 👥 USER MANAGEMENT API (SERVER-SIDE DIRECT DB)
+// ──────────────────────────────────────────
+
+// GET all users (Admin only)
+app.get('/api/auth/users', requireAuth, requireAdmin, (req, res) => {
+  const users = readJsonFile('users.json', []);
+  res.json({ success: true, users: (Array.isArray(users) ? users : []).map(publicUser) });
+});
+
+// POST create user (Admin only)
+app.post('/api/auth/users/create', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const { username, password, fullName, role, phone, email } = req.body || {};
+    const uClean = String(username || '').trim();
+    const pClean = String(password || '').trim();
+    const fClean = String(fullName || '').trim();
+
+    if (!uClean || !pClean || !fClean) {
+      return res.status(400).json({ success: false, error: 'Vui lòng nhập đủ Tên đăng nhập, Mật khẩu và Họ tên.' });
+    }
+
+    const users = readJsonFile('users.json', []);
+    if (Array.isArray(users) && users.some(u => u.username?.toLowerCase() === uClean.toLowerCase())) {
+      return res.status(400).json({ success: false, error: `Tên đăng nhập "${uClean}" đã tồn tại.` });
+    }
+
+    const newUser = {
+      id: `user_${Date.now()}`,
+      username: uClean,
+      password: pClean,
+      fullName: fClean,
+      role: role || 'STAFF',
+      phone: String(phone || '').trim(),
+      email: String(email || '').trim(),
+      active: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedList = Array.isArray(users) ? [...users, newUser] : [newUser];
+    const writeOk = writeJsonFile('users.json', updatedList);
+    if (!writeOk) {
+      return res.status(500).json({ success: false, error: 'Lỗi ghi dữ liệu tài khoản vào máy chủ.' });
+    }
+
+    res.json({ success: true, user: publicUser(newUser) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST update user profile (Admin only)
+app.post('/api/auth/users/update', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const { id, fullName, role, phone, email } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, error: 'Thiếu ID người dùng.' });
+
+    const users = readJsonFile('users.json', []);
+    const idx = Array.isArray(users) ? users.findIndex(u => u.id === id) : -1;
+    if (idx === -1) return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng.' });
+
+    if (fullName) users[idx].fullName = String(fullName).trim();
+    if (role) users[idx].role = role;
+    if (phone !== undefined) users[idx].phone = String(phone).trim();
+    if (email !== undefined) users[idx].email = String(email).trim();
+
+    writeJsonFile('users.json', users);
+    res.json({ success: true, user: publicUser(users[idx]) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST change user password (Admin only)
+app.post('/api/auth/users/change-password', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const { id, newPassword } = req.body || {};
+    const pClean = String(newPassword || '').trim();
+    if (!id || !pClean || pClean.length < 4) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có ít nhất 4 ký tự.' });
+    }
+
+    const users = readJsonFile('users.json', []);
+    const idx = Array.isArray(users) ? users.findIndex(u => u.id === id) : -1;
+    if (idx === -1) return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng.' });
+
+    users[idx].password = pClean;
+    writeJsonFile('users.json', users);
+    res.json({ success: true, message: 'Đổi mật khẩu thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST toggle user active / lock status (Admin only)
+app.post('/api/auth/users/toggle-lock', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, error: 'Thiếu ID người dùng.' });
+
+    const users = readJsonFile('users.json', []);
+    const idx = Array.isArray(users) ? users.findIndex(u => u.id === id) : -1;
+    if (idx === -1) return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng.' });
+
+    if (users[idx].username?.toLowerCase() === 'admin') {
+      return res.status(400).json({ success: false, error: 'Không thể khóa tài khoản Quản trị viên tối cao.' });
+    }
+
+    users[idx].active = !users[idx].active;
+    writeJsonFile('users.json', users);
+    res.json({ success: true, active: users[idx].active });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST delete user (Admin only)
+app.post('/api/auth/users/delete', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, error: 'Thiếu ID người dùng.' });
+
+    const users = readJsonFile('users.json', []);
+    const user = Array.isArray(users) ? users.find(u => u.id === id) : null;
+    if (!user) return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng.' });
+
+    if (user.username?.toLowerCase() === 'admin') {
+      return res.status(400).json({ success: false, error: 'Không thể xóa tài khoản Quản trị viên tối cao.' });
+    }
+
+    const filtered = users.filter(u => u.id !== id);
+    writeJsonFile('users.json', filtered);
+    res.json({ success: true, message: 'Đã xóa người dùng thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 📸 AUTOMATED SERVER SNAPSHOT BACKUP ENGINE
 function createSnapshot(reason = 'auto') {
   try {

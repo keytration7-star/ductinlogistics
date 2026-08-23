@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -25,59 +25,79 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [passwordChangeUser, setPasswordChangeUser] = useState<UserAccount | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync users from server on mount
+  useEffect(() => {
+    AuthService.syncUsersFromServer().then(remoteUsers => {
+      if (remoteUsers && remoteUsers.length > 0) {
+        setUsers(remoteUsers);
+      }
+    });
+  }, []);
 
   // New user form state
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     fullName: '',
-    role: 'STAFF' as UserRole,
+    role: 'TAX_ACCOUNTANT' as UserRole,
     phone: '',
     email: '',
   });
 
   const [formError, setFormError] = useState<string | null>(null);
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setIsSubmitting(true);
 
-    const res = AuthService.createUser(formData);
-    if (res.success) {
-      setUsers(AuthService.getUsers());
-      setShowCreateModal(false);
-      setFormData({
-        username: '',
-        password: '',
-        fullName: '',
-        role: 'STAFF',
-        phone: '',
-        email: '',
-      });
-      showToast('Đã tạo tài khoản nhân viên mới thành công!', 'success');
-    } else {
-      setFormError(res.error || 'Không thể tạo tài khoản.');
+    try {
+      const res = await AuthService.createUser(formData);
+      if (res.success) {
+        setUsers(AuthService.getUsers());
+        setShowCreateModal(false);
+        setFormData({
+          username: '',
+          password: '',
+          fullName: '',
+          role: 'TAX_ACCOUNTANT',
+          phone: '',
+          email: '',
+        });
+        showToast('Đã tạo tài khoản thành công và lưu vào máy chủ!', 'success');
+      } else {
+        setFormError(res.error || 'Không thể tạo tài khoản.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleUpdateUser = (e: React.FormEvent) => {
+  const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
     setFormError(null);
+    setIsSubmitting(true);
 
-    const res = AuthService.updateUser(editingUser.id, {
-      fullName: editingUser.fullName,
-      role: editingUser.role,
-      phone: editingUser.phone,
-      email: editingUser.email,
-    });
+    try {
+      const res = await AuthService.updateUser(editingUser.id, {
+        fullName: editingUser.fullName,
+        role: editingUser.role,
+        phone: editingUser.phone,
+        email: editingUser.email,
+      });
 
-    if (res.success) {
-      setUsers(AuthService.getUsers());
-      setEditingUser(null);
-      showToast('Đã cập nhật thông tin tài khoản!', 'success');
-    } else {
-      setFormError(res.error || 'Cập nhật thất bại.');
+      if (res.success) {
+        setUsers(AuthService.getUsers());
+        setEditingUser(null);
+        showToast('Đã cập nhật thông tin tài khoản!', 'success');
+      } else {
+        setFormError(res.error || 'Cập nhật thất bại.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -90,7 +110,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       warning: user.active,
     });
     if (ok) {
-      const res = AuthService.toggleUserActive(user.id);
+      const res = await AuthService.toggleUserActive(user.id);
       if (res.success) {
         setUsers(AuthService.getUsers());
         showToast(`Đã ${action} tài khoản thành công!`, 'success');
@@ -108,7 +128,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
       danger: true,
     });
     if (ok) {
-      const res = AuthService.deleteUser(user.id);
+      const res = await AuthService.deleteUser(user.id);
       if (res.success) {
         setUsers(AuthService.getUsers());
         showToast('Đã xóa tài khoản thành công!', 'success');
@@ -118,17 +138,22 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
     }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordChangeUser) return;
+    setIsSubmitting(true);
 
-    const res = AuthService.changePassword(passwordChangeUser.id, newPasswordInput);
-    if (res.success) {
-      setPasswordChangeUser(null);
-      setNewPasswordInput('');
-      showToast('Đã đổi mật khẩu thành công!', 'success');
-    } else {
-      showToast(res.error || 'Đổi mật khẩu thất bại.', 'error');
+    try {
+      const res = await AuthService.changePassword(passwordChangeUser.id, newPasswordInput);
+      if (res.success) {
+        setPasswordChangeUser(null);
+        setNewPasswordInput('');
+        showToast('Đã đổi mật khẩu thành công!', 'success');
+      } else {
+        showToast(res.error || 'Đổi mật khẩu thất bại.', 'error');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -465,9 +490,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
                   Hủy
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" disabled={isSubmitting} className="btn btn-primary">
                   <UserPlus size={15} />
-                  <span>Tạo Tài Khoản</span>
+                  <span>{isSubmitting ? 'Đang tạo...' : 'Tạo Tài Khoản'}</span>
                 </button>
               </div>
             </form>
