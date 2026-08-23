@@ -22,7 +22,9 @@ import {
   ArrowLeft,
   CheckCircle2,
   TrendingUp,
-  Globe
+  Globe,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
 import type { 
@@ -113,6 +115,21 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   // Selected session for viewing details modal
   const [selectedSession, setSelectedSession] = useState<ReconciliationSession | null>(null);
   const [selectedShopStmt, setSelectedShopStmt] = useState<ShopSettlementStatement | null>(null);
+
+  // Set of expanded session IDs (accordion)
+  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<string>>(new Set());
+
+  const toggleSessionExpand = (sessionId: string) => {
+    setExpandedSessionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
 
   // Date range filter for monthly/quarterly tax report
   const now = new Date();
@@ -1309,6 +1326,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         {activeTab === 'sessions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Filter & Search Bar */}
+            {/* Filter & Search Bar */}
             <div style={{
               background: 'var(--surface, #ffffff)',
               padding: '16px 20px',
@@ -1332,8 +1350,34 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 />
               </div>
 
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Hiển thị: <strong>{filteredSessions.length}</strong> kỳ đối soát ({currentCarrierTitle})
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Hiển thị: <strong>{filteredSessions.length}</strong> kỳ đối soát
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSessionIds(new Set(filteredSessions.map(s => s.id)))}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Mở rộng danh sách shop của tất cả các kỳ"
+                  >
+                    <ChevronDown size={13} />
+                    Mở Rộng Tất Cả
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSessionIds(new Set())}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Thu gọn tất cả các kỳ"
+                  >
+                    <ChevronUp size={13} />
+                    Thu Gọn Tất Cả
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1358,6 +1402,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   const carrierBadgeColor = (sess.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444';
                   const carrierName = sess.carrierName || ((sess.carrierId || 'jnt') === 'ghn' ? 'GHN' : 'J&T Express');
                   const sessTitle = sess.sessionName || 'Kỳ đối soát';
+                  const isExpanded = expandedSessionIds.has(sess.id);
+                  const stmtCount = sess.statements?.length || 0;
 
                   return (
                     <div
@@ -1368,40 +1414,65 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                         border: '1px solid var(--border, #e2e8f0)',
                         overflow: 'hidden',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                        transition: 'all 0.2s',
                       }}
                     >
                       {/* Session Header Card */}
-                      <div style={{
-                        padding: '18px 22px',
-                        borderBottom: '1px solid var(--border, #f1f5f9)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: 16,
-                        background: 'linear-gradient(to right, rgba(124, 58, 237, 0.02), transparent)'
-                      }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{
-                              background: carrierBadgeColor,
-                              color: '#fff',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              padding: '2px 8px',
-                              borderRadius: 6
-                            }}>
-                              {carrierName}
-                            </span>
-                            <span style={{ fontSize: 17, fontWeight: 800 }}>{sessTitle}</span>
+                      <div 
+                        onClick={() => toggleSessionExpand(sess.id)}
+                        style={{
+                          padding: '16px 22px',
+                          borderBottom: isExpanded ? '1px solid var(--border, #f1f5f9)' : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: 16,
+                          background: 'linear-gradient(to right, rgba(124, 58, 237, 0.03), transparent)',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            background: isExpanded ? '#ede9fe' : '#f1f5f9',
+                            color: isExpanded ? '#7c3aed' : '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                          }}>
+                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                           </div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                            Ngày tạo: {new Date(sess.createdAt).toLocaleDateString('vi-VN')} lúc {new Date(sess.createdAt).toLocaleTimeString('vi-VN')} • {sess.statements?.length || 0} Shop đối soát
+
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{
+                                background: carrierBadgeColor,
+                                color: '#fff',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 6
+                              }}>
+                                {carrierName}
+                              </span>
+                              <span style={{ fontSize: 17, fontWeight: 800 }}>{sessTitle}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                              Ngày tạo: {new Date(sess.createdAt).toLocaleDateString('vi-VN')} lúc {new Date(sess.createdAt).toLocaleTimeString('vi-VN')} • {stmtCount} Shop đối soát
+                            </div>
                           </div>
                         </div>
 
-                        {/* 4 Multi-Download Action Buttons */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/* 4 Multi-Download Action Buttons + Expand Toggle */}
+                        <div 
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {/* 1. Tải file tổng đa Sheet */}
                           <button
                             onClick={() => exportSessionMultiSheet(sess)}
@@ -1409,7 +1480,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             style={{
                               background: '#7c3aed',
                               borderColor: '#7c3aed',
-                              padding: '8px 14px',
+                              padding: '7px 13px',
                               fontSize: 12,
                               fontWeight: 700,
                               display: 'flex',
@@ -1427,7 +1498,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             onClick={() => exportSessionZipPackage(sess)}
                             className="btn btn-secondary"
                             style={{
-                              padding: '8px 12px',
+                              padding: '7px 11px',
                               fontSize: 12,
                               fontWeight: 700,
                               display: 'flex',
@@ -1445,7 +1516,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             onClick={() => exportFlatMisaData(sess)}
                             className="btn btn-secondary"
                             style={{
-                              padding: '8px 12px',
+                              padding: '7px 11px',
                               fontSize: 12,
                               fontWeight: 700,
                               display: 'flex',
@@ -1457,121 +1528,191 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             <FileText size={14} />
                             Xuất MISA
                           </button>
+
+                          {/* Toggle Expand Button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleSessionExpand(sess.id)}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '7px 11px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              color: isExpanded ? '#7c3aed' : 'var(--text-main)',
+                              borderColor: isExpanded ? '#ddd6fe' : undefined,
+                            }}
+                          >
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            <span>{isExpanded ? 'Thu Gọn' : `Xem Shop (${stmtCount})`}</span>
+                          </button>
                         </div>
                       </div>
 
                       {/* Summary Metrics Row */}
-                      <div style={{
-                        padding: '14px 22px',
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                        gap: 16,
-                        background: 'var(--bg-app, #f8fafc)',
-                        borderBottom: '1px solid var(--border, #f1f5f9)'
-                      }}>
+                      <div 
+                        onClick={() => toggleSessionExpand(sess.id)}
+                        style={{
+                          padding: '12px 22px',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: 16,
+                          background: 'var(--bg-app, #f8fafc)',
+                          borderBottom: isExpanded ? '1px solid var(--border, #e2e8f0)' : 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Số Đơn Hàng</div>
-                          <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{sess.totalOrders.toLocaleString('vi-VN')} đơn</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Số Đơn Hàng</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{sess.totalOrders.toLocaleString('vi-VN')} đơn</div>
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Tiền COD Thu Hộ</div>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: '#2563eb', marginTop: 2 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tổng Tiền COD Thu Hộ</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: '#2563eb', marginTop: 2 }}>
                             {sess.totalCod.toLocaleString('vi-VN')} đ
                           </div>
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Doanh Thu Cước Dịch Vụ</div>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Doanh Thu Cước Dịch Vụ</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: '#7c3aed', marginTop: 2 }}>
                             {(sess.totalShopRevenue || 0).toLocaleString('vi-VN')} đ
                           </div>
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Thực Trả Khách Hàng (Shop)</div>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Thực Trả Khách Hàng (Shop)</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', marginTop: 2 }}>
                             {sess.totalNetPayout.toLocaleString('vi-VN')} đ
                           </div>
                         </div>
                       </div>
 
-                      {/* Shop Breakdown Table */}
-                      <div style={{ padding: '0 22px 16px', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
-                              <th style={{ padding: '8px 6px' }}>STT</th>
-                              <th style={{ padding: '8px 10px' }}>Khách Hàng (Shop)</th>
-                              <th style={{ padding: '8px 10px' }}>Số Tài Khoản Nhận</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center' }}>Số Đơn</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'right' }}>Tổng COD</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'right' }}>Cước Dịch Vụ</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'right' }}>Thực Trả Shop</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center' }}>Thao Tác</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(sess.statements || []).map((stmt, sIdx) => {
-                              const bankStr = stmt.bankInfo?.accountNumber
-                                ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}`
-                                : 'Chưa cập nhật';
+                      {/* Collapsible & Scrollable Shop Breakdown Table */}
+                      {isExpanded && (
+                        <div>
+                          <div style={{
+                            padding: '8px 22px',
+                            background: '#f8fafc',
+                            fontSize: 11.5,
+                            color: 'var(--text-muted)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderBottom: '1px solid var(--border, #f1f5f9)'
+                          }}>
+                            <span>DANH SÁCH {stmtCount} SHOP ĐỐI SOÁT (Cuộn chuột bên dưới để xem toàn bộ danh sách):</span>
+                            <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Khung cuộn tự động</span>
+                          </div>
 
-                              return (
-                                <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
-                                  <td style={{ padding: '10px 6px', color: 'var(--text-muted)' }}>{sIdx + 1}</td>
-                                  <td style={{ padding: '10px 10px' }}>
-                                    <div style={{ fontWeight: 700 }}>{stmt.shopName}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
-                                  </td>
-                                  <td style={{ padding: '10px 10px' }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{bankStr}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 700 }}>
-                                    {stmt.totalOrders}
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
-                                    {stmt.totalCod.toLocaleString('vi-VN')} đ
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
-                                    {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
-                                    {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                      {/* Tải Excel Shop */}
-                                      <button
-                                        onClick={() => exportSingleShopExcel(sessTitle, stmt)}
-                                        className="btn btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
-                                        title="Tải riêng file Excel của Shop này"
-                                      >
-                                        <Download size={12} /> Excel
-                                      </button>
-
-                                      {/* Xem chi tiết đơn */}
-                                      <button
-                                        onClick={() => {
-                                          setSelectedSession(sess);
-                                          setSelectedShopStmt(stmt);
-                                        }}
-                                        className="btn btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: 11 }}
-                                        title="Xem chi tiết các mã vận đơn"
-                                      >
-                                        <Eye size={12} /> Chi Tiết
-                                      </button>
-                                    </div>
-                                  </td>
+                          <div style={{
+                            maxHeight: 380,
+                            overflowY: 'auto',
+                            padding: '0 22px 16px',
+                            background: 'var(--surface, #ffffff)',
+                          }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+                              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface, #ffffff)', zIndex: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                                <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>
+                                  <th style={{ padding: '10px 6px', background: 'var(--surface, #ffffff)' }}>STT</th>
+                                  <th style={{ padding: '10px 10px', background: 'var(--surface, #ffffff)' }}>Khách Hàng (Shop)</th>
+                                  <th style={{ padding: '10px 10px', background: 'var(--surface, #ffffff)' }}>Số Tài Khoản Nhận</th>
+                                  <th style={{ padding: '10px 10px', textAlign: 'center', background: 'var(--surface, #ffffff)' }}>Số Đơn</th>
+                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Tổng COD</th>
+                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Cước Dịch Vụ</th>
+                                  <th style={{ padding: '10px 10px', textAlign: 'right', background: 'var(--surface, #ffffff)' }}>Thực Trả Shop</th>
+                                  <th style={{ padding: '10px 10px', textAlign: 'center', background: 'var(--surface, #ffffff)' }}>Thao Tác</th>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                              </thead>
+                              <tbody>
+                                {(sess.statements || []).map((stmt, sIdx) => {
+                                  const bankStr = stmt.bankInfo?.accountNumber
+                                    ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}`
+                                    : 'Chưa cập nhật';
+
+                                  return (
+                                    <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 13 }}>
+                                      <td style={{ padding: '10px 6px', color: 'var(--text-muted)' }}>{sIdx + 1}</td>
+                                      <td style={{ padding: '10px 10px' }}>
+                                        <div style={{ fontWeight: 700 }}>{stmt.shopName}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
+                                      </td>
+                                      <td style={{ padding: '10px 10px' }}>
+                                        <div style={{ fontSize: 12, fontWeight: 600 }}>{bankStr}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
+                                      </td>
+                                      <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 700 }}>
+                                        {stmt.totalOrders}
+                                      </td>
+                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>
+                                        {stmt.totalCod.toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
+                                        {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                                        {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                          {/* Tải Excel Shop */}
+                                          <button
+                                            onClick={() => exportSingleShopExcel(sessTitle, stmt)}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
+                                            title="Tải riêng file Excel của Shop này"
+                                          >
+                                            <Download size={12} /> Excel
+                                          </button>
+
+                                          {/* Xem chi tiết đơn */}
+                                          <button
+                                            onClick={() => {
+                                              setSelectedSession(sess);
+                                              setSelectedShopStmt(stmt);
+                                            }}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 8px', fontSize: 11 }}
+                                            title="Xem chi tiết các mã vận đơn"
+                                          >
+                                            <Eye size={12} /> Chi Tiết
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Collapsed Footer Hint Bar */}
+                      {!isExpanded && (
+                        <div 
+                          onClick={() => toggleSessionExpand(sess.id)}
+                          style={{
+                            padding: '8px 22px',
+                            background: 'var(--surface, #ffffff)',
+                            borderTop: '1px dashed var(--border, #e2e8f0)',
+                            fontSize: 12,
+                            color: '#7c3aed',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <ChevronDown size={14} />
+                          <span>Bấm để mở rộng xem danh sách {stmtCount} Shop trong kỳ này</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
