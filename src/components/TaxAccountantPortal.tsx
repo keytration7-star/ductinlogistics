@@ -1688,81 +1688,61 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           </div>
         </header>
 
-        {/* 2. 🧭 TAB NAVIGATION BAR (Sticky cùng header, không bao giờ bị che) */}
+        {/* 2. 🧭 TAB NAVIGATION BAR (Segmented Floating Pills - Apple/Stripe UI) */}
         <div style={{
-          padding: '0 22px',
+          padding: '8px 22px',
           display: 'flex',
-          gap: 6,
+          gap: 8,
           background: 'var(--surface, #ffffff)',
           borderBottom: '1.5px solid var(--border, #e2e8f0)',
         }}>
-          <button
-            onClick={() => setActiveTab('sessions')}
-            style={{
-              padding: '10px 18px',
-              fontSize: 13,
-              fontWeight: 800,
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              color: activeTab === 'sessions' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-              borderBottom: activeTab === 'sessions' ? '3px solid #7c3aed' : '3px solid transparent',
-              transition: 'all 0.2s'
-            }}
-          >
-            <FileSpreadsheet size={16} />
-            1. BÁO CÁO ĐỐI SOÁT THEO KỲ ({filteredSessions.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('shops')}
-            style={{
-              padding: '10px 18px',
-              fontSize: 13,
-              fontWeight: 800,
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              color: activeTab === 'shops' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-              borderBottom: activeTab === 'shops' ? '3px solid #7c3aed' : '3px solid transparent',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Store size={16} />
-            2. DANH MỤC KHÁCH HÀNG / SHOP ({filteredShops.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('monthly')}
-            style={{
-              padding: '10px 18px',
-              fontSize: 13,
-              fontWeight: 800,
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              color: activeTab === 'monthly' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-              borderBottom: activeTab === 'monthly' ? '3px solid #7c3aed' : '3px solid transparent',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Calendar size={16} />
-            3. BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)
-          </button>
+          <div style={{
+            display: 'inline-flex',
+            background: 'var(--bg-app, #f1f5f9)',
+            padding: '4px',
+            borderRadius: 12,
+            gap: 4,
+            border: '1px solid var(--border, #e2e8f0)'
+          }}>
+            {[
+              { id: 'sessions', label: `1. Báo Cáo Đối Soát Theo Kỳ (${filteredSessions.length})`, icon: FileSpreadsheet },
+              { id: 'shops', label: `2. Danh Mục Khách Hàng / Shop (${filteredShops.length})`, icon: Store },
+              { id: 'monthly', label: '3. Báo Cáo Thuế Tổng Hợp (Tháng / Quý)', icon: Calendar },
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as any)}
+                  style={{
+                    padding: '8px 18px',
+                    fontSize: 12.5,
+                    fontWeight: isActive ? 800 : 600,
+                    border: 'none',
+                    borderRadius: 9,
+                    background: isActive ? '#ffffff' : 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    color: isActive ? '#4f46e5' : 'var(--text-muted, #64748b)',
+                    boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)' : 'none',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  <Icon size={15} style={{ color: isActive ? '#4f46e5' : 'inherit' }} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* 📦 MAIN CONTENT BODY */}
-      <main style={{ flex: 1, padding: '14px 22px', maxWidth: 1600, width: '100%', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '16px 22px', maxWidth: 1600, width: '100%', margin: '0 auto' }}>
 
         {/* ========================================================================= */}
         {/* TAB 1: BÁO CÁO ĐỐI SOÁT THEO KỲ (MASTER-DETAIL SPLIT SCREEN)              */}
@@ -1788,35 +1768,35 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '380px 1fr',
-                gap: 22,
+                gap: 20,
                 alignItems: 'start',
               }}>
                 {/* 👈 CỘT TRÁI: DANH SÁCH CÁC KỲ ĐỐI SOÁT (MASTER LIST) */}
                 <div style={{
                   background: 'var(--surface, #ffffff)',
-                  borderRadius: 18,
+                  borderRadius: 16,
                   border: '1.5px solid var(--border, #e2e8f0)',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
                 }}>
                   {/* Header & Search Bar bên trái */}
                   <div style={{
-                    padding: '16px 18px',
+                    padding: '14px 16px',
                     borderBottom: '1.5px solid var(--border, #e2e8f0)',
-                    background: 'var(--bg-app, #f8fafc)',
+                    background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <span style={{ fontWeight: 900, fontSize: 13.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: '#334155' }}>
                         CÁC KỲ ĐỐI SOÁT
                       </span>
                       <span style={{
                         fontSize: 11,
                         fontWeight: 800,
-                        background: '#ede9fe',
-                        color: '#7c3aed',
-                        padding: '3px 9px',
+                        background: '#e0e7ff',
+                        color: '#4338ca',
+                        padding: '2px 8px',
                         borderRadius: 20
                       }}>
                         {filteredSessions.length} Kỳ
@@ -1824,14 +1804,14 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     </div>
 
                     <div style={{ position: 'relative' }}>
-                      <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input
                         type="text"
                         placeholder="Tìm theo tên kỳ đối soát..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="input-field"
-                        style={{ paddingLeft: 32, fontSize: 12.5, width: '100%', borderRadius: 10 }}
+                        style={{ paddingLeft: 32, fontSize: 12, width: '100%', borderRadius: 8, height: 34 }}
                       />
                     </div>
                   </div>
@@ -1846,26 +1826,25 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   }}>
                     {filteredSessions.map((sess) => {
                       const isSelected = activeDetailSession?.id === sess.id;
-                      const carrierBadgeColor = (sess.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444';
-                      const carrierName = sess.carrierName || ((sess.carrierId || 'jnt') === 'ghn' ? 'GHN' : 'J&T');
+                      const sessionTheme = getCarrierTheme(sess.carrierId, sess.carrierName);
 
                       return (
                         <div
                           key={sess.id}
                           onClick={() => setSelectedSessionId(sess.id)}
                           style={{
-                            padding: '14px 16px',
-                            borderRadius: 14,
-                            border: isSelected ? '2px solid #7c3aed' : '1px solid var(--border, #e2e8f0)',
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                            border: isSelected ? `2px solid ${sessionTheme.primary}` : '1px solid var(--border, #e2e8f0)',
                             background: isSelected
-                              ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(79, 70, 229, 0.03) 100%)'
+                              ? sessionTheme.cardBg
                               : 'var(--surface, #ffffff)',
-                            marginBottom: 10,
+                            marginBottom: 8,
                             cursor: 'pointer',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                             boxShadow: isSelected
-                              ? '0 8px 20px -4px rgba(124, 58, 237, 0.25)'
-                              : '0 2px 6px rgba(0,0,0,0.02)',
+                              ? sessionTheme.shadowGlow
+                              : '0 1px 3px rgba(0,0,0,0.02)',
                             position: 'relative',
                           }}
                         >
@@ -1873,36 +1852,36 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             <div style={{
                               position: 'absolute',
                               left: 0,
-                              top: 12,
-                              bottom: 12,
+                              top: 10,
+                              bottom: 10,
                               width: 4,
                               borderRadius: '0 4px 4px 0',
-                              background: '#7c3aed',
+                              background: sessionTheme.primary,
                             }} />
                           )}
 
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                             <span style={{
-                              background: carrierBadgeColor,
-                              color: '#fff',
+                              background: sessionTheme.badgeBg,
+                              color: sessionTheme.badgeText,
                               fontSize: 10.5,
                               fontWeight: 800,
                               padding: '2px 7px',
                               borderRadius: 4,
                             }}>
-                              {carrierName}
+                              {sess.carrierName || sess.carrierId.toUpperCase()}
                             </span>
 
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
                               {new Date(sess.createdAt).toLocaleDateString('vi-VN')}
                             </span>
                           </div>
 
                           <div style={{
-                            fontSize: 14.5,
+                            fontSize: 13.5,
                             fontWeight: 800,
-                            marginTop: 7,
-                            color: isSelected ? '#7c3aed' : 'var(--text-main)',
+                            marginTop: 6,
+                            color: isSelected ? sessionTheme.primary : 'var(--text-main)',
                             lineHeight: 1.3,
                           }}>
                             {sess.sessionName}
@@ -1912,8 +1891,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            marginTop: 10,
-                            paddingTop: 8,
+                            marginTop: 8,
+                            paddingTop: 6,
                             borderTop: '1px dashed var(--border, #e2e8f0)',
                             fontSize: 11.5,
                           }}>
@@ -1921,7 +1900,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                               <strong>{sess.statements?.length || 0}</strong> Shop • <strong>{sess.totalOrders}</strong> đơn
                             </span>
 
-                            <span style={{ fontWeight: 800, color: '#2563eb' }}>
+                            <span style={{ fontWeight: 800, color: sessionTheme.primary }}>
                               {sess.totalCod.toLocaleString('vi-VN')} đ
                             </span>
                           </div>
@@ -1933,72 +1912,71 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
                 {/* 👉 CỘT PHẢI: CHI TIẾT KỲ ĐỐI SOÁT ĐƯỢC CHỌN (DETAIL WORKSPACE) */}
                 {activeDetailSession ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {/* 1. Header Banner Kỳ Đối Soát + Cụm Nút Xuất File (Cố định chiều cao, không bị nhảy) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* 1. Header Banner Kỳ Đối Soát + Cụm Nút Xuất File Pro */}
                     <div style={{
                       background: 'var(--surface, #ffffff)',
                       borderRadius: 14,
                       border: '1.5px solid var(--border, #e2e8f0)',
-                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.03)',
-                      padding: '8px 16px',
-                      minHeight: 52,
+                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                      padding: '10px 18px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      flexWrap: 'nowrap',
+                      flexWrap: 'wrap',
                       gap: 12,
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <span style={{
-                          background: (activeDetailSession.carrierId || 'jnt') === 'ghn' ? '#f97316' : '#ef4444',
-                          color: '#fff',
-                          fontSize: 10.5,
+                          background: currentCarrierTheme.badgeBg,
+                          color: currentCarrierTheme.badgeText,
+                          fontSize: 11,
                           fontWeight: 900,
-                          padding: '2px 8px',
-                          borderRadius: 4,
+                          padding: '3px 9px',
+                          borderRadius: 6,
                           letterSpacing: 0.5,
                           flexShrink: 0,
                         }}>
                           {activeDetailSession.carrierName || (activeDetailSession.carrierId || 'jnt').toUpperCase()}
                         </span>
                         
-                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                        <div style={{ minWidth: 0 }}>
                           <h2 style={{
-                            fontSize: 15.5,
+                            fontSize: 16,
                             fontWeight: 900,
                             margin: 0,
                             color: 'var(--text-main)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            lineHeight: 1.2,
                           }}>
                             {activeDetailSession.sessionName}
                           </h2>
-                          <span style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            • <strong>{activeDetailSession.statements?.length || 0}</strong> Shop • {new Date(activeDetailSession.createdAt).toLocaleDateString('vi-VN')} {new Date(activeDetailSession.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                            <strong>{activeDetailSession.statements?.length || 0}</strong> Shop • Khởi tạo lúc {new Date(activeDetailSession.createdAt).toLocaleDateString('vi-VN')} {new Date(activeDetailSession.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Cụm 3 nút xuất file cao cấp (gọn gàng) */}
+                      {/* Cụm 3 nút xuất file cao cấp (Chuẩn Excel Emerald Green + MISA + ZIP) */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <button
                           onClick={() => exportSessionMultiSheet(activeDetailSession)}
-                          className="btn btn-primary btn-sm"
+                          className="btn btn-sm"
                           style={{
-                            background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
-                            borderColor: '#7c3aed',
-                            padding: '6px 14px',
-                            fontSize: 12,
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            borderColor: 'transparent',
+                            color: '#ffffff',
+                            padding: '7px 16px',
+                            fontSize: 12.5,
                             fontWeight: 800,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
                             borderRadius: 8,
+                            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
                           }}
                           title="Tải 1 file Excel chứa Sheet tổng và từng Sheet chi tiết từng Shop"
                         >
-                          <Download size={14} />
+                          <Download size={15} />
                           <span>Tải File Đa Sheet (.xlsx)</span>
                         </button>
 
@@ -2006,17 +1984,19 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                           onClick={() => exportSessionZipPackage(activeDetailSession)}
                           className="btn btn-secondary btn-sm"
                           style={{
-                            padding: '6px 12px',
+                            padding: '7px 13px',
                             fontSize: 12,
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 5,
                             borderRadius: 8,
+                            background: '#f8fafc',
+                            borderColor: '#cbd5e1',
                           }}
                           title="Tải gói file ZIP trọn bộ các Shop"
                         >
-                          <Archive size={14} />
+                          <Archive size={14} color="#6366f1" />
                           <span>Tải Gói (.ZIP)</span>
                         </button>
 
@@ -2024,183 +2004,295 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                           onClick={() => exportFlatMisaData(activeDetailSession)}
                           className="btn btn-secondary btn-sm"
                           style={{
-                            padding: '6px 12px',
+                            padding: '7px 13px',
                             fontSize: 12,
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 5,
                             borderRadius: 8,
+                            background: '#f8fafc',
+                            borderColor: '#cbd5e1',
                           }}
                           title="Xuất bảng dữ liệu phẳng import phần mềm kế toán MISA / FAST"
                         >
-                          <FileText size={14} />
+                          <FileText size={14} color="#ea580c" />
                           <span>Xuất MISA</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* 2. 4 Khối KPI Metrics cố định kích thước, không bị nhảy layout */}
+                    {/* 2. 4 Khối KPI Metrics Cao Cấp (Phân cấp tài chính + dải gradient) */}
                     <div style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(4, 1fr)',
-                      gap: 10,
+                      gap: 12,
                     }}>
+                      {/* KPI 1: TỔNG SỐ ĐƠN */}
                       <div style={{
-                        background: 'var(--surface, #ffffff)',
-                        borderRadius: 12,
+                        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                        borderRadius: 14,
                         border: '1.5px solid var(--border, #e2e8f0)',
-                        padding: '8px 14px',
-                        height: 64,
+                        padding: '12px 16px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
+                        position: 'relative',
+                        overflow: 'hidden',
                       }}>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG SỐ ĐƠN HÀNG</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#1e293b', lineHeight: 1.2 }}>
-                          {activeDetailSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>đơn</span>
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 3,
+                          background: '#94a3b8',
+                        }} />
+                        <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.3 }}>
+                          TỔNG SỐ ĐƠN HÀNG
+                        </div>
+                        <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#1e293b', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>đơn</span>
                         </div>
                       </div>
 
+                      {/* KPI 2: TỔNG TIỀN COD */}
                       <div style={{
-                        background: 'var(--surface, #ffffff)',
-                        borderRadius: 12,
-                        border: '1.5px solid rgba(37, 99, 235, 0.25)',
-                        padding: '8px 14px',
-                        height: 64,
+                        background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 60%)',
+                        borderRadius: 14,
+                        border: '1.5px solid rgba(37, 99, 235, 0.3)',
+                        padding: '12px 16px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(37, 99, 235, 0.04)',
+                        boxShadow: '0 2px 8px rgba(37, 99, 235, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
                       }}>
-                        <div style={{ fontSize: 10, color: '#2563eb', textTransform: 'uppercase', fontWeight: 800 }}>TỔNG TIỀN COD THU HỘ</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#2563eb', lineHeight: 1.2 }}>
-                          {activeDetailSession.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 3,
+                          background: 'linear-gradient(90deg, #3b82f6, #1d4ed8)',
+                        }} />
+                        <div style={{ fontSize: 10.5, color: '#1d4ed8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.3 }}>
+                          TỔNG TIỀN COD THU HỘ
+                        </div>
+                        <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#1d4ed8', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalCod.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                         </div>
                       </div>
 
+                      {/* KPI 3: DOANH THU CƯỚC */}
                       <div style={{
-                        background: 'var(--surface, #ffffff)',
-                        borderRadius: 12,
-                        border: '1.5px solid rgba(124, 58, 237, 0.25)',
-                        padding: '8px 14px',
-                        height: 64,
+                        background: 'linear-gradient(180deg, #faf5ff 0%, #ffffff 60%)',
+                        borderRadius: 14,
+                        border: '1.5px solid rgba(147, 51, 234, 0.3)',
+                        padding: '12px 16px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(124, 58, 237, 0.04)',
+                        boxShadow: '0 2px 8px rgba(147, 51, 234, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
                       }}>
-                        <div style={{ fontSize: 10, color: '#7c3aed', textTransform: 'uppercase', fontWeight: 800 }}>DOANH THU CƯỚC DỊCH VỤ</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#7c3aed', lineHeight: 1.2 }}>
-                          {(activeDetailSession.totalShopRevenue || 0).toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 3,
+                          background: 'linear-gradient(90deg, #c084fc, #7e22ce)',
+                        }} />
+                        <div style={{ fontSize: 10.5, color: '#7e22ce', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.3 }}>
+                          DOANH THU CƯỚC DỊCH VỤ
+                        </div>
+                        <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#7e22ce', lineHeight: 1.2 }}>
+                          {(activeDetailSession.totalShopRevenue || 0).toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                         </div>
                       </div>
 
+                      {/* KPI 4: THỰC TRẢ SHOP (NỔI BẬT NHẤT) */}
                       <div style={{
-                        background: 'var(--surface, #ffffff)',
-                        borderRadius: 12,
-                        border: '1.5px solid rgba(22, 163, 74, 0.25)',
-                        padding: '8px 14px',
-                        height: 64,
+                        background: 'linear-gradient(180deg, #ecfdf5 0%, #ffffff 60%)',
+                        borderRadius: 14,
+                        border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                        padding: '12px 16px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.04)',
+                        boxShadow: '0 2px 10px rgba(16, 185, 129, 0.08)',
+                        position: 'relative',
+                        overflow: 'hidden',
                       }}>
-                        <div style={{ fontSize: 10, color: '#16a34a', textTransform: 'uppercase', fontWeight: 800 }}>THỰC TRẢ KHÁCH HÀNG (SHOP)</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2, color: '#16a34a', lineHeight: 1.2 }}>
-                          {activeDetailSession.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 11.5, fontWeight: 600 }}>đ</span>
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 3,
+                          background: 'linear-gradient(90deg, #10b981, #047857)',
+                        }} />
+                        <div style={{ fontSize: 10.5, color: '#047857', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.3 }}>
+                          THỰC TRẢ KHÁCH HÀNG (SHOP)
+                        </div>
+                        <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#047857', lineHeight: 1.2 }}>
+                          {activeDetailSession.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 3. Bảng Danh Sách Shop Chi Tiết Có Khung Cuộn Độc Lập & Header Sticky */}
+                    {/* 3. Bảng Danh Sách Shop Chi Tiết Pro (Data Table Pro) */}
                     <div style={{
                       background: 'var(--surface, #ffffff)',
                       borderRadius: 14,
                       border: '1.5px solid var(--border, #e2e8f0)',
-                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.03)',
+                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
                       overflow: 'hidden',
                     }}>
                       <div style={{
-                        padding: '8px 16px',
-                        background: 'var(--bg-app, #f8fafc)',
+                        padding: '10px 18px',
+                        background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
                         borderBottom: '1.5px solid var(--border, #e2e8f0)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
                       }}>
-                        <span style={{ fontWeight: 900, fontSize: 12.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        <span style={{ fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: '#334155' }}>
                           BẢNG KÊ CHI TIẾT CÁC SHOP TRONG KỲ ({activeDetailSession.statements?.length || 0} SHOP)
                         </span>
 
-                        <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>
+                        <span style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>
                           Khung cuộn tự động • Bấm Chi Tiết để xem từng mã vận đơn
                         </span>
                       </div>
 
                       <div style={{ maxHeight: 'calc(100vh - 280px)', minHeight: 380, overflowY: 'auto', overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-app, #f8fafc)', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                            <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: 'var(--text-muted)' }}>
-                              <th style={{ padding: '9px 10px', background: 'var(--bg-app, #f8fafc)' }}>STT</th>
-                              <th style={{ padding: '9px 12px', background: 'var(--bg-app, #f8fafc)' }}>Khách Hàng (Shop)</th>
-                              <th style={{ padding: '9px 12px', background: 'var(--bg-app, #f8fafc)' }}>Số Tài Khoản Nhận</th>
-                              <th style={{ padding: '9px 10px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Số Đơn</th>
-                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Tổng COD</th>
-                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Cước Dịch Vụ</th>
-                              <th style={{ padding: '9px 12px', textAlign: 'right', background: 'var(--bg-app, #f8fafc)' }}>Thực Trả Shop</th>
-                              <th style={{ padding: '9px 12px', textAlign: 'center', background: 'var(--bg-app, #f8fafc)' }}>Thao Tác</th>
+                          <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                              <th style={{ padding: '10px 12px', width: 45, textAlign: 'center' }}>STT</th>
+                              <th style={{ padding: '10px 14px' }}>Khách Hàng (Shop)</th>
+                              <th style={{ padding: '10px 14px' }}>Tài Khoản Nhận</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', width: 75 }}>Số Đơn</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'right' }}>Tổng COD</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'right' }}>Cước Dịch Vụ</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'right' }}>Thực Trả Shop</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center', width: 150 }}>Thao Tác</th>
                             </tr>
                           </thead>
                           <tbody>
                             {(activeDetailSession.statements || []).map((stmt, sIdx) => {
-                              const bankStr = stmt.bankInfo?.accountNumber
-                                ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}`
-                                : 'Chưa cập nhật';
+                              const hasBank = Boolean(stmt.bankInfo?.accountNumber);
+                              const bankName = stmt.bankInfo?.bankName || '';
+                              const accNum = stmt.bankInfo?.accountNumber || '';
+                              const holder = stmt.bankInfo?.accountHolder || '';
 
                               return (
-                                <tr key={sIdx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12.5 }}>
-                                  <td style={{ padding: '8px 10px', color: 'var(--text-muted)', textAlign: 'center' }}>{sIdx + 1}</td>
-                                  <td style={{ padding: '8px 12px' }}>
-                                    <div style={{ fontWeight: 800 }}>{stmt.shopName}</div>
-                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
+                                <tr
+                                  key={sIdx}
+                                  style={{
+                                    borderBottom: '1px solid var(--border, #f1f5f9)',
+                                    fontSize: 12.5,
+                                    transition: 'background 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                  <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 700 }}>
+                                    {sIdx + 1}
                                   </td>
-                                  <td style={{ padding: '8px 12px' }}>
-                                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>{bankStr}</div>
-                                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{stmt.bankInfo?.accountHolder || ''}</div>
+                                  <td style={{ padding: '10px 14px' }}>
+                                    <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{stmt.shopName}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mã: {stmt.shopCode || '-'}</div>
                                   </td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 800 }}>
-                                    {stmt.totalOrders}
+                                  <td style={{ padding: '10px 14px' }}>
+                                    {hasBank ? (
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <span style={{
+                                            background: '#eff6ff',
+                                            color: '#1d4ed8',
+                                            padding: '1px 6px',
+                                            borderRadius: 4,
+                                            fontSize: 10.5,
+                                            fontWeight: 800,
+                                          }}>
+                                            {bankName}
+                                          </span>
+                                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1e293b' }}>
+                                            {accNum}
+                                          </span>
+                                        </div>
+                                        {holder && (
+                                          <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', marginTop: 2, fontWeight: 600 }}>
+                                            {holder}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>Chưa cập nhật STK</span>
+                                    )}
                                   </td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800 }}>
+                                    <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
+                                      {stmt.totalOrders}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', fontFamily: 'monospace' }}>
                                     {stmt.totalCod.toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#7c3aed' }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
                                     {(stmt.totalShopFee + stmt.totalShopOtherFee).toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 900, color: '#16a34a' }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, color: '#047857', fontSize: 13, fontFamily: 'monospace' }}>
                                     {stmt.totalNetPayout.toLocaleString('vi-VN')} đ
                                   </td>
-                                  <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                                       <button
+                                        type="button"
                                         onClick={() => exportSingleShopExcel(activeDetailSession.sessionName, stmt)}
-                                        className="btn btn-secondary btn-sm"
-                                        style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
+                                        className="btn btn-sm"
+                                        style={{
+                                          padding: '4px 9px',
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          background: '#ecfdf5',
+                                          color: '#047857',
+                                          border: '1px solid #a7f3d0',
+                                          borderRadius: 6,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
                                         title="Tải riêng file Excel của Shop này"
                                       >
                                         <Download size={11} /> Excel
                                       </button>
 
                                       <button
+                                        type="button"
                                         onClick={() => {
                                           setSelectedSession(activeDetailSession);
                                           setSelectedShopStmt(stmt);
                                         }}
-                                        className="btn btn-secondary btn-sm"
-                                        style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}
+                                        className="btn btn-sm"
+                                        style={{
+                                          padding: '4px 9px',
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          background: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: 6,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
                                         title="Xem chi tiết các mã vận đơn"
                                       >
                                         <Eye size={11} /> Chi Tiết
