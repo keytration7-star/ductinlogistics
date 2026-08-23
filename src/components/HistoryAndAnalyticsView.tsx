@@ -10,7 +10,8 @@ import {
   Search,
   PieChart,
   Layers,
-  Mail
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 import type { ReconciliationSession, Shop } from '../types';
 import { ExcelService } from '../services/excelService';
@@ -23,6 +24,7 @@ interface HistoryAndAnalyticsViewProps {
   shops: Shop[];
   onSelectSession: (session: ReconciliationSession) => void;
   onNavigateToEmail?: (session: ReconciliationSession) => void;
+  onNavigateToZalo?: (session: ReconciliationSession) => void;
 }
 
 export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = ({
@@ -30,6 +32,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   shops,
   onSelectSession,
   onNavigateToEmail,
+  onNavigateToZalo,
 }) => {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -459,7 +462,25 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                         title="Mở tab Gửi Email đối soát cho kỳ này"
                       >
                         <Mail size={13} />
-                        <span>Gửi Mail</span>
+                        <span>Mail</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (onNavigateToZalo) {
+                            onNavigateToZalo(session);
+                          } else if (onNavigateToEmail) {
+                            onNavigateToEmail(session);
+                          } else {
+                            onSelectSession(session);
+                          }
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 9px', fontSize: 11, color: '#0068ff', borderColor: '#0068ff' }}
+                        title="Mở tab Gửi Zalo ZNS đối soát cho kỳ này"
+                      >
+                        <MessageSquare size={13} />
+                        <span>Zalo</span>
                       </button>
 
                       <button

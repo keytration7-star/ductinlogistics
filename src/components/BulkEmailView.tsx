@@ -133,7 +133,31 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
   }, [currentSession, displaySessions]);
 
   const activeSession = displaySessions.find(s => s.id === selectedSessionId) || currentSession || displaySessions[0] || null;
-  const statements = activeSession?.statements || [];
+
+  // Dynamically enrich statements with latest live shop info (phone, email, bank account)
+  const statements = React.useMemo(() => {
+    if (!activeSession?.statements) return [];
+    const registeredShops = StorageService.getShops();
+    return activeSession.statements.map(stmt => {
+      const liveShop = registeredShops.find(s => 
+        (s.id && stmt.shopId && s.id === stmt.shopId) ||
+        (s.code && stmt.shopCode && s.code.toLowerCase() === stmt.shopCode.toLowerCase()) ||
+        (s.name && stmt.shopName && s.name.trim().toLowerCase() === stmt.shopName.trim().toLowerCase())
+      );
+      if (!liveShop) return stmt;
+      return {
+        ...stmt,
+        shopEmail: liveShop.email || stmt.shopEmail,
+        shopPhone: liveShop.phone || stmt.shopPhone,
+        bankInfo: liveShop.bankAccount ? {
+          bankName: liveShop.bankAccount.bankName || stmt.bankInfo?.bankName || '',
+          accountNumber: liveShop.bankAccount.accountNumber || stmt.bankInfo?.accountNumber || '',
+          accountHolder: liveShop.bankAccount.accountHolder || stmt.bankInfo?.accountHolder || '',
+        } : stmt.bankInfo
+      };
+    });
+  }, [activeSession]);
+
   const hasUnmatchedOrders = (activeSession?.unmatchedOrdersCount || 0) > 0;
 
   const [settings, setSettings] = useState<EmailSettings>(emailSettings);

@@ -521,6 +521,10 @@ export function App() {
                   setCurrentSession(session);
                   setActiveTab('emails');
                 }}
+                onNavigateToZalo={(session) => {
+                  setCurrentSession(session);
+                  setActiveTab('zalo');
+                }}
               />
             )}
 
