@@ -127,7 +127,10 @@ export function generateSmartSessionName(
 }
 
 /**
- * Automatically cleans and formats old session titles (e.g. ensures full date range like "(20/08 – 23/08/2026)")
+ * Automatically cleans and formats session titles:
+ * - Cleans redundant text like "đối soát kỳ Đối Soát" -> "đối soát"
+ * - Fixes stuck text-date e.g. "Express20/08-23/08/2026" -> "Express 20/08-23/08/2026"
+ * - Recognizes existing date formats (e.g. "22.8-22.8.2026" or "(20/08 – 23/08/2026)")
  */
 export function cleanSessionName(sessionName: string, createdAt?: string, _carrierName?: string): string {
   if (!sessionName) return 'Kỳ Đối Soát';
@@ -135,10 +138,21 @@ export function cleanSessionName(sessionName: string, createdAt?: string, _carri
   let cleaned = sessionName
     .replace(/Tháng tháng/gi, 'Tháng')
     .replace(/Kỳ Đối Soát Tháng tháng/gi, 'Đối Soát')
+    .replace(/Thanh toán đối soát kỳ Đối Soát/gi, 'Thanh toán đối soát')
+    .replace(/Thanh toan doi soat ky Doi Soat/gi, 'Thanh toan doi soat')
+    .replace(/đối soát kỳ Đối Soát/gi, 'đối soát')
+    .replace(/doi soat ky Doi Soat/gi, 'doi soat')
+    .replace(/Đối Soát Đối Soát/gi, 'Đối Soát')
+    .replace(/kỳ Đối Soát/gi, 'kỳ')
+    .replace(/ky Doi Soat/gi, 'ky')
+    // Fix stuck words and dates: e.g. "Express20/08" -> "Express 20/08", "Express22.8" -> "Express 22.8"
+    .replace(/([a-zA-Z])(\d{1,2}[./-]\d{1,2})/g, '$1 $2')
+    .replace(/([a-zA-Z])(\(\d{1,2})/g, '$1 $2')
+    .replace(/\s+/g, ' ')
     .trim();
 
-  // If session title already contains date range in parentheses, return it
-  if (/\([0-9/.\s–-]+(\/[0-9]{4})?\)/.test(cleaned)) {
+  // If session title already contains any date pattern (e.g. "22.8-22.8.2026", "20/08-23/08", or "(20/08 - 23/08/2026)"), keep it
+  if (/\d{1,2}[./-]\d{1,2}/.test(cleaned)) {
     return cleaned;
   }
 
