@@ -66,3 +66,34 @@ export const BANK_CODES: Record<string, string> = VIETNAM_BANKS.reduce((acc, b) 
   acc[b.code] = b.code;
   return acc;
 }, {} as Record<string, string>);
+
+/**
+ * Chuẩn hóa nội dung chuyển khoản theo chuẩn NAPAS / VietQR (Field 62):
+ * - Đổi dấu '/' trong ngày tháng thành '.' (ví dụ: 20/08 -> 20.08) vì dấu '/' bị hệ thống Core Banking NAPAS lọc bỏ làm mất ngày.
+ * - Bỏ dấu tiếng Việt (ASCII only) để App ngân hàng quét là tự điền nội dung ngay.
+ * - Bỏ dấu ngoặc đơn/kép '()' và đổi gạch ngang đặc biệt '–' thành '-'.
+ * - Giới hạn tối đa 50 ký tự theo chuẩn quốc tế EMVCo / NAPAS 247.
+ */
+export function toVietQrMemo(text: string): string {
+  if (!text) return '';
+  let clean = text
+    .replace(/J&T/gi, 'JNT')
+    .replace(/J & T/gi, 'JNT')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    // Đổi dấu gạch chéo ngày tháng (20/08/2026 -> 20.08.2026, 20/08 -> 20.08)
+    .replace(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g, '$1.$2.$3')
+    .replace(/(\d{1,2})\/(\d{1,2})/g, '$1.$2')
+    .replace(/[–—]/g, '-')
+    .replace(/[()[\]{}]/g, ' ')
+    .replace(/Thanh toan doi soat ky Doi Soat/gi, 'TT doi soat')
+    .replace(/Thanh toan doi soat/gi, 'TT doi soat')
+    .replace(/doi soat ky Doi Soat/gi, 'doi soat')
+    .replace(/[^a-zA-Z0-9\s.-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean.slice(0, 50);
+}
+

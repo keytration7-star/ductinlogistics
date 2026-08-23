@@ -7,7 +7,7 @@ interface VietQRModalProps {
   onClose: () => void;
 }
 
-import { BANK_CODES } from '../constants/banks';
+import { BANK_CODES, toVietQrMemo } from '../constants/banks';
 import { calculateStatementSettlement } from '../services/settlementService';
 
 export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) => {
@@ -21,7 +21,8 @@ export const VietQRModal: React.FC<VietQRModalProps> = ({ statement, onClose }) 
   const accountHolder = encodeURIComponent(statement.bankInfo.accountHolder || statement.shopName);
   const settlement = calculateStatementSettlement(statement);
   const amount = settlement.amountPayable;
-  const memo = encodeURIComponent(`DOI SOAT ${statement.shopCode} ${statement.periodName.replace(/[^a-zA-Z0-9]/g, '')}`);
+  const rawMemo = `DOI SOAT ${statement.shopCode} ${statement.periodName}`;
+  const memo = encodeURIComponent(toVietQrMemo(rawMemo));
 
   const qrUrl = `https://img.vietqr.io/image/${bankCode}-${accountNumber}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${accountHolder}`;
 

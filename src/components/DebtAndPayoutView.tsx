@@ -25,7 +25,7 @@ import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
 import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, getStatementPaidAmount } from '../services/settlementService';
-import { BANK_CODES, VIETNAM_BANKS } from '../constants/banks';
+import { BANK_CODES, VIETNAM_BANKS, toVietQrMemo } from '../constants/banks';
 
 interface DebtAndPayoutViewProps {
   sessions: ReconciliationSession[];
@@ -1056,9 +1056,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
         const cleanAccountNum = rawAccountNum.replace(/[^0-9]/g, '');
         const accountHolder = targetStatement.bankInfo?.accountHolder || targetStatement.shopName || '';
         const amountNum = Math.max(0, parseFloat(payAmount.replace(/[^0-9.]/g, '')) || 0);
-        const transferMemo = payNote.trim() || `Thanh toán đối soát kỳ ${cleanSessionName(targetSession.sessionName)}`;
+        const transferMemo = payNote.trim() || `Thanh toán đối soát kỳ ${cleanSessionName(targetSession.sessionName, targetSession.createdAt, targetSession.carrierName)}`;
+        const qrMemo = toVietQrMemo(transferMemo);
         const qrUrl = cleanAccountNum 
-          ? `https://img.vietqr.io/image/${bankCode}-${cleanAccountNum}-compact2.png?amount=${Math.round(amountNum)}&addInfo=${encodeURIComponent(transferMemo)}&accountName=${encodeURIComponent(accountHolder)}`
+          ? `https://img.vietqr.io/image/${bankCode}-${cleanAccountNum}-compact2.png?amount=${Math.round(amountNum)}&addInfo=${encodeURIComponent(qrMemo)}&accountName=${encodeURIComponent(accountHolder)}`
           : '';
 
         const handleCopy = (text: string, label: string) => {
@@ -1232,15 +1233,15 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border-color)' }}>
                       <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>Nội dung CK:</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, textAlign: 'right' }}>
-                        <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--text-main)', fontWeight: 600 }}>
-                          {transferMemo}
+                        <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--text-main)', fontWeight: 700 }}>
+                          {qrMemo}
                         </span>
                         <button
                           type="button"
-                          onClick={() => handleCopy(transferMemo, 'Nội dung CK')}
+                          onClick={() => handleCopy(qrMemo, 'Nội dung CK')}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '2px 6px', fontSize: 10.5, flexShrink: 0 }}
-                          title="Sao chép Nội dung CK"
+                          title="Sao chép Nội dung CK chuẩn VietQR"
                         >
                           <Copy size={12} />
                         </button>
