@@ -50,6 +50,7 @@ import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { CarrierProfileConfigModal } from './CarrierProfileConfigModal';
 import { useToast, useConfirm } from './UIFeedback';
+import confetti from 'canvas-confetti';
 
 import { StorageService } from '../services/storage';
 import { AuditService } from '../services/auditService';
@@ -1114,6 +1115,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         session.createdAt = new Date(sessionPeriodDate + 'T12:00:00.000Z').toISOString();
       }
 
+      // 💾 Tự động lưu kỳ đối soát vào danh sách hệ thống
+      StorageService.saveSession(session);
+
       setCurrentSession(session);
       setWizardStep(4);
       AuditService.logAction(
@@ -1123,10 +1127,37 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         `Tạo kỳ “${session.sessionName}” (${session.carrierName}): ${session.matchedOrdersCount} đơn hợp lệ, ${session.unmatchedOrdersCount} đơn chờ kiểm tra, tổng cần trả ${session.totalNetPayout.toLocaleString('vi-VN')}đ.`
       );
       setIsProcessing(false);
+
+      // 🎉 Hiệu ứng pháo giấy rực rỡ ăn mừng hoàn tất đối soát
+      try {
+        confetti({
+          particleCount: 140,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6']
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 70,
+            angle: 60,
+            spread: 60,
+            origin: { x: 0, y: 0.65 }
+          });
+          confetti({
+            particleCount: 70,
+            angle: 120,
+            spread: 60,
+            origin: { x: 1, y: 0.65 }
+          });
+        }, 200);
+      } catch (e) {
+        console.error('Confetti trigger error:', e);
+      }
+
       showToast(
         session.unmatchedOrdersCount > 0
-          ? `Đã lập phiên kiểm tra: ${session.unmatchedOrdersCount} đơn đang treo và chưa thể xuất bảng kê.`
-          : `Đã đối soát xong ${session.matchedOrdersCount} đơn. Bạn có thể kiểm tra và xuất bảng kê.`,
+          ? `Đã đối soát xong: ${session.unmatchedOrdersCount} đơn chưa khớp shop (đã lưu vào danh sách).`
+          : `🎉 Đối soát hoàn tất & đã lưu vào danh sách ${session.matchedOrdersCount} đơn!`,
         session.unmatchedOrdersCount > 0 ? 'warning' : 'success'
       );
     }, 400);
@@ -3677,7 +3708,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             hasLiveAppFile={appHeaders.length > 0}
             hasSavedNvcHeaders={savedH.nvcHeaders.length > 0}
             hasSavedAppHeaders={savedH.appHeaders.length > 0}
-            onSaveMappings={(newNvc, newApp) => {
+            onSaveMappings={(newNvc: ColumnMappingConfig, newApp: ColumnMappingConfig) => {
               if (configCid === selectedCarrierId) {
                 setNvcMapping(newNvc);
                 setAppMapping(newApp);
