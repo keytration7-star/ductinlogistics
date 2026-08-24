@@ -1177,31 +1177,61 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                               <span style={{ color: 'var(--text-muted)' }}>0 đ</span>
                             )}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: shopOwes > 0 ? '#dc2626' : '#4f46e5', fontSize: 13, fontFamily: 'monospace' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: shopOwes > 0 ? '#64748b' : '#4f46e5', fontSize: 13, fontFamily: 'monospace' }}>
                             {formatVND(amountPayable)}
+                            {shopOwes > 0 && (
+                              <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>
+                                (Bù trừ nợ)
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
                             {formatVND(paidAmount)}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: remainingDebt > 0 ? '#dc2626' : '#059669', fontSize: 13, fontFamily: 'monospace' }}>
-                            {formatVND(remainingDebt)}
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, fontSize: 13, fontFamily: 'monospace' }}>
+                            {shopOwes > 0 ? (
+                              <div>
+                                <span style={{ color: '#dc2626' }}>-{formatVND(shopOwes)}</span>
+                                <div style={{ marginTop: 2 }}>
+                                  <span style={{
+                                    fontSize: 9.5,
+                                    fontWeight: 800,
+                                    background: '#fef2f2',
+                                    color: '#dc2626',
+                                    padding: '1px 5px',
+                                    borderRadius: 4,
+                                    border: '1px solid #fecaca',
+                                    display: 'inline-block',
+                                  }}>
+                                    Shop nợ lại
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: remainingDebt > 0 ? '#dc2626' : '#059669' }}>
+                                {formatVND(remainingDebt)}
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                             {shopOwes > 0 ? (
                               <span style={{
                                 background: '#fef2f2',
                                 color: '#dc2626',
-                                border: '1px solid #fecaca',
+                                border: '1.5px solid #fecaca',
                                 fontSize: 11,
-                                fontWeight: 700,
-                                padding: '2px 7px',
+                                fontWeight: 800,
+                                padding: '3px 8px',
                                 borderRadius: 6,
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 4,
-                              }}>
-                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626' }} />
-                                Shop nợ
+                                boxShadow: '0 1px 3px rgba(220, 38, 38, 0.08)',
+                              }}
+                              title={`Shop đang nợ ${formatVND(shopOwes)} sau khi cấn trừ ${formatVND(stmt.totalCod)} COD kỳ này. Số nợ sẽ tự động dồn sang kỳ sau.`}
+                              >
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }} />
+                                Shop nợ: {formatVND(shopOwes)}
                               </span>
                             ) : (
                               <>
@@ -1265,9 +1295,9 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                               onClick={() => handleOpenPayModal(activeDetailSession, stmt)}
                               className="btn btn-sm"
                               style={{
-                                background: remainingDebt > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' : '#f1f5f9',
-                                color: remainingDebt > 0 ? '#ffffff' : '#334155',
-                                border: remainingDebt > 0 ? 'none' : '1px solid #cbd5e1',
+                                background: remainingDebt > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' : shopOwes > 0 ? '#fff1f2' : '#f1f5f9',
+                                color: remainingDebt > 0 ? '#ffffff' : shopOwes > 0 ? '#e11d48' : '#334155',
+                                border: remainingDebt > 0 ? 'none' : shopOwes > 0 ? '1px solid #fecdd3' : '1px solid #cbd5e1',
                                 padding: '5px 12px',
                                 fontSize: 11.5,
                                 fontWeight: 800,
@@ -1279,7 +1309,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                               }}
                             >
                               <DollarSign size={13} />
-                              <span>{remainingDebt > 0 ? 'Đi Tiền' : 'Chi Tiết'}</span>
+                              <span>{remainingDebt > 0 ? 'Đi Tiền' : shopOwes > 0 ? 'Chi Tiết Nợ' : 'Chi Tiết'}</span>
                             </button>
                           </td>
                         </tr>
@@ -1343,6 +1373,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
       {/* PAYOUT FORM MODAL WITH LIVE VIETQR & SESSION TRANSFER MEMO */}
       {isModalOpen && targetSession && targetStatement && (() => {
+        const payoutInfo = getStatementPayoutInfo(targetSession.id, targetStatement);
         const liveBank = getLiveShopBankInfo(targetStatement);
         const bankName = liveBank.bankName || 'MB Bank';
         const bankCode = getBankCode(bankName);
@@ -1375,25 +1406,27 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(79, 70, 229, 0.08) 100%)',
+                background: payoutInfo.shopOwes > 0 
+                  ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%)' 
+                  : 'linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(79, 70, 229, 0.08) 100%)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 38,
                     height: 38,
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--success)',
+                    background: payoutInfo.shopOwes > 0 ? '#dc2626' : 'var(--success)',
                     color: '#fff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                    boxShadow: payoutInfo.shopOwes > 0 ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 2px 8px rgba(16, 185, 129, 0.25)',
                   }}>
-                    <QrCode size={22} />
+                    {payoutInfo.shopOwes > 0 ? <AlertCircle size={22} /> : <QrCode size={22} />}
                   </div>
                   <div>
                     <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
-                      Xác Nhận Đi Tiền & Quét Mã VietQR Tự Động
+                      {payoutInfo.shopOwes > 0 ? 'Chi Tiết Bù Trừ Công Nợ & Thu Nợ Shop' : 'Xác Nhận Đi Tiền & Quét Mã VietQR Tự Động'}
                     </h3>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                       Shop: <strong style={{ color: 'var(--primary)' }}>{targetStatement.shopName} ({targetStatement.shopCode})</strong> • Kỳ: <strong>{targetSession.sessionName}</strong>
@@ -1412,229 +1445,328 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 gap: 0,
                 background: 'var(--bg-secondary)',
               }}>
-                {/* 👈 CỘT TRÁI: LIVE VIETQR CODE & BANK ACCOUNT INFO */}
+                {/* 👈 CỘT TRÁI: LIVE VIETQR CODE OR SHOP DEBIT OFFSET BREAKDOWN */}
                 <div style={{
                   padding: 20,
                   borderRight: '1px solid var(--border-color)',
                   background: '#ffffff',
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'center',
                   gap: 12,
                 }}>
-                  <div style={{ width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <CreditCard size={14} />
-                    <span>MÃ VIETQR CHUYỂN KHOẢN KỲ NÀY</span>
-                  </div>
+                  {payoutInfo.shopOwes > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{
+                        background: '#fef2f2',
+                        border: '1.5px solid #fecaca',
+                        borderRadius: 12,
+                        padding: '14px 16px',
+                        color: '#991b1b',
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>🔴 BẢNG KÊ CẤN TRỪ NỢ KỲ NÀY</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.5 }}>
+                          Tiền COD thu hộ kỳ này không đủ bù khoản nợ cũ đầu kỳ. Hệ thống đã tự động cấn trừ COD vào nợ.
+                        </div>
+                      </div>
 
-                  {/* QR Image Box */}
-                  {cleanAccountNum ? (
-                    <div style={{
-                      background: '#ffffff',
-                      padding: 12,
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-color)',
-                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      width: '100%',
-                    }}>
-                      <img 
-                        src={qrUrl} 
-                        alt="Mã VietQR Chuyển Khoản"
-                        style={{ width: '100%', maxWidth: 280, height: 'auto', display: 'block', borderRadius: 8 }}
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center', fontWeight: 600 }}>
-                        ⚡ Quét mã bằng App ngân hàng để tự điền STK, Số tiền & Nội dung CK
+                      <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 12,
+                        border: '1px solid var(--border-color)',
+                        padding: '14px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        fontSize: 12.5,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>1. Nợ cũ dồn đầu kỳ:</span>
+                          <strong className="mono" style={{ color: '#dc2626', fontWeight: 800 }}>
+                            {formatVND(payoutInfo.openingDebt)}
+                          </strong>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>2. Tiền COD về kỳ này (+):</span>
+                          <strong className="mono" style={{ color: '#1d4ed8', fontWeight: 800 }}>
+                            +{formatVND(targetStatement.totalCod)}
+                          </strong>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>3. Cước phí dịch vụ (-):</span>
+                          <strong className="mono" style={{ color: '#7e22ce', fontWeight: 700 }}>
+                            -{formatVND(targetStatement.totalShopFee + targetStatement.totalShopOtherFee)}
+                          </strong>
+                        </div>
+
+                        <div style={{
+                          borderTop: '2px dashed #cbd5e1',
+                          paddingTop: 10,
+                          marginTop: 4,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}>
+                          <span style={{ fontWeight: 800, color: '#dc2626' }}>▶ SHOP CÒN NỢ LẠI (=):</span>
+                          <strong className="mono" style={{ color: '#dc2626', fontSize: 16, fontWeight: 900 }}>
+                            -{formatVND(payoutInfo.shopOwes)}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '1px solid #fef3c7',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        fontSize: 11.5,
+                        color: '#92400e',
+                        lineHeight: 1.5,
+                      }}>
+                        💡 <strong>Lưu ý nghiệp vụ:</strong> Số nợ <strong>{formatVND(payoutInfo.shopOwes)}</strong> này sẽ tự động chuyển sang kỳ đối soát tiếp theo có COD của Shop để tiếp tục cấn trừ.
                       </div>
                     </div>
                   ) : (
-                    <div style={{
-                      padding: 24,
-                      textAlign: 'center',
-                      background: '#fef2f2',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px dashed #ef4444',
-                      color: '#b91c1c',
-                      width: '100%',
-                    }}>
-                      <AlertCircle size={28} style={{ margin: '0 auto 8px' }} />
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>Shop chưa có Số Tài Khoản</div>
-                      <div style={{ fontSize: 11, marginTop: 4 }}>Vui lòng vào Quản Lý Shop để cập nhật STK nhận tiền.</div>
-                    </div>
+                    <>
+                      <div style={{ width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CreditCard size={14} />
+                        <span>MÃ VIETQR CHUYỂN KHOẢN KỲ NÀY</span>
+                      </div>
+
+                      {/* QR Image Box */}
+                      {cleanAccountNum ? (
+                        <div style={{
+                          background: '#ffffff',
+                          padding: 12,
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px solid var(--border-color)',
+                          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          width: '100%',
+                        }}>
+                          <img 
+                            src={qrUrl} 
+                            alt="Mã VietQR Chuyển Khoản"
+                            style={{ width: '100%', maxWidth: 280, height: 'auto', display: 'block', borderRadius: 8 }}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center', fontWeight: 600 }}>
+                            ⚡ Quét mã bằng App ngân hàng để tự điền STK, Số tiền & Nội dung CK
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{
+                          padding: 24,
+                          textAlign: 'center',
+                          background: '#fef2f2',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px dashed #ef4444',
+                          color: '#b91c1c',
+                          width: '100%',
+                        }}>
+                          <AlertCircle size={28} style={{ margin: '0 auto 8px' }} />
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>Shop chưa có Số Tài Khoản</div>
+                          <div style={{ fontSize: 11, marginTop: 4 }}>Vui lòng vào Quản Lý Shop để cập nhật STK nhận tiền.</div>
+                        </div>
+                      )}
+
+                      {/* Quick Copy Info Card */}
+                      <div style={{
+                        width: '100%',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-color)',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        fontSize: 12,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Ngân hàng nhận:</span>
+                          <strong>{bankName}</strong>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <strong className="mono" style={{ color: 'var(--primary)', fontSize: 13 }}>{rawAccountNum || '—'}</strong>
+                            {rawAccountNum && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(cleanAccountNum, 'Số tài khoản')}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '2px 6px', fontSize: 10.5 }}
+                                title="Sao chép STK"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
+                          <strong>{accountHolder || '—'}</strong>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Số tiền chuyển:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <strong className="mono" style={{ color: 'var(--success)', fontSize: 13 }}>{formatVND(amountNum)}</strong>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(Math.round(amountNum).toString(), 'Số tiền')}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: 10.5 }}
+                              title="Sao chép Số tiền"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border-color)' }}>
+                          <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>Nội dung CK:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, textAlign: 'right' }}>
+                            <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--text-main)', fontWeight: 700 }}>
+                              {qrMemo}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(qrMemo, 'Nội dung CK')}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: 10.5, flexShrink: 0 }}
+                              title="Sao chép Nội dung CK chuẩn VietQR"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
-
-                  {/* Quick Copy Info Card */}
-                  <div style={{
-                    width: '100%',
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-color)',
-                    padding: '12px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    fontSize: 12,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Ngân hàng nhận:</span>
-                      <strong>{bankName}</strong>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <strong className="mono" style={{ color: 'var(--primary)', fontSize: 13 }}>{rawAccountNum || '—'}</strong>
-                        {rawAccountNum && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(cleanAccountNum, 'Số tài khoản')}
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: 10.5 }}
-                            title="Sao chép STK"
-                          >
-                            <Copy size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
-                      <strong>{accountHolder || '—'}</strong>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Số tiền chuyển:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <strong className="mono" style={{ color: 'var(--success)', fontSize: 13 }}>{formatVND(amountNum)}</strong>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(Math.round(amountNum).toString(), 'Số tiền')}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '2px 6px', fontSize: 10.5 }}
-                          title="Sao chép Số tiền"
-                        >
-                          <Copy size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border-color)' }}>
-                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>Nội dung CK:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, textAlign: 'right' }}>
-                        <span className="mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--text-main)', fontWeight: 700 }}>
-                          {qrMemo}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(qrMemo, 'Nội dung CK')}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '2px 6px', fontSize: 10.5, flexShrink: 0 }}
-                          title="Sao chép Nội dung CK chuẩn VietQR"
-                        >
-                          <Copy size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* 👉 CỘT PHẢI: FORM ĐIỀU CHỈNH & XÁC NHẬN ĐI TIỀN */}
                 <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* Amount Input */}
-                  <div className="input-group">
-                    <label className="input-label" style={{ fontWeight: 700 }}>
-                      Số tiền thực chuyển khoản (VND) *
-                    </label>
-                    <input
-                      type="text"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      placeholder="Nhập số tiền..."
-                      className="input-field mono"
-                      style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', background: '#fff' }}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                      💡 Sửa số tiền ở đây sẽ lập tức cập nhật lại số tiền trên mã VietQR bên trái.
-                    </div>
-                  </div>
+                  {payoutInfo.shopOwes > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: '#991b1b', marginBottom: 8 }}>
+                          📌 Không Phát Sinh Đi Tiền Trong Kỳ Này
+                        </div>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                          Do Shop còn nợ công ty <strong>{formatVND(payoutInfo.shopOwes)}</strong> nên công ty không phải chuyển khoản. Khoản nợ còn lại này đã được ghi nhận tự động vào sổ cái công nợ.
+                        </p>
+                      </div>
 
-                  {/* Transfer Note / Memo Input */}
-                  <div className="input-group">
-                    <label className="input-label" style={{ fontWeight: 700 }}>
-                      Nội dung chuyển khoản / Ghi chú thanh toán
-                    </label>
-                    <input
-                      type="text"
-                      value={payNote}
-                      onChange={(e) => setPayNote(e.target.value)}
-                      placeholder="Nội dung chuyển khoản..."
-                      className="input-field"
-                      style={{ fontSize: 12.5, background: '#fff' }}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                      💡 Nội dung này được gắn tự động vào mã VietQR để khi quét mã sẽ tự điền vào App ngân hàng.
-                    </div>
-                  </div>
-
-                  {/* Bank Name Selector */}
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 6, display: 'block', fontWeight: 700 }}>
-                      Ngân hàng nguồn của bạn (dùng để chuyển tiền):
-                    </label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
-                      {QUICK_BANKS.map(bank => (
-                        <button
-                          key={bank}
-                          type="button"
-                          onClick={() => setPayBank(bank)}
-                          className={`btn btn-sm ${payBank === bank ? 'btn-primary' : 'btn-secondary'}`}
-                          style={{ fontSize: 11, padding: '2px 7px' }}
-                        >
-                          {bank}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ padding: '8px 24px', fontWeight: 700 }}>
+                          Đã Hiểu & Đóng
                         </button>
-                      ))}
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      value={payBank}
-                      onChange={(e) => setPayBank(e.target.value)}
-                      placeholder="Hoặc gõ tên ngân hàng..."
-                      className="input-field"
-                      style={{ fontSize: 12.5, background: '#fff' }}
-                    />
-                  </div>
+                  ) : (
+                    <>
+                      {/* Amount Input */}
+                      <div className="input-group">
+                        <label className="input-label" style={{ fontWeight: 700 }}>
+                          Số tiền thực chuyển khoản (VND) *
+                        </label>
+                        <input
+                          type="text"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          placeholder="Nhập số tiền..."
+                          className="input-field mono"
+                          style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', background: '#fff' }}
+                        />
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          💡 Sửa số tiền ở đây sẽ lập tức cập nhật lại số tiền trên mã VietQR bên trái.
+                        </div>
+                      </div>
 
-                  {/* Transaction Ref ID */}
-                  <div className="input-group">
-                    <label className="input-label" style={{ fontWeight: 700 }}>
-                      Mã giao dịch ngân hàng / Mã tra cứu (FT...)
-                    </label>
-                    <input
-                      type="text"
-                      value={payRef}
-                      onChange={(e) => setPayRef(e.target.value)}
-                      placeholder="Ví dụ: FT260823123456"
-                      className="input-field mono"
-                      style={{ fontSize: 12.5, background: '#fff' }}
-                    />
-                  </div>
+                      {/* Transfer Note / Memo Input */}
+                      <div className="input-group">
+                        <label className="input-label" style={{ fontWeight: 700 }}>
+                          Nội dung chuyển khoản / Ghi chú thanh toán
+                        </label>
+                        <input
+                          type="text"
+                          value={payNote}
+                          onChange={(e) => setPayNote(e.target.value)}
+                          placeholder="Nội dung chuyển khoản..."
+                          className="input-field"
+                          style={{ fontSize: 12.5, background: '#fff' }}
+                        />
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          💡 Nội dung này được gắn tự động vào mã VietQR để khi quét mã sẽ tự điền vào App ngân hàng.
+                        </div>
+                      </div>
 
-                  {/* Submit Buttons */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
-                      Hủy Bỏ
-                    </button>
-                    <button type="button" onClick={handleSubmitPayout} className="btn btn-primary" style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}>
-                      <CheckCircle size={16} />
-                      <span>Xác Nhận Đã Đi Tiền</span>
-                    </button>
-                  </div>
+                      {/* Bank Name Selector */}
+                      <div>
+                        <label className="input-label" style={{ marginBottom: 6, display: 'block', fontWeight: 700 }}>
+                          Ngân hàng nguồn của bạn (dùng để chuyển tiền):
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                          {QUICK_BANKS.map(bank => (
+                            <button
+                              key={bank}
+                              type="button"
+                              onClick={() => setPayBank(bank)}
+                              className={`btn btn-sm ${payBank === bank ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ fontSize: 11, padding: '2px 7px' }}
+                            >
+                              {bank}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          type="text"
+                          value={payBank}
+                          onChange={(e) => setPayBank(e.target.value)}
+                          placeholder="Hoặc gõ tên ngân hàng..."
+                          className="input-field"
+                          style={{ fontSize: 12.5, background: '#fff' }}
+                        />
+                      </div>
+
+                      {/* Transaction Ref ID */}
+                      <div className="input-group">
+                        <label className="input-label" style={{ fontWeight: 700 }}>
+                          Mã giao dịch ngân hàng / Mã tra cứu (FT...)
+                        </label>
+                        <input
+                          type="text"
+                          value={payRef}
+                          onChange={(e) => setPayRef(e.target.value)}
+                          placeholder="Ví dụ: FT260823123456"
+                          className="input-field mono"
+                          style={{ fontSize: 12.5, background: '#fff' }}
+                        />
+                      </div>
+
+                      {/* Submit Buttons */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
+                          Hủy Bỏ
+                        </button>
+                        <button type="button" onClick={handleSubmitPayout} className="btn btn-primary" style={{ fontWeight: 800, padding: '8px 20px', fontSize: 13 }}>
+                          <CheckCircle size={16} />
+                          <span>Xác Nhận Đã Đi Tiền</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
