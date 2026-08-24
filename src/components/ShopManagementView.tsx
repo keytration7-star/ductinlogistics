@@ -980,7 +980,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
         minHeight: 46,
       }}>
-        {/* Left: Title & Carrier on 1 Line */}
+        {/* Left: Carrier Badge on 1 Line */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{
             width: 28,
@@ -997,18 +997,15 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
           }}>
             <Store size={15} />
           </div>
-          <strong style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-            Quản Lý Danh Sách Shop & Biểu Giá
-          </strong>
           {activeCarrierName && (
             <span className="badge" style={{
-              fontSize: 10,
-              padding: '2px 7px',
+              fontSize: 11,
+              padding: '3px 9px',
               fontWeight: 800,
               background: carrierTheme.gradient,
               color: '#ffffff',
               boxShadow: carrierTheme.shadowGlow,
-              borderRadius: 5,
+              borderRadius: 6,
               letterSpacing: '0.02em',
               whiteSpace: 'nowrap',
             }}>
