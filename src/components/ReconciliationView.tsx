@@ -2968,50 +2968,28 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           </div>
 
-          {/* Smart Warning Banner when NVC Fee is 0 */}
+          {/* Smart Info Banner when NVC Fee is 0 (COD Return Settlement) */}
           {sourceNvcFeeTotal === 0 && (
             <div style={{
-              background: '#fffbeb',
-              border: '1.5px solid #fde68a',
+              background: '#eff6ff',
+              border: '1.5px solid #bfdbfe',
               borderRadius: 12,
               padding: '10px 16px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 12,
-              color: '#92400e',
+              color: '#1e40af',
               fontSize: 12,
-              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.08)',
               flexWrap: 'wrap',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 280 }}>
-                <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0 }} />
+                <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />
                 <span>
-                  <strong>Lưu ý đối soát:</strong> Cước gốc NVC trong file của Hãng đang bằng <strong>0 đ</strong> (Hãng chưa tính cước đợt này hoặc chưa chọn đúng cột Cước NVC). Hệ thống đã tự động tính đúng <strong>Cước thu Shop</strong> theo Biểu giá bậc thang để đảm bảo không thất thoát tiền cước!
+                  <strong>Kỳ hoàn tiền COD:</strong> Trong file đối soát này, Hãng không tính cước (Cước NVC = <strong>0 đ</strong> do đã tính ở kỳ phát sinh gửi hàng). Hệ thống tự động đặt <strong>Cước Shop = 0 đ</strong> để chuyển trọn vẹn tiền COD cho khách và không trừ cước 2 lần!
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleRecalculateCurrentSession}
-                className="btn btn-sm"
-                style={{
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 11.5,
-                  fontWeight: 800,
-                  padding: '6px 14px',
-                  borderRadius: 7,
-                  whiteSpace: 'nowrap',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
-                }}
-              >
-                <RefreshCw size={13} />
-                <span>⚡ Cập nhật lại cước ngay</span>
-              </button>
             </div>
           )}
 

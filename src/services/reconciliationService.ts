@@ -558,33 +558,42 @@ export function performReconciliation(
     let shopOtherFee = 0;
     let declaredFee = 0;
 
-    // 🔑 RULE: ALWAYS calculate Shop shipping fee based on Shop Pricing Tier and package weight
-    shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
-    shopOtherFee = pricingPlan.fixedSurcharge || 0;
+    // 🔑 STRICT BUSINESS RULE: Only charge Shop shipping fee if the NVC Carrier settlement file actually charged a fee for this order (nvcFee > 0 or nvcOtherFee > 0).
+    // An order appears twice: 1st when shipped (fee is charged), 2nd when delivered (only COD returned, fee = 0đ). NEVER charge shop fee twice!
+    const nvcHasFee = (nvcFee > 0 || nvcOtherFee > 0);
 
-    if (status === 'returned' || status === 'returning') {
-      const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
-      if (returnFeeType === 'free') {
-        shopCalculatedFee = 0;
-      } else if (returnFeeType === 'fixed') {
-        shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
-      } else {
-        const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-        shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+    if (nvcHasFee) {
+      shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
+      shopOtherFee = pricingPlan.fixedSurcharge || 0;
+
+      if (status === 'returned' || status === 'returning') {
+        const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
+        if (returnFeeType === 'free') {
+          shopCalculatedFee = 0;
+        } else if (returnFeeType === 'fixed') {
+          shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
+        } else {
+          const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+          shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+        }
       }
-    }
 
-    if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
-      shopOtherFee += pricingPlan.partialDeliveryFee;
-    }
+      if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
+        shopOtherFee += pricingPlan.partialDeliveryFee;
+      }
 
-    if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
-      shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
-    }
+      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
+        shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
+      }
 
-    if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
-      declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
-      shopOtherFee += declaredFee;
+      if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
+        declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
+        shopOtherFee += declaredFee;
+      }
+    } else {
+      // NVC did not charge shipping fee for this order in this settlement -> Shop fee is 0đ to prevent double charging
+      shopCalculatedFee = 0;
+      shopOtherFee = 0;
     }
 
     // CTV Commission calculation
@@ -935,27 +944,38 @@ export function recalculateSessionFees(
         fixedSurcharge: 0,
       };
 
-      let shopCalculatedFee = calculateWeightFee(order.weight || 0.5, pricingPlan);
-      let shopOtherFee = pricingPlan.fixedSurcharge || 0;
+      let shopCalculatedFee = 0;
+      let shopOtherFee = 0;
 
-      if (order.status === 'returned' || order.status === 'returning') {
-        const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
-        if (returnFeeType === 'free') {
-          shopCalculatedFee = 0;
-        } else if (returnFeeType === 'fixed') {
-          shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
-        } else {
-          const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-          shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+      // 🔑 STRICT BUSINESS RULE: Only charge Shop fee if NVC file charged a fee for this order
+      const nvcHasFee = (order.nvcBaseFee + order.nvcOtherFee) > 0;
+
+      if (nvcHasFee) {
+        shopCalculatedFee = calculateWeightFee(order.weight || 0.5, pricingPlan);
+        shopOtherFee = pricingPlan.fixedSurcharge || 0;
+
+        if (order.status === 'returned' || order.status === 'returning') {
+          const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
+          if (returnFeeType === 'free') {
+            shopCalculatedFee = 0;
+          } else if (returnFeeType === 'fixed') {
+            shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
+          } else {
+            const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+            shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+          }
         }
-      }
 
-      if (order.isPartialDelivery && pricingPlan.partialDeliveryFee) {
-        shopOtherFee += pricingPlan.partialDeliveryFee;
-      }
+        if (order.isPartialDelivery && pricingPlan.partialDeliveryFee) {
+          shopOtherFee += pricingPlan.partialDeliveryFee;
+        }
 
-      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && order.codAmount > 0) {
-        shopOtherFee += Math.round((order.codAmount * pricingPlan.insuranceFeePercent) / 100);
+        if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && order.codAmount > 0) {
+          shopOtherFee += Math.round((order.codAmount * pricingPlan.insuranceFeePercent) / 100);
+        }
+      } else {
+        shopCalculatedFee = 0;
+        shopOtherFee = 0;
       }
 
       const netShopPayout = order.codAmount - shopCalculatedFee - shopOtherFee;
