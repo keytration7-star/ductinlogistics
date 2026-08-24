@@ -75,6 +75,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const [clearDebtMethod, setClearDebtMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'DEBT_CLEAR'>('CASH');
   const [clearDebtRef, setClearDebtRef] = useState<string>('');
   const [clearDebtNote, setClearDebtNote] = useState<string>('');
+  const [shopSearchQuery, setShopSearchQuery] = useState<string>('');
 
   // Load Payments from Storage
   const reloadPayments = () => {
@@ -826,11 +827,58 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       {/* SUB-TAB 2: CUSTOMER DEBT LEDGER */}
       {activeSubTab === 'shops' && (
         <div className="glass-panel" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Building2 size={18} color="var(--primary)" />
-              Sổ Công Nợ Tích Lũy Chi Tiết Theo Khách Hàng (Shop)
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                <Building2 size={18} color="var(--primary)" />
+                Sổ Công Nợ Tích Lũy Chi Tiết Theo Khách Hàng (Shop)
+              </h3>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Theo dõi số dư nợ COD, cước gom đơn và quản lý thu tiền mặt / xóa nợ
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* Search Shop Input */}
+              <div style={{ position: 'relative', width: 220 }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  value={shopSearchQuery}
+                  onChange={(e) => setShopSearchQuery(e.target.value)}
+                  placeholder="Tìm theo tên/mã Shop..."
+                  className="input-field"
+                  style={{ paddingLeft: 30, fontSize: 12, height: 34, background: '#fff' }}
+                />
+              </div>
+
+              {/* Quick Clear Debt Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (shops.length > 0) {
+                    const firstOwingShop = shops.find(s => calculateOpeningDebtForNewStatement(s, sessions, payments) < 0) || shops[0];
+                    const balance = calculateOpeningDebtForNewStatement(firstOwingShop, sessions, payments);
+                    handleOpenClearDebt(firstOwingShop, balance);
+                  }
+                }}
+                className="btn btn-warning"
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  padding: '7px 14px',
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#ffffff',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <DollarSign size={15} />
+                <span>+ Thu Tiền Mặt / Xóa Nợ</span>
+              </button>
+            </div>
           </div>
 
           <div style={{
@@ -857,7 +905,13 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {shops.map((shop, idx) => {
+                {shops
+                  .filter(s => {
+                    if (!shopSearchQuery.trim()) return true;
+                    const q = shopSearchQuery.trim().toLowerCase();
+                    return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (s.phone && s.phone.includes(q));
+                  })
+                  .map((shop, idx) => {
                   let shopTotalCod = 0;
                   let shopTotalFee = 0;
                   let shopTotalNetPayout = 0;
@@ -1412,27 +1466,76 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             )}
                           </td>
                           <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPayModal(activeDetailSession, stmt)}
-                              className="btn btn-sm"
-                              style={{
-                                background: remainingDebt > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' : shopOwes > 0 ? '#fff1f2' : '#f1f5f9',
-                                color: remainingDebt > 0 ? '#ffffff' : shopOwes > 0 ? '#e11d48' : '#334155',
-                                border: remainingDebt > 0 ? 'none' : shopOwes > 0 ? '1px solid #fecdd3' : '1px solid #cbd5e1',
-                                padding: '5px 12px',
-                                fontSize: 11.5,
-                                fontWeight: 800,
-                                borderRadius: 6,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                boxShadow: remainingDebt > 0 ? '0 2px 6px rgba(79, 70, 229, 0.3)' : 'none',
-                              }}
-                            >
-                              <DollarSign size={13} />
-                              <span>{remainingDebt > 0 ? 'Đi Tiền' : shopOwes > 0 ? 'Chi Tiết Nợ' : 'Chi Tiết'}</span>
-                            </button>
+                            {shopOwes > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const matchedShop = shops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode);
+                                  const targetShopObj: Shop = matchedShop || {
+                                    id: stmt.shopId,
+                                    code: stmt.shopCode,
+                                    name: stmt.shopName,
+                                    phone: '',
+                                    address: '',
+                                    email: '',
+                                    bankAccount: { bankName: '', accountNumber: '', accountHolder: '' },
+                                    pricingPlan: {
+                                      id: 'default',
+                                      name: 'Mặc định',
+                                      weightRules: [],
+                                      extraStepWeight: 0.5,
+                                      extraStepPrice: 5000,
+                                      returnFeePercent: 50,
+                                      insuranceFeePercent: 0,
+                                      fixedSurcharge: 0,
+                                    },
+                                    createdAt: new Date().toISOString(),
+                                    active: true,
+                                  };
+                                  handleOpenClearDebt(targetShopObj, -shopOwes);
+                                }}
+                                className="btn btn-sm"
+                                style={{
+                                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '5px 12px',
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.3)',
+                                }}
+                                title="Thu tiền mặt hoặc xóa nợ cho Shop này"
+                              >
+                                <DollarSign size={13} />
+                                <span>Thu Nợ / Xóa Nợ</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPayModal(activeDetailSession, stmt)}
+                                className="btn btn-sm"
+                                style={{
+                                  background: remainingDebt > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' : '#f1f5f9',
+                                  color: remainingDebt > 0 ? '#ffffff' : '#334155',
+                                  border: remainingDebt > 0 ? 'none' : '1px solid #cbd5e1',
+                                  padding: '5px 12px',
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  boxShadow: remainingDebt > 0 ? '0 2px 6px rgba(79, 70, 229, 0.3)' : 'none',
+                                }}
+                              >
+                                <DollarSign size={13} />
+                                <span>{remainingDebt > 0 ? 'Đi Tiền' : 'Chi Tiết'}</span>
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1783,16 +1886,60 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
                       <div>
                         <div style={{ fontWeight: 800, fontSize: 14, color: '#991b1b', marginBottom: 8 }}>
-                          📌 Không Phát Sinh Đi Tiền Trong Kỳ Này
+                          📌 Shop Đang Nợ Cước: {formatVND(payoutInfo.shopOwes)}
                         </div>
                         <p style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                          Do Shop còn nợ công ty <strong>{formatVND(payoutInfo.shopOwes)}</strong> nên công ty không phải chuyển khoản. Khoản nợ còn lại này đã được ghi nhận tự động vào sổ cái công nợ.
+                          Khoản nợ này đã được hệ thống ghi nhận. Nếu Shop đã thanh toán tiền mặt trực tiếp hoặc chuyển khoản ngoài, bạn có thể bấm nút bên dưới để <strong>Thu Tiền Mặt & Xóa Nợ</strong> ngay cho Shop.
                         </p>
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ padding: '8px 24px', fontWeight: 700 }}>
-                          Đã Hiểu & Đóng
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary" style={{ padding: '8px 16px', fontWeight: 700 }}>
+                          Đóng
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsModalOpen(false);
+                            const matchedShop = shops.find(s => s.id === targetStatement.shopId || s.code === targetStatement.shopCode);
+                            const targetShopObj: Shop = matchedShop || {
+                              id: targetStatement.shopId,
+                              code: targetStatement.shopCode,
+                              name: targetStatement.shopName,
+                              phone: '',
+                              address: '',
+                              email: '',
+                              bankAccount: { bankName: '', accountNumber: '', accountHolder: '' },
+                              pricingPlan: {
+                                id: 'default',
+                                name: 'Mặc định',
+                                weightRules: [],
+                                extraStepWeight: 0.5,
+                                extraStepPrice: 5000,
+                                returnFeePercent: 50,
+                                insuranceFeePercent: 0,
+                                fixedSurcharge: 0,
+                              },
+                              createdAt: new Date().toISOString(),
+                              active: true,
+                            };
+                            handleOpenClearDebt(targetShopObj, -payoutInfo.shopOwes);
+                          }}
+                          className="btn btn-warning"
+                          style={{
+                            padding: '8px 20px',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: '#ffffff',
+                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <DollarSign size={16} />
+                          <span>Thu Tiền Mặt / Xóa Nợ</span>
                         </button>
                       </div>
                     </div>
@@ -1967,6 +2114,38 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
             {/* Modal Body */}
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Shop Selector */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Chọn Khách Hàng (Shop):
+                </label>
+                <select
+                  value={targetClearShop.id}
+                  onChange={(e) => {
+                    const selected = shops.find(s => s.id === e.target.value);
+                    if (selected) {
+                      const balance = calculateOpeningDebtForNewStatement(selected, sessions, payments);
+                      const debtToClear = Math.abs(balance);
+                      setTargetClearShop(selected);
+                      setTargetClearBalance(debtToClear);
+                      setClearDebtAmount(String(debtToClear));
+                    }
+                  }}
+                  className="input-field"
+                  style={{ fontSize: 13, fontWeight: 700, background: '#fff' }}
+                >
+                  {shops.map(s => {
+                    const balance = calculateOpeningDebtForNewStatement(s, sessions, payments);
+                    const debtLabel = balance < 0 ? `(🔴 Nợ: -${formatVND(Math.abs(balance))})` : balance > 0 ? `(🟢 Phải trả: ${formatVND(balance)})` : '(🟢 Hết nợ)';
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code}) {debtLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
               {/* Current Debt Banner */}
               <div style={{
                 background: 'linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%)',
