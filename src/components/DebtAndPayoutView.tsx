@@ -67,6 +67,15 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const [payBank, setPayBank] = useState<string>('');
   const [payNote, setPayNote] = useState<string>('');
 
+  // Clear Debt Modal State (Thu tiền mặt / Xóa nợ khách hàng)
+  const [isClearDebtModalOpen, setIsClearDebtModalOpen] = useState(false);
+  const [targetClearShop, setTargetClearShop] = useState<Shop | null>(null);
+  const [targetClearBalance, setTargetClearBalance] = useState<number>(0);
+  const [clearDebtAmount, setClearDebtAmount] = useState<string>('');
+  const [clearDebtMethod, setClearDebtMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'DEBT_CLEAR'>('CASH');
+  const [clearDebtRef, setClearDebtRef] = useState<string>('');
+  const [clearDebtNote, setClearDebtNote] = useState<string>('');
+
   // Load Payments from Storage
   const reloadPayments = () => {
     const list = StorageService.getPaymentRecords();
@@ -223,6 +232,62 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
     showToast(`Đã lưu nhật ký đi tiền ${formatVND(amountNum)} cho Shop ${targetStatement.shopName}!`, 'success');
     setIsModalOpen(false);
+    reloadPayments();
+    if (onRefreshSessions) onRefreshSessions();
+  };
+
+  // Open Clear Debt Modal (Thu tiền mặt / Xóa nợ)
+  const handleOpenClearDebt = (shop: Shop, balance: number) => {
+    const debtToClear = Math.abs(balance);
+    setTargetClearShop(shop);
+    setTargetClearBalance(debtToClear);
+    setClearDebtAmount(String(debtToClear));
+    setClearDebtMethod('CASH');
+    setClearDebtRef(`TM_${Date.now().toString().slice(-6)}`);
+    setClearDebtNote('Khách hàng thanh toán tiền mặt trực tiếp cho kế toán');
+    setIsClearDebtModalOpen(true);
+  };
+
+  // Submit Clear Debt Record
+  const handleSubmitClearDebt = () => {
+    if (!targetClearShop) return;
+    const cleanNum = parseFloat(clearDebtAmount.replace(/[^0-9.]/g, ''));
+    if (!cleanNum || cleanNum <= 0) {
+      showToast('Vui lòng nhập số tiền thu/xóa nợ hợp lệ lớn hơn 0.', 'warning');
+      return;
+    }
+
+    const sessionLabel = clearDebtMethod === 'CASH' 
+      ? 'Thu Tiền Mặt Trực Tiếp' 
+      : clearDebtMethod === 'DEBT_CLEAR' 
+      ? 'Miễn Giảm / Xóa Nợ' 
+      : 'Chuyển Khoản Ngoài';
+
+    StorageService.savePaymentRecord({
+      sessionId: 'CASH_SETTLEMENT',
+      sessionName: sessionLabel,
+      shopId: targetClearShop.id,
+      shopCode: targetClearShop.code,
+      shopName: targetClearShop.name,
+      amount: cleanNum,
+      paymentMethod: clearDebtMethod,
+      type: 'COLLECTION',
+      paidByUsername: currentUser.username,
+      paidByFullName: currentUser.fullName,
+      bankName: clearDebtMethod === 'CASH' ? 'Tiền mặt' : clearDebtMethod === 'DEBT_CLEAR' ? 'Xóa nợ thủ công' : 'Chuyển khoản ngoài',
+      transactionRef: clearDebtRef || `PT_${Date.now()}`,
+      note: clearDebtNote || (clearDebtMethod === 'CASH' ? 'Khách trả nợ tiền mặt' : 'Xóa nợ'),
+    });
+
+    AuditService.logAction(
+      currentUser.username,
+      currentUser.role,
+      'CLEAR_SHOP_DEBT',
+      `Ghi nhận thu tiền mặt / xóa nợ ${cleanNum.toLocaleString('vi-VN')}đ cho Shop ${targetClearShop.code} (${targetClearShop.name}), hình thức: ${clearDebtMethod}.`
+    );
+
+    showToast(`Đã ghi nhận thu ${formatVND(cleanNum)} và xóa nợ thành công cho Shop ${targetClearShop.name}!`, 'success');
+    setIsClearDebtModalOpen(false);
     reloadPayments();
     if (onRefreshSessions) onRefreshSessions();
   };
@@ -788,6 +853,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   <th style={{ textAlign: 'right' }}>Đã Chuyển Khoản</th>
                   <th style={{ textAlign: 'right' }}>Dư Nợ Hiện Tại</th>
                   <th style={{ textAlign: 'center' }}>Trạng Thái</th>
+                  <th style={{ textAlign: 'right' }}>Thao Tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -875,6 +941,41 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                           <span className="badge badge-success" style={{ fontSize: 10 }}>🟢 Đã hết nợ</span>
                         )}
                       </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {isShopOwingGomdon ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenClearDebt(shop, currentBalance)}
+                            className="btn btn-warning btn-sm"
+                            style={{
+                              fontSize: 11,
+                              padding: '4px 10px',
+                              fontWeight: 800,
+                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                              color: '#ffffff',
+                              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              whiteSpace: 'nowrap',
+                            }}
+                            title="Ghi nhận khách đã thanh toán tiền mặt và xóa nợ cước tồn"
+                          >
+                            <DollarSign size={13} />
+                            <span>Thu Tiền Mặt / Xóa Nợ</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenClearDebt(shop, currentBalance)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: 11, padding: '3px 8px', color: 'var(--text-muted)' }}
+                            title="Ghi nhận thu tiền mặt phát sinh khác"
+                          >
+                            <span>+ Thu Tiền Mặt</span>
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -928,15 +1029,36 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       <td style={{ fontSize: 12 }}>
                         {new Date(pay.paidAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
-                      <td><strong style={{ fontSize: 12, color: 'var(--primary)' }}>{pay.sessionName || pay.sessionId}</strong></td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong style={{ fontSize: 12, color: pay.type === 'COLLECTION' ? '#b45309' : 'var(--primary)' }}>
+                            {pay.sessionName || pay.sessionId}
+                          </strong>
+                          {pay.type === 'COLLECTION' && (
+                            <span className="badge badge-warning" style={{ fontSize: 9.5, padding: '1px 5px', fontWeight: 800 }}>
+                              💵 Thu Tiền Mặt / Xóa Nợ
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <strong>{pay.shopName}</strong>
                         <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{pay.shopCode}</div>
                       </td>
-                      <td className="mono" style={{ fontSize: 14, fontWeight: 800, color: pay.voidedAt ? 'var(--text-dim)' : 'var(--success)', textAlign: 'right', textDecoration: pay.voidedAt ? 'line-through' : 'none' }}>
-                        {formatVND(pay.amount)}
+                      <td className="mono" style={{ 
+                        fontSize: 14, 
+                        fontWeight: 800, 
+                        color: pay.voidedAt ? 'var(--text-dim)' : pay.type === 'COLLECTION' ? '#b45309' : 'var(--success)', 
+                        textAlign: 'right', 
+                        textDecoration: pay.voidedAt ? 'line-through' : 'none' 
+                      }}>
+                        {pay.type === 'COLLECTION' ? `+${formatVND(pay.amount)}` : formatVND(pay.amount)}
                       </td>
-                      <td><span className="badge badge-neutral" style={{ fontSize: 10 }}>{pay.bankName || 'N/A'}</span></td>
+                      <td>
+                        <span className={`badge ${pay.type === 'COLLECTION' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 10 }}>
+                          {pay.bankName || (pay.type === 'COLLECTION' ? 'Tiền mặt' : 'N/A')}
+                        </span>
+                      </td>
                       <td className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{pay.transactionRef || '---'}</td>
                       <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {pay.note || 'Không có ghi chú'}
@@ -1773,6 +1895,216 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
           </div>
         );
       })()}
+
+      {/* 💵 MODAL THU TIỀN MẶT & XÓA NỢ KHÁCH HÀNG */}
+      {isClearDebtModalOpen && targetClearShop && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => setIsClearDebtModalOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              borderRadius: 18,
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.25)',
+              width: '100%',
+              maxWidth: 520,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--border-color)',
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                  flexShrink: 0,
+                }}>
+                  <DollarSign size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    Thu Tiền Mặt / Xóa Nợ Khách Hàng
+                  </h3>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Shop: <strong style={{ color: 'var(--primary)' }}>{targetClearShop.name} ({targetClearShop.code})</strong>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setIsClearDebtModalOpen(false)} className="btn btn-secondary btn-sm" style={{ padding: '4px 6px' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Current Debt Banner */}
+              <div style={{
+                background: 'linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%)',
+                border: '1.5px solid #fde68a',
+                borderRadius: 12,
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase' }}>
+                    Dư nợ âm cước hiện tại của Shop
+                  </div>
+                  <div style={{ fontSize: 12, color: '#b45309', marginTop: 2 }}>
+                    Khách hàng đang nợ tiền cước gom đơn
+                  </div>
+                </div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: '#dc2626' }}>
+                  -{formatVND(targetClearBalance)}
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Số tiền thu / xóa nợ (VNĐ) *
+                </label>
+                <input
+                  type="text"
+                  value={clearDebtAmount}
+                  onChange={(e) => setClearDebtAmount(e.target.value)}
+                  placeholder="Nhập số tiền..."
+                  className="input-field mono"
+                  style={{ fontSize: 16, fontWeight: 800, color: '#b45309', background: '#fff' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                  💡 Mặc định điền toàn bộ số nợ ({formatVND(targetClearBalance)}). Bạn có thể sửa số tiền nếu khách chỉ trả 1 phần.
+                </div>
+              </div>
+
+              {/* Method Selector */}
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 6, display: 'block' }}>
+                  Hình thức thanh toán / Xử lý:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setClearDebtMethod('CASH')}
+                    className={`btn btn-sm ${clearDebtMethod === 'CASH' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: 11.5, padding: '7px 8px', fontWeight: 700 }}
+                  >
+                    💵 Tiền Mặt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClearDebtMethod('BANK_TRANSFER')}
+                    className={`btn btn-sm ${clearDebtMethod === 'BANK_TRANSFER' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: 11.5, padding: '7px 8px', fontWeight: 700 }}
+                  >
+                    💳 CK Ngoài
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClearDebtMethod('DEBT_CLEAR')}
+                    className={`btn btn-sm ${clearDebtMethod === 'DEBT_CLEAR' ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: 11.5, padding: '7px 8px', fontWeight: 700 }}
+                  >
+                    ✨ Miễn / Xóa Nợ
+                  </button>
+                </div>
+              </div>
+
+              {/* Receipt / Ref ID */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Mã phiếu thu / Số biên nhận:
+                </label>
+                <input
+                  type="text"
+                  value={clearDebtRef}
+                  onChange={(e) => setClearDebtRef(e.target.value)}
+                  placeholder="Ví dụ: PT260824001"
+                  className="input-field mono"
+                  style={{ fontSize: 12.5, background: '#fff' }}
+                />
+              </div>
+
+              {/* Note Input */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Ghi chú chi tiết:
+                </label>
+                <input
+                  type="text"
+                  value={clearDebtNote}
+                  onChange={(e) => setClearDebtNote(e.target.value)}
+                  placeholder="Ghi chú người nộp, lý do..."
+                  className="input-field"
+                  style={{ fontSize: 12.5, background: '#fff' }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsClearDebtModalOpen(false)}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 16px', fontWeight: 600 }}
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitClearDebt}
+                  className="btn btn-warning"
+                  style={{
+                    padding: '8px 20px',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <CheckCircle size={16} />
+                  <span>Xác Nhận Thu Tiền & Xóa Nợ</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

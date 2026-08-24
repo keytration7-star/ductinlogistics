@@ -61,11 +61,21 @@ export function calculateOpeningDebtForNewStatement(
       .map(statement => ({ session, statement })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  if (statements.length === 0) return shop.previousDebt || 0;
+  // Khoản thu tiền mặt / xóa nợ đã ghi nhận từ shop
+  const collections = payments
+    .filter(p => !p.voidedAt && (p.shopId === shop.id || p.shopCode === shop.code) && p.type === 'COLLECTION')
+    .reduce((sum, p) => sum + p.amount, 0);
 
-  const initialDebt = shop.previousDebt ?? 0;
+  const initialDebt = (shop.previousDebt ?? 0) + collections;
+  if (statements.length === 0) return initialDebt;
+
   return statements.reduce((balance, { session, statement }) => {
-    const paid = getStatementPaidAmount(statement, session.id, payments);
+    const paid = payments
+      .filter(payment => !payment.voidedAt
+        && payment.sessionId === session.id
+        && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode)
+        && payment.type !== 'COLLECTION')
+      .reduce((total, payment) => total + payment.amount, 0);
     return balance + statement.totalNetPayout - paid;
   }, initialDebt);
 }
@@ -93,13 +103,26 @@ export function calculateLiveOpeningDebtForStatement(
       .map(st => ({ session, statement: st })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  const initialDebt = shop?.previousDebt ?? 0;
+  // Khoản thu tiền mặt / xóa nợ đã ghi nhận trước hoặc tại thời điểm session này
+  const priorCollections = payments
+    .filter(p => !p.voidedAt
+      && (p.shopId === shopId || p.shopCode === shopCode)
+      && p.type === 'COLLECTION'
+      && new Date(p.paidAt).getTime() <= new Date(currentSession.createdAt).getTime())
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const initialDebt = (shop?.previousDebt ?? 0) + priorCollections;
   if (priorItems.length === 0) {
     return initialDebt;
   }
 
   return priorItems.reduce((balance, { session, statement: st }) => {
-    const paid = getStatementPaidAmount(st, session.id, payments);
+    const paid = payments
+      .filter(payment => !payment.voidedAt
+        && payment.sessionId === session.id
+        && (payment.shopId === shopId || payment.shopCode === shopCode)
+        && payment.type !== 'COLLECTION')
+      .reduce((total, payment) => total + payment.amount, 0);
     return balance + st.totalNetPayout - paid;
   }, initialDebt);
 }
