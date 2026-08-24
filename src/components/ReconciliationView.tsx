@@ -30,6 +30,7 @@ import {
   Edit3,
   X,
   ShieldCheck,
+  History,
 } from 'lucide-react';
 import type { 
   Shop, 
@@ -230,6 +231,9 @@ interface ReconciliationViewProps {
   currentSession: ReconciliationSession | null;
   setCurrentSession: (session: ReconciliationSession | null) => void;
   onNavigateToEmail: (session: ReconciliationSession) => void;
+  onNavigateToHistory?: () => void;
+  onNavigateToDebt?: () => void;
+  onRefreshSessions?: () => void;
   currentUser: UserAccount;
   onSaveShops: (shops: Shop[]) => void;
   activeCarrierId?: string;
@@ -269,6 +273,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   currentSession,
   setCurrentSession,
   onNavigateToEmail,
+  onNavigateToHistory,
+  onNavigateToDebt,
+  onRefreshSessions,
   currentUser,
   onSaveShops,
   activeCarrierId,
@@ -1117,6 +1124,9 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
 
       // 💾 Tự động lưu kỳ đối soát vào danh sách hệ thống
       StorageService.saveSession(session);
+      if (onRefreshSessions) {
+        onRefreshSessions();
+      }
 
       setCurrentSession(session);
       setWizardStep(4);
@@ -2888,6 +2898,73 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                     <strong className="mono" style={{ color: 'var(--danger)', fontWeight: 800 }}>{currentSession.unmatchedOrdersCount} đơn</strong>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+
+          {/* 🌟 PROMINENT SAVED SUCCESS BANNER WITH QUICK NAVIGATION */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(99, 102, 241, 0.08) 100%)',
+            border: '1.5px solid var(--success-border)',
+            borderRadius: 14,
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.08)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: 'var(--success)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 900,
+                fontSize: 16,
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.4)',
+              }}>
+                ✓
+              </div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>KỲ “{currentSession.sessionName}” ({currentSession.carrierName}) ĐÃ ĐƯỢC LƯU VÀO HỆ THỐNG!</span>
+                  <span className="badge badge-success" style={{ fontSize: 10 }}>Đã lưu</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Dữ liệu đã tự động cập nhật vào Lịch Sử Đối Soát, Công Nợ Shop, Đi Tiền Ngân Hàng & Gửi Mail.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {onNavigateToHistory && (
+                <button
+                  type="button"
+                  onClick={onNavigateToHistory}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
+                >
+                  <History size={13} color="var(--primary)" />
+                  <span>Xem Trong Lịch Sử Kỳ Đối Soát</span>
+                </button>
+              )}
+              {onNavigateToDebt && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDebt}
+                  className="btn btn-primary btn-sm"
+                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
+                >
+                  <DollarSign size={13} />
+                  <span>Đi Tiền & Công Nợ</span>
+                </button>
               )}
             </div>
           </div>

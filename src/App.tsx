@@ -705,6 +705,15 @@ export function App() {
                 currentUser={currentUser}
                 onSaveShops={handleSaveShops}
                 activeCarrierId={activeCarrierId}
+                onRefreshSessions={() => {
+                  setSessions(StorageService.getSessions());
+                }}
+                onNavigateToHistory={() => {
+                  setActiveTab('history');
+                }}
+                onNavigateToDebt={() => {
+                  setActiveTab('debt');
+                }}
                 onNavigateToEmail={(session) => {
                   handleSetCurrentSession(session);
                   setActiveTab('emails');
