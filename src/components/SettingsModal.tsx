@@ -7,7 +7,7 @@ import {
   Settings, Eye, EyeOff, Server, HelpCircle, ExternalLink,
   Send, ShieldCheck as ShieldOk, MessageSquare,
   Zap, Bot, RotateCcw, Database, Download, Upload,
-  RefreshCcw, FolderArchive, Trash2, AlertTriangle
+  RefreshCcw, FolderArchive, Trash2, AlertTriangle, KeyRound
 } from 'lucide-react';
 import type { CompanyInfo, EmailSettings, ZaloZnsSettings, TelegramSettings, UserAccount } from '../types';
 import { StorageService } from '../services/storage';
@@ -52,43 +52,84 @@ const TabCompany: React.FC<{ onSaved?: () => void; isAdmin: boolean }> = ({ onSa
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!info.companyName.trim()) { showToast('Vui lòng nhập Tên Công Ty', 'warning'); return; }
+    if (!info.email || !info.email.trim()) {
+      showToast('BẮT BUỘC: Vui lòng nhập Email Công Ty để nhận mã OTP khôi phục!', 'warning');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(info.email.trim())) {
+      showToast('Định dạng Email không hợp lệ. Vui lòng kiểm tra lại!', 'warning');
+      return;
+    }
+
     StorageService.saveCompanyInfo(info);
     setSaved(true);
-    showToast('Đã lưu thông tin công ty!', 'success');
+    showToast('Đã lưu thông tin công ty thành công!', 'success');
     if (onSaved) onSaved();
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const field = (label: string, key: keyof CompanyInfo, placeholder: string, icon: React.ReactNode) => (
+  const field = (label: string, key: keyof CompanyInfo, placeholder: string, icon: React.ReactNode, required?: boolean, subtitle?: string) => (
     <div className="input-group">
-      <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        {icon} {label}
+      <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: required ? 800 : undefined, color: required ? '#b45309' : undefined }}>
+        {icon} {label} {required && <span className="badge badge-danger" style={{ fontSize: 9.5, padding: '1px 5px' }}>BẮT BUỘC</span>}
       </label>
       <input
-        type="text"
+        type={key === 'email' ? 'email' : 'text'}
         className="input-field"
-        value={info[key] as string}
+        value={info[key] as string || ''}
         onChange={e => setInfo({ ...info, [key]: e.target.value })}
         placeholder={placeholder}
         disabled={!isAdmin}
-        style={{ padding: '9px 12px' }}
+        style={{
+          padding: '9px 12px',
+          borderColor: (required && (!info[key] || !String(info[key]).trim())) ? '#f59e0b' : undefined,
+        }}
       />
+      {subtitle && <div style={{ fontSize: 11, color: '#b45309', marginTop: 3 }}>{subtitle}</div>}
     </div>
   );
 
+  const hasMissingEmail = !info.email || !info.email.trim();
+
   return (
     <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Alert missing email */}
+      {hasMissingEmail && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+          border: '1.5px solid #f59e0b',
+          borderRadius: 12,
+          padding: '12px 14px',
+          color: '#b45309',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+        }}>
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#92400e' }}>
+              CẢNH BÁO BẢO MẬT: BẮT BUỘC CẤU HÌNH EMAIL CÔNG TY
+            </div>
+            <div style={{ fontSize: 11.5, marginTop: 2, lineHeight: 1.4 }}>
+              Admin cần nhập Email Công Ty để nhận mã xác thực OTP khi <strong>Quên mật khẩu, Đổi mật khẩu và 2FA</strong>.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(16,185,129,.06))', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-color)', display: 'flex', gap: 12, alignItems: 'center' }}>
         <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Building2 size={22} color="#fff" />
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-main)' }}>Thông Tin Công Ty / Doanh Nghiệp</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Hiển thị trên Email gửi khách & báo cáo đối soát</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Hiển thị trên Email gửi khách & Báo cáo đối soát</div>
         </div>
       </div>
 
       {field('Tên Công Ty / Doanh Nghiệp (*)', 'companyName', 'VD: Công Ty Logistics & Đối Soát Vận Chuyển', <Building2 size={13} />)}
+      {field('Email Công Ty (Nhận OTP Khôi Phục & Đổi Pass) (*)', 'email', 'VD: admin@autopro.io.vn hoặc cty@ductinlogistics.shop', <Mail size={13} />, true, 'Dùng để nhận mã xác thực OTP khi Quên mật khẩu hoặc Đổi mật khẩu Admin')}
       {field('Địa Chỉ Trụ Sở', 'address', 'Số nhà, Đường, Quận, Tỉnh/TP', <Filter size={13} />)}
       {field('Số Điện Thoại / Hotline', 'phone', '0988 xxx xxx', <Smartphone size={13} />)}
       {field('Mã Số Thuế', 'taxCode', '0101234567', <FileSpreadsheet size={13} />)}
@@ -855,6 +896,153 @@ const TabBackup: React.FC<{ onDataReloaded?: () => void }> = ({ onDataReloaded }
   );
 };
 
+/* ─────────────── COMPONENT: ĐỔI MẬT KHẨU QUA EMAIL OTP ─────────────── */
+const ChangePasswordSection: React.FC<{ currentUser?: UserAccount }> = ({ currentUser }) => {
+  const { showToast } = useToast();
+  const [step, setStep] = useState<'INPUT' | 'OTP'>('INPUT');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 4) {
+      showToast('Mật khẩu mới phải có tối thiểu 4 ký tự.', 'warning');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('Xác nhận mật khẩu mới không khớp.', 'warning');
+      return;
+    }
+    const identifier = currentUser?.username || 'admin';
+    setIsLoading(true);
+    try {
+      const res = await AuthService.sendForgotPasswordOtp(identifier);
+      if (res.success) {
+        setMaskedEmail(res.maskedEmail || '');
+        setStep('OTP');
+        showToast(res.message || 'Đã gửi mã OTP xác nhận về Email của bạn!', 'success');
+      } else {
+        showToast(res.error || 'Chưa cấu hình Email Công Ty hoặc không thể gửi mã OTP.', 'error');
+      }
+    } catch {
+      showToast('Lỗi mạng khi gửi yêu cầu đổi mật khẩu.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || otp.trim().length !== 6) {
+      showToast('Mã OTP phải gồm 6 chữ số.', 'warning');
+      return;
+    }
+    if (!currentUser?.id) {
+      showToast('Không xác định được phiên người dùng.', 'error');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await AuthService.resetPasswordWithOtp(currentUser.id, otp.trim(), newPassword);
+      if (res.success) {
+        showToast('Đã đổi mật khẩu tài khoản thành công!', 'success');
+        setStep('INPUT');
+        setNewPassword('');
+        setConfirmPassword('');
+        setOtp('');
+      } else {
+        showToast(res.error || 'Mã OTP không chính xác hoặc đã hết hạn.', 'error');
+      }
+    } catch {
+      showToast('Lỗi mạng khi cập nhật mật khẩu.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (step === 'INPUT') {
+    return (
+      <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>
+              Mật khẩu mới:
+            </label>
+            <input
+              type="password"
+              placeholder="Nhập mật khẩu mới..."
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="input-field"
+              style={{ width: '100%', padding: '7px 10px', fontSize: 12.5 }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>
+              Xác nhận mật khẩu mới:
+            </label>
+            <input
+              type="password"
+              placeholder="Nhập lại mật khẩu mới..."
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="input-field"
+              style={{ width: '100%', padding: '7px 10px', fontSize: 12.5 }}
+            />
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={isLoading || !newPassword || !confirmPassword}
+          className="btn btn-primary btn-sm"
+          style={{ fontWeight: 700, alignSelf: 'flex-start', marginTop: 4 }}
+        >
+          {isLoading ? 'Đang gửi mã OTP...' : 'Gửi Mã OTP Xác Nhận Qua Email'}
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={handleConfirmReset} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 12, color: '#047857', background: '#ecfdf5', padding: '8px 12px', borderRadius: 8, border: '1px solid #a7f3d0' }}>
+        Mã OTP 6 số đã được gửi tới email <strong>{maskedEmail || 'của bạn'}</strong>. Vui lòng nhập mã để hoàn tất.
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="0 0 0 0 0 0"
+          value={otp}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          className="input-field mono"
+          style={{ width: 160, padding: '7px 10px', fontSize: 16, fontWeight: 800, textAlign: 'center', letterSpacing: 4 }}
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={isLoading || otp.length !== 6}
+          className="btn btn-success btn-sm"
+          style={{ fontWeight: 800 }}
+        >
+          {isLoading ? 'Đang xác nhận...' : 'Xác Nhận Đổi Mật Khẩu'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setStep('INPUT')}
+          className="btn btn-secondary btn-sm"
+        >
+          Hủy
+        </button>
+      </div>
+    </form>
+  );
+};
+
 /* ─────────────── TAB: BẢO MẬT & XÁC THỰC ─────────────── */
 const TabSecurity: React.FC<{ 
   isAdmin: boolean; 
@@ -988,11 +1176,24 @@ const TabSecurity: React.FC<{
         </div>
       </div>
 
-      {/* 3. THỜI GIAN KHÓA MÀN HÌNH & HẾT HẠN PHIÊN */}
+      {/* 3. ĐỔI MẬT KHẨU TÀI KHOẢN QUA EMAIL OTP */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <KeyRound size={15} color="var(--primary)" />
+          <span>3. Đổi Mật Khẩu Bảo Mật Qua Email OTP</span>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Mã xác thực OTP 6 số sẽ được gửi tới Email của bạn để xác nhận trước khi cập nhật mật khẩu mới.
+        </div>
+
+        <ChangePasswordSection currentUser={currentUser} />
+      </div>
+
+      {/* 4. THỜI GIAN KHÓA MÀN HÌNH & HẾT HẠN PHIÊN */}
       <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
         <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Zap size={15} color="var(--warning)" />
-          <span>3. Thời Gian Khóa Màn Hình & Hết Hạn Phiên Tự Động</span>
+          <span>4. Thời Gian Khóa Màn Hình & Hết Hạn Phiên Tự Động</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 12 }}>

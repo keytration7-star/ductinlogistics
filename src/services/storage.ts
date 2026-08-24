@@ -54,6 +54,7 @@ export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   companyName: 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN',
   address: 'Địa chỉ trụ sở công ty',
   phone: '0988 000 000',
+  email: '',
   taxCode: '0100000000',
 };
 

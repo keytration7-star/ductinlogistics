@@ -577,6 +577,34 @@ export function App() {
 
           {/* Right Header Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* ⚠️ Missing Company Email Security Alert Badge */}
+            {currentUser.role === 'ADMIN' && (!StorageService.getCompanyInfo().email || !StorageService.getCompanyInfo().email.trim()) && (
+              <button
+                type="button"
+                onClick={() => setIsCompanyModalOpen(true)}
+                className="btn btn-sm"
+                style={{
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                  border: '1.5px solid #f59e0b',
+                  color: '#92400e',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)',
+                  animation: 'pulse 2s infinite',
+                }}
+                title="Bấm vào đây để nhập Email Công Ty bắt buộc nhằm nhận mã OTP khôi phục mật khẩu!"
+              >
+                <span>⚠️</span>
+                <span>Cần Nhập Email Công Ty</span>
+              </button>
+            )}
+
             <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11, padding: '4px 9px' }} title={dataConnection === 'connected' ? 'Dữ liệu đã đồng bộ với máy chủ trong phiên này.' : dataConnection === 'offline' ? 'Chưa kết nối được máy chủ; chỉ nên xem dữ liệu cục bộ, không nên chốt đối soát.' : 'Đang kiểm tra kết nối dữ liệu.'}>
               {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
             </span>

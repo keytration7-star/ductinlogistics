@@ -8,6 +8,7 @@ export interface CompanyInfo {
   companyName: string;
   address: string;
   phone: string;
+  email: string; // Required company email for OTP & notifications
   taxCode: string;
   website?: string;
 }

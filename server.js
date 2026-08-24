@@ -490,13 +490,31 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
   }
 
   const users = readJsonFile('users.json', []);
-  const user = users.find(u => 
+  const companyInfo = readJsonFile('company_info.json', {});
+  const companyEmail = companyInfo?.email ? String(companyInfo.email).trim().toLowerCase() : '';
+
+  let user = users.find(u => 
     u.username?.toLowerCase() === usernameOrEmail || 
     (u.email && u.email.toLowerCase() === usernameOrEmail)
   );
 
-  if (!user || !user.email) {
-    return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản hoặc tài khoản chưa có Email để nhận mã khôi phục.' });
+  // Fallback for Admin: if user searched by company email or is admin without direct email
+  if (!user && companyEmail && companyEmail === usernameOrEmail) {
+    user = users.find(u => u.role === 'ADMIN');
+  }
+
+  if (user && !user.email && user.role === 'ADMIN' && companyEmail) {
+    user.email = companyEmail;
+    writeJsonFile('users.json', users);
+  }
+
+  const targetEmail = user?.email || (user?.role === 'ADMIN' ? companyEmail : '');
+
+  if (!user || !targetEmail) {
+    return res.status(404).json({
+      success: false,
+      error: 'Không tìm thấy tài khoản hoặc hệ thống chưa được cấu hình Email Công Ty. Vui lòng liên hệ Quản trị viên.',
+    });
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
@@ -506,7 +524,7 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
     userId: user.id,
   });
 
-  const mailRes = await sendSystemOtpEmail(user.email, 'Khôi Phục Mật Khẩu', otp, 'Khôi Phục Mật Khẩu');
+  const mailRes = await sendSystemOtpEmail(targetEmail, 'Khôi Phục / Đổi Mật Khẩu', otp, 'Khôi Phục & Đổi Mật Khẩu');
   if (!mailRes.success) {
     return res.status(500).json({ success: false, error: mailRes.error || 'Không thể gửi email OTP.' });
   }
@@ -517,15 +535,15 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
     actorId: user.id,
     actorName: user.fullName || user.username,
     actorRole: user.role,
-    description: `Gửi mã OTP khôi phục mật khẩu tới email ${user.email}`,
+    description: `Gửi mã OTP khôi phục mật khẩu tới email ${targetEmail}`,
     ipAddress: req.ip,
   });
 
   res.json({
     success: true,
     userId: user.id,
-    maskedEmail: user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}${'*'.repeat(Math.max(1, b.length))}${c}`),
-    message: `Đã gửi mã OTP khôi phục mật khẩu tới ${user.email}. Vui lòng kiểm tra email!`,
+    maskedEmail: targetEmail.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}${'*'.repeat(Math.max(1, b.length))}${c}`),
+    message: `Đã gửi mã OTP khôi phục mật khẩu tới ${targetEmail}. Vui lòng kiểm tra email!`,
   });
 });
 
@@ -1036,7 +1054,29 @@ app.post('/api/db/sessions/delete', requireAuth, requireAdmin, (req, res) => {
 
 // POST save company info
 app.post('/api/db/company-info', requireAuth, requireAdmin, (req, res) => {
-  const success = writeJsonFile('company_info.json', req.body.companyInfo || {});
+  const companyInfo = req.body.companyInfo || {};
+  const success = writeJsonFile('company_info.json', companyInfo);
+
+  // Auto-sync company email to admin user account if available
+  if (companyInfo?.email && typeof companyInfo.email === 'string') {
+    try {
+      const cleanEmail = companyInfo.email.trim();
+      const users = readJsonFile('users.json', []);
+      let updated = false;
+      for (const u of users) {
+        if (u.role === 'ADMIN' && (!u.email || u.id === 'user_super_admin' || u.username?.toLowerCase() === 'admin')) {
+          u.email = cleanEmail;
+          updated = true;
+        }
+      }
+      if (updated) {
+        writeJsonFile('users.json', users);
+      }
+    } catch (err) {
+      console.warn('[Sync Company Email To Admin User Error]:', err);
+    }
+  }
+
   res.json({ success });
 });
 

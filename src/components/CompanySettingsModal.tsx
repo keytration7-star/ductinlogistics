@@ -37,6 +37,15 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
       showToast('Vui lòng nhập Tên Công Ty / Doanh Nghiệp', 'warning');
       return;
     }
+    if (!info.email || !info.email.trim()) {
+      showToast('BẮT BUỘC: Vui lòng nhập Email Công Ty để nhận mã OTP khôi phục và thông báo!', 'warning');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(info.email.trim())) {
+      showToast('Định dạng Email không hợp lệ. Vui lòng kiểm tra lại!', 'warning');
+      return;
+    }
 
     StorageService.saveCompanyInfo(info);
     setIsSaved(true);
@@ -49,13 +58,15 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
     }, 400);
   };
 
+  const hasMissingEmail = !info.email || !info.email.trim();
+
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
         style={{ 
-          maxWidth: 580, 
+          maxWidth: 600, 
           width: '90%', 
           maxHeight: '90vh',
           display: 'flex',
@@ -104,6 +115,31 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         <form onSubmit={handleSubmit} style={{ overflowY: 'auto' }}>
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             
+            {/* Missing Email Alert Banner */}
+            {hasMissingEmail && (
+              <div style={{
+                background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                border: '1.5px solid #f59e0b',
+                borderRadius: 12,
+                padding: '12px 14px',
+                color: '#b45309',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
+              }}>
+                <span style={{ fontSize: 20 }}>⚠️</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: '#92400e' }}>
+                    CẢNH BÁO BẢO MẬT: CHƯA CẤU HÌNH EMAIL CÔNG TY
+                  </div>
+                  <div style={{ fontSize: 11.5, marginTop: 2, lineHeight: 1.4 }}>
+                    Hệ thống bắt buộc Admin phải nhập Email Công Ty để nhận mã OTP khi <strong>quên mật khẩu, đổi mật khẩu và xác thực 2 bước (2FA)</strong>.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {!isAdmin && (
               <div className="badge badge-warning" style={{
                 display: 'flex',
@@ -128,7 +164,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 type="text"
                 required
                 disabled={!isAdmin}
-                placeholder="Ví dụ: CÔNG TY TNHH LOGISTICS DỰC TÍN..."
+                placeholder="Ví dụ: CÔNG TY TNHH LOGISTICS ĐỨC TÍN..."
                 value={info.companyName}
                 onChange={(e) => setInfo({ ...info, companyName: e.target.value })}
                 className="input-field"
@@ -136,6 +172,34 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                 Xuất hiện ở dòng 1 của tiêu đề file Excel đối soát gửi cho Shop và Báo cáo tổng hợp.
+              </div>
+            </div>
+
+            {/* Email công ty - BẮT BUỘC */}
+            <div className="input-group">
+              <label className="input-label" style={{ fontWeight: 800, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📧 Email Công Ty (Nhận OTP Khôi Phục & Đổi Pass) (*)</span>
+                <span className="badge badge-danger" style={{ fontSize: 9.5, padding: '1px 5px' }}>BẮT BUỘC</span>
+              </label>
+              <input
+                type="email"
+                required
+                disabled={!isAdmin}
+                placeholder="Ví dụ: admin@autopro.io.vn hoặc cty@ductinlogistics.shop..."
+                value={info.email || ''}
+                onChange={(e) => setInfo({ ...info, email: e.target.value })}
+                className="input-field"
+                style={{
+                  padding: '10px 12px',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  borderColor: hasMissingEmail ? '#f59e0b' : undefined,
+                  background: hasMissingEmail ? '#fffdf5' : undefined,
+                  opacity: !isAdmin ? 0.75 : 1,
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#b45309', marginTop: 4, fontWeight: 600 }}>
+                Địa chỉ nhận mã xác thực OTP khi Quên mật khẩu, Đổi mật khẩu Admin và Xác thực 2 bước (2FA).
               </div>
             </div>
 
@@ -196,7 +260,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Globe size={14} color="var(--primary)" />
-                <span>Website / Email Khác (Không bắt buộc)</span>
+                <span>Website / Hotline Khác (Không bắt buộc)</span>
               </label>
               <input
                 type="text"
