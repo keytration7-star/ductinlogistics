@@ -968,23 +968,24 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
       
       {/* Top Banner with Carrier Theming & Floating Selected Shop Card */}
       <div className="glass-panel" style={{
-        padding: '10px 16px',
+        padding: '6px 14px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         gap: 12,
         background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
         border: '1.5px solid var(--border-color)',
-        borderRadius: 14,
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+        borderRadius: 12,
+        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+        minHeight: 46,
       }}>
-        {/* Left: Title, Carrier & Subtitle on a SINGLE COMPACT LINE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {/* Left: Title & Carrier on 1 Line */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
+            width: 28,
+            height: 28,
+            borderRadius: 7,
             background: carrierTheme.cardBg,
             color: carrierTheme.badgeText,
             border: `1.5px solid ${carrierTheme.cardBorder}`,
@@ -992,33 +993,28 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}>
-            <Store size={17} />
+            <Store size={15} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-              Quản Lý Danh Sách Shop & Biểu Giá Riêng
-            </h2>
-            {activeCarrierName && (
-              <span className="badge" style={{
-                fontSize: 10.5,
-                padding: '2px 8px',
-                fontWeight: 800,
-                background: carrierTheme.gradient,
-                color: '#ffffff',
-                boxShadow: carrierTheme.shadowGlow,
-                borderRadius: 6,
-                letterSpacing: '0.02em',
-                whiteSpace: 'nowrap',
-              }}>
-                HÃNG: {activeCarrierName.toUpperCase()}
-              </span>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              • {activeCarrierName ? `Quản lý biểu cước riêng hãng ${activeCarrierName}` : 'Cấu hình thông tin & biểu giá live'}
+          <strong style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+            Quản Lý Danh Sách Shop & Biểu Giá
+          </strong>
+          {activeCarrierName && (
+            <span className="badge" style={{
+              fontSize: 10,
+              padding: '2px 7px',
+              fontWeight: 800,
+              background: carrierTheme.gradient,
+              color: '#ffffff',
+              boxShadow: carrierTheme.shadowGlow,
+              borderRadius: 5,
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+            }}>
+              HÃNG: {activeCarrierName.toUpperCase()}
             </span>
-          </div>
+          )}
         </div>
 
         {/* Right: Floating 3D Selected Shop Card */}
@@ -1026,70 +1022,67 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
           <div style={{
             background: '#ffffff',
             border: `1.5px solid ${carrierTheme.cardBorder || 'var(--border-color)'}`,
-            borderRadius: 12,
-            padding: '7px 14px',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.09), 0 2px 6px rgba(0, 0, 0, 0.04)',
+            borderRadius: 10,
+            padding: '4px 10px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04)',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-            transition: 'all 0.2s ease',
+            gap: 10,
+            flexShrink: 0,
           }}>
             {/* Shop Badge & Title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
+                width: 30,
+                height: 30,
+                borderRadius: 7,
                 background: carrierTheme.gradient,
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 900,
-                fontSize: 11.5,
+                fontSize: 9.5,
                 boxShadow: carrierTheme.shadowGlow,
                 letterSpacing: '0.04em',
                 flexShrink: 0,
               }}>
                 SHOP
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>
-                    {editingShop.name || 'Shop chưa đặt tên'}
-                  </strong>
-                  {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
-                    <span
-                      style={{
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                        color: '#ffffff',
-                        border: '1px solid #b45309',
-                        fontSize: 9.5,
-                        fontWeight: 900,
-                        padding: '2px 7px',
-                        borderRadius: 5,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 3,
-                        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
-                        letterSpacing: '0.02em',
-                      }}
-                      title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
-                    >
-                      <GitMerge size={10} />
-                      <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                  Mã Shop: <strong className="mono" style={{ color: carrierTheme.accentColor, fontWeight: 800 }}>{editingShop.code}</strong>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <strong style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
+                  {editingShop.name || 'Shop chưa đặt tên'}
+                </strong>
+                {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
+                  <span
+                    style={{
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#ffffff',
+                      border: '1px solid #b45309',
+                      fontSize: 9,
+                      fontWeight: 900,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      boxShadow: '0 1px 4px rgba(217, 119, 6, 0.3)',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
+                  >
+                    <GitMerge size={9} />
+                    <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
+                  </span>
+                )}
+                <span className="mono" style={{ fontSize: 10.5, color: carrierTheme.accentColor, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  {editingShop.code}
+                </span>
               </div>
             </div>
 
             {/* Action Buttons inside Floating Card */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 6, borderLeft: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingLeft: 6, borderLeft: '1px solid var(--border-color)' }}>
               {(() => {
                 const usage = getShopUsage(editingShop.id);
                 const deleteTitle = usage.canDelete
@@ -1101,10 +1094,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                     onClick={() => handleDeleteEmptyShop(editingShop)}
                     className="btn btn-danger btn-sm"
                     disabled={!usage.canDelete}
-                    style={{ padding: '5px 9px', fontSize: 11, opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
+                    style={{ padding: '4px 8px', fontSize: 10.5, opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}
                     title={deleteTitle}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                     <span>Xóa shop trống</span>
                   </button>
                 );
@@ -1115,10 +1108,10 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                   type="button"
                   onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}
                   className="btn btn-secondary btn-sm"
-                  style={{ padding: '5px 9px', fontSize: 11, color: '#dc2626', borderColor: '#fca5a5' }}
+                  style={{ padding: '4px 8px', fontSize: 10.5, color: '#dc2626', borderColor: '#fca5a5', whiteSpace: 'nowrap' }}
                   title="Ngừng hoạt động, không xóa lịch sử"
                 >
-                  <Ban size={13} />
+                  <Ban size={12} />
                   <span>Ngừng hoạt động</span>
                 </button>
               )}
@@ -1128,8 +1121,8 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                 onClick={handleSaveCurrentShop}
                 className="btn btn-sm"
                 style={{
-                  padding: '6px 16px',
-                  fontSize: 12,
+                  padding: '5px 14px',
+                  fontSize: 11.5,
                   fontWeight: 800,
                   background: carrierTheme.gradient,
                   color: '#ffffff',
@@ -1137,11 +1130,12 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
-                  borderRadius: 7,
+                  gap: 4,
+                  borderRadius: 6,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <Save size={13} />
+                <Save size={12} />
                 <span>Lưu Thay Đổi</span>
               </button>
             </div>
@@ -1150,18 +1144,20 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
           <div style={{
             background: 'rgba(241, 245, 249, 0.6)',
             border: '1.5px dashed var(--border-color)',
-            borderRadius: 10,
-            padding: '7px 12px',
-            fontSize: 11.5,
+            borderRadius: 8,
+            padding: '4px 10px',
+            fontSize: 11,
             color: 'var(--text-muted)',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 5,
+            flexShrink: 0,
           }}>
             <span>👈 Chọn Shop bên trái để chỉnh sửa</span>
           </div>
         )}
       </div>
+
 
       {detectedNewShops.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '10px 14px', border: '1px solid var(--warning-border)', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)' }}>
