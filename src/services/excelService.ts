@@ -8,6 +8,19 @@ import { StorageService } from './storage';
 
 import { extractRowField } from './reconciliationService';
 
+export function getCleanCarrierTag(carrierId?: string, carrierName?: string): string {
+  const combined = `${carrierId || ''} ${carrierName || ''}`.toLowerCase().trim();
+  if (combined.includes('j&t') || combined.includes('jnt')) return 'J&T';
+  if (combined.includes('ghn') || combined.includes('giao hàng nhanh') || combined.includes('giaohangnhanh')) return 'GHN';
+  if (combined.includes('ghtk') || combined.includes('tiết kiệm') || combined.includes('tietkiem')) return 'GHTK';
+  if (combined.includes('viettel') || combined.includes('vtp')) return 'ViettelPost';
+  if (combined.includes('spx') || combined.includes('shopee')) return 'SPX';
+  if (combined.includes('vnpost') || combined.includes('ems')) return 'VNPost';
+  if (carrierName && carrierName.trim()) return carrierName.trim().replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
+  if (carrierId && carrierId.trim()) return carrierId.trim().toUpperCase().replace(/[^a-zA-Z0-9]/g, '_');
+  return 'NVC';
+}
+
 export function formatAnyDateValue(val: any): string {
   if (val === undefined || val === null || val === '') return '';
 
@@ -913,11 +926,12 @@ export const ExcelService = {
 
   async downloadShopStatement(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<void> {
     const carrierId = statement.orders[0]?.carrierId;
+    const carrierTag = getCleanCarrierTag(carrierId);
     const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
     const workbook = await this.createShopStatementWorkbook(statement, exportSettings);
     const buffer = await workbook.xlsx.writeBuffer();
     const cleanShopName = statement.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-    const filename = `Doi_Soat_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const filename = `Doi_Soat_${carrierTag}_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, filename);
   },
@@ -1207,24 +1221,26 @@ export const ExcelService = {
 
   async downloadMasterProfitReport(session: ReconciliationSession): Promise<void> {
     const carrierId = session.carrierId;
+    const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
     const exportSettings = carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings();
     const workbook = await this.createMasterProfitWorkbook(session, exportSettings);
     const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, filename);
   },
 
   async downloadAllStatementsZip(session: ReconciliationSession, onProgress?: (percent: number, currentShop: string) => void): Promise<void> {
     const zip = new JSZip();
-    const rootFolder = zip.folder(`DOI_SOAT_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
+    const rootFolder = zip.folder(`DOI_SOAT_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     const carrierId = session.carrierId;
     const exportSettings = carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings();
 
     const masterWb = await this.createMasterProfitWorkbook(session, exportSettings);
     const masterBuffer = await masterWb.xlsx.writeBuffer();
-    rootFolder?.file('00_BAO_CAO_TONG_HOP_LOI_NHUAN_NHA_GOM.xlsx', masterBuffer);
+    rootFolder?.file(`00_BAO_CAO_TONG_HOP_LOI_NHUAN_${carrierTag}.xlsx`, masterBuffer);
 
     const total = session.statements.length;
     for (let i = 0; i < total; i++) {
@@ -1238,16 +1254,17 @@ export const ExcelService = {
       
       const shopWb = await this.createShopStatementWorkbook(stmt, exportSettings);
       const shopBuffer = await shopWb.xlsx.writeBuffer();
-      const filename = `Doi_soat_${cleanShopFolder}.xlsx`;
+      const filename = `Doi_Soat_${carrierTag}_${cleanShopFolder}.xlsx`;
       
       shopSubFolder?.file(filename, shopBuffer);
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    saveAs(zipBlob, `Bo_Ho_So_Doi_Soat_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+    saveAs(zipBlob, `Bo_Ho_So_Doi_Soat_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
   },
 
   async downloadCtvCommissionReport(session: ReconciliationSession): Promise<void> {
+    const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
     const ctvMap = new Map<string, { ctvCode: string; ctvName: string; orders: any[] }>();
 
     for (const stmt of session.statements) {
@@ -1269,7 +1286,7 @@ export const ExcelService = {
     const wsSummary = workbook.addWorksheet('Tổng Hợp CTV');
 
     wsSummary.addRow(['BÁO CÁO HOA HỒNG CỘNG TÁC VIÊN (CTV)']);
-    wsSummary.addRow([`Kỳ đối soát: ${session.sessionName}`]);
+    wsSummary.addRow([`Hãng vận chuyển: ${session.carrierName || carrierTag} | Kỳ đối soát: ${session.sessionName}`]);
     wsSummary.addRow([]);
 
     const header = wsSummary.addRow(['STT', 'Mã CTV', 'Tên CTV', 'Số đơn', 'Tổng cân nặng (kg)', 'Hoa hồng được hưởng (VNĐ)']);
@@ -1299,7 +1316,7 @@ export const ExcelService = {
     totalRow.getCell(6).numFmt = '#,##0';
 
     const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `Bao_Cao_Hoa_Hong_CTV_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const filename = `Bao_Cao_Hoa_Hong_CTV_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, filename);
   },

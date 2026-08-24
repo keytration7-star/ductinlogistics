@@ -26,6 +26,7 @@ import {
 import { useToast, useConfirm } from './UIFeedback';
 import { getCarrierTheme } from './CarrierHubDashboard';
 import { StorageService } from '../services/storage';
+import { getCleanCarrierTag } from '../services/excelService';
 import type { 
   ReconciliationSession, 
   Shop, 
@@ -901,11 +902,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
         const buffer = await workbook.xlsx.writeBuffer();
         const safeShop = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-        zip.file(`BBDS_${safeShop}.xlsx`, buffer);
+        const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
+        zip.file(`BBDS_${carrierTag}_${safeShop}.xlsx`, buffer);
       }
 
+      const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `Goi_File_Doi_Soat_Shop_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+      saveAs(content, `Goi_File_Doi_Soat_${carrierTag}_${sessTitle.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
       showToast('Đã tải thành công trọn bộ file ZIP đóng khung chuyên nghiệp!', 'success');
     } catch (err: any) {
       showToast('Lỗi nén file ZIP: ' + err?.message, 'error');
