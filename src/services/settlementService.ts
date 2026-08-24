@@ -15,6 +15,22 @@ export interface StatementSettlement {
   amountShopOwes: number;
 }
 
+export function isShopMatching(
+  shop: { id?: string; code?: string; name?: string; nameAliases?: string[] } | null | undefined,
+  target: { shopId?: string; shopCode?: string; shopName?: string } | null | undefined
+): boolean {
+  if (!shop || !target) return false;
+  if (target.shopId && shop.id && (target.shopId === shop.id || target.shopId === shop.code)) return true;
+  if (target.shopCode && shop.code && target.shopCode === shop.code) return true;
+  if (target.shopName && shop.name) {
+    const tName = target.shopName.trim().toLowerCase();
+    const sName = shop.name.trim().toLowerCase();
+    if (tName === sName) return true;
+    if (shop.nameAliases && shop.nameAliases.some(alias => alias.trim().toLowerCase() === tName)) return true;
+  }
+  return false;
+}
+
 export function getStatementPaidAmount(
   statement: ShopSettlementStatement,
   sessionId: string | undefined,
@@ -23,17 +39,32 @@ export function getStatementPaidAmount(
   return payments
     .filter(payment => !payment.voidedAt
       && (!sessionId || payment.sessionId === sessionId)
-      && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode))
+      && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode || (payment.shopName && statement.shopName && payment.shopName.trim().toLowerCase() === statement.shopName.trim().toLowerCase()))
+      && payment.type !== 'COLLECTION')
+    .reduce((total, payment) => total + payment.amount, 0);
+}
+
+export function getStatementCollectedAmount(
+  statement: ShopSettlementStatement,
+  sessionId: string | undefined,
+  payments: PaymentRecord[]
+): number {
+  return payments
+    .filter(payment => !payment.voidedAt
+      && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode || (payment.shopName && statement.shopName && payment.shopName.trim().toLowerCase() === statement.shopName.trim().toLowerCase()))
+      && payment.type === 'COLLECTION'
+      && (!sessionId || payment.sessionId === sessionId || payment.sessionId === 'CASH_SETTLEMENT'))
     .reduce((total, payment) => total + payment.amount, 0);
 }
 
 export function calculateStatementSettlement(
   statement: ShopSettlementStatement,
-  paidAmount = 0
+  paidAmount = 0,
+  collectedAmount = 0
 ): StatementSettlement {
   const openingDebt = statement.previousDebt || 0;
   const currentPeriodNet = statement.totalNetPayout || 0;
-  const balanceBeforePayment = openingDebt + currentPeriodNet;
+  const balanceBeforePayment = openingDebt + currentPeriodNet + collectedAmount;
   const closingBalance = balanceBeforePayment - paidAmount;
   return {
     openingDebt,
@@ -47,9 +78,7 @@ export function calculateStatementSettlement(
 }
 
 /** Opening debt for a new statement is the seed balance plus every prior
- * period's net settlement and actual bank transfers.  The opening balance is
- * then snapshotted onto the new statement, never recalculated from a later
- * edit of the shop profile. */
+ * period's net settlement and actual bank transfers. */
 export function calculateOpeningDebtForNewStatement(
   shop: Shop,
   sessions: ReconciliationSession[],
@@ -57,13 +86,13 @@ export function calculateOpeningDebtForNewStatement(
 ): number {
   const statements = sessions
     .flatMap(session => (session.statements || [])
-      .filter(statement => statement.shopId === shop.id || statement.shopCode === shop.code)
+      .filter(statement => isShopMatching(shop, statement))
       .map(statement => ({ session, statement })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
   // Khoản thu tiền mặt / xóa nợ đã ghi nhận từ shop
   const collections = payments
-    .filter(p => !p.voidedAt && (p.shopId === shop.id || p.shopCode === shop.code) && p.type === 'COLLECTION')
+    .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'COLLECTION')
     .reduce((sum, p) => sum + p.amount, 0);
 
   const initialDebt = (shop.previousDebt ?? 0) + collections;
@@ -73,7 +102,7 @@ export function calculateOpeningDebtForNewStatement(
     const paid = payments
       .filter(payment => !payment.voidedAt
         && payment.sessionId === session.id
-        && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode)
+        && isShopMatching(shop, payment)
         && payment.type !== 'COLLECTION')
       .reduce((total, payment) => total + payment.amount, 0);
     return balance + statement.totalNetPayout - paid;
@@ -82,8 +111,7 @@ export function calculateOpeningDebtForNewStatement(
 
 /**
  * Dynamically calculates the live unpaid opening debt from all prior sessions
- * up to the current session. When a prior session is paid, subsequent sessions
- * automatically reflect the reduced opening balance in real time.
+ * up to the current session.
  */
 export function calculateLiveOpeningDebtForStatement(
   statement: ShopSettlementStatement,
@@ -92,23 +120,25 @@ export function calculateLiveOpeningDebtForStatement(
   payments: PaymentRecord[],
   shop?: Shop
 ): number {
-  const shopId = statement.shopId;
-  const shopCode = statement.shopCode;
+  const shopMatcher = shop || {
+    id: statement.shopId,
+    code: statement.shopCode,
+    name: statement.shopName,
+  };
 
   // Find all statements of this shop in sessions created strictly BEFORE currentSession
   const priorItems = sessions
     .filter(s => s.id !== currentSession.id && new Date(s.createdAt).getTime() < new Date(currentSession.createdAt).getTime())
     .flatMap(session => (session.statements || [])
-      .filter(st => st.shopId === shopId || st.shopCode === shopCode)
+      .filter(st => isShopMatching(shopMatcher, st))
       .map(st => ({ session, statement: st })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  // Khoản thu tiền mặt / xóa nợ đã ghi nhận trước hoặc tại thời điểm session này
+  // Khoản thu tiền mặt / xóa nợ đã ghi nhận
   const priorCollections = payments
     .filter(p => !p.voidedAt
-      && (p.shopId === shopId || p.shopCode === shopCode)
-      && p.type === 'COLLECTION'
-      && new Date(p.paidAt).getTime() <= new Date(currentSession.createdAt).getTime())
+      && isShopMatching(shopMatcher, p)
+      && p.type === 'COLLECTION')
     .reduce((sum, p) => sum + p.amount, 0);
 
   const initialDebt = (shop?.previousDebt ?? 0) + priorCollections;
@@ -120,7 +150,7 @@ export function calculateLiveOpeningDebtForStatement(
     const paid = payments
       .filter(payment => !payment.voidedAt
         && payment.sessionId === session.id
-        && (payment.shopId === shopId || payment.shopCode === shopCode)
+        && isShopMatching(shopMatcher, payment)
         && payment.type !== 'COLLECTION')
       .reduce((total, payment) => total + payment.amount, 0);
     return balance + st.totalNetPayout - paid;

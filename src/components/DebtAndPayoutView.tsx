@@ -26,7 +26,7 @@ import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
-import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount } from '../services/settlementService';
+import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, isShopMatching } from '../services/settlementService';
 import { BANK_CODES, VIETNAM_BANKS, toVietQrMemo } from '../constants/banks';
 
 interface DebtAndPayoutViewProps {
@@ -107,29 +107,32 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
   // Compute Payout Stats for a specific Shop in a Session (with live dynamic opening debt)
   const getStatementPayoutInfo = (sessionId: string, statement: ShopSettlementStatement) => {
-    const statementPayments = payments.filter(p => !p.voidedAt && p.sessionId === sessionId && p.shopId === statement.shopId);
+    const matchedShopObj = shops.find(s => isShopMatching(s, statement));
+    const shopMatcher = matchedShopObj || { id: statement.shopId, code: statement.shopCode, name: statement.shopName };
+    const statementPayments = payments.filter(p => !p.voidedAt && isShopMatching(shopMatcher, p));
     const paidAmount = getStatementPaidAmount(statement, sessionId, payments);
+    const collectedAmount = getStatementCollectedAmount(statement, sessionId, payments);
 
     const currentSession = sessions.find(s => s.id === sessionId);
-    const matchedShopObj = shops.find(s => s.id === statement.shopId || s.code === statement.shopCode || (s.name && statement.shopName && s.name.trim().toLowerCase() === statement.shopName.trim().toLowerCase()));
     
     const openingDebt = currentSession 
       ? calculateLiveOpeningDebtForStatement(statement, currentSession, sessions, payments, matchedShopObj)
       : (statement.previousDebt || 0);
 
     const stmtWithLiveDebt = { ...statement, previousDebt: openingDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount);
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount);
     const remainingDebt = settlement.amountPayable;
 
     let status: PayoutStatus = 'UNPAID';
     if (paidAmount >= settlement.balanceBeforePayment && settlement.balanceBeforePayment > 0) {
       status = 'PAID';
-    } else if (paidAmount > 0) {
-      status = 'PARTIAL';
+    } else if (paidAmount > 0 || collectedAmount > 0) {
+      status = (settlement.amountShopOwes === 0 && settlement.amountPayable === 0) ? 'PAID' : 'PARTIAL';
     }
 
     return { 
       paidAmount, 
+      collectedAmount,
       remainingDebt, 
       openingDebt,
       amountPayable: settlement.amountPayable,
@@ -917,7 +920,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                   let shopTotalNetPayout = 0;
 
                   sessions.forEach(sess => {
-                    const stmt = sess.statements.find(s => s.shopId === shop.id || s.shopCode === shop.code);
+                    const stmt = sess.statements.find(s => isShopMatching(shop, s));
                     if (stmt) {
                       shopTotalCod += stmt.totalCod;
                       shopTotalFee += (stmt.totalShopFee + stmt.totalShopOtherFee);
@@ -925,8 +928,8 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     }
                   });
 
-                  const shopPayments = payments.filter(p => !p.voidedAt && (p.shopId === shop.id || p.shopCode === shop.code));
-                  const shopPaidTotal = shopPayments.reduce((sum, p) => sum + p.amount, 0);
+                  const shopPayments = payments.filter(p => !p.voidedAt && isShopMatching(shop, p));
+                  const shopPaidTotal = shopPayments.filter(p => p.type !== 'COLLECTION').reduce((sum, p) => sum + p.amount, 0);
                   const currentBalance = calculateOpeningDebtForNewStatement(shop, sessions, payments);
                   const shopDebt = Math.max(0, currentBalance);
                   const isShopOwingGomdon = currentBalance < 0;

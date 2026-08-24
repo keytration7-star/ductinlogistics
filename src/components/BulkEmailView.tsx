@@ -422,9 +422,9 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         continue;
       }
 
-      const excelBase64 = EmailService.generateExcelBase64(stmt);
-      const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId);
-      const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId);
+      const excelBase64 = await EmailService.generateExcelBase64Async(stmt);
+      const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId, activeSession || undefined);
+      const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId, activeSession || undefined);
 
       const res = await EmailService.sendRealEmail({
         senderName: settings.senderName,
@@ -2287,7 +2287,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
               <div style={{ padding: 10, background: '#f1f5f9', maxHeight: 420, overflowY: 'auto' }}>
                 <iframe
                   title="Email HTML Preview"
-                  srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings, currentCarrierId)}
+                  srcDoc={EmailService.renderHtmlEmail(selectedStatement, settings, currentCarrierId, activeSession || undefined)}
                   style={{
                     width: '100%',
                     height: 520,
@@ -2527,9 +2527,9 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                               return;
                             }
                             setShopStatuses(prev => ({ ...prev, [stmt.shopId]: { status: 'sending' } }));
-                            const excelBase64 = EmailService.generateExcelBase64(stmt);
-                            const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId);
-                            const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId);
+                            const excelBase64 = await EmailService.generateExcelBase64Async(stmt);
+                            const { subject, body } = EmailService.renderEmail(stmt, settings, activeCarrierId, activeSession || undefined);
+                            const htmlBody = EmailService.renderHtmlEmail(stmt, settings, activeCarrierId, activeSession || undefined);
                             const toHeader = recipientEmails.join(', ');
 
                             const res = await EmailService.sendRealEmail({

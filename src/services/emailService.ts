@@ -2,6 +2,7 @@ import type { ShopSettlementStatement, EmailSettings, ReconciliationSession } fr
 import { StorageService } from './storage';
 import { getAuthHeaders } from './authService';
 import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from './settlementService';
+import { ExcelService } from './excelService';
 import * as XLSX from 'xlsx';
 
 export const EmailService = {
@@ -75,19 +76,39 @@ export const EmailService = {
       if (cTemplate.bodyTemplate) body = cTemplate.bodyTemplate;
     }
 
+    const totalAllFee = (statement.totalShopFee || 0) + (statement.totalShopOtherFee || 0);
+    const openingDebtStr = settlement.openingDebt < 0 
+      ? `-${this.formatMoney(Math.abs(settlement.openingDebt))}` 
+      : settlement.openingDebt > 0 
+      ? `+${this.formatMoney(settlement.openingDebt)}` 
+      : '0';
+
+    let debtNoteStr = '';
+    if (settlement.amountShopOwes > 0) {
+      debtNoteStr = `🔴 LƯU Ý CÔNG NỢ: Do tiền COD kỳ này không đủ bù cước và nợ cũ, Shop còn nợ công ty: ${this.formatMoney(settlement.amountShopOwes)} đ (Khoản nợ này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo).`;
+    } else if (settlement.openingDebt !== 0) {
+      debtNoteStr = `💡 Ghi chú: Số tiền thực chuyển đã được cấn trừ công nợ dồn đầu kỳ (${openingDebtStr} đ).`;
+    } else {
+      debtNoteStr = `✓ Đã quyết toán xong toàn bộ dòng tiền kỳ này.`;
+    }
+
     const replacements: Record<string, string> = {
       '{TEN_SHOP}': statement.shopName,
       '{MA_SHOP}': statement.shopCode,
       '{KY_DOI_SOAT}': statement.periodName,
       '{TONG_DON}': statement.totalOrders.toLocaleString('vi-VN'),
-      '{DON_THANH_CONG}': statement.deliveredOrders.toLocaleString('vi-VN'),
-      '{DON_HOAN}': statement.returnedOrders.toLocaleString('vi-VN'),
+      '{DON_THANH_CONG}': (statement.deliveredOrders || 0).toLocaleString('vi-VN'),
+      '{DON_GUI}': ((statement.shippingOrders || statement.totalOrders) || 0).toLocaleString('vi-VN'),
+      '{DON_HOAN}': (statement.returnedOrders || 0).toLocaleString('vi-VN'),
       '{TONG_COD}': this.formatMoney(statement.totalCod),
-      '{TONG_CUOC}': this.formatMoney(statement.totalShopFee),
+      '{TONG_CUOC}': this.formatMoney(totalAllFee),
+      '{CUOC_GUI}': this.formatMoney(statement.totalShopFee),
       '{PHI_KHAC}': this.formatMoney(statement.totalShopOtherFee),
       '{THUC_TRA}': this.formatMoney(settlement.amountPayable),
-      '{CONG_NO_DAU_KY}': this.formatMoney(settlement.openingDebt),
+      '{CONG_NO_DAU_KY}': openingDebtStr,
       '{SHOP_CON_NO}': this.formatMoney(settlement.amountShopOwes),
+      '{GHI_CHU_TAI_CHINH}': debtNoteStr,
+      '{GHI_CHU_NO}': debtNoteStr,
       '{NGAN_HANG}': statement.bankInfo.bankName || 'Chưa cập nhật',
       '{SO_TAI_KHOAN}': statement.bankInfo.accountNumber || 'Chưa cập nhật',
       '{CHU_TAI_KHOAN}': statement.bankInfo.accountHolder || statement.shopName,
@@ -188,7 +209,7 @@ export const EmailService = {
                       ${statement.totalOrders.toLocaleString('vi-VN')} <span style="font-size: 13px; font-weight: 500; color: #64748b;">đơn</span>
                     </div>
                     <div style="font-size: 11.5px; color: #16a34a; margin-top: 4px;">
-                      ✓ Thành công: <strong>${statement.deliveredOrders}</strong> • Hoàn: <strong>${statement.returnedOrders}</strong>
+                      ✓ Hoàn COD: <strong>${statement.deliveredOrders || 0}</strong> • Tính cước: <strong>${statement.shippingOrders || statement.totalOrders}</strong> • Hoàn: <strong>${statement.returnedOrders || 0}</strong>
                     </div>
                   </td>
 
@@ -200,7 +221,7 @@ export const EmailService = {
                       💵 Tổng Thu Hộ (COD)
                     </div>
                     <div style="font-size: 20px; font-weight: 800; color: #1d4ed8;">
-                      ${totalCodStr} <span style="font-size: 13px; font-weight: 500;">đ</span>
+                      +${totalCodStr} <span style="font-size: 13px; font-weight: 500;">đ</span>
                     </div>
                     <div style="font-size: 11.5px; color: #3b82f6; margin-top: 4px;">
                       Tiền hàng NVC đã thu từ khách
@@ -214,28 +235,28 @@ export const EmailService = {
                   <!-- Card 3: Total Shipping Fee -->
                   <td width="48%" style="background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; vertical-align: top;">
                     <div style="font-size: 11px; font-weight: 700; color: #c2410c; text-transform: uppercase; margin-bottom: 6px;">
-                      🏷️ Tổng Cước Vận Chuyển
+                      🏷️ Tổng Cước Phí Dịch Vụ
                     </div>
                     <div style="font-size: 20px; font-weight: 800; color: #ea580c;">
-                      ${totalFeeStr} <span style="font-size: 13px; font-weight: 500;">đ</span>
+                      -${totalFeeStr} <span style="font-size: 13px; font-weight: 500;">đ</span>
                     </div>
                     <div style="font-size: 11.5px; color: #f97316; margin-top: 4px;">
-                      Đã áp dụng bảng giá sỉ ưu đãi
+                      Đã áp dụng biểu phí sỉ gom đơn ưu đãi
                     </div>
                   </td>
 
                   <td width="4%"></td>
 
                   <!-- Card 4: Net Payout to Shop (Hero Card) -->
-                  <td width="48%" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #22c55e; border-radius: 12px; padding: 16px; vertical-align: top;">
-                    <div style="font-size: 11px; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 6px;">
-                      💰 THỰC CHUYỂN CHO SHOP
+                  <td width="48%" style="background: ${settlement.amountShopOwes > 0 ? 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'}; border: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; border-radius: 12px; padding: 16px; vertical-align: top;">
+                    <div style="font-size: 11px; font-weight: 800; color: ${settlement.amountShopOwes > 0 ? '#b91c1c' : '#15803d'}; text-transform: uppercase; margin-bottom: 6px;">
+                      ${settlement.amountShopOwes > 0 ? '🔴 SHOP CÒN NỢ CÔNG TY' : '💰 THỰC CHUYỂN CHO SHOP'}
                     </div>
-                    <div style="font-size: 22px; font-weight: 900; color: #15803d;">
-                      ${netPayoutStr} <span style="font-size: 14px; font-weight: 600;">đ</span>
+                    <div style="font-size: 22px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#dc2626' : '#15803d'};">
+                      ${settlement.amountShopOwes > 0 ? `-${this.formatMoney(settlement.amountShopOwes)}` : netPayoutStr} <span style="font-size: 14px; font-weight: 600;">đ</span>
                     </div>
-                    <div style="font-size: 11.5px; color: #166534; margin-top: 4px; font-weight: 600;">
-                      ${settlement.amountShopOwes > 0 ? `Shop còn nợ công ty ${this.formatMoney(settlement.amountShopOwes)} đ; chuyển kỳ sau` : '(= COD - Cước + công nợ đầu kỳ)'}
+                    <div style="font-size: 11.5px; color: ${settlement.amountShopOwes > 0 ? '#991b1b' : '#166534'}; margin-top: 4px; font-weight: 600;">
+                      ${settlement.amountShopOwes > 0 ? 'Chuyển trừ vào kỳ có COD tiếp theo' : settlement.openingDebt !== 0 ? `Đã cấn trừ công nợ đầu kỳ (${settlement.openingDebt > 0 ? '+' : ''}${this.formatMoney(settlement.openingDebt)} đ)` : '(= COD - Cước phí kỳ này)'}
                     </div>
                   </td>
                 </tr>
@@ -310,6 +331,25 @@ export const EmailService = {
     const { subject, body } = this.renderEmail(statement, settings);
     const email = statement.shopEmail || '';
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  },
+
+  async generateExcelBase64Async(statement: ShopSettlementStatement): Promise<string> {
+    try {
+      const carrierId = statement.orders[0]?.carrierId;
+      const exportSettings = carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings();
+      const workbook = await ExcelService.createShopStatementWorkbook(statement, exportSettings);
+      const buffer = await workbook.xlsx.writeBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    } catch (e) {
+      console.error('Error generating ExcelJS base64 for statement, falling back to simple sheet:', e);
+      return this.generateExcelBase64(statement);
+    }
   },
 
   generateExcelBase64(statement: ShopSettlementStatement): string {
