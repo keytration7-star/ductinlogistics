@@ -5,7 +5,7 @@ import { saveAs } from 'file-saver';
 import type { ShopSettlementStatement, ReconciliationSession, ExportColumnSettings, ExportColumnItem } from '../types';
 import { normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
-import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from './settlementService';
+
 import { extractRowField } from './reconciliationService';
 
 export function formatAnyDateValue(val: any): string {
@@ -704,21 +704,10 @@ export const ExcelService = {
       cell.border = thinBorder;
     });
 
-    // 🌟 Yêu cầu 3: Thống kê chi tiết Đơn Giao (BN đơn, BN tiền), Đơn Hoàn, Đơn GH1P, Công nợ cũ
-    const allSessions = StorageService.getSessions();
-    const allPayments = StorageService.getPaymentRecords();
-    const allShops = StorageService.getShops();
-    const currentSession = allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
-    const matchedShop = allShops.find(s => s.id === statement.shopId || s.code === statement.shopCode);
-
-    const liveOpeningDebt = currentSession
-      ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
-      : (statement.previousDebt || 0);
-
-    const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt);
-    const previousDebtVal = settlement.openingDebt;
-    const finalPayout = settlement.amountPayable;
+    // 🌟 Thống kê chi tiết Đơn Giao, Đơn Hoàn, Đơn GH1P, Công nợ
+    const previousDebtVal = statement.previousDebt || 0;
+    const finalPayout = Math.max(0, statement.totalNetPayout + previousDebtVal);
+    const amountShopOwes = Math.max(0, -(statement.totalNetPayout + previousDebtVal));
 
     const rowsData = [
       ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
@@ -730,7 +719,7 @@ export const ExcelService = {
       ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
       ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
       ['9. Công nợ đầu kỳ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop (cộng vào kỳ này)' : 'Không có công nợ đầu kỳ'],
-      ['10. Shop còn nợ công ty', settlement.amountShopOwes, 'VNĐ', settlement.amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
+      ['10. Shop còn nợ công ty', amountShopOwes, 'VNĐ', amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
     ];
 
     rowsData.forEach(r => {
@@ -748,7 +737,7 @@ export const ExcelService = {
     });
 
     // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text
-    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', settlement.amountShopOwes > 0 ? 'Không chuyển tiền; công nợ shop được chuyển sang kỳ sau' : 'Tiền công ty sẽ chuyển khoản cho Shop']);
+    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', amountShopOwes > 0 ? 'Không chuyển tiền; công nợ shop được chuyển sang kỳ sau' : 'Tiền công ty sẽ chuyển khoản cho Shop']);
     grandRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
       cell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFF0000' } }; // Red
@@ -1000,17 +989,12 @@ export const ExcelService = {
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
 
-    const allSessions = StorageService.getSessions();
-    const allPayments = StorageService.getPaymentRecords();
-    const allShops = StorageService.getShops();
-
     let masterTotalPayable = 0;
 
     session.statements.forEach((stmt, idx) => {
-      const matchedShop = allShops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode);
-      const liveOpeningDebt = calculateLiveOpeningDebtForStatement(stmt, session, allSessions, allPayments, matchedShop);
-      const settlement = calculateStatementSettlement({ ...stmt, previousDebt: liveOpeningDebt });
-      masterTotalPayable += settlement.amountPayable;
+      const debtVal = stmt.previousDebt || 0;
+      const shopPayable = Math.max(0, stmt.totalNetPayout + debtVal);
+      masterTotalPayable += shopPayable;
 
       const addedRow = wsMaster.addRow([
         idx + 1,
@@ -1022,7 +1006,7 @@ export const ExcelService = {
         stmt.totalShopFee + stmt.totalShopOtherFee,
         stmt.totalNvcCost,
         stmt.totalProfit,
-        settlement.amountPayable,
+        shopPayable,
         `${stmt.bankInfo.bankName} - ${stmt.bankInfo.accountNumber} (${stmt.bankInfo.accountHolder})`,
       ]);
 
