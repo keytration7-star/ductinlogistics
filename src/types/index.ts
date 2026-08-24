@@ -227,6 +227,7 @@ export interface ShopSettlementStatement {
   periodName: string;
   totalOrders: number;
   deliveredOrders: number;
+  shippingOrders?: number;      // Số đơn phát sinh gửi hàng tính cước trong kỳ
   returnedOrders: number;
   inTransitOrders: number;
   partialOrders?: number;       // Số đơn GH1P (Giao 1 phần)

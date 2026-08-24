@@ -701,6 +701,7 @@ export function performReconciliation(
         periodName: sessionName,
         totalOrders: 0,
         deliveredOrders: 0,
+        shippingOrders: 0,
         returnedOrders: 0,
         inTransitOrders: 0,
         partialOrders: 0,
@@ -726,21 +727,31 @@ export function performReconciliation(
     const stmt = statementsMap.get(key)!;
     stmt.orders.push(order);
     stmt.totalOrders += 1;
-    if (order.status === 'delivered') {
+
+    // 1. Đơn giao thành công (Hoàn COD): Đơn có phát sinh tiền COD thu hộ
+    if ((order.codAmount || 0) > 0) {
       stmt.deliveredOrders += 1;
       stmt.totalDeliveredCod = (stmt.totalDeliveredCod || 0) + order.codAmount;
-      stmt.totalDeliveredFee = (stmt.totalDeliveredFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
-    } else if (order.status === 'returned' || order.status === 'returning') {
+    }
+
+    // 2. Đơn gửi trong kỳ (Tính cước): Đơn có phát sinh cước vận chuyển
+    if (((order.shopCalculatedFee || 0) + (order.shopOtherFee || 0)) > 0) {
+      stmt.shippingOrders = (stmt.shippingOrders || 0) + 1;
+      stmt.totalDeliveredFee = (stmt.totalDeliveredFee || 0) + (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
+    }
+
+    // 3. Đơn chuyển hoàn
+    if (order.status === 'returned' || order.status === 'returning') {
       stmt.returnedOrders += 1;
-      stmt.totalReturnedFee = (stmt.totalReturnedFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
-    } else {
+      stmt.totalReturnedFee = (stmt.totalReturnedFee || 0) + (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
+    } else if (order.status === 'in_transit') {
       stmt.inTransitOrders += 1;
     }
 
     if (order.isPartialDelivery) {
       stmt.partialOrders = (stmt.partialOrders || 0) + 1;
       stmt.totalPartialCod = (stmt.totalPartialCod || 0) + order.codAmount;
-      stmt.totalPartialFee = (stmt.totalPartialFee || 0) + order.shopCalculatedFee + order.shopOtherFee;
+      stmt.totalPartialFee = (stmt.totalPartialFee || 0) + (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
     }
 
     stmt.totalCod += order.codAmount;
