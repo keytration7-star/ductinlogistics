@@ -590,7 +590,7 @@ export const StorageService = {
         };
       } catch { }
     }
-    return this.getExportColumnSettings();
+    return JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
   },
 
   saveCarrierExportSettings(carrierId: string, settings: ExportColumnSettings): void {
