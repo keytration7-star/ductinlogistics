@@ -20,13 +20,14 @@ import {
   Copy,
   Mail,
   MessageSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import type { ReconciliationSession, Shop, UserAccount, PaymentRecord, PayoutStatus, ShopSettlementStatement } from '../types';
 import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
-import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, isShopMatching } from '../services/settlementService';
+import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from '../services/settlementService';
 import { BANK_CODES, VIETNAM_BANKS, toVietQrMemo } from '../constants/banks';
 
 interface DebtAndPayoutViewProps {
@@ -77,6 +78,14 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
   const [clearDebtNote, setClearDebtNote] = useState<string>('');
   const [shopSearchQuery, setShopSearchQuery] = useState<string>('');
 
+  // Add Debt Modal State (Thêm nợ cho từng Shop)
+  const [isAddDebtModalOpen, setIsAddDebtModalOpen] = useState(false);
+  const [targetAddDebtShop, setTargetAddDebtShop] = useState<Shop | null>(null);
+  const [addDebtAmount, setAddDebtAmount] = useState<string>('');
+  const [addDebtReason, setAddDebtReason] = useState<string>('Phụ thu cước phát sinh');
+  const [addDebtRef, setAddDebtRef] = useState<string>('');
+  const [addDebtNote, setAddDebtNote] = useState<string>('');
+
   // Load Payments from Storage
   const reloadPayments = () => {
     const list = StorageService.getPaymentRecords();
@@ -112,6 +121,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     const statementPayments = payments.filter(p => !p.voidedAt && isShopMatching(shopMatcher, p));
     const paidAmount = getStatementPaidAmount(statement, sessionId, payments);
     const collectedAmount = getStatementCollectedAmount(statement, sessionId, payments);
+    const debtAddedAmount = getStatementDebtAddedAmount(statement, sessionId, payments);
 
     const currentSession = sessions.find(s => s.id === sessionId);
     
@@ -120,7 +130,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       : (statement.previousDebt || 0);
 
     const stmtWithLiveDebt = { ...statement, previousDebt: openingDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount);
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
     const remainingDebt = settlement.amountPayable;
 
     let status: PayoutStatus = 'UNPAID';
@@ -133,6 +143,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     return { 
       paidAmount, 
       collectedAmount,
+      debtAddedAmount,
       remainingDebt, 
       openingDebt,
       amountPayable: settlement.amountPayable,
@@ -292,6 +303,58 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
 
     showToast(`Đã ghi nhận thu ${formatVND(cleanNum)} và xóa nợ thành công cho Shop ${targetClearShop.name}!`, 'success');
     setIsClearDebtModalOpen(false);
+    reloadPayments();
+    if (onRefreshSessions) onRefreshSessions();
+  };
+
+  // Open Add Debt Modal (Thêm nợ cho Shop)
+  const handleOpenAddDebt = (shop?: Shop) => {
+    const selectedShop = shop || shops[0];
+    setTargetAddDebtShop(selectedShop || null);
+    setAddDebtAmount('');
+    setAddDebtReason('Phụ thu cước phát sinh');
+    setAddDebtRef(`NO_${Date.now().toString().slice(-6)}`);
+    setAddDebtNote('Phụ thu phát sinh ngoài kỳ đối soát');
+    setIsAddDebtModalOpen(true);
+  };
+
+  // Submit Add Debt Record
+  const handleSubmitAddDebt = () => {
+    if (!targetAddDebtShop) {
+      showToast('Vui lòng chọn Shop cần thêm nợ.', 'warning');
+      return;
+    }
+    const cleanNum = parseFloat(addDebtAmount.replace(/[^0-9.]/g, ''));
+    if (!cleanNum || cleanNum <= 0) {
+      showToast('Vui lòng nhập số tiền nợ hợp lệ lớn hơn 0.', 'warning');
+      return;
+    }
+
+    StorageService.savePaymentRecord({
+      sessionId: 'CASH_SETTLEMENT',
+      sessionName: `Ghi Nhận Thêm Nợ (${addDebtReason})`,
+      shopId: targetAddDebtShop.id,
+      shopCode: targetAddDebtShop.code,
+      shopName: targetAddDebtShop.name,
+      amount: cleanNum,
+      paymentMethod: 'DEBT_ADD',
+      type: 'DEBT_ADD',
+      paidByUsername: currentUser.username,
+      paidByFullName: currentUser.fullName,
+      bankName: 'Ghi nợ nội bộ',
+      transactionRef: addDebtRef || `PN_${Date.now()}`,
+      note: `${addDebtReason}: ${addDebtNote || 'Ghi nhận thêm nợ vào tài khoản'}`,
+    });
+
+    AuditService.logAction(
+      currentUser.username,
+      currentUser.role,
+      'ADD_SHOP_DEBT',
+      `Ghi nhận thêm nợ ${cleanNum.toLocaleString('vi-VN')}đ cho Shop ${targetAddDebtShop.code} (${targetAddDebtShop.name}), lý do: ${addDebtReason}.`
+    );
+
+    showToast(`Đã ghi nhận thêm nợ ${formatVND(cleanNum)} thành công cho Shop ${targetAddDebtShop.name}!`, 'success');
+    setIsAddDebtModalOpen(false);
     reloadPayments();
     if (onRefreshSessions) onRefreshSessions();
   };
@@ -881,6 +944,27 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 <DollarSign size={15} />
                 <span>+ Thu Tiền Mặt / Xóa Nợ</span>
               </button>
+
+              {/* Quick Add Debt Button */}
+              <button
+                type="button"
+                onClick={() => handleOpenAddDebt()}
+                className="btn btn-danger"
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  padding: '7px 14px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#ffffff',
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <AlertTriangle size={15} />
+                <span>+ Thêm Nợ Cho Shop</span>
+              </button>
             </div>
           </div>
 
@@ -999,39 +1083,60 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                         )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {isShopOwingGomdon ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
                           <button
                             type="button"
-                            onClick={() => handleOpenClearDebt(shop, currentBalance)}
-                            className="btn btn-warning btn-sm"
+                            onClick={() => handleOpenAddDebt(shop)}
+                            className="btn btn-danger btn-sm"
                             style={{
                               fontSize: 11,
-                              padding: '4px 10px',
-                              fontWeight: 800,
-                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                              color: '#ffffff',
-                              boxShadow: '0 2px 6px rgba(245, 158, 11, 0.25)',
+                              padding: '4px 8px',
+                              fontWeight: 700,
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 4,
+                              gap: 3,
                               whiteSpace: 'nowrap',
                             }}
-                            title="Ghi nhận khách đã thanh toán tiền mặt và xóa nợ cước tồn"
+                            title="Ghi nhận thêm nợ phát sinh cho Shop này"
                           >
-                            <DollarSign size={13} />
-                            <span>Thu Tiền Mặt / Xóa Nợ</span>
+                            <AlertTriangle size={12} />
+                            <span>+ Thêm Nợ</span>
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenClearDebt(shop, currentBalance)}
-                            className="btn btn-secondary btn-sm"
-                            style={{ fontSize: 11, padding: '3px 8px', color: 'var(--text-muted)' }}
-                            title="Ghi nhận thu tiền mặt phát sinh khác"
-                          >
-                            <span>+ Thu Tiền Mặt</span>
-                          </button>
-                        )}
+
+                          {isShopOwingGomdon ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenClearDebt(shop, currentBalance)}
+                              className="btn btn-warning btn-sm"
+                              style={{
+                                fontSize: 11,
+                                padding: '4px 10px',
+                                fontWeight: 800,
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: '#ffffff',
+                                boxShadow: '0 2px 6px rgba(245, 158, 11, 0.25)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Ghi nhận khách đã thanh toán tiền mặt và xóa nợ cước tồn"
+                            >
+                              <DollarSign size={13} />
+                              <span>Thu Tiền Mặt / Xóa Nợ</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenClearDebt(shop, currentBalance)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 11, padding: '4px 8px', color: 'var(--text-muted)' }}
+                              title="Ghi nhận thu tiền mặt phát sinh khác"
+                            >
+                              <span>Thu Tiền</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1088,12 +1193,17 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <strong style={{ fontSize: 12, color: pay.type === 'COLLECTION' ? '#b45309' : 'var(--primary)' }}>
+                          <strong style={{ fontSize: 12, color: pay.type === 'COLLECTION' ? '#b45309' : pay.type === 'DEBT_ADD' ? '#dc2626' : 'var(--primary)' }}>
                             {pay.sessionName || pay.sessionId}
                           </strong>
                           {pay.type === 'COLLECTION' && (
                             <span className="badge badge-warning" style={{ fontSize: 9.5, padding: '1px 5px', fontWeight: 800 }}>
                               💵 Thu Tiền Mặt / Xóa Nợ
+                            </span>
+                          )}
+                          {pay.type === 'DEBT_ADD' && (
+                            <span className="badge badge-danger" style={{ fontSize: 9.5, padding: '1px 5px', fontWeight: 800 }}>
+                              ⚠️ Thêm Nợ Shop
                             </span>
                           )}
                         </div>
@@ -1105,15 +1215,15 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       <td className="mono" style={{ 
                         fontSize: 14, 
                         fontWeight: 800, 
-                        color: pay.voidedAt ? 'var(--text-dim)' : pay.type === 'COLLECTION' ? '#b45309' : 'var(--success)', 
+                        color: pay.voidedAt ? 'var(--text-dim)' : pay.type === 'COLLECTION' ? '#b45309' : pay.type === 'DEBT_ADD' ? '#dc2626' : 'var(--success)', 
                         textAlign: 'right', 
                         textDecoration: pay.voidedAt ? 'line-through' : 'none' 
                       }}>
-                        {pay.type === 'COLLECTION' ? `+${formatVND(pay.amount)}` : formatVND(pay.amount)}
+                        {pay.type === 'COLLECTION' ? `+${formatVND(pay.amount)}` : pay.type === 'DEBT_ADD' ? `-${formatVND(pay.amount)}` : formatVND(pay.amount)}
                       </td>
                       <td>
-                        <span className={`badge ${pay.type === 'COLLECTION' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 10 }}>
-                          {pay.bankName || (pay.type === 'COLLECTION' ? 'Tiền mặt' : 'N/A')}
+                        <span className={`badge ${pay.type === 'DEBT_ADD' ? 'badge-danger' : pay.type === 'COLLECTION' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 10 }}>
+                          {pay.bankName || (pay.type === 'DEBT_ADD' ? 'Ghi nợ nội bộ' : pay.type === 'COLLECTION' ? 'Tiền mặt' : 'N/A')}
                         </span>
                       </td>
                       <td className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{pay.transactionRef || '---'}</td>
@@ -2268,6 +2378,206 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                 >
                   <CheckCircle size={16} />
                   <span>Xác Nhận Thu Tiền & Xóa Nợ</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD DEBT MODAL (THÊM NỢ CHO SHOP) */}
+      {isAddDebtModalOpen && targetAddDebtShop && (
+        <div 
+          className="modal-overlay"
+          style={{ 
+            zIndex: 99999, 
+            position: 'fixed', 
+            inset: 0, 
+            background: 'rgba(15, 23, 42, 0.7)', 
+            backdropFilter: 'blur(6px)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: 16 
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddDebtModalOpen(false);
+          }}
+        >
+          <div 
+            className="modal-content glass-panel" 
+            style={{ 
+              maxWidth: 520, 
+              width: '100%', 
+              padding: 0, 
+              borderRadius: 'var(--radius-lg)', 
+              overflow: 'hidden', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', 
+              border: '1px solid var(--border-color)',
+              background: '#ffffff',
+              zIndex: 100000
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 50%, #ef4444 100%)',
+              color: '#ffffff',
+              padding: '18px 22px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.2)', padding: 8, borderRadius: 10, display: 'flex' }}>
+                  <AlertTriangle size={20} color="#ffffff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#ffffff' }}>Ghi Nhận Thêm Nợ Cho Khách Hàng</h3>
+                  <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>Khoản nợ này sẽ làm tăng nợ và tự động trừ vào các kỳ đối soát có COD tiếp theo</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddDebtModalOpen(false)}
+                className="btn btn-ghost btn-sm"
+                style={{ color: '#ffffff', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Shop Selector Dropdown */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Chọn Shop / Khách Hàng Cần Thêm Nợ: *
+                </label>
+                <select
+                  value={targetAddDebtShop.id}
+                  onChange={(e) => {
+                    const found = shops.find(s => s.id === e.target.value);
+                    if (found) {
+                      setTargetAddDebtShop(found);
+                    }
+                  }}
+                  className="input-field"
+                  style={{ fontSize: 13, fontWeight: 700, background: '#fff' }}
+                >
+                  {shops.map(s => {
+                    const balance = calculateOpeningDebtForNewStatement(s, sessions, payments);
+                    const debtLabel = balance < 0 
+                      ? ` [Đang nợ: ${formatVND(Math.abs(balance))}]` 
+                      : balance > 0 
+                      ? ` [Dư tiền: ${formatVND(balance)}]` 
+                      : ' [0 đ]';
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code}) - {s.phone || 'Không có SĐT'}{debtLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Amount Input */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Số tiền nợ phát sinh thêm (VNĐ) *
+                </label>
+                <input
+                  type="text"
+                  value={addDebtAmount}
+                  onChange={(e) => setAddDebtAmount(e.target.value)}
+                  placeholder="Ví dụ: 100000"
+                  className="input-field mono"
+                  style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', background: '#fff' }}
+                />
+              </div>
+
+              {/* Reason Selector */}
+              <div>
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 6, display: 'block' }}>
+                  Lý do ghi nhận thêm nợ:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {[
+                    'Phụ thu cước phát sinh',
+                    'Tạm ứng tiền mặt / COD',
+                    'Bồi thường đơn hàng',
+                    'Phí bảo quản / dịch vụ khác'
+                  ].map(reason => (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setAddDebtReason(reason)}
+                      className={`btn btn-sm ${addDebtReason === reason ? 'btn-danger' : 'btn-secondary'}`}
+                      style={{ fontSize: 11.5, padding: '7px 8px', fontWeight: 700, textAlign: 'left' }}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Receipt / Ref ID */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Mã chứng từ / Phiếu nợ:
+                </label>
+                <input
+                  type="text"
+                  value={addDebtRef}
+                  onChange={(e) => setAddDebtRef(e.target.value)}
+                  placeholder="Ví dụ: NO260824001"
+                  className="input-field mono"
+                  style={{ fontSize: 12.5, background: '#fff' }}
+                />
+              </div>
+
+              {/* Note Input */}
+              <div className="input-group">
+                <label className="input-label" style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  Ghi chú chi tiết:
+                </label>
+                <input
+                  type="text"
+                  value={addDebtNote}
+                  onChange={(e) => setAddDebtNote(e.target.value)}
+                  placeholder="Ghi chú mã đơn, nguyên nhân phát sinh nợ..."
+                  className="input-field"
+                  style={{ fontSize: 12.5, background: '#fff' }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6, paddingTop: 14, borderTop: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddDebtModalOpen(false)}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 16px', fontWeight: 600 }}
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitAddDebt}
+                  className="btn btn-danger"
+                  style={{
+                    padding: '8px 20px',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <AlertTriangle size={16} />
+                  <span>Xác Nhận Thêm Nợ</span>
                 </button>
               </div>
             </div>

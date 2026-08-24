@@ -40,7 +40,8 @@ export function getStatementPaidAmount(
     .filter(payment => !payment.voidedAt
       && (!sessionId || payment.sessionId === sessionId)
       && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode || (payment.shopName && statement.shopName && payment.shopName.trim().toLowerCase() === statement.shopName.trim().toLowerCase()))
-      && payment.type !== 'COLLECTION')
+      && payment.type !== 'COLLECTION'
+      && payment.type !== 'DEBT_ADD')
     .reduce((total, payment) => total + payment.amount, 0);
 }
 
@@ -57,14 +58,28 @@ export function getStatementCollectedAmount(
     .reduce((total, payment) => total + payment.amount, 0);
 }
 
+export function getStatementDebtAddedAmount(
+  statement: ShopSettlementStatement,
+  sessionId: string | undefined,
+  payments: PaymentRecord[]
+): number {
+  return payments
+    .filter(payment => !payment.voidedAt
+      && (payment.shopId === statement.shopId || payment.shopCode === statement.shopCode || (payment.shopName && statement.shopName && payment.shopName.trim().toLowerCase() === statement.shopName.trim().toLowerCase()))
+      && payment.type === 'DEBT_ADD'
+      && (!sessionId || payment.sessionId === sessionId || payment.sessionId === 'CASH_SETTLEMENT'))
+    .reduce((total, payment) => total + payment.amount, 0);
+}
+
 export function calculateStatementSettlement(
   statement: ShopSettlementStatement,
   paidAmount = 0,
-  collectedAmount = 0
+  collectedAmount = 0,
+  debtAddedAmount = 0
 ): StatementSettlement {
   const openingDebt = statement.previousDebt || 0;
   const currentPeriodNet = statement.totalNetPayout || 0;
-  const balanceBeforePayment = openingDebt + currentPeriodNet + collectedAmount;
+  const balanceBeforePayment = openingDebt + currentPeriodNet + collectedAmount - debtAddedAmount;
   const closingBalance = balanceBeforePayment - paidAmount;
   return {
     openingDebt,
@@ -90,12 +105,16 @@ export function calculateOpeningDebtForNewStatement(
       .map(statement => ({ session, statement })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  // Khoản thu tiền mặt / xóa nợ đã ghi nhận từ shop
+  // Khoản thu tiền mặt / xóa nợ (+) và khoản thêm nợ (-) đã ghi nhận từ shop
   const collections = payments
     .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'COLLECTION')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const initialDebt = (shop.previousDebt ?? 0) + collections;
+  const debtAdds = payments
+    .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'DEBT_ADD')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const initialDebt = (shop.previousDebt ?? 0) + collections - debtAdds;
   if (statements.length === 0) return initialDebt;
 
   return statements.reduce((balance, { session, statement }) => {
@@ -103,7 +122,8 @@ export function calculateOpeningDebtForNewStatement(
       .filter(payment => !payment.voidedAt
         && payment.sessionId === session.id
         && isShopMatching(shop, payment)
-        && payment.type !== 'COLLECTION')
+        && payment.type !== 'COLLECTION'
+        && payment.type !== 'DEBT_ADD')
       .reduce((total, payment) => total + payment.amount, 0);
     return balance + statement.totalNetPayout - paid;
   }, initialDebt);
@@ -134,14 +154,20 @@ export function calculateLiveOpeningDebtForStatement(
       .map(st => ({ session, statement: st })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  // Khoản thu tiền mặt / xóa nợ đã ghi nhận
+  // Khoản thu tiền mặt / xóa nợ (+) và khoản thêm nợ (-) đã ghi nhận
   const priorCollections = payments
     .filter(p => !p.voidedAt
       && isShopMatching(shopMatcher, p)
       && p.type === 'COLLECTION')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const initialDebt = (shop?.previousDebt ?? 0) + priorCollections;
+  const priorDebtAdds = payments
+    .filter(p => !p.voidedAt
+      && isShopMatching(shopMatcher, p)
+      && p.type === 'DEBT_ADD')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const initialDebt = (shop?.previousDebt ?? 0) + priorCollections - priorDebtAdds;
   if (priorItems.length === 0) {
     return initialDebt;
   }
@@ -151,7 +177,8 @@ export function calculateLiveOpeningDebtForStatement(
       .filter(payment => !payment.voidedAt
         && payment.sessionId === session.id
         && isShopMatching(shopMatcher, payment)
-        && payment.type !== 'COLLECTION')
+        && payment.type !== 'COLLECTION'
+        && payment.type !== 'DEBT_ADD')
       .reduce((total, payment) => total + payment.amount, 0);
     return balance + st.totalNetPayout - paid;
   }, initialDebt);

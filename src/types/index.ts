@@ -210,8 +210,8 @@ export interface PaymentRecord {
   bankName?: string;          // Ngân hàng chuyển
   transactionRef?: string;    // Mã giao dịch ngân hàng (FT...) hoặc Mã phiếu thu
   note?: string;              // Ghi chú thanh toán / Thu tiền mặt / Xóa nợ
-  paymentMethod?: 'BANK_TRANSFER' | 'CASH' | 'DEBT_CLEAR'; // Chuyển khoản, Tiền mặt, Xóa nợ
-  type?: 'PAYOUT' | 'COLLECTION'; // PAYOUT: Trả tiền cho shop, COLLECTION: Thu tiền mặt/xóa nợ từ shop
+  paymentMethod?: 'BANK_TRANSFER' | 'CASH' | 'DEBT_CLEAR' | 'DEBT_ADD'; // Chuyển khoản, Tiền mặt, Xóa nợ, Thêm nợ
+  type?: 'PAYOUT' | 'COLLECTION' | 'DEBT_ADD'; // PAYOUT: Trả tiền shop, COLLECTION: Thu tiền/xóa nợ, DEBT_ADD: Thêm khoản nợ mới
   voidedAt?: string;          // Thời điểm hủy/đảo bản ghi; không xóa lịch sử tài chính
   voidedByUsername?: string;
   voidedByFullName?: string;
