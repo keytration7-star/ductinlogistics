@@ -979,50 +979,45 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
         borderRadius: 14,
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
       }}>
-        {/* Left: Title & Carrier */}
-        <div style={{ minWidth: 260 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{
-              width: 34,
-              height: 34,
-              borderRadius: 8,
-              background: carrierTheme.cardBg,
-              color: carrierTheme.badgeText,
-              border: `1.5px solid ${carrierTheme.cardBorder}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
-            }}>
-              <Store size={18} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
-                  Quản Lý Danh Sách Shop & Biểu Giá Riêng
-                </h2>
-                {activeCarrierName && (
-                  <span className="badge" style={{
-                    fontSize: 11,
-                    padding: '3px 10px',
-                    fontWeight: 800,
-                    background: carrierTheme.gradient,
-                    color: '#ffffff',
-                    boxShadow: carrierTheme.shadowGlow,
-                    borderRadius: 6,
-                    letterSpacing: '0.02em',
-                  }}>
-                    HÃNG: {activeCarrierName.toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                {activeCarrierName
-                  ? `Không gian quản lý độc lập danh sách Shop & Biểu cước riêng hãng ${activeCarrierName}.`
-                  : 'Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết.'}
-              </p>
-            </div>
+        {/* Left: Title, Carrier & Subtitle on a SINGLE COMPACT LINE */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: carrierTheme.cardBg,
+            color: carrierTheme.badgeText,
+            border: `1.5px solid ${carrierTheme.cardBorder}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+          }}>
+            <Store size={17} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+              Quản Lý Danh Sách Shop & Biểu Giá Riêng
+            </h2>
+            {activeCarrierName && (
+              <span className="badge" style={{
+                fontSize: 10.5,
+                padding: '2px 8px',
+                fontWeight: 800,
+                background: carrierTheme.gradient,
+                color: '#ffffff',
+                boxShadow: carrierTheme.shadowGlow,
+                borderRadius: 6,
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+              }}>
+                HÃNG: {activeCarrierName.toUpperCase()}
+              </span>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              • {activeCarrierName ? `Quản lý biểu cước riêng hãng ${activeCarrierName}` : 'Cấu hình thông tin & biểu giá live'}
+            </span>
           </div>
         </div>
 
