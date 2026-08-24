@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, AlertCircle, Delete } from 'lucide-react';
+import { Lock, LogOut, AlertCircle, Delete, Eye, EyeOff, KeyRound, Smartphone } from 'lucide-react';
 import type { UserAccount } from '../types';
 import { AuthService } from '../services/authService';
 
@@ -16,6 +16,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
 }) => {
   const [pin, setPin] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [unlockMode, setUnlockMode] = useState<'PIN' | 'PASSWORD'>(currentUser.hasPin ? 'PIN' : 'PASSWORD');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +35,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
       if (ok) {
         onUnlock();
       } else {
-        setErrorMsg('Mã PIN không chính xác. Vui lòng thử lại!');
+        setErrorMsg('Mã PIN không chính xác (hoặc tài khoản chưa cài đặt mã PIN này). Vui lòng thử lại hoặc mở bằng Mật khẩu!');
         setPin('');
       }
     } catch {
@@ -57,7 +58,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
       if (ok) {
         onUnlock();
       } else {
-        setErrorMsg('Mật khẩu không chính xác.');
+        setErrorMsg('Mật khẩu không chính xác. Vui lòng kiểm tra lại!');
         setPassword('');
       }
     } catch {
@@ -100,8 +101,8 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
         background: '#ffffff',
         borderRadius: 24,
         width: '100%',
-        maxWidth: 400,
-        padding: '32px 28px',
+        maxWidth: 420,
+        padding: '30px 26px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
         border: '1.5px solid rgba(226, 232, 240, 0.8)',
         textAlign: 'center',
@@ -109,25 +110,90 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
       }}>
         {/* Shield Icon Lock Header */}
         <div style={{
-          width: 64,
-          height: 64,
-          borderRadius: 20,
+          width: 58,
+          height: 58,
+          borderRadius: 18,
           background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
           color: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '0 auto 16px',
+          margin: '0 auto 14px',
           boxShadow: '0 10px 20px -5px rgba(79, 70, 229, 0.4)',
         }}>
-          <Lock size={30} />
+          <Lock size={28} />
         </div>
 
-        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1e293b', margin: '0 0 4px 0' }}>
+        <h2 style={{ fontSize: 19, fontWeight: 900, color: '#1e293b', margin: '0 0 4px 0' }}>
           Màn Hình Đang Tạm Khóa
         </h2>
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
-          Xin chào <strong>{currentUser.fullName || currentUser.username}</strong>. Vui lòng mở khóa để tiếp tục làm việc.
+        <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 16 }}>
+          Xin chào <strong>{currentUser.fullName || currentUser.username}</strong>
+        </div>
+
+        {/* Mode Switcher Tabs */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          background: '#f1f5f9',
+          padding: 4,
+          borderRadius: 12,
+          gap: 4,
+          marginBottom: 18,
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMsg('');
+              setUnlockMode('PIN');
+            }}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 9,
+              border: 'none',
+              background: unlockMode === 'PIN' ? '#ffffff' : 'transparent',
+              color: unlockMode === 'PIN' ? '#4f46e5' : '#64748b',
+              fontWeight: 800,
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow: unlockMode === 'PIN' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Smartphone size={14} />
+            <span>Mở Bằng Mã PIN</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMsg('');
+              setUnlockMode('PASSWORD');
+            }}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 9,
+              border: 'none',
+              background: unlockMode === 'PASSWORD' ? '#ffffff' : 'transparent',
+              color: unlockMode === 'PASSWORD' ? '#4f46e5' : '#64748b',
+              fontWeight: 800,
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow: unlockMode === 'PASSWORD' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <KeyRound size={14} />
+            <span>Mở Bằng Mật Khẩu</span>
+          </button>
         </div>
 
         {errorMsg && (
@@ -137,34 +203,39 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
             color: '#dc2626',
             padding: '8px 12px',
             borderRadius: 10,
-            fontSize: 12.5,
+            fontSize: 12,
             fontWeight: 600,
-            marginBottom: 16,
+            marginBottom: 14,
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             justifyContent: 'center',
+            textAlign: 'left',
           }}>
-            <AlertCircle size={15} />
+            <AlertCircle size={15} style={{ flexShrink: 0 }} />
             <span>{errorMsg}</span>
           </div>
         )}
 
         {unlockMode === 'PIN' ? (
           <div>
+            <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 12 }}>
+              Nhập <strong>4 đến 6 chữ số</strong> mã PIN bảo vệ của bạn
+            </div>
+
             {/* PIN Dots Indicator */}
             <div style={{
               display: 'flex',
               justifyContent: 'center',
               gap: 12,
-              marginBottom: 24,
+              marginBottom: 18,
             }}>
               {[0, 1, 2, 3, 4, 5].slice(0, Math.max(4, pin.length)).map((_, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 16,
-                    height: 16,
+                    width: 15,
+                    height: 15,
                     borderRadius: '50%',
                     background: i < pin.length ? '#4f46e5' : '#e2e8f0',
                     border: i < pin.length ? '2px solid #4338ca' : '2px solid #cbd5e1',
@@ -194,9 +265,9 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 10,
+              gap: 8,
               maxWidth: 260,
-              margin: '0 auto 20px',
+              margin: '0 auto 16px',
             }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
                 <button
@@ -205,10 +276,10 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                   onClick={() => handlePinDigit(num)}
                   disabled={isLoading}
                   style={{
-                    height: 52,
-                    fontSize: 20,
+                    height: 48,
+                    fontSize: 19,
                     fontWeight: 800,
-                    borderRadius: 14,
+                    borderRadius: 12,
                     background: '#f8fafc',
                     border: '1.5px solid #e2e8f0',
                     color: '#1e293b',
@@ -227,10 +298,10 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={() => setPin('')}
                 disabled={isLoading}
                 style={{
-                  height: 52,
-                  fontSize: 12,
+                  height: 48,
+                  fontSize: 11.5,
                   fontWeight: 700,
-                  borderRadius: 14,
+                  borderRadius: 12,
                   background: '#f8fafc',
                   border: '1.5px solid #e2e8f0',
                   color: '#64748b',
@@ -244,10 +315,10 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={() => handlePinDigit('0')}
                 disabled={isLoading}
                 style={{
-                  height: 52,
-                  fontSize: 20,
+                  height: 48,
+                  fontSize: 19,
                   fontWeight: 800,
-                  borderRadius: 14,
+                  borderRadius: 12,
                   background: '#f8fafc',
                   border: '1.5px solid #e2e8f0',
                   color: '#1e293b',
@@ -261,23 +332,23 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={handlePinBackspace}
                 disabled={isLoading}
                 style={{
-                  height: 52,
+                  height: 48,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderRadius: 14,
+                  borderRadius: 12,
                   background: '#f8fafc',
                   border: '1.5px solid #e2e8f0',
                   color: '#dc2626',
                   cursor: 'pointer',
                 }}
               >
-                <Delete size={20} />
+                <Delete size={18} />
               </button>
             </div>
 
             {/* Switch to Password Option */}
-            <div style={{ marginTop: 12 }}>
+            <div>
               <button
                 type="button"
                 onClick={() => {
@@ -288,34 +359,58 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                   background: 'none',
                   border: 'none',
                   color: '#4f46e5',
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: 700,
                   cursor: 'pointer',
                   textDecoration: 'underline',
                 }}
               >
-                Quên Mã PIN? Mở khóa bằng Mật khẩu tài khoản
+                Chưa có mã PIN hoặc quên? Bấm mở bằng Mật khẩu
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleVerifyPassword}>
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 10, textAlign: 'left' }}>
+              Nhập mật khẩu tài khoản đăng nhập của bạn:
+            </div>
+            
+            <div style={{ position: 'relative', marginBottom: 14 }}>
               <input
                 ref={inputRef}
-                type="password"
-                placeholder="Nhập mật khẩu tài khoản / Mật khẩu Admin..."
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Nhập mật khẩu đăng nhập..."
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 className="input-field"
-                style={{ width: '100%', padding: '10px 14px', fontSize: 13, borderRadius: 10 }}
+                style={{ width: '100%', padding: '10px 40px 10px 12px', fontSize: 13, borderRadius: 10 }}
+                autoFocus
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !password.trim()}
               className="btn btn-primary"
               style={{
                 width: '100%',
@@ -328,33 +423,11 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
             >
               {isLoading ? 'Đang mở khóa...' : 'Mở Khóa Màn Hình'}
             </button>
-
-            {currentUser.hasPin && (
-              <div style={{ marginTop: 14 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorMsg('');
-                    setUnlockMode('PIN');
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#4f46e5',
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← Mở khóa bằng Mã PIN
-                </button>
-              </div>
-            )}
           </form>
         )}
 
         {/* Bottom Logout Button */}
-        <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 20, paddingTop: 14 }}>
+        <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 18, paddingTop: 12 }}>
           <button
             type="button"
             onClick={onLogout}
@@ -371,7 +444,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
             }}
           >
             <LogOut size={13} />
-            <span>Đăng xuất tài khoản</span>
+            <span>Đăng xuất hoàn toàn</span>
           </button>
         </div>
       </div>
