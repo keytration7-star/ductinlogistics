@@ -2046,31 +2046,18 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       {/* 💵 MODAL THU TIỀN MẶT & XÓA NỢ KHÁCH HÀNG */}
       {isClearDebtModalOpen && targetClearShop && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            animation: 'fadeIn 0.2s ease-out',
-          }}
+          className="modal-overlay"
+          style={{ zIndex: 99999 }}
           onClick={() => setIsClearDebtModalOpen(false)}
         >
           <div
+            className="modal-content"
             style={{
-              background: 'var(--bg-card)',
-              border: '1.5px solid var(--border-color)',
-              borderRadius: 18,
-              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.25)',
-              width: '100%',
-              maxWidth: 520,
+              maxWidth: 540,
+              padding: 0,
               overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
+              borderRadius: 18,
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
