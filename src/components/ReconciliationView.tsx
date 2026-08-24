@@ -43,7 +43,7 @@ import type {
 } from '../types';
 import { ExcelService } from '../services/excelService';
 import { autoDetectColumns, isSummaryOrInvalidWaybill, parseNumber, parseWeightToKg } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, extractRowField, type DuplicateCheckResult } from '../services/reconciliationService';
+import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, extractRowField, recalculateSessionFees, type DuplicateCheckResult } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
@@ -1392,6 +1392,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setSortField(field);
       setSortAsc(false);
     }
+  };
+
+  // Recalculate fees for current session based on latest shop tariffs
+  const handleRecalculateCurrentSession = async () => {
+    if (!currentSession) return;
+    const ok = await showConfirm({
+      title: 'Tính Lại Cước & Lợi Nhuận Theo Biểu Giá',
+      message: `Hệ thống sẽ tính lại cước cho toàn bộ ${currentSession.totalOrders} đơn hàng theo Biểu giá bậc thang của các Shop. Bạn có muốn thực hiện ngay không?`,
+      warning: false,
+    });
+    if (!ok) return;
+
+    const allSessions = StorageService.getSessions();
+    const allPayments = StorageService.getPaymentRecords();
+    const updated = recalculateSessionFees(currentSession, shops, allSessions, allPayments);
+    StorageService.saveSession(updated);
+    setCurrentSession(updated);
+    showToast(`Đã tính lại cước thành công! Doanh thu: ${formatVND(updated.totalShopRevenue)} | Lợi nhuận: +${formatVND(updated.totalProfit)}`, 'success');
   };
 
   return (
@@ -2950,6 +2968,53 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           </div>
 
+          {/* Smart Warning Banner when NVC Fee is 0 */}
+          {sourceNvcFeeTotal === 0 && (
+            <div style={{
+              background: '#fffbeb',
+              border: '1.5px solid #fde68a',
+              borderRadius: 12,
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              color: '#92400e',
+              fontSize: 12,
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 280 }}>
+                <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Lưu ý đối soát:</strong> Cước gốc NVC trong file của Hãng đang bằng <strong>0 đ</strong> (Hãng chưa tính cước đợt này hoặc chưa chọn đúng cột Cước NVC). Hệ thống đã tự động tính đúng <strong>Cước thu Shop</strong> theo Biểu giá bậc thang để đảm bảo không thất thoát tiền cước!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRecalculateCurrentSession}
+                className="btn btn-sm"
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  padding: '6px 14px',
+                  borderRadius: 7,
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
+                }}
+              >
+                <RefreshCw size={13} />
+                <span>⚡ Cập nhật lại cước ngay</span>
+              </button>
+            </div>
+          )}
+
           {/* Master Export Bar */}
           <div className="glass-panel" style={{
             padding: '10px 16px',
@@ -2972,6 +3037,29 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleRecalculateCurrentSession}
+                className="btn btn-sm"
+                style={{
+                  fontSize: 11.5,
+                  padding: '5px 12px',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
+                }}
+                title="Tính lại toàn bộ cước thu Shop và lợi nhuận theo biểu giá bậc thang mới nhất"
+              >
+                <Calculator size={13} />
+                <span>⚡ Tính Lại Cước</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowExportModal(true)}

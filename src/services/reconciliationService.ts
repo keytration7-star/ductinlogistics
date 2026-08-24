@@ -7,7 +7,8 @@ import type {
   ReconciliationSession,
   ColumnMappingConfig,
   OrderStatus,
-  CtvProfile
+  CtvProfile,
+  PaymentRecord
 } from '../types';
 import { parseNumber, parseWeightToKg, isSummaryOrInvalidWaybill, normalizeHeader } from './smartColumnDetector';
 import { StorageService } from './storage';
@@ -557,42 +558,33 @@ export function performReconciliation(
     let shopOtherFee = 0;
     let declaredFee = 0;
 
-    // 🔑 RULE: Only charge Shop shipping fee if the NVC Carrier original file actually charged a fee for this order (nvcFee > 0 or nvcOtherFee > 0)
-    const feeColumnMapped = !!nvcMapping.feeColumn;
-    const nvcHasFee = !feeColumnMapped || (nvcFee > 0 || nvcOtherFee > 0);
+    // 🔑 RULE: ALWAYS calculate Shop shipping fee based on Shop Pricing Tier and package weight
+    shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
+    shopOtherFee = pricingPlan.fixedSurcharge || 0;
 
-    if (nvcHasFee) {
-      shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
-      shopOtherFee = pricingPlan.fixedSurcharge || 0;
-
-      if (status === 'returned' || status === 'returning') {
-        const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
-        if (returnFeeType === 'free') {
-          shopCalculatedFee = 0;
-        } else if (returnFeeType === 'fixed') {
-          shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
-        } else {
-          const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
-          shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
-        }
+    if (status === 'returned' || status === 'returning') {
+      const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
+      if (returnFeeType === 'free') {
+        shopCalculatedFee = 0;
+      } else if (returnFeeType === 'fixed') {
+        shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
+      } else {
+        const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+        shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
       }
+    }
 
-      if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
-        shopOtherFee += pricingPlan.partialDeliveryFee;
-      }
+    if (isPartialDelivery && pricingPlan.partialDeliveryFee) {
+      shopOtherFee += pricingPlan.partialDeliveryFee;
+    }
 
-      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
-        shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
-      }
+    if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && nvcCod > 0) {
+      shopOtherFee += Math.round((nvcCod * pricingPlan.insuranceFeePercent) / 100);
+    }
 
-      if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
-        declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
-        shopOtherFee += declaredFee;
-      }
-    } else {
-      // If NVC charged 0 fee for this order, Shop fee is 0đ (No fee deducted)
-      shopCalculatedFee = 0;
-      shopOtherFee = 0;
+    if (declaredValue > 0 && pricingPlan.declaredFeePercent && pricingPlan.declaredFeePercent > 0) {
+      declaredFee = Math.round((declaredValue * pricingPlan.declaredFeePercent) / 100);
+      shopOtherFee += declaredFee;
     }
 
     // CTV Commission calculation
@@ -904,4 +896,154 @@ export function detectUnregisteredShopsFromOrders(
   });
 
   return Array.from(newShopMap.values());
+}
+
+/**
+ * Recalculates all order fees, shop settlements, revenues, and profit margins for an existing session
+ * based on the registered shop database and latest pricing plans.
+ */
+export function recalculateSessionFees(
+  session: ReconciliationSession,
+  registeredShops: Shop[],
+  existingSessions: ReconciliationSession[] = [],
+  paymentRecords: PaymentRecord[] = []
+): ReconciliationSession {
+  const statementsMap = new Map<string, ShopSettlementStatement>();
+  const updatedOrders: ReconciledOrder[] = [];
+
+  for (const stmt of session.statements) {
+    for (const order of stmt.orders) {
+      const shopMatch = findRegisteredShop(registeredShops, {
+        phone: order.shopPhone,
+        code: order.shopId || stmt.shopCode,
+        name: order.shopName || stmt.shopName,
+      });
+      const matchedShop = shopMatch.matched ? shopMatch.shop : undefined;
+
+      const pricingPlan: ShopPricingPlan = matchedShop?.pricingPlan || {
+        id: 'plan_fallback',
+        name: 'Bảng giá Tiêu chuẩn',
+        weightRules: [
+          { minWeight: 0, maxWeight: 1, price: 22000 },
+          { minWeight: 1, maxWeight: 3, price: 28000 },
+          { minWeight: 3, maxWeight: 5, price: 35000 },
+        ],
+        extraStepWeight: 1,
+        extraStepPrice: 5000,
+        returnFeePercent: 50,
+        insuranceFeePercent: 0,
+        fixedSurcharge: 0,
+      };
+
+      let shopCalculatedFee = calculateWeightFee(order.weight || 0.5, pricingPlan);
+      let shopOtherFee = pricingPlan.fixedSurcharge || 0;
+
+      if (order.status === 'returned' || order.status === 'returning') {
+        const returnFeeType = pricingPlan.returnFeeType || (pricingPlan.returnFeePercent === 0 ? 'free' : 'percent');
+        if (returnFeeType === 'free') {
+          shopCalculatedFee = 0;
+        } else if (returnFeeType === 'fixed') {
+          shopCalculatedFee = pricingPlan.returnFeeFixed !== undefined ? pricingPlan.returnFeeFixed : 0;
+        } else {
+          const returnRatio = (pricingPlan.returnFeePercent !== undefined ? pricingPlan.returnFeePercent : 50) / 100;
+          shopCalculatedFee = Math.round(shopCalculatedFee * returnRatio);
+        }
+      }
+
+      if (order.isPartialDelivery && pricingPlan.partialDeliveryFee) {
+        shopOtherFee += pricingPlan.partialDeliveryFee;
+      }
+
+      if (pricingPlan.insuranceFeePercent && pricingPlan.insuranceFeePercent > 0 && order.codAmount > 0) {
+        shopOtherFee += Math.round((order.codAmount * pricingPlan.insuranceFeePercent) / 100);
+      }
+
+      const netShopPayout = order.codAmount - shopCalculatedFee - shopOtherFee;
+      const profitMargin = (shopCalculatedFee + shopOtherFee) - (order.nvcBaseFee + order.nvcOtherFee);
+
+      const updatedOrder: ReconciledOrder = {
+        ...order,
+        shopCalculatedFee,
+        shopOtherFee,
+        netShopPayout,
+        profitMargin,
+      };
+
+      updatedOrders.push(updatedOrder);
+
+      const key = updatedOrder.shopId || updatedOrder.shopName;
+      if (!statementsMap.has(key)) {
+        statementsMap.set(key, {
+          ...stmt,
+          shopId: matchedShop?.id || stmt.shopId,
+          shopCode: matchedShop?.code || stmt.shopCode,
+          shopName: matchedShop?.name || stmt.shopName,
+          shopPhone: matchedShop?.phone || stmt.shopPhone,
+          bankInfo: matchedShop?.bankAccount || stmt.bankInfo,
+          totalOrders: 0,
+          deliveredOrders: 0,
+          returnedOrders: 0,
+          inTransitOrders: 0,
+          partialOrders: 0,
+          totalCod: 0,
+          totalShopFee: 0,
+          totalShopOtherFee: 0,
+          totalNetPayout: 0,
+          totalNvcCost: 0,
+          totalProfit: 0,
+          totalDeliveredCod: 0,
+          totalDeliveredFee: 0,
+          totalReturnedFee: 0,
+          totalPartialCod: 0,
+          totalPartialFee: 0,
+          orders: [],
+          previousDebt: matchedShop ? calculateOpeningDebtForNewStatement(matchedShop, existingSessions, paymentRecords) : (stmt.previousDebt || 0),
+        });
+      }
+
+      const currentStmt = statementsMap.get(key)!;
+      currentStmt.orders.push(updatedOrder);
+      currentStmt.totalOrders += 1;
+      if (updatedOrder.status === 'delivered') {
+        currentStmt.deliveredOrders += 1;
+        currentStmt.totalDeliveredCod = (currentStmt.totalDeliveredCod || 0) + updatedOrder.codAmount;
+        currentStmt.totalDeliveredFee = (currentStmt.totalDeliveredFee || 0) + updatedOrder.shopCalculatedFee + updatedOrder.shopOtherFee;
+      } else if (updatedOrder.status === 'returned' || updatedOrder.status === 'returning') {
+        currentStmt.returnedOrders += 1;
+        currentStmt.totalReturnedFee = (currentStmt.totalReturnedFee || 0) + updatedOrder.shopCalculatedFee + updatedOrder.shopOtherFee;
+      } else {
+        currentStmt.inTransitOrders += 1;
+      }
+
+      if (updatedOrder.isPartialDelivery) {
+        currentStmt.partialOrders = (currentStmt.partialOrders || 0) + 1;
+        currentStmt.totalPartialCod = (currentStmt.totalPartialCod || 0) + updatedOrder.codAmount;
+        currentStmt.totalPartialFee = (currentStmt.totalPartialFee || 0) + updatedOrder.shopCalculatedFee + updatedOrder.shopOtherFee;
+      }
+
+      currentStmt.totalCod += updatedOrder.codAmount;
+      currentStmt.totalShopFee += updatedOrder.shopCalculatedFee;
+      currentStmt.totalShopOtherFee += updatedOrder.shopOtherFee;
+      currentStmt.totalNetPayout += updatedOrder.netShopPayout;
+      currentStmt.totalNvcCost += (updatedOrder.nvcBaseFee + updatedOrder.nvcOtherFee);
+      currentStmt.totalProfit += updatedOrder.profitMargin;
+    }
+  }
+
+  const statements = Array.from(statementsMap.values()).sort((a, b) => b.totalOrders - a.totalOrders);
+  const totalCod = updatedOrders.reduce((sum, o) => sum + o.codAmount, 0);
+  const totalNvcCost = updatedOrders.reduce((sum, o) => sum + o.nvcBaseFee + o.nvcOtherFee, 0);
+  const totalShopRevenue = updatedOrders.reduce((sum, o) => sum + o.shopCalculatedFee + o.shopOtherFee, 0);
+  const totalNetPayout = updatedOrders.reduce((sum, o) => sum + o.netShopPayout, 0);
+  const totalProfit = totalShopRevenue - totalNvcCost;
+
+  return {
+    ...session,
+    totalCod,
+    totalNvcCost,
+    totalShopRevenue,
+    totalNetPayout,
+    totalProfit,
+    statements,
+  };
 }
