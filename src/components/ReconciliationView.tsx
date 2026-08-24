@@ -1468,6 +1468,23 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     showToast(`Đã tính lại cước thành công! Doanh thu: ${formatVND(updated.totalShopRevenue)} | Lợi nhuận: +${formatVND(updated.totalProfit)}`, 'success');
   };
 
+  // 🔄 Hoàn tất và sẵn sàng cho kỳ đối soát tiếp theo (thả file mới)
+  const handleStartNewReconciliation = () => {
+    setNvcFile(null);
+    setAppFile(null);
+    setNvcRows([]);
+    setAppRows([]);
+    setNvcHeaders([]);
+    setAppHeaders([]);
+    setIsPeriodConfirmed(false);
+    setSessionPeriodName('');
+    setSessionPeriodDate('');
+    setSelectedAssignShops({});
+    setIsMappingConfirmed(false);
+    setWizardStep(1);
+    showToast('Sẵn sàng cho kỳ đối soát mới! Hãy kéo thả file mới vào để bắt đầu.', 'info');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       
@@ -2943,7 +2960,28 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleStartNewReconciliation}
+                className="btn btn-sm"
+                style={{
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: 12,
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
+                }}
+                title="Dọn sạch màn hình về Bước 1 để thả file cho kỳ đối soát tiếp theo"
+              >
+                <Plus size={14} />
+                <span>➕ Đối Soát Kỳ Mới (Thả File Tiếp)</span>
+              </button>
+
               {onNavigateToHistory && (
                 <button
                   type="button"
@@ -2959,10 +2997,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                 <button
                   type="button"
                   onClick={onNavigateToDebt}
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-secondary btn-sm"
                   style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
                 >
-                  <DollarSign size={13} />
+                  <DollarSign size={13} color="var(--success)" />
                   <span>Đi Tiền & Công Nợ</span>
                 </button>
               )}
@@ -3138,6 +3176,29 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleStartNewReconciliation}
+                className="btn btn-sm"
+                style={{
+                  fontSize: 11.5,
+                  padding: '5px 12px',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 2px 6px rgba(99, 102, 241, 0.3)',
+                }}
+                title="Dọn màn hình về Bước 1 để thả file cho kỳ đối soát tiếp theo"
+              >
+                <Plus size={13} />
+                <span>➕ Đối Soát Kỳ Mới</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleRecalculateCurrentSession}
