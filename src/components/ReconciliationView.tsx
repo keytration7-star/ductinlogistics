@@ -43,13 +43,12 @@ import type {
 } from '../types';
 import { ExcelService } from '../services/excelService';
 import { autoDetectColumns, isSummaryOrInvalidWaybill, parseNumber, parseWeightToKg } from '../services/smartColumnDetector';
-import { performReconciliation, calculateWeightFee, checkDuplicateWaybills, findRegisteredShop, extractRowField, recalculateSessionFees, type DuplicateCheckResult } from '../services/reconciliationService';
+import { performReconciliation, calculateWeightFee, findRegisteredShop, extractRowField, recalculateSessionFees } from '../services/reconciliationService';
 import { StatementPreviewModal } from './StatementPreviewModal';
 import { VietQRModal } from './VietQRModal';
 import { ColumnMappingModal } from './ColumnMappingModal';
 import { ExportColumnConfigModal } from './ExportColumnConfigModal';
 import { CarrierProfileConfigModal } from './CarrierProfileConfigModal';
-import { DuplicateConflictModal } from './DuplicateConflictModal';
 import { useToast, useConfirm } from './UIFeedback';
 
 import { StorageService } from '../services/storage';
@@ -1047,11 +1046,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     }
   };
 
-  // Duplicate Conflict Modal States
-  const [duplicateCheckResult, setDuplicateCheckResult] = useState<DuplicateCheckResult | null>(null);
-  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
-  const [targetShopsForExec, setTargetShopsForExec] = useState<Shop[]>(shops);
-
   const executeReconciliation = (effectiveShops: Shop[], customNvcRows?: Record<string, any>[]) => {
     setIsProcessing(true);
 
@@ -1095,31 +1089,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   };
 
   const handleCheckDuplicatesAndProceed = (effectiveShops: Shop[]) => {
-    setTargetShopsForExec(effectiveShops);
-    const dupResult = checkDuplicateWaybills(nvcRows, nvcMapping.waybillColumn, StorageService.getSessions(), nvcMapping.codColumn);
-
-    if (dupResult.hasConflict) {
-      setDuplicateCheckResult(dupResult);
-      setIsDuplicateModalOpen(true);
-      return;
-    }
-
+    // 🔑 RULE: Luôn lấy toàn bộ số đơn thực tế từ file đối soát làm chuẩn
     executeReconciliation(effectiveShops);
-  };
-
-  const handleFilterNewOnlyConflict = () => {
-    if (!duplicateCheckResult) return;
-    const waybillCol = nvcMapping.waybillColumn;
-    const filteredRows = nvcRows.filter(row => {
-      const val = row[waybillCol];
-      if (!val) return true;
-      const key = val.toString().trim().toUpperCase();
-      return !duplicateCheckResult.duplicateWaybills.has(key);
-    });
-
-    setIsDuplicateModalOpen(false);
-    showToast(`Đã lọc nạp thành công ${duplicateCheckResult.uniqueNewRowsCount} đơn hàng mới!`, 'success');
-    executeReconciliation(targetShopsForExec, filteredRows);
   };
 
   // Run reconciliation with auto new shops detection
@@ -3909,16 +3880,6 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         <VietQRModal
           statement={qrStatement}
           onClose={() => setQrStatement(null)}
-        />
-      )}
-
-      {/* Duplicate Waybills Conflict Modal */}
-      {duplicateCheckResult && (
-        <DuplicateConflictModal
-          isOpen={isDuplicateModalOpen}
-          onClose={() => setIsDuplicateModalOpen(false)}
-          checkResult={duplicateCheckResult}
-          onFilterNewOnly={handleFilterNewOnlyConflict}
         />
       )}
 
