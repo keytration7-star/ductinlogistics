@@ -104,10 +104,44 @@ function writeJsonFile(filename, data) {
 }
 
 // ──────────────────────────────────────────
+// 🔐 MILITARY-GRADE PBKDF2 / SHA-512 PASSWORD HASHING
 // ──────────────────────────────────────────
-// 🔐 SERVER-SIDE AUTHORIZATION (PERSISTENT SESSIONS ACROSS REBOOTS)
+function hashPassword(password) {
+  if (!password) return '';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return `pbkdf2:10000:${salt}:${derivedKey}`;
+}
+
+function verifyPassword(inputPassword, storedHashOrPlain) {
+  if (!inputPassword || !storedHashOrPlain) return false;
+  if (typeof storedHashOrPlain === 'string' && storedHashOrPlain.startsWith('pbkdf2:')) {
+    try {
+      const parts = storedHashOrPlain.split(':');
+      if (parts.length !== 4) return false;
+      const iterations = parseInt(parts[1], 10) || 10000;
+      const salt = parts[2];
+      const key = parts[3];
+      const checkKey = crypto.pbkdf2Sync(inputPassword, salt, iterations, 64, 'sha512').toString('hex');
+      return crypto.timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(checkKey, 'hex'));
+    } catch {
+      return false;
+    }
+  }
+  // Legacy plain-text fallback (transparent migration on successful login)
+  return inputPassword === storedHashOrPlain;
+}
+
 // ──────────────────────────────────────────
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days persistent session
+// 🔐 SERVER-SIDE AUTHORIZATION & ROLE-BASED SESSION TTL
+// ──────────────────────────────────────────
+// Shift-based Session TTL: 8h for staff/accountants, 12h for admin
+function getSessionTtlMs(role) {
+  if (role === 'ADMIN') {
+    return 12 * 60 * 60 * 1000; // 12 hours
+  }
+  return 8 * 60 * 60 * 1000; // 8 hours (standard shift)
+}
 
 function loadActiveSessions() {
   const raw = readJsonFile('_auth_sessions.json', {});
@@ -138,8 +172,12 @@ function persistActiveSessions() {
 
 function publicUser(user) {
   if (!user) return null;
-  const { password: _password, ...safeUser } = user;
-  return safeUser;
+  const { password: _password, pinCode: _pinCode, ...safeUser } = user;
+  return {
+    ...safeUser,
+    hasPin: Boolean(user.pinCode),
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
+  };
 }
 
 function readBearerToken(req) {
@@ -176,6 +214,97 @@ function requireFinanceWrite(req, res, next) {
   next();
 }
 
+// ──────────────────────────────────────────
+// 📜 AUDIT LOG SYSTEM (ENTERPRISE AUDIT TRAIL)
+// ──────────────────────────────────────────
+function appendAuditLog(entry) {
+  try {
+    const logs = readJsonFile('audit_logs.json', []);
+    const newEntry = {
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: entry.action || 'UNKNOWN',
+      category: entry.category || 'SYSTEM', // AUTH | PAYOUT | PRICING | SESSIONS | EXPORT | SETTINGS
+      actorId: entry.actorId || 'system',
+      actorName: entry.actorName || 'Hệ Thống',
+      actorRole: entry.actorRole || 'SYSTEM',
+      description: entry.description || '',
+      metadata: entry.metadata || {},
+      ipAddress: entry.ipAddress || '',
+    };
+    logs.unshift(newEntry);
+    // Keep max 5000 audit log entries to preserve performance
+    const trimmedLogs = logs.slice(0, 5000);
+    writeJsonFile('audit_logs.json', trimmedLogs);
+    return newEntry;
+  } catch (err) {
+    console.warn('[Audit Log Write Error]:', err);
+    return null;
+  }
+}
+
+// In-Memory 2FA & Password Reset OTP Maps (TTL: 5-10 minutes)
+const twoFactorOtpMap = new Map(); // key: userId -> { code, expiresAt, tempToken }
+const forgotPasswordOtpMap = new Map(); // key: username/email -> { code, expiresAt, userId }
+
+// Helper to send system email with OTP
+async function sendSystemOtpEmail(toEmail, subject, otpCode, purposeTitle = 'Xác thực 2 bước (2FA)') {
+  try {
+    const emailSettings = readJsonFile('email_settings.json', {});
+    const senderEmail = emailSettings.senderEmail || process.env.SMTP_USER;
+    const emailPassword = emailSettings.emailPassword || process.env.SMTP_PASS;
+    const smtpHost = emailSettings.smtpHost || 'smtp.gmail.com';
+    const smtpPort = Number(emailSettings.smtpPort) || 465;
+
+    if (!senderEmail || !emailPassword) {
+      console.warn('[OTP Email Error]: Chưa cấu hình SMTP gửi email trong Cài đặt.');
+      return { success: false, error: 'Chưa cấu hình thông tin gửi Email (SMTP) trong hệ thống.' };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost.trim(),
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: senderEmail.trim(),
+        pass: emailPassword.replace(/\s+/g, ''),
+      },
+      tls: { rejectUnauthorized: false },
+    });
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1.5px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+        <div style="text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px;">
+          <h2 style="color: #4f46e5; margin: 0; font-size: 20px; font-weight: 800;">HỆ THỐNG QUẢN TRỊ ĐỐI SOÁT & DÒNG TIỀN</h2>
+          <div style="color: #64748b; font-size: 13px; margin-top: 4px;">${purposeTitle}</div>
+        </div>
+        <div style="padding: 24px 0; text-align: center;">
+          <p style="color: #334155; font-size: 14px; margin-bottom: 16px;">Mã xác thực OTP bảo mật của bạn là:</p>
+          <div style="display: inline-block; padding: 12px 28px; background: #f0fdf4; border: 2px dashed #10b981; border-radius: 12px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #047857; font-family: monospace;">
+            ${otpCode}
+          </div>
+          <p style="color: #64748b; font-size: 12.5px; margin-top: 18px;">Mã này có hiệu lực trong vòng <strong>5 phút</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.</p>
+        </div>
+        <div style="border-top: 1px solid #f1f5f9; padding-top: 12px; text-align: center; font-size: 11px; color: #94a3b8;">
+          Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email hoặc đổi mật khẩu ngay lập tức.
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: emailSettings.senderName ? `"${emailSettings.senderName}" <${senderEmail}>` : senderEmail,
+      to: toEmail,
+      subject: `[Bảo Mật] Mã OTP ${otpCode} - ${subject}`,
+      html: htmlContent,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('[Send OTP Email Failed]:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 function seedUsersIfNeeded() {
   const users = readJsonFile('users.json', []);
   if (!Array.isArray(users) || users.length === 0 || !users.some(u => u.username?.toLowerCase() === 'admin')) {
@@ -183,7 +312,7 @@ function seedUsersIfNeeded() {
       id: 'user_super_admin',
       username: 'admin',
       fullName: 'Tổng Quản Trị Viên',
-      password: 'admin@',
+      password: hashPassword('admin@'),
       role: 'ADMIN',
       phone: '0988888888',
       email: 'admin@autopro.io.vn',
@@ -197,6 +326,9 @@ function seedUsersIfNeeded() {
 }
 seedUsersIfNeeded();
 
+// ──────────────────────────────────────────
+// 🚪 AUTHENTICATION ROUTES (LOGIN, 2FA, PIN, FORGOT PASSWORD)
+// ──────────────────────────────────────────
 app.post('/api/auth/login', (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '').trim();
@@ -206,33 +338,371 @@ app.post('/api/auth/login', (req, res) => {
   seedUsersIfNeeded();
   const users = readJsonFile('users.json', []);
   const user = Array.isArray(users) ? users.find(item => item?.username?.toLowerCase() === username.toLowerCase()) : null;
+
   const isPasswordMatch = user && user.active && (
-    user.password === password || 
+    verifyPassword(password, user.password) || 
     (user.username?.toLowerCase() === 'admin' && (password === 'admin@' || password === 'admin' || password === '123456'))
   );
+
   if (!user || !user.active || !isPasswordMatch) {
+    appendAuditLog({
+      action: 'LOGIN_FAILED',
+      category: 'AUTH',
+      actorName: username || 'Khách',
+      description: `Đăng nhập thất bại cho tài khoản "${username}" (Sai mật khẩu hoặc tài khoản bị khóa)`,
+      ipAddress: req.ip || req.socket?.remoteAddress,
+    });
     return res.status(401).json({ success: false, error: 'Tên đăng nhập hoặc mật khẩu không chính xác.' });
   }
+
+  // Transparent Migration: Hash plain-text password if not hashed yet
+  if (!user.password || !user.password.startsWith('pbkdf2:')) {
+    user.password = hashPassword(password);
+  }
+
   const deviceId = String(req.body?.deviceId || '').trim();
   if (user.role !== 'ADMIN' && user.activeDeviceId && user.activeDeviceId !== deviceId) {
+    appendAuditLog({
+      action: 'LOGIN_BLOCKED_DEVICE',
+      category: 'AUTH',
+      actorId: user.id,
+      actorName: user.fullName || user.username,
+      actorRole: user.role,
+      description: `Tài khoản ${user.username} bị chặn đăng nhập do đang hoạt động trên thiết bị khác (${user.activeDeviceName || 'Thiết bị khác'})`,
+      ipAddress: req.ip,
+    });
     return res.status(403).json({ success: false, error: 'Tài khoản đang hoạt động trên một thiết bị khác.' });
   }
+
+  // 🛡️ 2FA Check: If 2FA is enabled for this user, return require2FA & send OTP to their email
+  if (user.twoFactorEnabled && user.email) {
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const tempToken = crypto.randomBytes(24).toString('base64url');
+    twoFactorOtpMap.set(user.id, {
+      code: otp,
+      tempToken,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    sendSystemOtpEmail(user.email, 'Mã Xác Thực Đăng Nhập (2FA)', otp, 'Xác Thực 2 Bước (2FA)').catch(console.warn);
+
+    return res.json({
+      success: true,
+      require2FA: true,
+      userId: user.id,
+      tempToken,
+      maskedEmail: user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}${'*'.repeat(Math.max(1, b.length))}${c}`),
+      message: `Mã xác thực 2 bước đã được gửi tới email ${user.email}. Vui lòng kiểm tra hộp thư!`,
+    });
+  }
+
   const now = new Date().toISOString();
   user.lastLoginAt = now;
   user.lastActiveAt = now;
   if (deviceId) user.activeDeviceId = deviceId;
   if (req.body?.deviceName) user.activeDeviceName = String(req.body.deviceName).slice(0, 120);
   writeJsonFile('users.json', users);
+
+  const sessionTtl = getSessionTtlMs(user.role);
   const token = crypto.randomBytes(32).toString('base64url');
   const safeUser = publicUser(user);
-  activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + SESSION_TTL_MS });
+  activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + sessionTtl });
   persistActiveSessions();
-  res.json({ success: true, token, user: safeUser, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() });
+
+  appendAuditLog({
+    action: 'LOGIN_SUCCESS',
+    category: 'AUTH',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `Đăng nhập thành công vào hệ thống trên ${req.body?.deviceName || 'Thiết bị'} (Phiên ${sessionTtl / (3600 * 1000)}h)`,
+    ipAddress: req.ip,
+  });
+
+  res.json({
+    success: true,
+    token,
+    user: safeUser,
+    expiresAt: new Date(Date.now() + sessionTtl).toISOString(),
+    sessionTtlHours: sessionTtl / (3600 * 1000),
+  });
+});
+
+// Verify 2FA OTP and complete login
+app.post('/api/auth/verify-2fa', (req, res) => {
+  const { userId, tempToken, otp } = req.body || {};
+  if (!userId || !tempToken || !otp) {
+    return res.status(400).json({ success: false, error: 'Thiếu thông tin xác thực 2FA.' });
+  }
+
+  const record = twoFactorOtpMap.get(userId);
+  if (!record || record.tempToken !== tempToken || record.expiresAt <= Date.now()) {
+    return res.status(400).json({ success: false, error: 'Mã OTP đã hết hạn hoặc không hợp lệ. Vui lòng thử lại.' });
+  }
+
+  if (record.code !== String(otp).trim()) {
+    return res.status(400).json({ success: false, error: 'Mã OTP không chính xác. Vui lòng kiểm tra lại.' });
+  }
+
+  twoFactorOtpMap.delete(userId);
+
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => u.id === userId);
+  if (!user || !user.active) {
+    return res.status(401).json({ success: false, error: 'Tài khoản không tồn tại hoặc đã bị khóa.' });
+  }
+
+  const now = new Date().toISOString();
+  user.lastLoginAt = now;
+  user.lastActiveAt = now;
+  writeJsonFile('users.json', users);
+
+  const sessionTtl = getSessionTtlMs(user.role);
+  const token = crypto.randomBytes(32).toString('base64url');
+  const safeUser = publicUser(user);
+  activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + sessionTtl });
+  persistActiveSessions();
+
+  appendAuditLog({
+    action: '2FA_LOGIN_SUCCESS',
+    category: 'AUTH',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `Xác thực 2FA OTP thành công cho tài khoản ${user.username}`,
+    ipAddress: req.ip,
+  });
+
+  res.json({
+    success: true,
+    token,
+    user: safeUser,
+    expiresAt: new Date(Date.now() + sessionTtl).toISOString(),
+    sessionTtlHours: sessionTtl / (3600 * 1000),
+  });
+});
+
+// Forgot Password - Send OTP to Admin / User email
+app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
+  const usernameOrEmail = String(req.body?.usernameOrEmail || '').trim().toLowerCase();
+  if (!usernameOrEmail) {
+    return res.status(400).json({ success: false, error: 'Vui lòng nhập Tên đăng nhập hoặc Email.' });
+  }
+
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => 
+    u.username?.toLowerCase() === usernameOrEmail || 
+    (u.email && u.email.toLowerCase() === usernameOrEmail)
+  );
+
+  if (!user || !user.email) {
+    return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản hoặc tài khoản chưa có Email để nhận mã khôi phục.' });
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  forgotPasswordOtpMap.set(user.id, {
+    code: otp,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    userId: user.id,
+  });
+
+  const mailRes = await sendSystemOtpEmail(user.email, 'Khôi Phục Mật Khẩu', otp, 'Khôi Phục Mật Khẩu');
+  if (!mailRes.success) {
+    return res.status(500).json({ success: false, error: mailRes.error || 'Không thể gửi email OTP.' });
+  }
+
+  appendAuditLog({
+    action: 'FORGOT_PASSWORD_REQUEST',
+    category: 'AUTH',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `Gửi mã OTP khôi phục mật khẩu tới email ${user.email}`,
+    ipAddress: req.ip,
+  });
+
+  res.json({
+    success: true,
+    userId: user.id,
+    maskedEmail: user.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}${'*'.repeat(Math.max(1, b.length))}${c}`),
+    message: `Đã gửi mã OTP khôi phục mật khẩu tới ${user.email}. Vui lòng kiểm tra email!`,
+  });
+});
+
+// Forgot Password - Verify OTP & Reset Password
+app.post('/api/auth/forgot-password/reset', (req, res) => {
+  const { userId, otp, newPassword } = req.body || {};
+  if (!userId || !otp || !newPassword || String(newPassword).trim().length < 4) {
+    return res.status(400).json({ success: false, error: 'Vui lòng nhập đầy đủ mã OTP và mật khẩu mới (tối thiểu 4 ký tự).' });
+  }
+
+  const record = forgotPasswordOtpMap.get(userId);
+  if (!record || record.expiresAt <= Date.now()) {
+    return res.status(400).json({ success: false, error: 'Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.' });
+  }
+
+  if (record.code !== String(otp).trim()) {
+    return res.status(400).json({ success: false, error: 'Mã OTP không chính xác.' });
+  }
+
+  forgotPasswordOtpMap.delete(userId);
+
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng.' });
+  }
+
+  user.password = hashPassword(String(newPassword).trim());
+  writeJsonFile('users.json', users);
+
+  appendAuditLog({
+    action: 'PASSWORD_RESET_SUCCESS',
+    category: 'AUTH',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `Khôi phục mật khẩu thành công qua Email OTP cho tài khoản ${user.username}`,
+    ipAddress: req.ip,
+  });
+
+  res.json({ success: true, message: 'Đã đặt lại mật khẩu mới thành công! Bạn có thể đăng nhập ngay.' });
+});
+
+// Quick PIN Setup & Verification
+app.post('/api/auth/pin/set', requireAuth, (req, res) => {
+  const pin = String(req.body?.pin || '').trim();
+  if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+    return res.status(400).json({ success: false, error: 'Mã PIN phải từ 4 đến 6 chữ số.' });
+  }
+
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => u.id === req.authUser.id);
+  if (!user) return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản.' });
+
+  user.pinCode = hashPassword(pin);
+  writeJsonFile('users.json', users);
+
+  appendAuditLog({
+    action: 'PIN_SET',
+    category: 'SETTINGS',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `Cập nhật Mã PIN khóa màn hình thành công`,
+    ipAddress: req.ip,
+  });
+
+  res.json({ success: true, message: 'Đã lưu Mã PIN khóa màn hình thành công!' });
+});
+
+app.post('/api/auth/pin/verify', requireAuth, (req, res) => {
+  const pin = String(req.body?.pin || '').trim();
+  if (!pin) return res.status(400).json({ success: false, error: 'Vui lòng nhập Mã PIN.' });
+
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => u.id === req.authUser.id);
+  if (!user || !user.pinCode) {
+    return res.status(400).json({ success: false, error: 'Tài khoản chưa thiết lập Mã PIN.' });
+  }
+
+  const isMatch = verifyPassword(pin, user.pinCode);
+  if (!isMatch) {
+    return res.status(401).json({ success: false, error: 'Mã PIN không chính xác.' });
+  }
+
+  res.json({ success: true, message: 'Mở khóa màn hình thành công!' });
+});
+
+// 2FA Toggle Setting
+app.post('/api/auth/2fa/toggle', requireAuth, (req, res) => {
+  const enable = Boolean(req.body?.enable);
+  const users = readJsonFile('users.json', []);
+  const user = users.find(u => u.id === req.authUser.id);
+  if (!user) return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản.' });
+
+  if (enable && !user.email) {
+    return res.status(400).json({ success: false, error: 'Tài khoản cần có Email trước khi bật Xác thực 2 bước (2FA).' });
+  }
+
+  user.twoFactorEnabled = enable;
+  writeJsonFile('users.json', users);
+
+  appendAuditLog({
+    action: enable ? '2FA_ENABLED' : '2FA_DISABLED',
+    category: 'SETTINGS',
+    actorId: user.id,
+    actorName: user.fullName || user.username,
+    actorRole: user.role,
+    description: `${enable ? 'Bật' : 'Tắt'} tính năng Xác thực 2 bước (2FA) qua Email`,
+    ipAddress: req.ip,
+  });
+
+  res.json({ success: true, twoFactorEnabled: enable, message: `Đã ${enable ? 'bật' : 'tắt'} Xác thực 2 bước thành công!` });
+});
+
+// Audit Logs API (Query & Filter)
+app.get('/api/audit-logs', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const logs = readJsonFile('audit_logs.json', []);
+    const category = req.query.category ? String(req.query.category).toUpperCase() : '';
+    const search = req.query.search ? String(req.query.search).toLowerCase() : '';
+    const limit = parseInt(req.query.limit, 10) || 200;
+
+    let filtered = logs;
+    if (category && category !== 'ALL') {
+      filtered = filtered.filter(l => l.category === category);
+    }
+    if (search) {
+      filtered = filtered.filter(l => 
+        l.description?.toLowerCase().includes(search) || 
+        l.actorName?.toLowerCase().includes(search) ||
+        l.action?.toLowerCase().includes(search)
+      );
+    }
+
+    res.json({
+      success: true,
+      total: filtered.length,
+      logs: filtered.slice(0, limit),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/audit-logs', requireAuth, (req, res) => {
+  try {
+    const entry = req.body || {};
+    const created = appendAuditLog({
+      action: entry.action || 'CUSTOM_ACTION',
+      category: entry.category || 'OPERATIONS',
+      actorId: req.authUser.id,
+      actorName: req.authUser.fullName || req.authUser.username,
+      actorRole: req.authUser.role,
+      description: entry.description || '',
+      metadata: entry.metadata || {},
+      ipAddress: req.ip,
+    });
+    res.json({ success: true, log: created });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.post('/api/auth/logout', requireAuth, (req, res) => {
-  activeSessions.delete(readBearerToken(req));
+  const token = readBearerToken(req);
+  activeSessions.delete(token);
   persistActiveSessions();
+  appendAuditLog({
+    action: 'LOGOUT',
+    category: 'AUTH',
+    actorId: req.authUser.id,
+    actorName: req.authUser.fullName || req.authUser.username,
+    actorRole: req.authUser.role,
+    description: `Đăng xuất khỏi hệ thống`,
+    ipAddress: req.ip,
+  });
   res.json({ success: true });
 });
 
@@ -242,8 +712,8 @@ app.post('/api/auth/verify-password', requireAuth, (req, res) => {
   const password = String(req.body?.password || '').trim();
   const users = readJsonFile('users.json', []);
   const current = Array.isArray(users) ? users.find(user => user?.id === req.authUser.id) : null;
-  const isMatchCurrent = current && current.password === password;
-  const isMatchAnyAdmin = Array.isArray(users) && users.some(u => u.role === 'ADMIN' && u.active !== false && u.password === password);
+  const isMatchCurrent = current && verifyPassword(password, current.password);
+  const isMatchAnyAdmin = Array.isArray(users) && users.some(u => u.role === 'ADMIN' && u.active !== false && verifyPassword(password, u.password));
 
   if (!isMatchCurrent && !isMatchAnyAdmin) {
     return res.status(401).json({ success: false, error: 'Mật khẩu không chính xác.' });

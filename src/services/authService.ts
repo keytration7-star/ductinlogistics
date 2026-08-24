@@ -119,7 +119,16 @@ export const AuthService = {
     }
   },
 
-  async login(usernameInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
+  async login(usernameInput: string, passwordInput: string): Promise<{
+    success: boolean;
+    user?: UserAccount;
+    error?: string;
+    require2FA?: boolean;
+    userId?: string;
+    tempToken?: string;
+    maskedEmail?: string;
+    message?: string;
+  }> {
     const uClean = (usernameInput || '').trim();
     const pClean = (passwordInput || '').trim();
 
@@ -136,15 +145,143 @@ export const AuthService = {
         body: JSON.stringify({ username: uClean, password: pClean, deviceId, deviceName }),
       });
       const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success || !result.token || !result.user) {
+      if (!response.ok || !result?.success) {
         return { success: false, error: result?.error || 'Không thể xác thực với máy chủ.' };
       }
+
+      // 🛡️ 2FA Challenge
+      if (result.require2FA) {
+        return {
+          success: true,
+          require2FA: true,
+          userId: result.userId,
+          tempToken: result.tempToken,
+          maskedEmail: result.maskedEmail,
+          message: result.message,
+        };
+      }
+
+      if (!result.token || !result.user) {
+        return { success: false, error: 'Phản hồi từ máy chủ không hợp lệ.' };
+      }
+
       localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, result.token);
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([result.user]));
       this.setCurrentUser(result.user);
       return { success: true, user: result.user };
     } catch {
       return { success: false, error: 'Không kết nối được máy chủ để xác thực. Vui lòng kiểm tra mạng.' };
+    }
+  },
+
+  async verify2FaOtp(userId: string, tempToken: string, otp: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, tempToken, otp }),
+      });
+      const result = await res.json().catch(() => null);
+      if (!res.ok || !result?.success || !result.token || !result.user) {
+        return { success: false, error: result?.error || 'Mã OTP 2FA không hợp lệ.' };
+      }
+      localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, result.token);
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([result.user]));
+      this.setCurrentUser(result.user);
+      return { success: true, user: result.user };
+    } catch {
+      return { success: false, error: 'Không kết nối được máy chủ xác thực 2FA.' };
+    }
+  },
+
+  async sendForgotPasswordOtp(usernameOrEmail: string): Promise<{ success: boolean; userId?: string; maskedEmail?: string; error?: string; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/forgot-password/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrEmail }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return { success: false, error: data?.error || 'Không thể gửi mã khôi phục.' };
+      }
+      return { success: true, userId: data.userId, maskedEmail: data.maskedEmail, message: data.message };
+    } catch {
+      return { success: false, error: 'Lỗi mạng khi gửi yêu cầu khôi phục mật khẩu.' };
+    }
+  },
+
+  async resetPasswordWithOtp(userId: string, otp: string, newPassword: string): Promise<{ success: boolean; error?: string; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/forgot-password/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, otp, newPassword }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return { success: false, error: data?.error || 'Đặt lại mật khẩu thất bại.' };
+      }
+      return { success: true, message: data.message };
+    } catch {
+      return { success: false, error: 'Lỗi mạng khi đặt lại mật khẩu.' };
+    }
+  },
+
+  async setQuickPin(pin: string): Promise<{ success: boolean; error?: string; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/pin/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return { success: false, error: data?.error || 'Không thể lưu Mã PIN.' };
+      }
+      const cur = this.getCurrentUser();
+      if (cur) {
+        cur.hasPin = true;
+        this.setCurrentUser(cur);
+      }
+      return { success: true, message: data.message };
+    } catch {
+      return { success: false, error: 'Lỗi mạng khi thiết lập Mã PIN.' };
+    }
+  },
+
+  async verifyQuickPin(pin: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/auth/pin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ pin }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async toggle2FA(enable: boolean): Promise<{ success: boolean; error?: string; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/2fa/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ enable }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return { success: false, error: data?.error || 'Không thể cập nhật cài đặt 2FA.' };
+      }
+      const cur = this.getCurrentUser();
+      if (cur) {
+        cur.twoFactorEnabled = enable;
+        this.setCurrentUser(cur);
+      }
+      return { success: true, message: data.message };
+    } catch {
+      return { success: false, error: 'Lỗi mạng khi cập nhật 2FA.' };
     }
   },
 

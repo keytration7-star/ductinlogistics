@@ -11,10 +11,14 @@ import {
 } from 'lucide-react';
 import type { CompanyInfo, EmailSettings, ZaloZnsSettings, TelegramSettings, UserAccount } from '../types';
 import { StorageService } from '../services/storage';
+import { AuthService } from '../services/authService';
 import { EmailService } from '../services/emailService';
 import { TelegramService } from '../services/telegramService';
 import { UserManagementView } from './UserManagementView';
 import { useToast, useConfirm } from './UIFeedback';
+
+import { AuditLogView } from './AuditLogView';
+import { FileText } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,7 +31,7 @@ interface SettingsModalProps {
   onNavigateTo?: (tab: string) => void;
 }
 
-type SettingsTab = 'company' | 'notifications' | 'backup' | 'security' | 'accounts' | 'guide';
+type SettingsTab = 'company' | 'notifications' | 'backup' | 'security' | 'accounts' | 'audit' | 'guide';
 
 const BASE_TABS: { id: SettingsTab; icon: React.ReactNode; label: string }[] = [
   { id: 'company', icon: <Building2 size={15} />, label: 'Công Ty' },
@@ -35,6 +39,7 @@ const BASE_TABS: { id: SettingsTab; icon: React.ReactNode; label: string }[] = [
   { id: 'backup', icon: <Database size={15} />, label: 'Sao Lưu Dữ Liệu' }, // ADMIN only
   { id: 'security', icon: <ShieldCheck size={15} />, label: 'Bảo Mật' },
   { id: 'accounts', icon: <Users size={15} />, label: 'Tài Khoản' }, // ADMIN only
+  { id: 'audit', icon: <FileText size={15} />, label: 'Nhật Ký Kiểm Toán' }, // ADMIN only
   { id: 'guide', icon: <BookOpen size={15} />, label: 'Hướng Dẫn' },
 ];
 
@@ -850,48 +855,230 @@ const TabBackup: React.FC<{ onDataReloaded?: () => void }> = ({ onDataReloaded }
   );
 };
 
-/* ─────────────── TAB: BẢO MẬT ─────────────── */
-const TabSecurity: React.FC<{ isAdmin: boolean; onSwitchToAccounts?: () => void }> = ({ isAdmin, onSwitchToAccounts }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-    <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Lock size={14} /> Chính Sách Thiết Bị
+/* ─────────────── TAB: BẢO MẬT & XÁC THỰC ─────────────── */
+const TabSecurity: React.FC<{ 
+  isAdmin: boolean; 
+  currentUser?: UserAccount;
+  onSwitchToAccounts?: () => void;
+  onOpenAuditLogs?: () => void;
+}> = ({ isAdmin, currentUser, onSwitchToAccounts, onOpenAuditLogs }) => {
+  const { showToast } = useToast();
+  const [pinCode, setPinCode] = useState('');
+  const [isSavingPin, setIsSavingPin] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean(currentUser?.twoFactorEnabled));
+  const [isToggling2FA, setIsToggling2FA] = useState(false);
+
+  // Local storage for Auto-Lock & Inactivity timer preferences
+  const [autoLockMin, setAutoLockMin] = useState<number>(() => {
+    const v = localStorage.getItem('gomdon_autolock_minutes');
+    return v ? parseInt(v, 10) : 15;
+  });
+
+  const [inactivityHours, setInactivityHours] = useState<number>(() => {
+    const v = localStorage.getItem('gomdon_inactivity_hours');
+    return v ? parseInt(v, 10) : 4;
+  });
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinCode || pinCode.length < 4 || pinCode.length > 6 || !/^\d+$/.test(pinCode)) {
+      showToast('Mã PIN phải gồm từ 4 đến 6 chữ số.', 'warning');
+      return;
+    }
+    setIsSavingPin(true);
+    try {
+      const res = await AuthService.setQuickPin(pinCode);
+      if (res.success) {
+        showToast('Đã thiết lập Mã PIN khóa màn hình thành công!', 'success');
+        setPinCode('');
+      } else {
+        showToast(res.error || 'Lỗi thiết lập Mã PIN.', 'error');
+      }
+    } catch {
+      showToast('Lỗi mạng khi lưu Mã PIN.', 'error');
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  const handleToggle2FA = async () => {
+    if (!twoFactorEnabled && !currentUser?.email) {
+      showToast('Tài khoản cần có Email để nhận mã OTP trước khi bật 2FA.', 'warning');
+      return;
+    }
+    setIsToggling2FA(true);
+    const targetState = !twoFactorEnabled;
+    try {
+      const res = await AuthService.toggle2FA(targetState);
+      if (res.success) {
+        setTwoFactorEnabled(targetState);
+        showToast(`Đã ${targetState ? 'bật' : 'tắt'} Xác thực 2 bước (2FA) thành công!`, 'success');
+      } else {
+        showToast(res.error || 'Lỗi cập nhật 2FA.', 'error');
+      }
+    } catch {
+      showToast('Lỗi mạng khi cập nhật 2FA.', 'error');
+    } finally {
+      setIsToggling2FA(false);
+    }
+  };
+
+  const handleSaveTimers = () => {
+    localStorage.setItem('gomdon_autolock_minutes', String(autoLockMin));
+    localStorage.setItem('gomdon_inactivity_hours', String(inactivityHours));
+    showToast('Đã lưu cấu hình thời gian khóa màn hình & phiên làm việc!', 'success');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      {/* 1. MÃ PIN KHÓA MÀN HÌNH NHANH */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Lock size={15} color="var(--primary)" />
+          <span>1. Mã PIN Mở Khóa Màn Hình Nhanh</span>
+          {currentUser?.hasPin && (
+            <span className="badge badge-success" style={{ fontSize: 10, padding: '1px 6px' }}>Đã thiết lập</span>
+          )}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Mã PIN 4-6 số dùng để mở khóa màn hình nhanh khi bạn rời máy tính mà không cần gõ lại mật khẩu dài.
+        </div>
+        <form onSubmit={handleSavePin} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="Nhập 4-6 số PIN mới..."
+            value={pinCode}
+            onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
+            className="input-field mono"
+            style={{ width: 220, padding: '7px 12px', fontSize: 13, letterSpacing: 2 }}
+          />
+          <button
+            type="submit"
+            disabled={isSavingPin || pinCode.length < 4}
+            className="btn btn-primary btn-sm"
+            style={{ fontWeight: 700 }}
+          >
+            {isSavingPin ? 'Đang lưu...' : 'Lưu Mã PIN'}
+          </button>
+        </form>
       </div>
-      {[
-        { icon: '🔒', title: 'Một thiết bị / tài khoản', desc: 'Mỗi tài khoản nhân viên chỉ được đăng nhập trên 1 thiết bị tại 1 thời điểm.' },
-        { icon: '⚡', title: 'Tự động kick', desc: 'Nếu Admin ngắt kết nối, phiên làm việc hiện tại sẽ bị đóng sau tối đa 10 giây.' },
-        { icon: '👑', title: 'Admin không giới hạn', desc: 'Tài khoản Admin được phép đăng nhập trên nhiều thiết bị đồng thời.' },
-        { icon: '🚫', title: 'Không thể đăng nhập chồng', desc: 'Nhân viên muốn đổi máy phải nhờ Admin ngắt thiết bị cũ trước.' },
-      ].map(item => (
-        <div key={item.title} style={{ display: 'flex', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--border-color)' }}>
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
+
+      {/* 2. XÁC THỰC 2 BƯỚC (2FA QUA EMAIL) */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ShieldCheck size={16} color="var(--success)" />
+            <span>2. Xác Thực 2 Bước (2FA OTP Qua Email)</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggle2FA}
+            disabled={isToggling2FA}
+            className={`btn btn-sm ${twoFactorEnabled ? 'btn-danger' : 'btn-success'}`}
+            style={{ fontWeight: 700, padding: '5px 14px' }}
+          >
+            {twoFactorEnabled ? 'Tắt 2FA' : 'Bật 2FA'}
+          </button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Khi bật tính năng này, sau khi nhập mật khẩu, hệ thống sẽ gửi một mã OTP 6 số ngẫu nhiên về email <strong>{currentUser?.email || '(Chưa cài email)'}</strong> để xác thực trước khi cho phép vào phần mềm.
+        </div>
+      </div>
+
+      {/* 3. THỜI GIAN KHÓA MÀN HÌNH & HẾT HẠN PHIÊN */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Zap size={15} color="var(--warning)" />
+          <span>3. Thời Gian Khóa Màn Hình & Hết Hạn Phiên Tự Động</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-main)' }}>{item.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{item.desc}</div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>
+              Tự động Khóa Màn Hình sau:
+            </label>
+            <select
+              value={autoLockMin}
+              onChange={(e) => setAutoLockMin(Number(e.target.value))}
+              className="input-field"
+              style={{ width: '100%', fontSize: 12, padding: '6px 10px' }}
+            >
+              <option value={5}>⏱️ 5 phút không thao tác</option>
+              <option value={15}>⏱️ 15 phút không thao tác (Khuyên dùng)</option>
+              <option value={30}>⏱️ 30 phút không thao tác</option>
+              <option value={60}>⏱️ 1 tiếng không thao tác</option>
+              <option value={0}>🚫 Tắt tự động khóa</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>
+              Tự động Đăng Xuất Hết Phiên sau:
+            </label>
+            <select
+              value={inactivityHours}
+              onChange={(e) => setInactivityHours(Number(e.target.value))}
+              className="input-field"
+              style={{ width: '100%', fontSize: 12, padding: '6px 10px' }}
+            >
+              <option value={2}>⏳ 2 tiếng không dùng</option>
+              <option value={4}>⏳ 4 tiếng không dùng (Khuyên dùng)</option>
+              <option value={8}>⏳ 8 tiếng (Hết ca làm việc)</option>
+              <option value={12}>⏳ 12 tiếng</option>
+            </select>
           </div>
         </div>
-      ))}
-    </div>
 
-    {isAdmin && (
-      <button
-        type="button"
-        className="btn btn-primary"
-        style={{ fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', fontWeight: 600 }}
-        onClick={onSwitchToAccounts}
-      >
-        <Users size={15} /> Quản Lý Nhân Viên & Thiết Bị
-      </button>
-    )}
-
-    <div style={{ background: 'rgba(16,185,129,.06)', borderRadius: 'var(--radius-md)', padding: '12px 14px', border: '1px solid rgba(16,185,129,.2)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-      <ShieldCheck size={16} color="var(--success)" style={{ flexShrink: 0, marginTop: 1 }} />
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        Dữ liệu được lưu trữ trên VPS riêng. Mọi thao tác đều được ghi log. Hệ thống không chia sẻ dữ liệu với bên thứ ba.
+        <button
+          type="button"
+          onClick={handleSaveTimers}
+          className="btn btn-primary btn-sm"
+          style={{ fontWeight: 700, alignSelf: 'flex-end' }}
+        >
+          Lưu Cài Đặt Thời Gian
+        </button>
       </div>
+
+      {/* 4. CHÍNH SÁCH BẢO VỆ THIẾT BỊ & AUDIT TRAIL */}
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', padding: '16px 18px', border: '1px solid var(--border-color)' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ShieldOk size={15} color="var(--primary)" />
+          <span>4. Kiểm Soát Thiết Bị & Nhật Ký Hoạt Động</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                onClick={onSwitchToAccounts}
+              >
+                <Users size={14} /> Quản Lý Nhân Viên & Thiết Bị
+              </button>
+
+              {onOpenAuditLogs && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                  onClick={onOpenAuditLogs}
+                >
+                  <FileText size={14} color="var(--primary)" /> Xem Nhật Ký Kiểm Toán (Audit Trail)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
     </div>
-  </div>
-);
+  );
+};
 
 /* ─────────────── TAB: HƯỚNG DẪN ─────────────── */
 
@@ -1197,7 +1384,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const isAdmin = userRole === 'ADMIN';
-  const TAB_LIST = isAdmin ? BASE_TABS : BASE_TABS.filter(t => t.id !== 'accounts' && t.id !== 'backup');
+  const TAB_LIST = isAdmin ? BASE_TABS : BASE_TABS.filter(t => t.id !== 'accounts' && t.id !== 'backup' && t.id !== 'audit');
 
   useEffect(() => {
     if (isOpen) setActiveTab('company');
@@ -1210,7 +1397,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div
         className="modal-content"
         style={{ 
-          maxWidth: activeTab === 'accounts' ? 1080 : 760, 
+          maxWidth: (activeTab === 'accounts' || activeTab === 'audit') ? 1100 : 760, 
           width: '95vw',
           maxHeight: '90vh', 
           display: 'flex', 
@@ -1257,12 +1444,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Tab Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: activeTab === 'accounts' ? 0 : '20px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: (activeTab === 'accounts' || activeTab === 'audit') ? 16 : '20px 24px' }}>
           {activeTab === 'company' && <TabCompany onSaved={onSaved} isAdmin={isAdmin} />}
           {activeTab === 'notifications' && <TabNotifications />}
           {activeTab === 'backup' && isAdmin && <TabBackup onDataReloaded={onSaved} />}
-          {activeTab === 'security' && <TabSecurity isAdmin={isAdmin} onSwitchToAccounts={() => setActiveTab('accounts')} />}
+          {activeTab === 'security' && (
+            <TabSecurity 
+              isAdmin={isAdmin} 
+              currentUser={currentUser}
+              onSwitchToAccounts={() => setActiveTab('accounts')} 
+              onOpenAuditLogs={() => setActiveTab('audit')}
+            />
+          )}
           {activeTab === 'accounts' && isAdmin && <TabAccounts currentUser={currentUser} />}
+          {activeTab === 'audit' && isAdmin && <AuditLogView />}
           {activeTab === 'guide' && <TabGuide />}
         </div>
       </div>

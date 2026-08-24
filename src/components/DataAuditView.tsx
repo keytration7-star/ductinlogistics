@@ -76,14 +76,14 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [auditLogSearch, setAuditLogSearch] = useState('');
-  const allAuditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogs() : [];
-  const filteredAuditLogs = allAuditLogs.filter(log => {
+  const allAuditLogs = currentUser.role === 'ADMIN' ? AuditService.getLogsSync() : [];
+  const filteredAuditLogs = allAuditLogs.filter((log: any) => {
     if (!auditLogSearch) return true;
     const q = auditLogSearch.toLowerCase();
     return (
-      log.username.toLowerCase().includes(q) ||
-      log.action.toLowerCase().includes(q) ||
-      log.details.toLowerCase().includes(q)
+      (log.actorName || log.username || '').toLowerCase().includes(q) ||
+      (log.action || '').toLowerCase().includes(q) ||
+      (log.description || log.details || '').toLowerCase().includes(q)
     );
   });
 
@@ -719,14 +719,14 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAuditLogs.map(log => (
+                    {filteredAuditLogs.map((log: any) => (
                       <tr key={log.id}>
                         <td style={{ whiteSpace: 'nowrap', fontSize: 11, color: 'var(--text-muted)' }}>
                           {new Date(log.timestamp).toLocaleString('vi-VN')}
                         </td>
                         <td>
-                          <div style={{ fontWeight: 700, fontSize: 12 }}>{log.username}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{log.userRole}</div>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{log.actorName || log.username}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{log.actorRole || log.userRole}</div>
                         </td>
                         <td>
                           <span className="badge badge-primary" style={{ fontSize: 10, fontWeight: 700 }}>
@@ -734,7 +734,7 @@ export const DataAuditView: React.FC<DataAuditViewProps> = ({
                           </span>
                         </td>
                         <td style={{ fontSize: 12, color: 'var(--text-main)', lineHeight: 1.4 }}>
-                          {log.details}
+                          {log.description || log.details}
                         </td>
                       </tr>
                     ))}

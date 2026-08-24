@@ -377,6 +377,25 @@ export interface UserAccount {
   lastActiveAt?: string;
   singleDeviceOnly?: boolean; // Restrict account to single device
   maskPhoneNumbers?: boolean;  // Mask sensitive customer phone numbers
+  hasPin?: boolean;
+  twoFactorEnabled?: boolean;
+  autoLockMinutes?: number; // Minutes before auto-lock (e.g. 15)
+  inactivityTimeoutHours?: number; // Hours before full session logout (e.g. 4)
+}
+
+export type AuditLogCategory = 'AUTH' | 'PAYOUT' | 'PRICING' | 'SESSIONS' | 'EXPORT' | 'SETTINGS' | 'OPERATIONS';
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  category: AuditLogCategory;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  description: string;
+  metadata?: Record<string, any>;
+  ipAddress?: string;
 }
 
 export interface SecurityAuditLog {

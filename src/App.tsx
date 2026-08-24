@@ -16,7 +16,8 @@ import { SecurityWatermark } from './components/SecurityWatermark';
 import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
 import { TaxAccountantPortal } from './components/TaxAccountantPortal';
-import { Truck, Database, Settings, LogOut } from 'lucide-react';
+import { ScreenLockModal } from './components/ScreenLockModal';
+import { Truck, Database, Settings, LogOut, Lock } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -83,6 +84,9 @@ export function App() {
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isScreenLocked, setIsScreenLocked] = useState<boolean>(() => {
+    return localStorage.getItem('gomdon_is_locked') === 'true';
+  });
   const [dataConnection, setDataConnection] = useState<'checking' | 'connected' | 'offline'>('checking');
   const [networkPing, setNetworkPing] = useState<number | null>(null);
   const [vpsStats, setVpsStats] = useState<{
@@ -92,6 +96,46 @@ export function App() {
     usedMB: number;
     uptimeHours: string;
   } | null>(null);
+
+  // ⏱️ INACTIVITY TIMER & AUTO-LOCK LISTENER
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let lastActivityTime = Date.now();
+
+    const onUserInteraction = () => {
+      lastActivityTime = Date.now();
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(ev => window.addEventListener(ev, onUserInteraction, { passive: true }));
+
+    const checkInterval = setInterval(() => {
+      const now = Date.now();
+      const idleMs = now - lastActivityTime;
+
+      // 1. Auto-Lock Check
+      const autoLockMin = parseInt(localStorage.getItem('gomdon_autolock_minutes') || '15', 10);
+      if (autoLockMin > 0 && idleMs >= autoLockMin * 60 * 1000 && !isScreenLocked) {
+        localStorage.setItem('gomdon_is_locked', 'true');
+        setIsScreenLocked(true);
+      }
+
+      // 2. Full Inactivity Session Expiry (Default: 4 hours)
+      const inactivityHours = parseInt(localStorage.getItem('gomdon_inactivity_hours') || '4', 10);
+      if (inactivityHours > 0 && idleMs >= inactivityHours * 60 * 60 * 1000) {
+        AuthService.logout();
+        setCurrentUser(null);
+        localStorage.removeItem('gomdon_is_locked');
+        setIsScreenLocked(false);
+      }
+    }, 15000); // Check every 15 seconds
+
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, onUserInteraction));
+      clearInterval(checkInterval);
+    };
+  }, [currentUser, isScreenLocked]);
 
   // 🌐 Bidirectional URL Sync: Push URL when state changes
   useEffect(() => {
@@ -584,6 +628,18 @@ export function App() {
               </div>
 
               <button
+                onClick={() => {
+                  localStorage.setItem('gomdon_is_locked', 'true');
+                  setIsScreenLocked(true);
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '3px 6px', color: 'var(--primary)', marginLeft: 2 }}
+                title="Khóa màn hình bảo vệ dữ liệu (Lock Screen)"
+              >
+                <Lock size={13} />
+              </button>
+
+              <button
                 onClick={handleLogout}
                 className="btn btn-secondary btn-sm"
                 style={{ padding: '3px 6px', color: 'var(--danger)', marginLeft: 2 }}
@@ -887,6 +943,18 @@ export function App() {
 
       {/* Security Anti-Screenshot Watermark Overlay */}
       <SecurityWatermark currentUser={currentUser} />
+
+      {/* 🔒 Screen Lock Protection Modal */}
+      {isScreenLocked && (
+        <ScreenLockModal
+          currentUser={currentUser}
+          onUnlock={() => {
+            localStorage.removeItem('gomdon_is_locked');
+            setIsScreenLocked(false);
+          }}
+          onLogout={handleLogout}
+        />
+      )}
 
     </div>
   </UIFeedbackProvider>

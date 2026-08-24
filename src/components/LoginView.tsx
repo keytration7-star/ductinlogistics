@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { AuthService } from '../services/authService';
 import type { UserAccount } from '../types';
+import { TwoFactorOtpModal } from './TwoFactorOtpModal';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -36,6 +38,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 🛡️ 2FA Challenge State
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<{
+    userId: string;
+    tempToken: string;
+    maskedEmail?: string;
+  } | null>(null);
+
+  // 🔑 Forgot Password State
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   const handleOpenLogin = () => {
     setErrorMsg(null);
@@ -55,6 +67,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     try {
       const res = await AuthService.login(username, password);
       setIsLoading(false);
+
+      if (res.require2FA && res.userId && res.tempToken) {
+        // Trigger 2FA OTP Modal
+        setIsLoginModalOpen(false);
+        setTwoFactorChallenge({
+          userId: res.userId,
+          tempToken: res.tempToken,
+          maskedEmail: res.maskedEmail,
+        });
+        return;
+      }
 
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -1002,12 +1025,34 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
+              {/* Forgot password link */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -4, marginBottom: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLoginModalOpen(false);
+                    setIsForgotPasswordOpen(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#4f46e5',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Quên mật khẩu?
+                </button>
+              </div>
+
               {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
                 style={{
-                  marginTop: 6,
+                  marginTop: 4,
                   padding: '12px',
                   borderRadius: 10,
                   background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
@@ -1048,6 +1093,31 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           </div>
         </div>
+      )}
+
+      {/* 🛡️ 2FA OTP MODAL CHALLENGE */}
+      {twoFactorChallenge && (
+        <TwoFactorOtpModal
+          userId={twoFactorChallenge.userId}
+          tempToken={twoFactorChallenge.tempToken}
+          maskedEmail={twoFactorChallenge.maskedEmail}
+          onSuccess={(user) => {
+            setTwoFactorChallenge(null);
+            onLoginSuccess(user);
+          }}
+          onCancel={() => setTwoFactorChallenge(null)}
+        />
+      )}
+
+      {/* 🔑 FORGOT PASSWORD MODAL */}
+      {isForgotPasswordOpen && (
+        <ForgotPasswordModal
+          onClose={() => setIsForgotPasswordOpen(false)}
+          onSuccess={() => {
+            setIsForgotPasswordOpen(false);
+            setIsLoginModalOpen(true);
+          }}
+        />
       )}
 
     </div>
