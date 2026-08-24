@@ -367,29 +367,13 @@ export const StorageService = {
   },
 
   saveSession(session: ReconciliationSession): void {
-    // Clean raw bulky Excel objects before saving to localStorage to stay within browser 5MB quota
-    const cleanSession: ReconciliationSession = {
-      ...session,
-      statements: session.statements.map(stmt => ({
-        ...stmt,
-        orders: stmt.orders.map(o => {
-          const { rawNvcData: _rawNvcData, rawAppData: _rawAppData, ...cleanOrder } = o;
-          return cleanOrder;
-        })
-      })),
-      unmatchedOrders: session.unmatchedOrders.map(o => {
-        const { rawNvcData: _rawNvcData, rawAppData: _rawAppData, ...cleanOrder } = o;
-        return cleanOrder;
-      })
-    };
-
     const currentSessions = this.getSessions();
     const sessions = [...currentSessions];
-    const index = sessions.findIndex(s => s.id === cleanSession.id);
+    const index = sessions.findIndex(s => s.id === session.id);
     if (index >= 0) {
-      sessions[index] = cleanSession;
+      sessions[index] = session;
     } else {
-      sessions.unshift(cleanSession);
+      sessions.unshift(session);
     }
 
     _inMemorySessionsCache = sessions;
@@ -397,11 +381,11 @@ export const StorageService = {
     try {
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
     } catch (err) {
-      console.warn('[LocalStorage Quota] Đã lưu an toàn vào Bộ nhớ tạm và Máy chủ VPS.');
+      console.warn('[LocalStorage Quota] Dữ liệu đầy đủ được lưu trên RAM cache và Server VPS.');
     }
 
     // Granular server upsert keeps the authoritative history independently of browser cache capacity
-    postServerSync('/api/db/sessions/upsert', { session: cleanSession });
+    postServerSync('/api/db/sessions/upsert', { session });
   },
 
   deleteSession(sessionId: string): void {
