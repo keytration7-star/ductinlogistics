@@ -966,50 +966,206 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       
-      {/* Top Header */}
-      <div style={{
+      {/* Top Banner with Carrier Theming & Floating Selected Shop Card */}
+      <div className="glass-panel" style={{
+        padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: 12,
-        padding: '10px 16px',
-        borderRadius: 14,
-        background: 'var(--bg-card)',
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
         border: '1.5px solid var(--border-color)',
-        boxShadow: 'var(--shadow-sm)',
+        borderRadius: 14,
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
       }}>
-        <div>
+        {/* Left: Title & Carrier */}
+        <div style={{ minWidth: 260 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               borderRadius: 8,
               background: carrierTheme.cardBg,
               color: carrierTheme.badgeText,
-              border: `1px solid ${carrierTheme.cardBorder}`,
+              border: `1.5px solid ${carrierTheme.cardBorder}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
             }}>
               <Store size={18} />
             </div>
-            <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-              Quản Lý Danh Sách Shop & Biểu Giá Riêng
-            </h2>
-            {activeCarrierName && (
-              <span className="badge" style={{ fontSize: 11, padding: '3px 10px', fontWeight: 800, background: carrierTheme.gradient, color: '#ffffff', boxShadow: carrierTheme.shadowGlow }}>
-                HÃNG: {activeCarrierName.toUpperCase()}
-              </span>
-            )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
+                  Quản Lý Danh Sách Shop & Biểu Giá Riêng
+                </h2>
+                {activeCarrierName && (
+                  <span className="badge" style={{
+                    fontSize: 11,
+                    padding: '3px 10px',
+                    fontWeight: 800,
+                    background: carrierTheme.gradient,
+                    color: '#ffffff',
+                    boxShadow: carrierTheme.shadowGlow,
+                    borderRadius: 6,
+                    letterSpacing: '0.02em',
+                  }}>
+                    HÃNG: {activeCarrierName.toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                {activeCarrierName
+                  ? `Không gian quản lý độc lập danh sách Shop & Biểu cước riêng hãng ${activeCarrierName}.`
+                  : 'Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết.'}
+              </p>
+            </div>
           </div>
-          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '3px 0 0 42px' }}>
-            {activeCarrierName
-              ? `Không gian quản lý độc lập danh sách Shop, SĐT & Biểu cước bậc thang riêng cho đơn vị ${activeCarrierName}.`
-              : 'Giao diện 2 bảng trực quan: Chọn Shop ở danh sách bên trái để xem và chỉnh sửa thông tin chi tiết live ở bảng bên phải.'}
-          </p>
         </div>
+
+        {/* Right: Floating 3D Selected Shop Card */}
+        {editingShop ? (
+          <div style={{
+            background: '#ffffff',
+            border: `1.5px solid ${carrierTheme.cardBorder || 'var(--border-color)'}`,
+            borderRadius: 12,
+            padding: '7px 14px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.09), 0 2px 6px rgba(0, 0, 0, 0.04)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            transition: 'all 0.2s ease',
+          }}>
+            {/* Shop Badge & Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: carrierTheme.gradient,
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 900,
+                fontSize: 11.5,
+                boxShadow: carrierTheme.shadowGlow,
+                letterSpacing: '0.04em',
+                flexShrink: 0,
+              }}>
+                SHOP
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)' }}>
+                    {editingShop.name || 'Shop chưa đặt tên'}
+                  </strong>
+                  {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
+                    <span
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: '#ffffff',
+                        border: '1px solid #b45309',
+                        fontSize: 9.5,
+                        fontWeight: 900,
+                        padding: '2px 7px',
+                        borderRadius: 5,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
+                        letterSpacing: '0.02em',
+                      }}
+                      title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
+                    >
+                      <GitMerge size={10} />
+                      <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                  Mã Shop: <strong className="mono" style={{ color: carrierTheme.accentColor, fontWeight: 800 }}>{editingShop.code}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons inside Floating Card */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 6, borderLeft: '1px solid var(--border-color)' }}>
+              {(() => {
+                const usage = getShopUsage(editingShop.id);
+                const deleteTitle = usage.canDelete
+                  ? 'Xóa shop chưa có dữ liệu vận hành'
+                  : `Không thể xóa: đã có ${usage.sessionCount} kỳ đối soát hoặc ${usage.paymentCount} phiếu đi tiền`;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteEmptyShop(editingShop)}
+                    className="btn btn-danger btn-sm"
+                    disabled={!usage.canDelete}
+                    style={{ padding: '5px 9px', fontSize: 11, opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
+                    title={deleteTitle}
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa shop trống</span>
+                  </button>
+                );
+              })()}
+
+              {editingShop.active && (
+                <button
+                  type="button"
+                  onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '5px 9px', fontSize: 11, color: '#dc2626', borderColor: '#fca5a5' }}
+                  title="Ngừng hoạt động, không xóa lịch sử"
+                >
+                  <Ban size={13} />
+                  <span>Ngừng hoạt động</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveCurrentShop}
+                className="btn btn-sm"
+                style={{
+                  padding: '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: carrierTheme.gradient,
+                  color: '#ffffff',
+                  boxShadow: carrierTheme.shadowGlow,
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  borderRadius: 7,
+                }}
+              >
+                <Save size={13} />
+                <span>Lưu Thay Đổi</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(241, 245, 249, 0.6)',
+            border: '1.5px dashed var(--border-color)',
+            borderRadius: 10,
+            padding: '7px 12px',
+            fontSize: 11.5,
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span>👈 Chọn Shop bên trái để chỉnh sửa</span>
+          </div>
+        )}
       </div>
 
       {detectedNewShops.length > 0 && (
@@ -1669,119 +1825,7 @@ export const ShopManagementView: React.FC<ShopManagementViewProps> = ({
             boxShadow: 'var(--shadow-sm)',
           }}>
             
-            {/* Top Toolbar Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingBottom: 10,
-              borderBottom: '1px solid var(--border-color)',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: carrierTheme.gradient,
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 14,
-                  boxShadow: carrierTheme.shadowGlow,
-                }}>
-                  {editingShop.code.slice(0, 4)}
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>{editingShop.name || 'Shop chưa đặt tên'}</h3>
-                    {editingShop.nameAliases && editingShop.nameAliases.length > 0 && (
-                      <span
-                        style={{
-                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          color: '#ffffff',
-                          border: '1px solid #b45309',
-                          fontSize: 10,
-                          fontWeight: 900,
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          boxShadow: '0 2px 6px rgba(217, 119, 6, 0.35)',
-                          letterSpacing: '0.02em',
-                        }}
-                        title={`Shop đã gộp ${editingShop.nameAliases.length} tên phụ: ${editingShop.nameAliases.join(', ')}`}
-                      >
-                        <GitMerge size={11} />
-                        <span>ĐÃ GỘP {editingShop.nameAliases.length} SHOP</span>
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 1 }}>
-                    Mã Shop: <strong className="mono" style={{ color: carrierTheme.accentColor }}>{editingShop.code}</strong>
-                  </div>
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {(() => {
-                  const usage = getShopUsage(editingShop.id);
-                  const deleteTitle = usage.canDelete
-                    ? 'Xóa shop chưa có dữ liệu vận hành'
-                    : `Không thể xóa: đã có ${usage.sessionCount} kỳ đối soát hoặc ${usage.paymentCount} phiếu đi tiền`;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteEmptyShop(editingShop)}
-                      className="btn btn-danger btn-sm"
-                      disabled={!usage.canDelete}
-                      style={{ padding: '5px 10px', fontSize: 11.5, opacity: usage.canDelete ? 1 : 0.5, cursor: usage.canDelete ? 'pointer' : 'not-allowed' }}
-                      title={deleteTitle}
-                    >
-                      <Trash2 size={13} />
-                      <span>Xóa shop trống</span>
-                    </button>
-                  );
-                })()}
-                {editingShop.active && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeactivateShop(editingShop.id, editingShop.name)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '5px 10px', fontSize: 11.5, color: '#dc2626', borderColor: '#fca5a5' }}
-                    title="Ngừng hoạt động, không xóa lịch sử"
-                  >
-                    <Ban size={13} />
-                    <span>Ngừng hoạt động</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleSaveCurrentShop}
-                  className="btn btn-sm"
-                  style={{
-                    padding: '6px 16px',
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    background: carrierTheme.gradient,
-                    color: '#ffffff',
-                    boxShadow: carrierTheme.shadowGlow,
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Save size={14} />
-                  <span>Lưu Thay Đổi</span>
-                </button>
-              </div>
-            </div>
 
             {/* Section 1: Thông tin cơ bản */}
             <div style={{
