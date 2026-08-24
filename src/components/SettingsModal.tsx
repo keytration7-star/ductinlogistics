@@ -1052,6 +1052,7 @@ const TabSecurity: React.FC<{
 }> = ({ isAdmin, currentUser, onSwitchToAccounts, onOpenAuditLogs }) => {
   const { showToast } = useToast();
   const [pinCode, setPinCode] = useState('');
+  const [showPinInput, setShowPinInput] = useState(false);
   const [isSavingPin, setIsSavingPin] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean(currentUser?.twoFactorEnabled));
   const [isToggling2FA, setIsToggling2FA] = useState(false);
@@ -1132,25 +1133,54 @@ const TabSecurity: React.FC<{
         <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12 }}>
           Mã PIN 4-6 số dùng để mở khóa màn hình nhanh khi bạn rời máy tính mà không cần gõ lại mật khẩu dài.
         </div>
-        <form onSubmit={handleSavePin} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="Nhập 4-6 số PIN mới..."
-            value={pinCode}
-            onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
-            className="input-field mono"
-            style={{ width: 220, padding: '7px 12px', fontSize: 13, letterSpacing: 2 }}
-          />
-          <button
-            type="submit"
-            disabled={isSavingPin || pinCode.length < 4}
-            className="btn btn-primary btn-sm"
-            style={{ fontWeight: 700 }}
-          >
-            {isSavingPin ? 'Đang lưu...' : 'Lưu Mã PIN'}
-          </button>
+        <form onSubmit={handleSavePin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative', width: 220 }}>
+              <input
+                type={showPinInput ? 'text' : 'password'}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder="Nhập 4-6 số PIN mới..."
+                value={pinCode}
+                onChange={(e) => setPinCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="input-field mono"
+                style={{ width: '100%', padding: '8px 36px 8px 12px', fontSize: 14, fontWeight: 700, letterSpacing: 3 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinInput(!showPinInput)}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showPinInput ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingPin || pinCode.length < 4 || pinCode.length > 6}
+              className="btn btn-primary btn-sm"
+              style={{ fontWeight: 800, padding: '8px 16px' }}
+            >
+              {isSavingPin ? 'Đang lưu...' : 'Lưu Mã PIN'}
+            </button>
+          </div>
+
+          <div style={{ fontSize: 11, color: pinCode.length >= 4 ? '#059669' : '#64748b', fontWeight: 600 }}>
+            {pinCode.length > 0 ? `Đã nhập: ${pinCode.length}/6 số (Mã PIN hợp lệ: từ 4 đến 6 chữ số)` : 'Chỉ được nhập số (tối thiểu 4 số, tối đa 6 số)'}
+          </div>
         </form>
       </div>
 

@@ -70,9 +70,10 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
 
   const handlePinDigit = (digit: string) => {
     if (pin.length >= 6 || isLoading) return;
-    const newPin = pin + digit;
+    const newPin = (pin + digit).slice(0, 6);
     setPin(newPin);
-    if (newPin.length >= 4 && newPin.length <= 6) {
+    setErrorMsg('');
+    if (newPin.length === 6) {
       handleVerifyPin(newPin);
     }
   };
@@ -85,18 +86,31 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(15, 23, 42, 0.75)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      zIndex: 99999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 20,
-    }}>
+    <div 
+      onKeyDown={(e) => {
+        if (unlockMode === 'PIN') {
+          if (e.key >= '0' && e.key <= '9') {
+            handlePinDigit(e.key);
+          } else if (e.key === 'Backspace') {
+            handlePinBackspace();
+          } else if (e.key === 'Enter' && pin.length >= 4) {
+            handleVerifyPin(pin);
+          }
+        }
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        zIndex: 99999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+    >
       <div style={{
         background: '#ffffff',
         borderRadius: 24,
@@ -220,26 +234,26 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
         {unlockMode === 'PIN' ? (
           <div>
             <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 12 }}>
-              Nhập <strong>4 đến 6 chữ số</strong> mã PIN bảo vệ của bạn
+              Nhập mã PIN bảo vệ (<strong>từ 4 đến 6 chữ số</strong>):
             </div>
 
-            {/* PIN Dots Indicator */}
+            {/* 6 Fixed PIN Dots Indicator */}
             <div style={{
               display: 'flex',
               justifyContent: 'center',
               gap: 12,
-              marginBottom: 18,
+              marginBottom: 16,
             }}>
-              {[0, 1, 2, 3, 4, 5].slice(0, Math.max(4, pin.length)).map((_, i) => (
+              {[0, 1, 2, 3, 4, 5].map((_, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 15,
-                    height: 15,
+                    width: 14,
+                    height: 14,
                     borderRadius: '50%',
-                    background: i < pin.length ? '#4f46e5' : '#e2e8f0',
+                    background: i < pin.length ? '#4f46e5' : '#f1f5f9',
                     border: i < pin.length ? '2px solid #4338ca' : '2px solid #cbd5e1',
-                    transform: i < pin.length ? 'scale(1.15)' : 'scale(1)',
+                    transform: i < pin.length ? 'scale(1.2)' : 'scale(1)',
                     transition: 'all 0.15s ease',
                   }}
                 />
@@ -254,9 +268,9 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
               maxLength={6}
               value={pin}
               onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '');
+                const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                 setPin(val);
-                if (val.length >= 4) handleVerifyPin(val);
+                if (val.length === 6) handleVerifyPin(val);
               }}
               style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
             />
@@ -267,7 +281,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
               gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 8,
               maxWidth: 260,
-              margin: '0 auto 16px',
+              margin: '0 auto 12px',
             }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
                 <button
@@ -276,8 +290,8 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                   onClick={() => handlePinDigit(num)}
                   disabled={isLoading}
                   style={{
-                    height: 48,
-                    fontSize: 19,
+                    height: 46,
+                    fontSize: 18,
                     fontWeight: 800,
                     borderRadius: 12,
                     background: '#f8fafc',
@@ -298,8 +312,8 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={() => setPin('')}
                 disabled={isLoading}
                 style={{
-                  height: 48,
-                  fontSize: 11.5,
+                  height: 46,
+                  fontSize: 11,
                   fontWeight: 700,
                   borderRadius: 12,
                   background: '#f8fafc',
@@ -315,8 +329,8 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={() => handlePinDigit('0')}
                 disabled={isLoading}
                 style={{
-                  height: 48,
-                  fontSize: 19,
+                  height: 46,
+                  fontSize: 18,
                   fontWeight: 800,
                   borderRadius: 12,
                   background: '#f8fafc',
@@ -332,7 +346,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                 onClick={handlePinBackspace}
                 disabled={isLoading}
                 style={{
-                  height: 48,
+                  height: 46,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -347,6 +361,28 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
               </button>
             </div>
 
+            {/* Explicit Unlock Button for 4-6 digits */}
+            <button
+              type="button"
+              onClick={() => handleVerifyPin(pin)}
+              disabled={isLoading || pin.length < 4}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                maxWidth: 260,
+                margin: '0 auto 10px',
+                padding: '9px',
+                fontSize: 13,
+                fontWeight: 800,
+                borderRadius: 10,
+                display: 'block',
+                opacity: pin.length >= 4 ? 1 : 0.45,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+              }}
+            >
+              {isLoading ? 'Đang kiểm tra...' : `Mở Khóa (${pin.length > 0 ? `${pin.length} số` : 'Nhập 4-6 số'})`}
+            </button>
+
             {/* Switch to Password Option */}
             <div>
               <button
@@ -359,7 +395,7 @@ export const ScreenLockModal: React.FC<ScreenLockModalProps> = ({
                   background: 'none',
                   border: 'none',
                   color: '#4f46e5',
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: 700,
                   cursor: 'pointer',
                   textDecoration: 'underline',
