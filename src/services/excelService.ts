@@ -717,17 +717,22 @@ export const ExcelService = {
       cell.border = thinBorder;
     });
 
-    // 🌟 Thống kê chi tiết Đơn Giao, Đơn Hoàn, Đơn GH1P, Công nợ
+    // 🌟 Thống kê chi tiết tài chính: Tách chuẩn xác Đơn Giao Thành Công (Hoàn COD) và Đơn Gửi Hàng (Tính Cước)
     const previousDebtVal = statement.previousDebt || 0;
     const finalPayout = Math.max(0, statement.totalNetPayout + previousDebtVal);
     const amountShopOwes = Math.max(0, -(statement.totalNetPayout + previousDebtVal));
 
+    const codOrders = statement.orders.filter(o => (o.codAmount || 0) > 0);
+    const feeOrders = statement.orders.filter(o => ((o.shopCalculatedFee || 0) + (o.shopOtherFee || 0)) > 0);
+    const returnedOrdersList = statement.orders.filter(o => o.status === 'returned' || o.status === 'returning');
+    const partialOrdersList = statement.orders.filter(o => o.isPartialDelivery);
+
     const rowsData = [
-      ['1. Tổng số đơn hàng gửi', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
-      ['2. Số đơn giao thành công', statement.deliveredOrders, 'Đơn', `COD thu: ${(statement.totalDeliveredCod || 0).toLocaleString('vi-VN')} VNĐ | Cước: ${(statement.totalDeliveredFee || 0).toLocaleString('vi-VN')} VNĐ`],
-      ['3. Số đơn chuyển hoàn', statement.returnedOrders, 'Đơn', `Phí hoàn: ${(statement.totalReturnedFee || 0).toLocaleString('vi-VN')} VNĐ`],
-      ['4. Số đơn giao 1 phần (GH1P)', statement.partialOrders || 0, 'Đơn', `COD thu: ${(statement.totalPartialCod || 0).toLocaleString('vi-VN')} VNĐ | Cước/Phí: ${(statement.totalPartialFee || 0).toLocaleString('vi-VN')} VNĐ`],
-      ['5. Số đơn đang giao/khác', statement.inTransitOrders, 'Đơn', 'Đang cập nhật trạng thái từ NVC'],
+      ['1. Tổng số dòng đối soát trong kỳ', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
+      ['2. Số đơn giao thành công (Hoàn COD)', codOrders.length, 'Đơn', `Tiền COD hoàn: ${statement.totalCod.toLocaleString('vi-VN')} VNĐ | Cước: 0 VNĐ`],
+      ['3. Số đơn phát sinh gửi hàng (Tính cước)', feeOrders.length, 'Đơn', `Cước gửi: ${(statement.totalShopFee + statement.totalShopOtherFee).toLocaleString('vi-VN')} VNĐ | COD: 0 VNĐ`],
+      ['4. Số đơn chuyển hoàn', returnedOrdersList.length, 'Đơn', returnedOrdersList.length > 0 ? `Phí hoàn: ${(statement.totalReturnedFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
+      ['5. Số đơn giao 1 phần (GH1P)', partialOrdersList.length, 'Đơn', partialOrdersList.length > 0 ? `COD: ${(statement.totalPartialCod || 0).toLocaleString('vi-VN')} VNĐ | Cước/Phí: ${(statement.totalPartialFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
       ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],
       ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
       ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
