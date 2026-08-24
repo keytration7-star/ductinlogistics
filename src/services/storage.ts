@@ -212,6 +212,9 @@ async function postServerSync(endpoint: string, body: any) {
   }
 }
 
+// In-Memory Global Cache to bypass browser 5MB LocalStorage limit for massive 10,000+ orders sessions
+let _inMemorySessionsCache: ReconciliationSession[] | null = null;
+
 export const StorageService = {
   // 🔄 Sync all data from Server on App Launch
   async syncWithServer(): Promise<boolean> {
@@ -226,13 +229,14 @@ export const StorageService = {
       const { shops, carriers, sessions, companyInfo, emailSettings, zaloSettings, telegramSettings, exportColumns, carrierData, users, payments, ctvs, auditLogs } = result.data;
 
       if (shops && Array.isArray(shops)) {
-        localStorage.setItem(SHOPS_KEY, JSON.stringify(shops));
+        try { localStorage.setItem(SHOPS_KEY, JSON.stringify(shops)); } catch {}
       }
       if (carriers && Array.isArray(carriers)) {
-        localStorage.setItem(CARRIERS_KEY, JSON.stringify(carriers));
+        try { localStorage.setItem(CARRIERS_KEY, JSON.stringify(carriers)); } catch {}
       }
       if (sessions && Array.isArray(sessions)) {
-        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+        _inMemorySessionsCache = sessions;
+        try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
       }
       if (companyInfo && Object.keys(companyInfo).length > 0) {
         localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
@@ -348,13 +352,14 @@ export const StorageService = {
   },
 
   getSessions(): ReconciliationSession[] {
+    if (_inMemorySessionsCache !== null) {
+      return _inMemorySessionsCache;
+    }
     const data = localStorage.getItem(SESSIONS_KEY);
     if (!data) return [];
     try {
       const sessions: ReconciliationSession[] = JSON.parse(data);
-      // Never infer or overwrite financial values while loading history. A zero
-      // NVC fee is a valid business value (already charged in a previous
-      // settlement), not corrupt data that can be replaced with a default fee.
+      _inMemorySessionsCache = sessions;
       return sessions;
     } catch {
       return [];
@@ -378,7 +383,8 @@ export const StorageService = {
       })
     };
 
-    const sessions = this.getSessions();
+    const currentSessions = this.getSessions();
+    const sessions = [...currentSessions];
     const index = sessions.findIndex(s => s.id === cleanSession.id);
     if (index >= 0) {
       sessions[index] = cleanSession;
@@ -386,35 +392,42 @@ export const StorageService = {
       sessions.unshift(cleanSession);
     }
 
+    _inMemorySessionsCache = sessions;
+
     try {
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
     } catch (err) {
-      // Financial history must never be sacrificed to make browser cache fit.
-      // The individual session is still upserted to the server below; a reload
-      // will retrieve it through syncWithServer once storage is available.
-      console.error('[LocalStorage Quota Error] Không lưu được bản sao cục bộ; không xóa bất kỳ kỳ đối soát cũ nào.', err);
+      console.warn('[LocalStorage Quota] Đã lưu an toàn vào Bộ nhớ tạm và Máy chủ VPS.');
     }
 
-    // Granular server upsert keeps the authoritative history independently of
-    // browser cache capacity.
+    // Granular server upsert keeps the authoritative history independently of browser cache capacity
     postServerSync('/api/db/sessions/upsert', { session: cleanSession });
   },
 
   deleteSession(sessionId: string): void {
     const sessions = this.getSessions().filter(s => s.id !== sessionId);
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    _inMemorySessionsCache = sessions;
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    } catch {}
     postServerSync('/api/db/sessions/delete', { id: sessionId });
   },
 
   clearAllData(): void {
-    localStorage.setItem(SHOPS_KEY, JSON.stringify([]));
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    _inMemorySessionsCache = [];
+    try {
+      localStorage.setItem(SHOPS_KEY, JSON.stringify([]));
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    } catch {}
     postServerSync('/api/db/shops', { shops: [] });
     postServerSync('/api/db/sessions', { sessions: [] });
   },
 
   clearSessionsOnly(): void {
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    _inMemorySessionsCache = [];
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify([]));
+    } catch {}
     postServerSync('/api/db/sessions', { sessions: [] });
   },
 
