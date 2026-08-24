@@ -16,17 +16,29 @@ export interface StatementSettlement {
 }
 
 export function isShopMatching(
-  shop: { id?: string; code?: string; name?: string; nameAliases?: string[] } | null | undefined,
-  target: { shopId?: string; shopCode?: string; shopName?: string } | null | undefined
+  shop: { id?: string; code?: string; name?: string; nameAliases?: string[]; shopId?: string; shopCode?: string; shopName?: string } | null | undefined,
+  target: { id?: string; code?: string; name?: string; nameAliases?: string[]; shopId?: string; shopCode?: string; shopName?: string } | null | undefined
 ): boolean {
   if (!shop || !target) return false;
-  if (target.shopId && shop.id && (target.shopId === shop.id || target.shopId === shop.code)) return true;
-  if (target.shopCode && shop.code && target.shopCode === shop.code) return true;
-  if (target.shopName && shop.name) {
-    const tName = target.shopName.trim().toLowerCase();
-    const sName = shop.name.trim().toLowerCase();
-    if (tName === sName) return true;
-    if (shop.nameAliases && shop.nameAliases.some(alias => alias.trim().toLowerCase() === tName)) return true;
+  const sId = shop.id || shop.shopId;
+  const sCode = shop.code || shop.shopCode;
+  const sName = shop.name || shop.shopName;
+  const sAliases = shop.nameAliases;
+
+  const tId = target.id || target.shopId;
+  const tCode = target.code || target.shopCode;
+  const tName = target.name || target.shopName;
+  const tAliases = target.nameAliases;
+
+  if (tId && sId && (tId === sId || (sCode && tId === sCode) || (tCode && sId === tCode))) return true;
+  if (tCode && sCode && tCode.toLowerCase() === sCode.toLowerCase()) return true;
+  
+  if (tName && sName) {
+    const tn = tName.trim().toLowerCase();
+    const sn = sName.trim().toLowerCase();
+    if (tn === sn) return true;
+    if (sAliases && sAliases.some(alias => alias.trim().toLowerCase() === tn)) return true;
+    if (tAliases && tAliases.some(alias => alias.trim().toLowerCase() === sn)) return true;
   }
   return false;
 }

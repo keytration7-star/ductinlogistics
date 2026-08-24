@@ -1,7 +1,7 @@
 import type { ShopSettlementStatement, EmailSettings, ReconciliationSession } from '../types';
 import { StorageService } from './storage';
 import { getAuthHeaders } from './authService';
-import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement } from './settlementService';
+import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from './settlementService';
 import { ExcelService } from './excelService';
 import * as XLSX from 'xlsx';
 
@@ -57,15 +57,19 @@ export const EmailService = {
     const allSessions = StorageService.getSessions();
     const allPayments = StorageService.getPaymentRecords();
     const allShops = StorageService.getShops();
-    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
-    const matchedShop = allShops.find(s => s.id === statement.shopId || s.code === statement.shopCode);
+    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => isShopMatching(statement, st)));
+    const matchedShop = allShops.find(s => isShopMatching(s, statement));
 
     const liveOpeningDebt = currentSession
       ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
       : (statement.previousDebt || 0);
 
+    const paidAmount = currentSession ? getStatementPaidAmount(statement, currentSession.id, allPayments) : 0;
+    const collectedAmount = currentSession ? getStatementCollectedAmount(statement, currentSession.id, allPayments) : 0;
+    const debtAddedAmount = currentSession ? getStatementDebtAddedAmount(statement, currentSession.id, allPayments) : 0;
+
     const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt);
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
     let subject = settings.subjectTemplate;
     let body = settings.bodyTemplate;
 
@@ -128,15 +132,19 @@ export const EmailService = {
     const allSessions = StorageService.getSessions();
     const allPayments = StorageService.getPaymentRecords();
     const allShops = StorageService.getShops();
-    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => st.shopId === statement.shopId && st.periodName === statement.periodName));
-    const matchedShop = allShops.find(s => s.id === statement.shopId || s.code === statement.shopCode);
+    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => isShopMatching(statement, st)));
+    const matchedShop = allShops.find(s => isShopMatching(s, statement));
 
     const liveOpeningDebt = currentSession
       ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
       : (statement.previousDebt || 0);
 
+    const paidAmount = currentSession ? getStatementPaidAmount(statement, currentSession.id, allPayments) : 0;
+    const collectedAmount = currentSession ? getStatementCollectedAmount(statement, currentSession.id, allPayments) : 0;
+    const debtAddedAmount = currentSession ? getStatementDebtAddedAmount(statement, currentSession.id, allPayments) : 0;
+
     const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt);
+    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
     const companyInfo = StorageService.getCompanyInfo();
     const companyName = companyInfo?.companyName || settings.senderName || 'CÔNG TY LOGISTICS & GOM ĐƠN';
     const companyAddress = companyInfo?.address || '';
@@ -149,7 +157,11 @@ export const EmailService = {
     const totalCodStr = this.formatMoney(statement.totalCod);
     const totalFeeStr = this.formatMoney(statement.totalShopFee + statement.totalShopOtherFee);
     const netPayoutStr = this.formatMoney(settlement.amountPayable);
-
+    const openingDebtStr = settlement.openingDebt < 0 
+      ? `-${this.formatMoney(Math.abs(settlement.openingDebt))}` 
+      : settlement.openingDebt > 0 
+      ? `+${this.formatMoney(settlement.openingDebt)}` 
+      : '0';
     return `
 <!DOCTYPE html>
 <html lang="vi">
@@ -264,6 +276,81 @@ export const EmailService = {
             </td>
           </tr>
 
+          <!-- Financial Breakdown Summary Table -->
+          <tr>
+            <td style="padding: 0 28px 20px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <tr style="background-color: #f8fafc;">
+                  <td style="padding: 10px 16px; font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                    📊 BẢNG TỔNG HỢP DÒNG TIỀN QUYẾT TOÁN
+                  </td>
+                  <td style="padding: 10px 16px; font-size: 12px; font-weight: 800; color: #475569; text-align: right; text-transform: uppercase; letter-spacing: 0.5px;">
+                    SỐ TIỀN (VNĐ)
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    1. Tổng tiền thu hộ (COD) đã thu từ khách (+)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #0284c7; text-align: right;">
+                    +${totalCodStr} đ
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    2. Cước phí vận chuyển phát sinh (-)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #ea580c; text-align: right;">
+                    -${this.formatMoney(statement.totalShopFee)} đ
+                  </td>
+                </tr>
+                ${statement.totalShopOtherFee > 0 ? `
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    3. Phí chuyển hoàn / Phụ thu phát sinh (-)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #ea580c; text-align: right;">
+                    -${this.formatMoney(statement.totalShopOtherFee)} đ
+                  </td>
+                </tr>` : ''}
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    4. Số dư / Công nợ dồn đầu kỳ (+/-)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: ${settlement.openingDebt < 0 ? '#dc2626' : settlement.openingDebt > 0 ? '#16a34a' : '#64748b'}; text-align: right;">
+                    ${openingDebtStr} đ
+                  </td>
+                </tr>
+                ${collectedAmount > 0 ? `
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    5. Tiền mặt đã thanh toán / Xóa nợ bù trừ (+)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #16a34a; text-align: right;">
+                    +${this.formatMoney(collectedAmount)} đ
+                  </td>
+                </tr>` : ''}
+                ${debtAddedAmount > 0 ? `
+                <tr>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
+                    6. Khoản nợ phát sinh bổ sung (-)
+                  </td>
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #dc2626; text-align: right;">
+                    -${this.formatMoney(debtAddedAmount)} đ
+                  </td>
+                </tr>` : ''}
+                <tr style="background-color: ${settlement.amountShopOwes > 0 ? '#fef2f2' : '#f0fdf4'};">
+                  <td style="padding: 14px 16px; border-top: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 14px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#991b1b' : '#166534'};">
+                    ${settlement.amountShopOwes > 0 ? '🔴 TỔNG KẾT: SHOP CÒN NỢ CÔNG TY' : '💰 TỔNG KẾT: SỐ TIỀN THỰC CHUYỂN CHO SHOP'}
+                  </td>
+                  <td style="padding: 14px 16px; border-top: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 18px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#dc2626' : '#15803d'}; text-align: right;">
+                    ${settlement.amountShopOwes > 0 ? `-${this.formatMoney(settlement.amountShopOwes)} đ` : `${netPayoutStr} đ`}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
           <!-- Bank Account Details Card -->
           <tr>
             <td style="padding: 0 28px 20px;">
@@ -327,8 +414,8 @@ export const EmailService = {
     `.trim();
   },
 
-  generateMailtoUri(statement: ShopSettlementStatement, settings: EmailSettings): string {
-    const { subject, body } = this.renderEmail(statement, settings);
+  generateMailtoUri(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string, session?: ReconciliationSession): string {
+    const { subject, body } = this.renderEmail(statement, settings, carrierId, session);
     const email = statement.shopEmail || '';
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   },

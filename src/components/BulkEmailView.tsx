@@ -29,6 +29,7 @@ import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storage';
 import { ZaloZnsService } from '../services/zaloZnsService';
 import { TelegramService } from '../services/telegramService';
+import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from '../services/settlementService';
 
 interface BulkEmailViewProps {
   currentSession: ReconciliationSession | null;
@@ -287,6 +288,28 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
         periodName: activeCarrierName ? `Kỳ Đối Soát ${activeCarrierName}` : 'Kỳ 16/08 - 22/08/2026'
       }
     : (statements.find(s => s.shopId === selectedShopId) || statements[0]);
+
+  const allSessions = StorageService.getSessions();
+  const allPayments = StorageService.getPaymentRecords();
+  const allShops = StorageService.getShops();
+
+  const getLiveStatementSettlement = React.useCallback((stmt: ShopSettlementStatement) => {
+    const matchedShop = allShops.find(s => isShopMatching(s, stmt));
+    const liveOpeningDebt = activeSession
+      ? calculateLiveOpeningDebtForStatement(stmt, activeSession, allSessions, allPayments, matchedShop)
+      : (stmt.previousDebt || 0);
+
+    const paidAmount = activeSession ? getStatementPaidAmount(stmt, activeSession.id, allPayments) : 0;
+    const collectedAmount = activeSession ? getStatementCollectedAmount(stmt, activeSession.id, allPayments) : 0;
+    const debtAddedAmount = activeSession ? getStatementDebtAddedAmount(stmt, activeSession.id, allPayments) : 0;
+
+    const stmtWithLiveDebt = { ...stmt, previousDebt: liveOpeningDebt };
+    return calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
+  }, [activeSession, allSessions, allPayments, allShops]);
+
+  const selectedStatementSettlement = React.useMemo(() => {
+    return getLiveStatementSettlement(selectedStatement);
+  }, [selectedStatement, getLiveStatementSettlement]);
 
   const missingShopEmailsCount = statements.filter(s => !s.shopEmail || !s.shopEmail.includes('@')).length;
 
@@ -704,7 +727,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
 
   const currentCarrierId = activeCarrierId || (selectedCarrierTab !== 'default' ? selectedCarrierTab : activeSession?.carrierId);
 
-  const previewRendered = EmailService.renderEmail(selectedStatement, settings, currentCarrierId);
+  const previewRendered = EmailService.renderEmail(selectedStatement, settings, currentCarrierId, activeSession || undefined);
 
   const handleCopyBody = () => {
     navigator.clipboard.writeText(previewRendered.body);
@@ -1233,13 +1256,15 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                     display: 'flex',
                     justifyContent: 'space-between',
                     padding: '8px 10px',
-                    background: 'rgba(0, 104, 255, 0.08)',
+                    background: selectedStatementSettlement.amountShopOwes > 0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(0, 104, 255, 0.08)',
                     borderRadius: 8,
-                    border: '1px solid rgba(0, 104, 255, 0.2)',
+                    border: selectedStatementSettlement.amountShopOwes > 0 ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(0, 104, 255, 0.2)',
                   }}>
-                    <span style={{ fontWeight: 800, color: '#0068ff' }}>THỰC NHẬN:</span>
-                    <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: '#0068ff' }}>
-                      {formatVND(selectedStatement.totalNetPayout)}
+                    <span style={{ fontWeight: 800, color: selectedStatementSettlement.amountShopOwes > 0 ? '#dc2626' : '#0068ff' }}>
+                      {selectedStatementSettlement.amountShopOwes > 0 ? 'SHOP CÒN NỢ:' : 'THỰC NHẬN:'}
+                    </span>
+                    <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: selectedStatementSettlement.amountShopOwes > 0 ? '#dc2626' : '#0068ff' }}>
+                      {selectedStatementSettlement.amountShopOwes > 0 ? `-${formatVND(selectedStatementSettlement.amountShopOwes)}` : formatVND(selectedStatementSettlement.amountPayable)}
                     </span>
                   </div>
 
@@ -2230,11 +2255,17 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                   className="select-field"
                   style={{ width: 240, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
                 >
-                  {statements.map((s, idx) => (
-                    <option key={s.shopId || idx} value={s.shopId}>
-                      {idx + 1}. {s.shopName} ({formatVND(s.totalNetPayout)})
-                    </option>
-                  ))}
+                  {statements.map((s, idx) => {
+                    const stmtSettlement = getLiveStatementSettlement(s);
+                    const amountLabel = stmtSettlement.amountShopOwes > 0
+                      ? `Nợ -${formatVND(stmtSettlement.amountShopOwes)}`
+                      : formatVND(stmtSettlement.amountPayable);
+                    return (
+                      <option key={s.shopId || idx} value={s.shopId}>
+                        {idx + 1}. {s.shopName} ({amountLabel})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             ) : displaySessions.length > 0 && (
@@ -2339,7 +2370,7 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                 </button>
 
                 <a
-                  href={EmailService.generateMailtoUri(selectedStatement, settings)}
+                  href={EmailService.generateMailtoUri(selectedStatement, settings, currentCarrierId, activeSession || undefined)}
                   className="btn btn-primary btn-sm"
                 >
                   <Send size={13} />
@@ -2479,9 +2510,14 @@ export const BulkEmailView: React.FC<BulkEmailViewProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="mono" style={{ fontWeight: 700, color: stmt.totalNetPayout >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                      {formatVND(stmt.totalNetPayout)}
-                    </td>
+                    {(() => {
+                      const stmtSettlement = getLiveStatementSettlement(stmt);
+                      return (
+                        <td className="mono" style={{ fontWeight: 700, color: stmtSettlement.amountShopOwes > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                          {stmtSettlement.amountShopOwes > 0 ? `🔴 -${formatVND(stmtSettlement.amountShopOwes)}` : formatVND(stmtSettlement.amountPayable)}
+                        </td>
+                      );
+                    })()}
                     <td>
                       {statusObj.status === 'idle' && (
                         <span className="badge badge-neutral">Sẵn sàng</span>
