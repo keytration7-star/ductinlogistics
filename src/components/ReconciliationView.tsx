@@ -906,14 +906,39 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const file = filesArray[0];
         setAppFile(file);
         const { headers, rows } = await ExcelService.parseExcelFile(file);
-        setAppHeaders(headers);
-        setAppRows(rows);
-        setIsMappingConfirmed(false);
+        
         const saved = StorageService.getCarrierMapping(selectedCarrierId);
         const detectedMapping = autoDetectColumns(headers, 'app', saved.app, rows);
+        const wbCol = detectedMapping.waybillColumn;
+
+        // 🔑 LỌC TRÙNG NỘI BỘ FILE XUẤT: Tránh người dùng xuất tay trên App 2 lần bị trùng mã đơn
+        let finalRows = rows;
+        let dupCount = 0;
+        if (wbCol) {
+          const uniqueMap = new Map<string, Record<string, any>>();
+          for (const r of rows) {
+            const rawWb = r[wbCol];
+            if (!rawWb || isSummaryOrInvalidWaybill(rawWb)) continue;
+            const wbKey = String(rawWb).trim().toUpperCase();
+            if (uniqueMap.has(wbKey)) {
+              dupCount++;
+            } else {
+              uniqueMap.set(wbKey, r);
+            }
+          }
+          finalRows = Array.from(uniqueMap.values());
+        }
+
+        setAppHeaders(headers);
+        setAppRows(finalRows);
+        setIsMappingConfirmed(false);
         setAppMapping(detectedMapping);
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, headers);
+
+        if (dupCount > 0) {
+          showToast(`Đã tải File App: tự động lọc bỏ ${dupCount} dòng xuất trùng lặp (còn lại ${finalRows.length.toLocaleString('vi-VN')} đơn duy nhất).`, 'success');
+        }
       } else {
         // Multi-file J&T exports can legitimately differ in optional columns
         // (for example product, warehouse or print columns).  Do not compare
@@ -963,10 +988,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           })));
         }
 
-        const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${combinedRows.length} dòng)`);
+        // 🔑 LỌC TRÙNG NỘI BỘ KHI GỘP NHIỀU FILE XUẤT
+        const uniqueAppMap = new Map<string, Record<string, any>>();
+        let multiDupCount = 0;
+        for (const row of combinedRows) {
+          const wb = row[canonicalHeaders.waybill] ? String(row[canonicalHeaders.waybill]).trim().toUpperCase() : '';
+          if (!wb || isSummaryOrInvalidWaybill(wb)) continue;
+          if (uniqueAppMap.has(wb)) {
+            multiDupCount++;
+          } else {
+            uniqueAppMap.set(wb, row);
+          }
+        }
+        const dedupedCombinedRows = Array.from(uniqueAppMap.values());
+
+        const mergedFile = new File([], `Gộp ${filesArray.length} file Excel App (${dedupedCombinedRows.length} đơn)`);
         setAppFile(mergedFile);
         setAppHeaders(normalizedHeaders);
-        setAppRows(combinedRows);
+        setAppRows(dedupedCombinedRows);
         setIsMappingConfirmed(false);
 
         const normalizedMapping: ColumnMappingConfig = {
@@ -986,7 +1025,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         const savedHeaders = StorageService.getCarrierHeaders(selectedCarrierId);
         StorageService.saveCarrierHeaders(selectedCarrierId, savedHeaders.nvcHeaders, normalizedHeaders);
 
-        showToast(`Đã chuẩn hóa và gộp ${filesArray.length} file Excel App (${combinedRows.length.toLocaleString('vi-VN')} dòng). Mã đơn trùng vẫn sẽ bị chặn ở bước đối soát.`, 'success');
+        showToast(
+          multiDupCount > 0
+            ? `Đã gộp ${filesArray.length} file App: tự động lọc ${multiDupCount} đơn xuất trùng lặp, còn lại ${dedupedCombinedRows.length.toLocaleString('vi-VN')} đơn duy nhất sẵn sàng khớp nối.`
+            : `Đã chuẩn hóa và gộp ${filesArray.length} file Excel App (${dedupedCombinedRows.length.toLocaleString('vi-VN')} đơn).`,
+          'success'
+        );
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Không thể đọc file đơn hàng từ App. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv)', 'error');
