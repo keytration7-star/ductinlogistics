@@ -235,6 +235,13 @@ export const StorageService = {
         try { localStorage.setItem(CARRIERS_KEY, JSON.stringify(carriers)); } catch {}
       }
       if (sessions && Array.isArray(sessions)) {
+        sessions.forEach((s: any) => {
+          (s.statements || []).forEach((st: any) => {
+            if (st.previousDebt && st.previousDebt > 0) {
+              st.previousDebt = 0;
+            }
+          });
+        });
         _inMemorySessionsCache = sessions;
         try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
       }
@@ -359,6 +366,14 @@ export const StorageService = {
     if (!data) return [];
     try {
       const sessions: ReconciliationSession[] = JSON.parse(data);
+      // Tự động bảo vệ: Làm sạch toàn bộ công nợ ảo dương (chỉ cho phép nợ cước âm)
+      sessions.forEach(s => {
+        (s.statements || []).forEach(st => {
+          if (st.previousDebt && st.previousDebt > 0) {
+            st.previousDebt = 0;
+          }
+        });
+      });
       _inMemorySessionsCache = sessions;
       return sessions;
     } catch {
