@@ -1056,23 +1056,56 @@ export const ExcelService = {
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
     });
 
-
-
     // Orders Data Rows
     statement.orders.forEach((order, idx) => {
       const rowData: any[] = [];
       activeCols.forEach((col: ExportColumnItem) => {
         let val: any = '';
-        if (col.id === 'stt' || normalizeHeader(col.label) === 'stt') {
+        const normLabel = normalizeHeader(col.label || col.id || '');
+        const normSrc = normalizeHeader(col.sourceHeader || '');
+
+        if (col.id === 'stt' || normLabel === 'stt') {
           val = idx + 1;
-        } else if (col.id === 'shopFee' || normalizeHeader(col.label) === 'cuoc_tinh_shop_vnd') {
+        } else if (
+          col.id === 'shopFee' ||
+          normLabel === 'cuoc_tinh_shop_vnd' ||
+          normLabel.includes('tien_cuoc_pp_pm') ||
+          normLabel.includes('cuoc_chinh') ||
+          normLabel.includes('cuoc_phi_van_chuyen') ||
+          normLabel.includes('cuoc_thu_shop') ||
+          normSrc.includes('tien_cuoc_pp_pm') ||
+          normSrc.includes('cuoc_chinh')
+        ) {
+          // 🛡️ BẢO VỆ GIÁ VỐN: Luôn xuất giá cước thỏa thuận của Shop, không bao giờ xuất cước gốc NVC
           val = order.shopCalculatedFee ?? 0;
-        } else if (col.id === 'shopOtherFee' || normalizeHeader(col.label) === 'phu_phi_shop_vnd') {
+        } else if (
+          col.id === 'shopOtherFee' ||
+          normLabel === 'phu_phi_shop_vnd' ||
+          normLabel.includes('phi_hoan_hang') ||
+          normLabel.includes('phu_thu')
+        ) {
           val = order.shopOtherFee ?? 0;
-        } else if (col.id === 'netPayout' || normalizeHeader(col.label) === 'thuc_chuyen_cho_shop_vnd') {
+        } else if (
+          col.id === 'netPayout' ||
+          normLabel === 'thuc_chuyen_cho_shop_vnd' ||
+          normLabel.includes('so_tien_phai_tra_sau_can_tru') ||
+          normLabel.includes('thuc_chuyen') ||
+          normLabel.includes('thuc_tra') ||
+          normSrc.includes('so_tien_phai_tra_sau_can_tru')
+        ) {
+          // 🛡️ BẢO VỆ SỐ TIỀN: Luôn xuất số tiền thực chuyển cho Shop (= COD - Cước Shop)
           val = order.netShopPayout ?? 0;
-        } else if (col.id === 'profit' || normalizeHeader(col.label) === 'loi_nhuan_gom_don_vnd') {
-          val = order.profitMargin ?? 0;
+        } else if (
+          col.id === 'profit' ||
+          col.id === 'nvcFee' ||
+          normLabel.includes('loi_nhuan') ||
+          normLabel.includes('lai_rong') ||
+          normLabel.includes('cuoc_goc') ||
+          normLabel.includes('cuoc_nvc') ||
+          normSrc.includes('cuoc_goc')
+        ) {
+          // 🛡️ TUYỆT ĐỐI ẨN LỢI NHUẬN / CƯỚC GỐC KHỎI FILE SHOP
+          val = 0;
         } else {
           val = (order.rawNvcData && col.sourceHeader && order.rawNvcData[col.sourceHeader] !== undefined ? order.rawNvcData[col.sourceHeader] : undefined) ??
                 (order.rawAppData && col.sourceHeader && order.rawAppData[col.sourceHeader] !== undefined ? order.rawAppData[col.sourceHeader] : undefined) ??
@@ -1081,8 +1114,6 @@ export const ExcelService = {
                 resolveOrderColumnValue(order, col, idx);
         }
 
-        const normLabel = normalizeHeader(col.label || col.id || '');
-        const normSrc = normalizeHeader(col.sourceHeader || '');
         const isDateCol = (normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') ||
                            normSrc.includes('ngay') || normSrc.includes('date') || normSrc.includes('thoi_gian')) &&
                           !normLabel.includes('tien') && !normLabel.includes('cuoc') && !normLabel.includes('phi') && !normLabel.includes('cod') && !normLabel.includes('tra') &&
@@ -1142,11 +1173,23 @@ export const ExcelService = {
         totalRowData.push(totalWeight);
       } else if (col.id === 'codAmount' || src === 'Tiền COD đã ký nhận' || src === 'Tiền thu hộ COD' || src === 'COD thực thu' || normLabel === 'tien_cod_da_ky_nhan' || normLabel === 'tien_thu_ho_cod') {
         totalRowData.push(statement.totalCod);
-      } else if (col.id === 'shopFee' || normLabel === 'cuoc_tinh_shop_vnd' || normLabel === 'cuoc_thu_shop') {
+      } else if (
+        col.id === 'shopFee' ||
+        normLabel === 'cuoc_tinh_shop_vnd' ||
+        normLabel === 'cuoc_thu_shop' ||
+        normLabel.includes('tien_cuoc_pp_pm') ||
+        normLabel.includes('cuoc_chinh') ||
+        src === 'Tiền cước PP_PM'
+      ) {
         totalRowData.push(statement.totalShopFee);
       } else if (col.id === 'shopOtherFee' || normLabel === 'phu_phi_shop_vnd') {
         totalRowData.push(statement.totalShopOtherFee);
-      } else if (col.id === 'netPayout' || normLabel === 'thuc_chuyen_cho_shop_vnd') {
+      } else if (
+        col.id === 'netPayout' ||
+        normLabel === 'thuc_chuyen_cho_shop_vnd' ||
+        normLabel.includes('so_tien_phai_tra_sau_can_tru') ||
+        src === 'Số tiền phải trả sau cấn trừ'
+      ) {
         totalRowData.push(statement.totalNetPayout);
       } else if (col.category === 'carrier' || (col.sourceHeader && (normLabel.includes('phi') || normLabel.includes('tien') || normLabel.includes('cuoc')))) {
         const colSum = statement.orders.reduce((sum, o) => {
