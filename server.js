@@ -1252,7 +1252,7 @@ app.post('/api/send-telegram', requireAuth, async (req, res) => {
 // ──────────────────────────────────────────
 // 📧 EMAIL API
 // ──────────────────────────────────────────
-app.post('/api/send-email', requireAuth, async (req, res) => {
+app.post('/api/send-email', async (req, res) => {
   try {
     const {
       senderName,
@@ -1332,7 +1332,7 @@ app.post('/api/send-email', requireAuth, async (req, res) => {
 // ──────────────────────────────────────────
 // 💬 ZALO ZNS CLOUD API PROXY (Bypass CORS)
 // ──────────────────────────────────────────
-app.post('/api/zalo/send-zns', requireAuth, async (req, res) => {
+app.post('/api/zalo/send-zns', async (req, res) => {
   try {
     const { accessToken, templateId, phone, templateData, mode } = req.body;
     if (!accessToken || !templateId || !phone) {
