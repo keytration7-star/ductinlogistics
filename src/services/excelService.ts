@@ -954,7 +954,8 @@ export const ExcelService = {
     });
 
     // 🌟 Thống kê chi tiết tài chính: Tách chuẩn xác Đơn Giao Thành Công (Hoàn COD) và Đơn Gửi Hàng (Tính Cước)
-    const previousDebtVal = statement.previousDebt || 0;
+    // CHỈ cấn trừ công nợ đầu kỳ khi Shop bị nợ cước âm (< 0), tuyệt đối không cộng dồn số tiền dương của kỳ trước.
+    const previousDebtVal = (statement.previousDebt && statement.previousDebt < 0) ? statement.previousDebt : 0;
     const finalPayout = Math.max(0, statement.totalNetPayout + previousDebtVal);
     const amountShopOwes = Math.max(0, -(statement.totalNetPayout + previousDebtVal));
 
@@ -972,7 +973,7 @@ export const ExcelService = {
       ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],
       ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
       ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
-      ['9. Công nợ đầu kỳ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : previousDebtVal > 0 ? 'Công ty nợ Shop (cộng vào kỳ này)' : 'Không có công nợ đầu kỳ'],
+      ['9. Công nợ đầu kỳ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : 'Không có công nợ đầu kỳ'],
       ['10. Shop còn nợ công ty', amountShopOwes, 'VNĐ', amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
     ];
 

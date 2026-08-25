@@ -711,7 +711,8 @@ export function performReconciliation(
         totalNetPayout: 0,
         // Snapshot the signed opening balance now. Future edits to the shop
         // profile must never alter a previously issued settlement statement.
-        previousDebt: shopObj ? calculateOpeningDebtForNewStatement(shopObj, existingSessions, paymentRecords) : 0,
+        // CHỈ ghi nhận công nợ đầu kỳ khi Shop bị nợ cước âm (<= 0), không mang số dương sang làm công nợ dồn.
+        previousDebt: shopObj ? Math.min(0, calculateOpeningDebtForNewStatement(shopObj, existingSessions, paymentRecords)) : 0,
         totalNvcCost: 0,
         totalProfit: 0,
         totalDeliveredCod: 0,
@@ -1028,7 +1029,7 @@ export function recalculateSessionFees(
           totalPartialCod: 0,
           totalPartialFee: 0,
           orders: [],
-          previousDebt: matchedShop ? calculateOpeningDebtForNewStatement(matchedShop, existingSessions, paymentRecords) : (stmt.previousDebt || 0),
+          previousDebt: matchedShop ? Math.min(0, calculateOpeningDebtForNewStatement(matchedShop, existingSessions, paymentRecords)) : Math.min(0, stmt.previousDebt || 0),
         });
       }
 
