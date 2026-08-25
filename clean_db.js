@@ -1,5 +1,9 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const possiblePaths = [
   path.join(__dirname, 'data', 'sessions.json'),
@@ -8,8 +12,10 @@ const possiblePaths = [
   '/var/www/autopro/data/sessions.json',
 ];
 
+const done = new Set();
 possiblePaths.forEach(dbPath => {
-  if (fs.existsSync(dbPath)) {
+  if (fs.existsSync(dbPath) && !done.has(dbPath)) {
+    done.add(dbPath);
     try {
       const raw = fs.readFileSync(dbPath, 'utf8');
       const sessions = JSON.parse(raw);
