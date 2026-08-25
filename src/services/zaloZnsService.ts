@@ -31,20 +31,20 @@ export class ZaloZnsService {
     session: ReconciliationSession,
     companyName: string = ''
   ): Record<string, any> {
-    const totalFee = statement.totalShopFee + statement.totalShopOtherFee;
+    const totalFee = (statement.totalShopFee || 0) + (statement.totalShopOtherFee || 0);
+    const totalCod = statement.totalCod || 0;
+    const totalPayout = statement.totalNetPayout || 0;
+    const totalOrders = statement.totalOrders || 0;
+
     return {
-      shop_name: statement.shopName,
-      shop_code: statement.shopCode,
-      period_name: session.sessionName,
-      total_orders: `${statement.totalOrders} đơn`,
-      total_cod: this.formatVND(statement.totalCod),
-      total_fee: this.formatVND(totalFee),
-      total_net_payout: this.formatVND(statement.totalNetPayout),
-      bank_name: statement.bankInfo?.bankName || 'Chưa cập nhật',
-      account_number: statement.bankInfo?.accountNumber || 'Chưa cập nhật',
-      company_name: companyName,
-      statement_link: window.location.origin,
-      date_now: new Date().toLocaleDateString('vi-VN'),
+      shop_name: statement.shopName || 'Quý khách',
+      shop_code: statement.shopCode || '',
+      period_name: session.sessionName || 'Kỳ đối soát',
+      total_orders: totalOrders,
+      total_cod: totalCod,
+      total_fee: totalFee,
+      total_net_payout: totalPayout,
+      company_name: companyName || 'CÔNG TY TNHH TM&DV TRƯỜNG PHÚC',
     };
   }
 
@@ -170,16 +170,12 @@ export class ZaloZnsService {
           templateData: {
             shop_name: 'Shop Thử Nghiệm',
             shop_code: 'TEST01',
-            period_name: 'Kỳ Đối Soát Mẫu',
-            total_orders: '10 đơn',
-            total_cod: '1.000.000 đ',
-            total_fee: '50.000 đ',
-            total_net_payout: '950.000 đ',
-            bank_name: 'MB Bank',
-            account_number: '0123456789',
-            company_name: settings.companyName || 'Công ty Logistics',
-            statement_link: window.location.origin,
-            date_now: new Date().toLocaleDateString('vi-VN'),
+            period_name: '21/08 - 24/08/2026',
+            total_orders: 10,
+            total_cod: 1000000,
+            total_fee: 50000,
+            total_net_payout: 950000,
+            company_name: settings.companyName || 'CÔNG TY TNHH TM&DV TRƯỜNG PHÚC',
           },
           mode: settings.isTestMode ? 'development' : undefined,
         }),
