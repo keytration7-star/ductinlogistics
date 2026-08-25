@@ -104,8 +104,8 @@ export function calculateStatementSettlement(
   };
 }
 
-/** Opening debt for a new statement is the seed balance plus every prior
- * period's net settlement and actual bank transfers. */
+/** Opening debt for a new statement is the seed balance (or unpaid negative balances where shop owes carrier fee).
+ * Positive payouts from prior periods are paid out independently and MUST NOT be carried over as "company owes shop" debt. */
 export function calculateOpeningDebtForNewStatement(
   shop: Shop,
   sessions: ReconciliationSession[],
@@ -126,19 +126,16 @@ export function calculateOpeningDebtForNewStatement(
     .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'DEBT_ADD')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const initialDebt = (shop.previousDebt ?? 0) + collections - debtAdds;
-  if (statements.length === 0) return initialDebt;
+  let initialDebt = (shop.previousDebt ?? 0) + collections - debtAdds;
 
-  return statements.reduce((balance, { session, statement }) => {
-    const paid = payments
-      .filter(payment => !payment.voidedAt
-        && payment.sessionId === session.id
-        && isShopMatching(shop, payment)
-        && payment.type !== 'COLLECTION'
-        && payment.type !== 'DEBT_ADD')
-      .reduce((total, payment) => total + payment.amount, 0);
-    return balance + statement.totalNetPayout - paid;
-  }, initialDebt);
+  // Duyệt qua các kỳ trước: CHỈ cộng dồn nếu kỳ trước Shop bị nợ cước (âm tiền totalNetPayout < 0)
+  for (const { statement } of statements) {
+    if (statement.totalNetPayout < 0) {
+      initialDebt += statement.totalNetPayout;
+    }
+  }
+
+  return initialDebt;
 }
 
 /**
@@ -179,19 +176,13 @@ export function calculateLiveOpeningDebtForStatement(
       && p.type === 'DEBT_ADD')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const initialDebt = (shop?.previousDebt ?? 0) + priorCollections - priorDebtAdds;
-  if (priorItems.length === 0) {
-    return initialDebt;
+  let initialDebt = (shop?.previousDebt ?? 0) + priorCollections - priorDebtAdds;
+
+  for (const { statement: st } of priorItems) {
+    if (st.totalNetPayout < 0) {
+      initialDebt += st.totalNetPayout;
+    }
   }
 
-  return priorItems.reduce((balance, { session, statement: st }) => {
-    const paid = payments
-      .filter(payment => !payment.voidedAt
-        && payment.sessionId === session.id
-        && isShopMatching(shopMatcher, payment)
-        && payment.type !== 'COLLECTION'
-        && payment.type !== 'DEBT_ADD')
-      .reduce((total, payment) => total + payment.amount, 0);
-    return balance + st.totalNetPayout - paid;
-  }, initialDebt);
+  return initialDebt;
 }
