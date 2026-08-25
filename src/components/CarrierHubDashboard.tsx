@@ -20,6 +20,7 @@ import type {
   ReconciliationSession, 
   UserAccount,
 } from '../types';
+import { StorageService } from '../services/storage';
 import { useToast, useConfirm } from './UIFeedback';
 
 interface CarrierHubDashboardProps {
@@ -263,11 +264,17 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
     setNewCarrierWeightRules(updated);
   };
 
+  // Đảm bảo luôn có danh sách hãng hiển thị (không bao giờ bị 0 hãng)
+  const displayCarriers = useMemo(() => {
+    if (carriers && carriers.length > 0) return carriers;
+    return StorageService.getCarriers();
+  }, [carriers]);
+
   // Compute live statistics per carrier
   const carrierStats = useMemo(() => {
     const statsMap = new Map<string, { shopCount: number; sessionCount: number; orderCount: number; totalCod: number; totalProfit: number; lastSessionDate?: string }>();
 
-    carriers.forEach(c => {
+    displayCarriers.forEach(c => {
       const cShops = shops.filter(s => (s.carrierId || 'jnt') === c.carrierId);
       statsMap.set(c.carrierId, {
         shopCount: cShops.length,
@@ -299,15 +306,15 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
     });
 
     return statsMap;
-  }, [carriers, sessions, shops]);
+  }, [displayCarriers, sessions, shops]);
 
   // Filtered carriers
   const filteredCarriers = useMemo(() => {
-    return carriers.filter(c => 
+    return displayCarriers.filter(c => 
       c.carrierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.carrierId.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [carriers, searchTerm]);
+  }, [displayCarriers, searchTerm]);
 
   // Overall system metrics
   const totalSystemCod = useMemo(() => sessions.reduce((acc, s) => acc + (s.totalCod || 0), 0), [sessions]);

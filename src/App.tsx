@@ -257,16 +257,23 @@ export function App() {
   }, [currentUser]);
 
   const loadAllData = async () => {
+    // 1. Render tức thì từ LocalStorage (0ms không để màn hình trắng hay 0 hãng)
+    const localShops = StorageService.getShops();
+    const localCarriers = StorageService.getCarriers();
+    const localSessions = StorageService.getSessions();
+    const localEmail = StorageService.getEmailSettings();
+    setShops(localShops);
+    setCarriers(localCarriers);
+    setSessions(localSessions);
+    setEmailSettings(localEmail);
+
+    // 2. Đồng bộ ngầm với Server
     setDataConnection('checking');
     const synced = await StorageService.syncWithServer();
-    const s = StorageService.getShops();
-    const c = StorageService.getCarriers();
-    const sess = StorageService.getSessions();
-    const em = StorageService.getEmailSettings();
-    setShops(s);
-    setCarriers(c);
-    setSessions(sess);
-    setEmailSettings(em);
+    setShops(StorageService.getShops());
+    setCarriers(StorageService.getCarriers());
+    setSessions(StorageService.getSessions());
+    setEmailSettings(StorageService.getEmailSettings());
     setDataConnection(synced ? 'connected' : 'offline');
   };
 
