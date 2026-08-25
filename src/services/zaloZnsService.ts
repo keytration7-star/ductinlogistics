@@ -1,4 +1,5 @@
 import type { ZaloZnsSettings, ZnsSendResult, ReconciliationSession, ShopSettlementStatement } from '../types';
+import { getAuthHeaders } from './authService';
 
 export class ZaloZnsService {
   /**
@@ -89,16 +90,17 @@ export class ZaloZnsService {
     }
 
     try {
-      const response = await fetch('https://business.openapi.zalo.me/message/template', {
+      const response = await fetch('/api/zalo/send-zns', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'access_token': settings.accessToken,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
+          accessToken: settings.accessToken,
+          templateId: settings.templateId,
           phone: normPhone,
-          template_id: settings.templateId,
-          template_data: templateData,
+          templateData: templateData,
           mode: settings.isTestMode ? 'development' : undefined,
         }),
       });
@@ -136,6 +138,61 @@ export class ZaloZnsService {
         error: err instanceof Error ? err.message : 'Không thể kết nối đến máy chủ Zalo Cloud API',
         sentAt,
       };
+    }
+  }
+
+  /**
+   * Kiểm tra nhanh kết nối ZNS với một số điện thoại thử nghiệm
+   */
+  static async testConnection(phone: string, settings: ZaloZnsSettings): Promise<{ success: boolean; message: string }> {
+    const normPhone = this.normalizePhoneNumber(phone);
+    if (!normPhone || normPhone.length < 10) {
+      return { success: false, message: 'Số điện thoại thử nghiệm không hợp lệ (cần ít nhất 10 số).' };
+    }
+    if (!settings.accessToken) {
+      return { success: false, message: 'Chưa nhập Access Token Zalo.' };
+    }
+    if (!settings.templateId) {
+      return { success: false, message: 'Chưa nhập Template ID.' };
+    }
+
+    try {
+      const response = await fetch('/api/zalo/send-zns', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          accessToken: settings.accessToken,
+          templateId: settings.templateId,
+          phone: normPhone,
+          templateData: {
+            shop_name: 'Shop Thử Nghiệm',
+            shop_code: 'TEST01',
+            period_name: 'Kỳ Đối Soát Mẫu',
+            total_orders: '10 đơn',
+            total_cod: '1.000.000 đ',
+            total_fee: '50.000 đ',
+            total_net_payout: '950.000 đ',
+            bank_name: 'MB Bank',
+            account_number: '0123456789',
+            company_name: settings.companyName || 'Công ty Logistics',
+            statement_link: window.location.origin,
+            date_now: new Date().toLocaleDateString('vi-VN'),
+          },
+          mode: settings.isTestMode ? 'development' : undefined,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.error === 0) {
+        return { success: true, message: `Kết nối thành công! Mã tin Zalo: ${data.data?.msg_id || 'OK'}` };
+      } else {
+        return { success: false, message: `Zalo báo lỗi (${data.error}): ${data.message}` };
+      }
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : 'Không thể kết nối máy chủ Zalo' };
     }
   }
 

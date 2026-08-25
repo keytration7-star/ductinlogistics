@@ -1329,6 +1329,44 @@ app.post('/api/send-email', requireAuth, async (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────
+// 💬 ZALO ZNS CLOUD API PROXY (Bypass CORS)
+// ──────────────────────────────────────────
+app.post('/api/zalo/send-zns', requireAuth, async (req, res) => {
+  try {
+    const { accessToken, templateId, phone, templateData, mode } = req.body;
+    if (!accessToken || !templateId || !phone) {
+      return res.status(400).json({
+        error: -1,
+        message: 'Thiếu Access Token, Template ID hoặc Số điện thoại người nhận.',
+      });
+    }
+
+    const response = await fetch('https://business.openapi.zalo.me/message/template', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'access_token': accessToken.trim(),
+      },
+      body: JSON.stringify({
+        phone: phone.trim(),
+        template_id: templateId.trim(),
+        template_data: templateData || {},
+        mode: mode || undefined,
+      }),
+    });
+
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('[Zalo ZNS Proxy Error]:', err);
+    return res.status(500).json({
+      error: -500,
+      message: err?.message || 'Không thể kết nối đến máy chủ Zalo Cloud API.',
+    });
+  }
+});
+
 // Serve frontend static build
 app.use(express.static(path.join(__dirname, 'dist')));
 

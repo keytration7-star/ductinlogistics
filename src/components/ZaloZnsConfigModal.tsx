@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { ZaloZnsSettings } from '../types';
 import { useToast } from './UIFeedback';
+import { ZaloZnsService } from '../services/zaloZnsService';
 
 interface ZaloZnsConfigModalProps {
   settings: ZaloZnsSettings;
@@ -29,6 +30,27 @@ export const ZaloZnsConfigModal: React.FC<ZaloZnsConfigModalProps> = ({
   const { showToast } = useToast();
   const [formData, setFormData] = useState<ZaloZnsSettings>({ ...settings });
   const [activeTab, setActiveTab] = useState<'config' | 'guide'>('config');
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleTestZns = async () => {
+    if (!formData.testPhoneNumber) {
+      showToast('Vui lòng nhập Số Điện Thoại Nhận Thử Nghiệm ở ô bên cạnh để test.', 'warning');
+      return;
+    }
+    setIsTesting(true);
+    try {
+      const res = await ZaloZnsService.testConnection(formData.testPhoneNumber, formData);
+      if (res.success) {
+        showToast(res.message, 'success');
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Lỗi kiểm tra kết nối Zalo', 'error');
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleSave = () => {
     onSave(formData);
@@ -240,18 +262,41 @@ export const ZaloZnsConfigModal: React.FC<ZaloZnsConfigModalProps> = ({
                 />
               </div>
 
-              {/* Test Phone Number */}
+              {/* Test Phone Number & Test Button */}
               <div>
                 <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Phone size={14} /> Số Điện Thoại Nhận Thử Nghiệm (Tùy chọn):
+                  <Phone size={14} /> Số Điện Thoại Nhận Thử Nghiệm:
                 </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={formData.testPhoneNumber || ''}
-                  onChange={(e) => setFormData({ ...formData, testPhoneNumber: e.target.value.trim() })}
-                  placeholder="VD: 0988123456"
-                />
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ flex: 1 }}
+                    value={formData.testPhoneNumber || ''}
+                    onChange={(e) => setFormData({ ...formData, testPhoneNumber: e.target.value.trim() })}
+                    placeholder="VD: 0988123456 (Nhập số điện thoại để thử nghiệm gửi tin)"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTestZns}
+                    disabled={isTesting}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#eff6ff',
+                      color: '#0068ff',
+                      borderColor: '#bfdbfe',
+                      fontWeight: 700,
+                      padding: '0 16px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Zap size={14} />
+                    <span>{isTesting ? 'Đang gửi test...' : '🧪 Gửi Tin Nhắn Thử Nghiệm'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
