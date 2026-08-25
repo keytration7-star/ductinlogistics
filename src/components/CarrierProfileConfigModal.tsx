@@ -76,7 +76,7 @@ export const CarrierProfileConfigModal: React.FC<CarrierProfileConfigModalProps>
 
   // Local state for Export Settings
   const [exportSettings, setExportSettings] = useState<ExportColumnSettings>(() => {
-    return StorageService.getCarrierExportSettings(carrierId);
+    return StorageService.getCarrierExportSettings(carrierId) || StorageService.getExportColumnSettings();
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);

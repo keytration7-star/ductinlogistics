@@ -144,7 +144,7 @@ THÔNG TIN TỔNG HỢP ĐỐI SOÁT:
 • Tổng cước phí vận chuyển: {TONG_CUOC} đ
 • Phí khác/Phụ thu/Hoàn: {PHI_KHAC} đ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP: {THUC_TRA} đ
+▶ KẾT QUẢ ĐỐI SOÁT: {THUC_TRA}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 THÔNG TIN TÀI KHOẢN NHẬN TIỀN:
@@ -578,19 +578,21 @@ export const StorageService = {
     postServerSync('/api/db/export-columns', { exportColumns: settings });
   },
 
-  getCarrierExportSettings(carrierId: string): ExportColumnSettings {
+  getCarrierExportSettings(carrierId: string): ExportColumnSettings | undefined {
     const key = `gomdon_carrier_export_${carrierId}`;
     const data = localStorage.getItem(key);
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        return {
-          shopColumns: parsed.shopColumns || DEFAULT_EXPORT_COLUMNS.shopColumns,
-          masterColumns: parsed.masterColumns || DEFAULT_EXPORT_COLUMNS.masterColumns,
-        };
+        if (parsed && parsed.shopColumns && parsed.shopColumns.length > 0) {
+          return {
+            shopColumns: parsed.shopColumns,
+            masterColumns: parsed.masterColumns || parsed.shopColumns,
+          };
+        }
       } catch { }
     }
-    return JSON.parse(JSON.stringify(DEFAULT_EXPORT_COLUMNS));
+    return undefined;
   },
 
   saveCarrierExportSettings(carrierId: string, settings: ExportColumnSettings): void {

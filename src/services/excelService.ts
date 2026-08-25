@@ -70,6 +70,139 @@ function formatDateToString(d: Date, includeTime: boolean = false): string {
   return `${day}/${month}/${year}`;
 }
 
+export function saveBlobFile(blob: Blob, filename: string): void {
+  try {
+    saveAs(blob, filename);
+  } catch (err) {
+    console.warn('saveAs failed, falling back to anchor click:', err);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1500);
+  }
+}
+
+function isValidRealHeader(headerName: string): boolean {
+  if (!headerName) return false;
+  const t = headerName.trim();
+  if (t.includes('(chuẩn hóa') || t.includes('đa file')) return false;
+  if (/[-–]\s*(80\d{8,}|\d{8,}|0\d{8,})/.test(t)) return false;
+  if (/[-–]\s*(Giao thành công|Đã lấy hàng|Hủy|Đang giao)/i.test(t)) return false;
+  if (t.length > 50) return false;
+  return true;
+}
+
+export function buildDynamicColumnsFromOrders(
+  orders: any[],
+  customExportSettings?: ExportColumnSettings,
+  isMaster: boolean = false
+): ExportColumnItem[] {
+  // If user provided custom export settings or saved specific enabled columns in settings
+  if (customExportSettings) {
+    const cols = isMaster
+      ? (customExportSettings.masterColumns || customExportSettings.shopColumns || [])
+      : (customExportSettings.shopColumns || []);
+    
+    const enabled = cols.filter(c => c.enabled !== false && isValidRealHeader(c.label));
+    if (enabled.length > 0) {
+      return enabled;
+    }
+  }
+
+  // 🌟 DEFAULT BEHAVIOR: Output ALL columns from the 2 merged files (NVC + App) + shop finance columns
+  const discoveredCols: ExportColumnItem[] = [];
+  const seenHeaders = new Set<string>();
+
+  // 1. STT always first
+  discoveredCols.push({ id: 'stt', label: 'STT', enabled: true, category: 'basic' });
+  seenHeaders.add('stt');
+
+  // 2. Discover all NVC headers from rawNvcData
+  orders.forEach(order => {
+    if (order.rawNvcData) {
+      Object.keys(order.rawNvcData).forEach(key => {
+        if (!isValidRealHeader(key)) return;
+        const trimmed = key.trim();
+        const norm = normalizeHeader(trimmed);
+        if (!trimmed || seenHeaders.has(norm)) return;
+        seenHeaders.add(norm);
+        discoveredCols.push({
+          id: `nvc_${norm}`,
+          label: trimmed,
+          sourceHeader: trimmed,
+          enabled: true,
+          category: 'carrier',
+        });
+      });
+    }
+  });
+
+  // 3. Discover all App headers from rawAppData
+  orders.forEach(order => {
+    if (order.rawAppData) {
+      Object.keys(order.rawAppData).forEach(key => {
+        if (!isValidRealHeader(key)) return;
+        const trimmed = key.trim();
+        const cleanKey = trimmed.replace(/\s*[-–]\s*[^\s].*$/, '').trim() || trimmed;
+        if (!isValidRealHeader(cleanKey)) return;
+        const norm = normalizeHeader(cleanKey);
+        if (!cleanKey || seenHeaders.has(norm)) return;
+        seenHeaders.add(norm);
+        discoveredCols.push({
+          id: `app_${norm}`,
+          label: cleanKey,
+          sourceHeader: trimmed,
+          enabled: true,
+          category: 'basic',
+        });
+      });
+    }
+  });
+
+  // 4. Financial calculation columns
+  if (!seenHeaders.has('cuoc_tinh_shop_vnd') && !seenHeaders.has('cuoc_phi_van_chuyen')) {
+    discoveredCols.push({ id: 'shopFee', label: 'Cước Tính Shop (VNĐ)', enabled: true, category: 'finance' });
+  }
+  if (!seenHeaders.has('phu_phi_shop_vnd') && !seenHeaders.has('phi_khac_phu_thu_hoan')) {
+    discoveredCols.push({ id: 'shopOtherFee', label: 'Phụ Phí Shop (VNĐ)', enabled: true, category: 'finance' });
+  }
+  if (!seenHeaders.has('thuc_chuyen_cho_shop_vnd') && !seenHeaders.has('so_tien_thuc_chuyen_shop')) {
+    discoveredCols.push({ id: 'netPayout', label: 'Thực Chuyển Cho Shop (VNĐ)', enabled: true, category: 'finance' });
+  }
+  if (isMaster && !seenHeaders.has('loi_nhuan_gom_don_vnd') && !seenHeaders.has('lai_rong_nha_gom')) {
+    discoveredCols.push({ id: 'profit', label: 'Lợi Nhuận Gom Đơn (VNĐ)', enabled: true, category: 'finance' });
+  }
+
+  // 🌟 Smart fallback for legacy sessions that lack raw data objects
+  if (discoveredCols.length <= 4) {
+    return [
+      { id: 'stt', label: 'STT', enabled: true, category: 'basic' },
+      { id: 'waybill', label: 'Mã Vận Đơn', enabled: true, category: 'basic' },
+      { id: 'refOrderCode', label: 'Mã Đơn Khách Hàng', enabled: true, category: 'basic' },
+      { id: 'shopName', label: 'Tên Shop', enabled: true, category: 'basic' },
+      { id: 'receiverName', label: 'Tên Người Nhận', enabled: true, category: 'receiver' },
+      { id: 'receiverPhone', label: 'SĐT Người Nhận', enabled: true, category: 'receiver' },
+      { id: 'receiverAddress', label: 'Địa Chỉ Nhận', enabled: true, category: 'receiver' },
+      { id: 'productName', label: 'Nội Dung Hàng Hóa', enabled: true, category: 'basic' },
+      { id: 'weight', label: 'Khối Lượng (kg)', enabled: true, category: 'basic' },
+      { id: 'status', label: 'Trạng Thái', enabled: true, category: 'basic' },
+      { id: 'codAmount', label: 'Tiền Thu Hộ (COD)', enabled: true, category: 'finance' },
+      { id: 'shopFee', label: 'Cước Tính Shop (VNĐ)', enabled: true, category: 'finance' },
+      { id: 'shopOtherFee', label: 'Phụ Phí Shop (VNĐ)', enabled: true, category: 'finance' },
+      { id: 'netPayout', label: 'Thực Chuyển Cho Shop (VNĐ)', enabled: true, category: 'finance' },
+      ...(isMaster ? [{ id: 'profit', label: 'Lợi Nhuận Gom Đơn (VNĐ)', enabled: true, category: 'finance' as const }] : []),
+    ];
+  }
+
+  return discoveredCols;
+}
+
 export function resolveOrderColumnValue(order: any, col: ExportColumnItem, idx: number, carrierName?: string): any {
   const normId = normalizeHeader(col.id || '');
   const normLabel = normalizeHeader(col.label || '');
@@ -718,15 +851,16 @@ export const ExcelService = {
     return new Intl.NumberFormat('vi-VN').format(num);
   },
 
+
+
   async createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
-    const carrierId = statement.orders[0]?.carrierId;
-    const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
-    const enabledCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
+    const carrierId = statement.orders?.[0]?.carrierId;
+    const savedSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : undefined);
+    
+    // Default to ALL merged columns from the 2 files if no custom carrier settings exist
+    const activeCols = buildDynamicColumnsFromOrders(statement.orders, savedSettings, false);
     const company = StorageService.getCompanyInfo();
-
-    // Respect user's explicit column configuration 100%
-    const activeCols = enabledCols;
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
     const companySubtitle = `Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`;
@@ -794,9 +928,9 @@ export const ExcelService = {
     const sec2 = wsSummary.addRow(['II. THÔNG TIN TÀI KHOẢN NHẬN TIỀN COD', '', '', '']);
     sec2.font = { name: 'Arial', size: 11.5, bold: true, color: { argb: 'FF1E293B' } };
 
-    const r12 = wsSummary.addRow(['Ngân hàng:', statement.bankInfo.bankName, '', '']);
-    const r13 = wsSummary.addRow(['Số tài khoản:', statement.bankInfo.accountNumber, '', '']);
-    const r14 = wsSummary.addRow(['Chủ tài khoản:', statement.bankInfo.accountHolder, '', '']);
+    const r12 = wsSummary.addRow(['Ngân hàng:', statement.bankInfo?.bankName || 'Chưa cập nhật', '', '']);
+    const r13 = wsSummary.addRow(['Số tài khoản:', statement.bankInfo?.accountNumber || 'Chưa cập nhật', '', '']);
+    const r14 = wsSummary.addRow(['Chủ tài khoản:', statement.bankInfo?.accountHolder || statement.shopName || 'Chưa cập nhật', '', '']);
 
     [r12, r13, r14].forEach(r => {
       r.eachCell({ includeEmpty: true }, cell => {
@@ -927,8 +1061,36 @@ export const ExcelService = {
     statement.orders.forEach((order, idx) => {
       const rowData: any[] = [];
       activeCols.forEach((col: ExportColumnItem) => {
-        const val = resolveOrderColumnValue(order, col, idx);
-        rowData.push(val);
+        let val: any = '';
+        if (col.id === 'stt' || normalizeHeader(col.label) === 'stt') {
+          val = idx + 1;
+        } else if (col.id === 'shopFee' || normalizeHeader(col.label) === 'cuoc_tinh_shop_vnd') {
+          val = order.shopCalculatedFee ?? 0;
+        } else if (col.id === 'shopOtherFee' || normalizeHeader(col.label) === 'phu_phi_shop_vnd') {
+          val = order.shopOtherFee ?? 0;
+        } else if (col.id === 'netPayout' || normalizeHeader(col.label) === 'thuc_chuyen_cho_shop_vnd') {
+          val = order.netShopPayout ?? 0;
+        } else if (col.id === 'profit' || normalizeHeader(col.label) === 'loi_nhuan_gom_don_vnd') {
+          val = order.profitMargin ?? 0;
+        } else {
+          val = (order.rawNvcData && col.sourceHeader && order.rawNvcData[col.sourceHeader] !== undefined ? order.rawNvcData[col.sourceHeader] : undefined) ??
+                (order.rawAppData && col.sourceHeader && order.rawAppData[col.sourceHeader] !== undefined ? order.rawAppData[col.sourceHeader] : undefined) ??
+                (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
+                (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ??
+                resolveOrderColumnValue(order, col, idx);
+        }
+
+        const normLabel = normalizeHeader(col.label || col.id || '');
+        const normSrc = normalizeHeader(col.sourceHeader || '');
+        const isDateCol = (normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') ||
+                           normSrc.includes('ngay') || normSrc.includes('date') || normSrc.includes('thoi_gian')) &&
+                          !normLabel.includes('tien') && !normLabel.includes('cuoc') && !normLabel.includes('phi') && !normLabel.includes('cod') && !normLabel.includes('tra') &&
+                          !normSrc.includes('tien') && !normSrc.includes('cuoc') && !normSrc.includes('phi') && !normSrc.includes('cod') && !normSrc.includes('tra');
+        
+        if (isDateCol && val !== undefined && val !== null && val !== '') {
+          val = formatAnyDateValue(val);
+        }
+        rowData.push(val ?? '');
       });
 
       const addedOrderRow = wsOrders.addRow(rowData);
@@ -941,7 +1103,7 @@ export const ExcelService = {
 
         if (
           normId === 'codamount' || normId === 'shopfee' || normId === 'shopotherfee' || normId === 'netpayout' || normId === 'nvcfee' || normId === 'profit' ||
-          normLabel.includes('cod') || normLabel.includes('thu_ho') || normLabel.includes('cuoc') || normLabel.includes('thuc_chuyen') || normLabel.includes('thuc_tra') || normLabel.includes('phi')
+          normLabel.includes('cod') || normLabel.includes('thu_ho') || normLabel.includes('cuoc') || normLabel.includes('thuc_chuyen') || normLabel.includes('thuc_tra') || normLabel.includes('phi') || normLabel.includes('tien_')
         ) {
           const num = Number(cell.value);
           if (!isNaN(num) && typeof cell.value === 'number') {
@@ -969,15 +1131,35 @@ export const ExcelService = {
     activeCols.forEach((col: ExportColumnItem) => {
       const normId = normalizeHeader(col.id || '');
       const normLabel = normalizeHeader(col.label || '');
+      const src = col.sourceHeader || '';
 
-      if (normId === 'stt' || normLabel === 'stt') totalRowData.push('TỔNG CỘNG');
-      else if (normId === 'waybill' || normLabel.includes('ma_van_don')) totalRowData.push(`${statement.orders.length} đơn`);
-      else if (normId === 'weight' || normLabel.includes('khoi_luong') || normLabel.includes('can_nang')) totalRowData.push(totalWeight);
-      else if (normId === 'codamount' || normLabel.includes('cod') || normLabel.includes('thu_ho')) totalRowData.push(statement.totalCod);
-      else if (normId === 'shopfee' || normLabel.includes('cuoc_phi') || normLabel.includes('cuoc_thu_shop')) totalRowData.push(statement.totalShopFee);
-      else if (normId === 'shopotherfee' || normLabel.includes('phu_thu') || normLabel.includes('phi_khac')) totalRowData.push(statement.totalShopOtherFee);
-      else if (normId === 'netpayout' || normLabel.includes('thuc_chuyen') || normLabel.includes('thuc_tra')) totalRowData.push(statement.totalNetPayout);
-      else totalRowData.push('');
+      if (normId === 'stt' || normLabel === 'stt') {
+        totalRowData.push('TỔNG CỘNG');
+      } else if (normId === 'waybill' || src === 'Mã vận đơn' || normLabel === 'ma_van_don') {
+        totalRowData.push(`${statement.orders.length} đơn`);
+      } else if (normId === 'weight' || normLabel === 'khoi_luong' || normLabel === 'trong_luong' || normLabel === 'can_nang') {
+        totalRowData.push(totalWeight);
+      } else if (col.id === 'codAmount' || src === 'Tiền COD đã ký nhận' || src === 'Tiền thu hộ COD' || src === 'COD thực thu' || normLabel === 'tien_cod_da_ky_nhan' || normLabel === 'tien_thu_ho_cod') {
+        totalRowData.push(statement.totalCod);
+      } else if (col.id === 'shopFee' || normLabel === 'cuoc_tinh_shop_vnd' || normLabel === 'cuoc_thu_shop') {
+        totalRowData.push(statement.totalShopFee);
+      } else if (col.id === 'shopOtherFee' || normLabel === 'phu_phi_shop_vnd') {
+        totalRowData.push(statement.totalShopOtherFee);
+      } else if (col.id === 'netPayout' || normLabel === 'thuc_chuyen_cho_shop_vnd') {
+        totalRowData.push(statement.totalNetPayout);
+      } else if (col.category === 'carrier' || (col.sourceHeader && (normLabel.includes('phi') || normLabel.includes('tien') || normLabel.includes('cuoc')))) {
+        const colSum = statement.orders.reduce((sum, o) => {
+          const v = (o.rawNvcData && col.sourceHeader ? o.rawNvcData[col.sourceHeader] : undefined) ??
+                    (o.rawAppData && col.sourceHeader ? o.rawAppData[col.sourceHeader] : undefined) ??
+                    (o.rawNvcData ? o.rawNvcData[col.label] : undefined) ??
+                    (o.rawAppData ? o.rawAppData[col.label] : undefined);
+          const n = typeof v === 'number' ? v : Number(String(v || '').replace(',', '.'));
+          return sum + (!isNaN(n) ? n : 0);
+        }, 0);
+        totalRowData.push(colSum !== 0 ? colSum : 0);
+      } else {
+        totalRowData.push('');
+      }
     });
 
     const oGrandRow = wsOrders.addRow(totalRowData);
@@ -995,10 +1177,12 @@ export const ExcelService = {
 
       if (
         normId === 'codamount' || normId === 'shopfee' || normId === 'shopotherfee' || normId === 'netpayout' ||
-        normLabel.includes('cod') || normLabel.includes('thu_ho') || normLabel.includes('cuoc') || normLabel.includes('thuc_chuyen')
+        normLabel.includes('cod') || normLabel.includes('thu_ho') || normLabel.includes('cuoc') || normLabel.includes('thuc_chuyen') || typeof cell.value === 'number'
       ) {
-        cell.numFmt = '#,##0';
-        cell.alignment = { horizontal: 'right' };
+        if (typeof cell.value === 'number') {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        }
       } else if (normId === 'weight' || normLabel.includes('khoi_luong')) {
         cell.numFmt = '#,##0.00';
         cell.alignment = { horizontal: 'right' };
@@ -1011,30 +1195,21 @@ export const ExcelService = {
   },
 
   async downloadShopStatement(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<void> {
-    const carrierId = statement.orders[0]?.carrierId;
+    const carrierId = statement.orders?.[0]?.carrierId;
     const carrierTag = getCleanCarrierTag(carrierId);
     const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
     const workbook = await this.createShopStatementWorkbook(statement, exportSettings);
     const buffer = await workbook.xlsx.writeBuffer();
-    const cleanShopName = statement.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
-    const filename = `Doi_Soat_${carrierTag}_${cleanShopName}_${statement.periodName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const cleanShopName = (statement.shopName || statement.shopCode || 'Shop').replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
+    const cleanPeriod = (statement.periodName || 'Ky_Doi_Soat').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `Doi_Soat_${carrierTag}_${cleanShopName}_${cleanPeriod}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, filename);
+    saveBlobFile(blob, filename);
   },
 
   async createMasterProfitWorkbook(session: ReconciliationSession, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
     const carrierId = session.carrierId;
-    const exportSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : StorageService.getExportColumnSettings());
-    const enabledMasterCols = exportSettings.masterColumns.filter((c: ExportColumnItem) => c.enabled);
-    const enabledShopCols = exportSettings.shopColumns.filter((c: ExportColumnItem) => c.enabled);
-
-    // Auto merge custom columns enabled in shopColumns so Master report includes all custom columns
-    enabledShopCols.forEach((shopCol) => {
-      if (!enabledMasterCols.some(m => m.id === shopCol.id || m.label === shopCol.label)) {
-        enabledMasterCols.push(shopCol);
-      }
-    });
     const company = StorageService.getCompanyInfo();
 
     const companyTitle = (company.companyName || 'CÔNG TY GOM ĐƠN VẬN CHUYỂN & LOGISTICS').toUpperCase();
@@ -1155,8 +1330,9 @@ export const ExcelService = {
     });
     session.unmatchedOrders.forEach(o => allOrders.push(o));
 
-    // Respect user's explicit master column configuration 100%
-    const activeMasterCols = enabledMasterCols;
+    // Respect user's explicit master column configuration or default to ALL merged columns from 2 files
+    const savedMasterSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : undefined);
+    const activeMasterCols = buildDynamicColumnsFromOrders(allOrders, savedMasterSettings, true);
 
     const wsDetails = workbook.addWorksheet('CHI_TIET_TOAN_BO_DON_HANG');
     wsDetails.columns = activeMasterCols.map((col: ExportColumnItem) => {
@@ -1205,8 +1381,36 @@ export const ExcelService = {
 
       const rowData: any[] = [];
       activeMasterCols.forEach((col: ExportColumnItem) => {
-        const val = resolveOrderColumnValue(order, col, idx, session.carrierName);
-        rowData.push(val);
+        let val: any = '';
+        if (col.id === 'stt' || normalizeHeader(col.label) === 'stt') {
+          val = idx + 1;
+        } else if (col.id === 'shopFee' || normalizeHeader(col.label) === 'cuoc_tinh_shop_vnd') {
+          val = order.shopCalculatedFee ?? 0;
+        } else if (col.id === 'shopOtherFee' || normalizeHeader(col.label) === 'phu_phi_shop_vnd') {
+          val = order.shopOtherFee ?? 0;
+        } else if (col.id === 'netPayout' || normalizeHeader(col.label) === 'thuc_chuyen_cho_shop_vnd') {
+          val = order.netShopPayout ?? 0;
+        } else if (col.id === 'profit' || normalizeHeader(col.label) === 'loi_nhuan_gom_don_vnd') {
+          val = order.profitMargin ?? 0;
+        } else {
+          val = (order.rawNvcData && col.sourceHeader && order.rawNvcData[col.sourceHeader] !== undefined ? order.rawNvcData[col.sourceHeader] : undefined) ??
+                (order.rawAppData && col.sourceHeader && order.rawAppData[col.sourceHeader] !== undefined ? order.rawAppData[col.sourceHeader] : undefined) ??
+                (order.rawNvcData && order.rawNvcData[col.label] !== undefined ? order.rawNvcData[col.label] : undefined) ??
+                (order.rawAppData && order.rawAppData[col.label] !== undefined ? order.rawAppData[col.label] : undefined) ??
+                resolveOrderColumnValue(order, col, idx, session.carrierName);
+        }
+
+        const normLabel = normalizeHeader(col.label || col.id || '');
+        const normSrc = normalizeHeader(col.sourceHeader || '');
+        const isDateCol = (normLabel.includes('ngay') || normLabel.includes('date') || normLabel.includes('thoi_gian') ||
+                           normSrc.includes('ngay') || normSrc.includes('date') || normSrc.includes('thoi_gian')) &&
+                          !normLabel.includes('tien') && !normLabel.includes('cuoc') && !normLabel.includes('phi') && !normLabel.includes('cod') && !normLabel.includes('tra') &&
+                          !normSrc.includes('tien') && !normSrc.includes('cuoc') && !normSrc.includes('phi') && !normSrc.includes('cod') && !normSrc.includes('tra');
+        
+        if (isDateCol && val !== undefined && val !== null && val !== '') {
+          val = formatAnyDateValue(val);
+        }
+        rowData.push(val ?? '');
       });
 
       const addedMdRow = wsDetails.addRow(rowData);
@@ -1285,7 +1489,7 @@ export const ExcelService = {
     const buffer = await workbook.xlsx.writeBuffer();
     const filename = `Bao_Cao_Tong_Hop_Loi_Nhuan_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, filename);
+    saveBlobFile(blob, filename);
   },
 
   async downloadAllStatementsZip(session: ReconciliationSession, onProgress?: (percent: number, currentShop: string) => void): Promise<void> {
@@ -1307,7 +1511,7 @@ export const ExcelService = {
         onProgress(Math.round(((i + 1) / total) * 100), stmt.shopName);
       }
 
-      const cleanShopFolder = stmt.shopName.replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
+      const cleanShopFolder = (stmt.shopName || stmt.shopCode || 'Shop').replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
       const shopSubFolder = rootFolder?.folder(cleanShopFolder);
       
       const shopWb = await this.createShopStatementWorkbook(stmt, exportSettings);
@@ -1318,7 +1522,7 @@ export const ExcelService = {
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    saveAs(zipBlob, `Bo_Ho_So_Doi_Soat_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
+    saveBlobFile(zipBlob, `Bo_Ho_So_Doi_Soat_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.zip`);
   },
 
   async downloadCtvCommissionReport(session: ReconciliationSession): Promise<void> {
@@ -1376,7 +1580,7 @@ export const ExcelService = {
     const buffer = await workbook.xlsx.writeBuffer();
     const filename = `Bao_Cao_Hoa_Hong_CTV_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, filename);
+    saveBlobFile(blob, filename);
   },
 
   async exportBankPayoutExcel(items: {

@@ -51,8 +51,69 @@ export const ExportColumnConfigModal: React.FC<ExportColumnConfigModalProps> = (
   const [activeTab, setActiveTab] = useState<'shop' | 'master'>('shop');
   const [settings, setSettings] = useState<ExportColumnSettings>(() => {
     if (carrierId) {
-      return StorageService.getCarrierExportSettings(carrierId);
+      const saved = StorageService.getCarrierExportSettings(carrierId);
+      if (saved && saved.shopColumns && saved.shopColumns.length > 0) {
+        return saved;
+      }
     }
+
+    // Default to ALL merged columns from 2 files
+    const nvcCols = (availableFileHeaders?.nvcHeaders || []).filter(h => h && h.trim());
+    const appCols = (availableFileHeaders?.appHeaders || []).filter(h => h && h.trim());
+    const discovered: ExportColumnItem[] = [];
+    const seen = new Set<string>();
+
+    discovered.push({ id: 'stt', label: 'STT', enabled: true, category: 'basic' });
+    seen.add('stt');
+
+    nvcCols.forEach(h => {
+      const t = h.trim();
+      const norm = t.toLowerCase();
+      if (seen.has(norm) || t.includes('(chuẩn hóa')) return;
+      seen.add(norm);
+      discovered.push({
+        id: `nvc_${Math.random().toString(36).slice(2, 7)}`,
+        label: t,
+        sourceHeader: t,
+        enabled: true,
+        category: 'carrier',
+      });
+    });
+
+    appCols.forEach(h => {
+      const t = h.trim();
+      const cleanKey = t.replace(/\s*[-–]\s*[^\s].*$/, '').trim() || t;
+      const norm = cleanKey.toLowerCase();
+      if (seen.has(norm) || cleanKey.includes('(chuẩn hóa')) return;
+      seen.add(norm);
+      discovered.push({
+        id: `app_${Math.random().toString(36).slice(2, 7)}`,
+        label: cleanKey,
+        sourceHeader: t,
+        enabled: true,
+        category: 'basic',
+      });
+    });
+
+    if (!seen.has('cước tính shop (vnđ)')) {
+      discovered.push({ id: 'shopFee', label: 'Cước Tính Shop (VNĐ)', enabled: true, category: 'finance' });
+    }
+    if (!seen.has('phụ phí shop (vnđ)')) {
+      discovered.push({ id: 'shopOtherFee', label: 'Phụ Phí Shop (VNĐ)', enabled: true, category: 'finance' });
+    }
+    if (!seen.has('thực chuyển cho shop (vnđ)')) {
+      discovered.push({ id: 'netPayout', label: 'Thực Chuyển Cho Shop (VNĐ)', enabled: true, category: 'finance' });
+    }
+
+    const masterList = [...discovered];
+    if (!seen.has('lợi nhuận gom đơn (vnđ)')) {
+      masterList.push({ id: 'profit', label: 'Lợi Nhuận Gom Đơn (VNĐ)', enabled: true, category: 'finance' });
+    }
+
+    if (discovered.length > 3) {
+      return { shopColumns: discovered, masterColumns: masterList };
+    }
+
     return StorageService.getExportColumnSettings();
   });
   const [savedSuccess, setSavedSuccess] = useState(false);

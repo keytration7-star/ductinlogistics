@@ -1,7 +1,6 @@
 import type { ShopSettlementStatement, EmailSettings, ReconciliationSession } from '../types';
 import { StorageService } from './storage';
 import { getAuthHeaders } from './authService';
-import { calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from './settlementService';
 import { ExcelService } from './excelService';
 import * as XLSX from 'xlsx';
 
@@ -53,23 +52,12 @@ export const EmailService = {
     return Array.from(emailSet);
   },
 
-  renderEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string, session?: ReconciliationSession): { subject: string; body: string } {
-    const allSessions = StorageService.getSessions();
-    const allPayments = StorageService.getPaymentRecords();
-    const allShops = StorageService.getShops();
-    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => isShopMatching(statement, st)));
-    const matchedShop = allShops.find(s => isShopMatching(s, statement));
+  renderEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string, _session?: ReconciliationSession): { subject: string; body: string } {
+    const previousDebtVal = statement.previousDebt || 0;
+    const netAmount = (statement.totalNetPayout || 0) + previousDebtVal;
+    const finalPayout = Math.max(0, netAmount);
+    const amountShopOwes = Math.max(0, -netAmount);
 
-    const liveOpeningDebt = currentSession
-      ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
-      : (statement.previousDebt || 0);
-
-    const paidAmount = currentSession ? getStatementPaidAmount(statement, currentSession.id, allPayments) : 0;
-    const collectedAmount = currentSession ? getStatementCollectedAmount(statement, currentSession.id, allPayments) : 0;
-    const debtAddedAmount = currentSession ? getStatementDebtAddedAmount(statement, currentSession.id, allPayments) : 0;
-
-    const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
     let subject = settings.subjectTemplate;
     let body = settings.bodyTemplate;
 
@@ -81,19 +69,28 @@ export const EmailService = {
     }
 
     const totalAllFee = (statement.totalShopFee || 0) + (statement.totalShopOtherFee || 0);
-    const openingDebtStr = settlement.openingDebt < 0 
-      ? `-${this.formatMoney(Math.abs(settlement.openingDebt))}` 
-      : settlement.openingDebt > 0 
-      ? `+${this.formatMoney(settlement.openingDebt)}` 
+    const openingDebtStr = previousDebtVal < 0 
+      ? `-${this.formatMoney(Math.abs(previousDebtVal))}` 
+      : previousDebtVal > 0 
+      ? `+${this.formatMoney(previousDebtVal)}` 
       : '0';
 
-    let debtNoteStr = '';
-    if (settlement.amountShopOwes > 0) {
-      debtNoteStr = `🔴 LƯU Ý CÔNG NỢ: Do tiền COD kỳ này không đủ bù cước và nợ cũ, Shop còn nợ công ty: ${this.formatMoney(settlement.amountShopOwes)} đ (Khoản nợ này sẽ tự động trừ vào kỳ đối soát có COD tiếp theo).`;
-    } else if (settlement.openingDebt !== 0) {
-      debtNoteStr = `💡 Ghi chú: Số tiền thực chuyển đã được cấn trừ công nợ dồn đầu kỳ (${openingDebtStr} đ).`;
+    let thucTraStr = '';
+    if (netAmount > 0) {
+      thucTraStr = `+${this.formatMoney(netAmount)} đ (Công ty chuyển khoản cho Shop)`;
+    } else if (netAmount < 0) {
+      thucTraStr = `-${this.formatMoney(Math.abs(netAmount))} đ (Shop còn nợ cước chuyển sang kỳ sau)`;
     } else {
-      debtNoteStr = `✓ Đã quyết toán xong toàn bộ dòng tiền kỳ này.`;
+      thucTraStr = `0 đ (Đã quyết toán xong)`;
+    }
+
+    let debtNoteStr = '';
+    if (amountShopOwes > 0) {
+      debtNoteStr = `🔴 LƯU Ý: Tiền COD kỳ này không đủ bù cước phí. Shop còn nợ cước công ty: ${this.formatMoney(amountShopOwes)} đ (Khoản nợ này sẽ tự động cấn trừ vào kỳ đối soát có COD tiếp theo).`;
+    } else if (previousDebtVal !== 0) {
+      debtNoteStr = `💡 Ghi chú: Đã cấn trừ công nợ dồn đầu kỳ (${openingDebtStr} đ). Thực chuyển cho Shop: ${this.formatMoney(finalPayout)} đ.`;
+    } else {
+      debtNoteStr = `✓ Tiền COD đã trừ cước phí kỳ này, công ty thanh toán cho Shop: ${this.formatMoney(finalPayout)} đ.`;
     }
 
     const replacements: Record<string, string> = {
@@ -108,14 +105,14 @@ export const EmailService = {
       '{TONG_CUOC}': this.formatMoney(totalAllFee),
       '{CUOC_GUI}': this.formatMoney(statement.totalShopFee),
       '{PHI_KHAC}': this.formatMoney(statement.totalShopOtherFee),
-      '{THUC_TRA}': this.formatMoney(settlement.amountPayable),
+      '{THUC_TRA}': thucTraStr,
       '{CONG_NO_DAU_KY}': openingDebtStr,
-      '{SHOP_CON_NO}': this.formatMoney(settlement.amountShopOwes),
+      '{SHOP_CON_NO}': this.formatMoney(amountShopOwes),
       '{GHI_CHU_TAI_CHINH}': debtNoteStr,
       '{GHI_CHU_NO}': debtNoteStr,
-      '{NGAN_HANG}': statement.bankInfo.bankName || 'Chưa cập nhật',
-      '{SO_TAI_KHOAN}': statement.bankInfo.accountNumber || 'Chưa cập nhật',
-      '{CHU_TAI_KHOAN}': statement.bankInfo.accountHolder || statement.shopName,
+      '{NGAN_HANG}': statement.bankInfo?.bankName || 'Chưa cập nhật',
+      '{SO_TAI_KHOAN}': statement.bankInfo?.accountNumber || 'Chưa cập nhật',
+      '{CHU_TAI_KHOAN}': statement.bankInfo?.accountHolder || statement.shopName,
       '{SDT_SHOP}': statement.shopPhone || '',
       '{EMAIL_SHOP}': statement.shopEmail || '',
     };
@@ -128,23 +125,11 @@ export const EmailService = {
     return { subject, body };
   },
 
-  renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string, session?: ReconciliationSession): string {
-    const allSessions = StorageService.getSessions();
-    const allPayments = StorageService.getPaymentRecords();
-    const allShops = StorageService.getShops();
-    const currentSession = session || allSessions.find(s => (s.statements || []).some((st: ShopSettlementStatement) => isShopMatching(statement, st)));
-    const matchedShop = allShops.find(s => isShopMatching(s, statement));
+  renderHtmlEmail(statement: ShopSettlementStatement, settings: EmailSettings, carrierId?: string, _session?: ReconciliationSession): string {
+    const previousDebtVal = statement.previousDebt || 0;
+    const finalPayout = Math.max(0, (statement.totalNetPayout || 0) + previousDebtVal);
+    const amountShopOwes = Math.max(0, -((statement.totalNetPayout || 0) + previousDebtVal));
 
-    const liveOpeningDebt = currentSession
-      ? calculateLiveOpeningDebtForStatement(statement, currentSession, allSessions, allPayments, matchedShop)
-      : (statement.previousDebt || 0);
-
-    const paidAmount = currentSession ? getStatementPaidAmount(statement, currentSession.id, allPayments) : 0;
-    const collectedAmount = currentSession ? getStatementCollectedAmount(statement, currentSession.id, allPayments) : 0;
-    const debtAddedAmount = currentSession ? getStatementDebtAddedAmount(statement, currentSession.id, allPayments) : 0;
-
-    const stmtWithLiveDebt = { ...statement, previousDebt: liveOpeningDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
     const companyInfo = StorageService.getCompanyInfo();
     const companyName = companyInfo?.companyName || settings.senderName || 'CÔNG TY LOGISTICS & GOM ĐƠN';
     const companyAddress = companyInfo?.address || '';
@@ -152,15 +137,15 @@ export const EmailService = {
     const companyTax = companyInfo?.taxCode || '';
 
     // Dynamically render custom text body from user settings template (carrier specific or general)
-    const { body: customTextBody } = this.renderEmail(statement, settings, carrierId, session);
+    const { body: customTextBody } = this.renderEmail(statement, settings, carrierId, _session);
 
     const totalCodStr = this.formatMoney(statement.totalCod);
     const totalFeeStr = this.formatMoney(statement.totalShopFee + statement.totalShopOtherFee);
-    const netPayoutStr = this.formatMoney(settlement.amountPayable);
-    const openingDebtStr = settlement.openingDebt < 0 
-      ? `-${this.formatMoney(Math.abs(settlement.openingDebt))}` 
-      : settlement.openingDebt > 0 
-      ? `+${this.formatMoney(settlement.openingDebt)}` 
+    const netPayoutStr = this.formatMoney(finalPayout);
+    const openingDebtStr = previousDebtVal < 0 
+      ? `-${this.formatMoney(Math.abs(previousDebtVal))}` 
+      : previousDebtVal > 0 
+      ? `+${this.formatMoney(previousDebtVal)}` 
       : '0';
     return `
 <!DOCTYPE html>
@@ -260,15 +245,15 @@ export const EmailService = {
                   <td width="4%"></td>
 
                   <!-- Card 4: Net Payout to Shop (Hero Card) -->
-                  <td width="48%" style="background: ${settlement.amountShopOwes > 0 ? 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'}; border: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; border-radius: 12px; padding: 16px; vertical-align: top;">
-                    <div style="font-size: 11px; font-weight: 800; color: ${settlement.amountShopOwes > 0 ? '#b91c1c' : '#15803d'}; text-transform: uppercase; margin-bottom: 6px;">
-                      ${settlement.amountShopOwes > 0 ? '🔴 SHOP CÒN NỢ CÔNG TY' : '💰 THỰC CHUYỂN CHO SHOP'}
+                  <td width="48%" style="background: ${amountShopOwes > 0 ? 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'}; border: 2px solid ${amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; border-radius: 12px; padding: 16px; vertical-align: top;">
+                    <div style="font-size: 11px; font-weight: 800; color: ${amountShopOwes > 0 ? '#b91c1c' : '#15803d'}; text-transform: uppercase; margin-bottom: 6px;">
+                      ${amountShopOwes > 0 ? '🔴 SHOP CÒN NỢ CÔNG TY' : '💰 THỰC CHUYỂN CHO SHOP'}
                     </div>
-                    <div style="font-size: 22px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#dc2626' : '#15803d'};">
-                      ${settlement.amountShopOwes > 0 ? `-${this.formatMoney(settlement.amountShopOwes)}` : netPayoutStr} <span style="font-size: 14px; font-weight: 600;">đ</span>
+                    <div style="font-size: 22px; font-weight: 900; color: ${amountShopOwes > 0 ? '#dc2626' : '#15803d'};">
+                      ${amountShopOwes > 0 ? `-${this.formatMoney(amountShopOwes)}` : netPayoutStr} <span style="font-size: 14px; font-weight: 600;">đ</span>
                     </div>
-                    <div style="font-size: 11.5px; color: ${settlement.amountShopOwes > 0 ? '#991b1b' : '#166534'}; margin-top: 4px; font-weight: 600;">
-                      ${settlement.amountShopOwes > 0 ? 'Chuyển trừ vào kỳ có COD tiếp theo' : settlement.openingDebt !== 0 ? `Đã cấn trừ công nợ đầu kỳ (${settlement.openingDebt > 0 ? '+' : ''}${this.formatMoney(settlement.openingDebt)} đ)` : '(= COD - Cước phí kỳ này)'}
+                    <div style="font-size: 11.5px; color: ${amountShopOwes > 0 ? '#991b1b' : '#166534'}; margin-top: 4px; font-weight: 600;">
+                      ${amountShopOwes > 0 ? 'Chuyển trừ vào kỳ có COD tiếp theo' : previousDebtVal !== 0 ? `Đã cấn trừ công nợ đầu kỳ (${previousDebtVal > 0 ? '+' : ''}${this.formatMoney(previousDebtVal)} đ)` : '(= COD - Cước phí kỳ này)'}
                     </div>
                   </td>
                 </tr>
@@ -317,34 +302,16 @@ export const EmailService = {
                   <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
                     4. Số dư / Công nợ dồn đầu kỳ (+/-)
                   </td>
-                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: ${settlement.openingDebt < 0 ? '#dc2626' : settlement.openingDebt > 0 ? '#16a34a' : '#64748b'}; text-align: right;">
+                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: ${previousDebtVal < 0 ? '#dc2626' : previousDebtVal > 0 ? '#16a34a' : '#64748b'}; text-align: right;">
                     ${openingDebtStr} đ
                   </td>
                 </tr>
-                ${collectedAmount > 0 ? `
-                <tr>
-                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
-                    5. Tiền mặt đã thanh toán / Xóa nợ bù trừ (+)
+                <tr style="background-color: ${amountShopOwes > 0 ? '#fef2f2' : '#f0fdf4'};">
+                  <td style="padding: 14px 16px; border-top: 2px solid ${amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 14px; font-weight: 900; color: ${amountShopOwes > 0 ? '#991b1b' : '#166534'};">
+                    ${amountShopOwes > 0 ? '🔴 TỔNG KẾT: SHOP CÒN NỢ CÔNG TY' : '💰 TỔNG KẾT: SỐ TIỀN THỰC CHUYỂN CHO SHOP'}
                   </td>
-                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #16a34a; text-align: right;">
-                    +${this.formatMoney(collectedAmount)} đ
-                  </td>
-                </tr>` : ''}
-                ${debtAddedAmount > 0 ? `
-                <tr>
-                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 13.5px; color: #334155;">
-                    6. Khoản nợ phát sinh bổ sung (-)
-                  </td>
-                  <td style="padding: 10px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; font-weight: 800; color: #dc2626; text-align: right;">
-                    -${this.formatMoney(debtAddedAmount)} đ
-                  </td>
-                </tr>` : ''}
-                <tr style="background-color: ${settlement.amountShopOwes > 0 ? '#fef2f2' : '#f0fdf4'};">
-                  <td style="padding: 14px 16px; border-top: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 14px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#991b1b' : '#166534'};">
-                    ${settlement.amountShopOwes > 0 ? '🔴 TỔNG KẾT: SHOP CÒN NỢ CÔNG TY' : '💰 TỔNG KẾT: SỐ TIỀN THỰC CHUYỂN CHO SHOP'}
-                  </td>
-                  <td style="padding: 14px 16px; border-top: 2px solid ${settlement.amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 18px; font-weight: 900; color: ${settlement.amountShopOwes > 0 ? '#dc2626' : '#15803d'}; text-align: right;">
-                    ${settlement.amountShopOwes > 0 ? `-${this.formatMoney(settlement.amountShopOwes)} đ` : `${netPayoutStr} đ`}
+                  <td style="padding: 14px 16px; border-top: 2px solid ${amountShopOwes > 0 ? '#ef4444' : '#22c55e'}; font-size: 18px; font-weight: 900; color: ${amountShopOwes > 0 ? '#dc2626' : '#15803d'}; text-align: right;">
+                    ${amountShopOwes > 0 ? `-${this.formatMoney(amountShopOwes)} đ` : `${netPayoutStr} đ`}
                   </td>
                 </tr>
               </table>
