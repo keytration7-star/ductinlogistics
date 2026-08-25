@@ -14,6 +14,7 @@ import { StorageService } from '../services/storage';
 import { AuthService } from '../services/authService';
 import { EmailService } from '../services/emailService';
 import { TelegramService } from '../services/telegramService';
+import { ZaloZnsService } from '../services/zaloZnsService';
 import { UserManagementView } from './UserManagementView';
 import { useToast, useConfirm } from './UIFeedback';
 
@@ -163,7 +164,30 @@ const TabNotifications: React.FC = () => {
 
   /* 2. Zalo ZNS State */
   const [zaloForm, setZaloForm] = useState<ZaloZnsSettings>(() => StorageService.getZaloZnsSettings());
+  const [testZaloPhone, setTestZaloPhone] = useState('');
+  const [testZaloStatus, setTestZaloStatus] = useState<{ type: 'success' | 'error' | 'sending'; msg: string } | null>(null);
   const [zaloSaved, setZaloSaved] = useState(false);
+
+  const handleTestZalo = async () => {
+    if (!zaloForm.accessToken) {
+      setTestZaloStatus({ type: 'error', msg: 'Vui lòng điền Access Token Zalo trước.' });
+      return;
+    }
+    if (!zaloForm.templateId) {
+      setTestZaloStatus({ type: 'error', msg: 'Vui lòng điền Template ID (Mã mẫu ZNS) trước.' });
+      return;
+    }
+    if (!testZaloPhone.trim()) {
+      setTestZaloStatus({ type: 'error', msg: 'Vui lòng nhập số điện thoại nhận để gửi thử.' });
+      return;
+    }
+    setTestZaloStatus({ type: 'sending', msg: 'Đang gửi tin nhắn Zalo ZNS thử nghiệm...' });
+    const res = await ZaloZnsService.testConnection(testZaloPhone.trim(), zaloForm);
+    setTestZaloStatus(res.success
+      ? { type: 'success', msg: `✓ ${res.message}` }
+      : { type: 'error', msg: `✕ ${res.message}` }
+    );
+  };
 
   /* 3. Telegram State */
   const [telegramForm, setTelegramForm] = useState<TelegramSettings>(() => StorageService.getTelegramSettings());
@@ -525,6 +549,37 @@ const TabNotifications: React.FC = () => {
             <label className="input-label" style={{ fontSize: 11 }}>Access Token (OA Token)</label>
             <input type="password" className="input-field" placeholder="Dán Access Token Zalo OA vào đây..."
               value={zaloForm.accessToken || ''} onChange={e => setZaloForm({ ...zaloForm, accessToken: e.target.value })} style={{ padding: '7px 10px', fontSize: 12.5 }} />
+          </div>
+
+          {/* Test Ping Zalo ZNS */}
+          <div style={{ background: 'var(--bg-tertiary)', border: '1px dashed #bfdbfe', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={14} color="#0068ff" /> 🧪 Gửi Tin Nhắn Zalo ZNS Thử Nghiệm:
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Nhập SĐT nhận thử (VD: 0988123456)..."
+                value={testZaloPhone}
+                onChange={e => setTestZaloPhone(e.target.value)}
+                style={{ flex: 1, padding: '5px 10px', fontSize: 12 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleTestZalo}
+                style={{ whiteSpace: 'nowrap', fontSize: 11.5, background: '#eff6ff', color: '#0068ff', borderColor: '#bfdbfe', fontWeight: 700 }}
+              >
+                <Send size={12} /> {testZaloStatus?.type === 'sending' ? 'Đang gửi...' : 'Gửi Zalo Test'}
+              </button>
+            </div>
+            {testZaloStatus && (
+              <div className={`badge ${testZaloStatus.type === 'success' ? 'badge-success' : testZaloStatus.type === 'error' ? 'badge-danger' : 'badge-warning'}`}
+                style={{ padding: '6px 10px', fontSize: 11.5, lineHeight: 1.4 }}>
+                {testZaloStatus.msg}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
