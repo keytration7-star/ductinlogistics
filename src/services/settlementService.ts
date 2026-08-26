@@ -104,8 +104,11 @@ export function calculateStatementSettlement(
   };
 }
 
-/** Opening debt for a new statement is the seed balance (or unpaid negative balances where shop owes carrier fee).
- * Positive payouts from prior periods are paid out independently and MUST NOT be carried over as "company owes shop" debt. */
+/** 
+ * Tính công nợ lũy kế tuần tự (Running Balance) cho Shop:
+ * - Quy tắc cốt lõi: Công nợ của Shop đối với Gom Đơn luôn <= 0 (Âm = Shop nợ cước, 0 = Hết nợ).
+ * - Tuyệt đối không bao giờ có công nợ dương (> 0). Tiền dương là tiền COD thực chuyển của kỳ đó.
+ */
 export function calculateOpeningDebtForNewStatement(
   shop: Shop,
   sessions: ReconciliationSession[],
@@ -117,7 +120,23 @@ export function calculateOpeningDebtForNewStatement(
       .map(statement => ({ session, statement })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  // Khoản thu tiền mặt / xóa nợ (+) và khoản thêm nợ (-) đã ghi nhận từ shop
+  // Bắt đầu từ số nợ ban đầu (nếu có, luôn <= 0)
+  let runningDebt = Math.min(0, shop.previousDebt ?? 0);
+
+  // 1. Duyệt tuần tự qua các kỳ đối soát theo dòng thời gian
+  for (const { statement } of statements) {
+    const periodNet = (statement.totalCod || 0) - ((statement.totalShopFee || 0) + (statement.totalShopOtherFee || 0));
+    const combined = runningDebt + periodNet;
+    if (combined >= 0) {
+      // Tiền COD của kỳ đủ bù toàn bộ nợ cũ -> Nợ cũ được cấn trừ dứt điểm, nợ mang sang kỳ sau = 0!
+      runningDebt = 0;
+    } else {
+      // Tiền COD không đủ bù cước -> Shop vẫn nợ số âm còn lại
+      runningDebt = combined;
+    }
+  }
+
+  // 2. Cấn trừ các khoản Thu tiền mặt / Xóa nợ (COLLECTION) và Thêm nợ (DEBT_ADD)
   const collections = payments
     .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'COLLECTION')
     .reduce((sum, p) => sum + p.amount, 0);
@@ -126,21 +145,15 @@ export function calculateOpeningDebtForNewStatement(
     .filter(p => !p.voidedAt && isShopMatching(shop, p) && p.type === 'DEBT_ADD')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  let initialDebt = (shop.previousDebt ?? 0) + collections - debtAdds;
+  // Áp dụng cấn trừ: Thu tiền giúp giảm nợ âm, tối đa về 0 (không bao giờ vượt 0 thành dương)
+  runningDebt = runningDebt - debtAdds;
+  runningDebt = Math.min(0, runningDebt + collections);
 
-  // Duyệt qua các kỳ trước: CHỈ cộng dồn nếu kỳ trước Shop bị nợ cước (âm tiền totalNetPayout < 0)
-  for (const { statement } of statements) {
-    if (statement.totalNetPayout < 0) {
-      initialDebt += statement.totalNetPayout;
-    }
-  }
-
-  return initialDebt;
+  return runningDebt;
 }
 
 /**
- * Dynamically calculates the live unpaid opening debt from all prior sessions
- * up to the current session.
+ * Tính công nợ đầu kỳ động cho một Statement cụ thể trong một kỳ
  */
 export function calculateLiveOpeningDebtForStatement(
   statement: ShopSettlementStatement,
@@ -163,26 +176,34 @@ export function calculateLiveOpeningDebtForStatement(
       .map(st => ({ session, statement: st })))
     .sort((a, b) => new Date(a.session.createdAt).getTime() - new Date(b.session.createdAt).getTime());
 
-  // Khoản thu tiền mặt / xóa nợ (+) và khoản thêm nợ (-) đã ghi nhận
+  let runningDebt = Math.min(0, shop?.previousDebt ?? 0);
+
+  for (const { statement: st } of priorItems) {
+    const periodNet = (st.totalCod || 0) - ((st.totalShopFee || 0) + (st.totalShopOtherFee || 0));
+    const combined = runningDebt + periodNet;
+    if (combined >= 0) {
+      runningDebt = 0;
+    } else {
+      runningDebt = combined;
+    }
+  }
+
   const priorCollections = payments
     .filter(p => !p.voidedAt
       && isShopMatching(shopMatcher, p)
-      && p.type === 'COLLECTION')
+      && p.type === 'COLLECTION'
+      && new Date(p.paidAt || 0).getTime() <= new Date(currentSession.createdAt).getTime())
     .reduce((sum, p) => sum + p.amount, 0);
 
   const priorDebtAdds = payments
     .filter(p => !p.voidedAt
       && isShopMatching(shopMatcher, p)
-      && p.type === 'DEBT_ADD')
+      && p.type === 'DEBT_ADD'
+      && new Date(p.paidAt || 0).getTime() <= new Date(currentSession.createdAt).getTime())
     .reduce((sum, p) => sum + p.amount, 0);
 
-  let initialDebt = (shop?.previousDebt ?? 0) + priorCollections - priorDebtAdds;
+  runningDebt = runningDebt - priorDebtAdds;
+  runningDebt = Math.min(0, runningDebt + priorCollections);
 
-  for (const { statement: st } of priorItems) {
-    if (st.totalNetPayout < 0) {
-      initialDebt += st.totalNetPayout;
-    }
-  }
-
-  return initialDebt;
+  return runningDebt;
 }
