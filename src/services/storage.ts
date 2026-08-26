@@ -243,7 +243,58 @@ export const StorageService = {
           });
         });
         _inMemorySessionsCache = sessions;
-        try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
+        try {
+          // Lưu bản tóm tắt siêu nhẹ (bỏ mảng orders chi tiết nặng hàng trăm MB) vào LocalStorage để tất cả các kỳ (cũ + mới 24, 25) hiện ngay tức thì 0ms!
+          const lightSessions = sessions.map((s: any) => ({
+            id: s.id,
+            sessionName: s.sessionName,
+            createdAt: s.createdAt,
+            carrierId: s.carrierId,
+            carrierName: s.carrierName,
+            mode: s.mode,
+            nvcFileName: s.nvcFileName,
+            appFileName: s.appFileName,
+            mappingSnapshot: s.mappingSnapshot,
+            totalOrders: s.totalOrders,
+            matchedOrdersCount: s.matchedOrdersCount,
+            unmatchedOrdersCount: s.unmatchedOrdersCount,
+            totalCod: s.totalCod,
+            totalNvcCost: s.totalNvcCost,
+            totalShopRevenue: s.totalShopRevenue,
+            totalNetPayout: s.totalNetPayout,
+            totalProfit: s.totalProfit,
+            totalCtvCommission: s.totalCtvCommission,
+            statements: (s.statements || []).map((st: any) => ({
+              shopId: st.shopId,
+              shopCode: st.shopCode,
+              shopName: st.shopName,
+              periodName: st.periodName,
+              totalOrders: st.totalOrders,
+              deliveredOrders: st.deliveredOrders,
+              shippingOrders: st.shippingOrders,
+              returnedOrders: st.returnedOrders,
+              inTransitOrders: st.inTransitOrders,
+              partialOrders: st.partialOrders,
+              totalCod: st.totalCod,
+              totalShopFee: st.totalShopFee,
+              totalShopOtherFee: st.totalShopOtherFee,
+              totalNetPayout: st.totalNetPayout,
+              previousDebt: st.previousDebt,
+              totalNvcCost: st.totalNvcCost,
+              totalProfit: st.totalProfit,
+              totalDeliveredCod: st.totalDeliveredCod,
+              totalDeliveredFee: st.totalDeliveredFee,
+              totalReturnedFee: st.totalReturnedFee,
+              totalPartialCod: st.totalPartialCod,
+              totalPartialFee: st.totalPartialFee,
+              emailStatus: st.emailStatus,
+              bankInfo: st.bankInfo,
+              orders: [],
+            })),
+            unmatchedOrders: [],
+          }));
+          localStorage.setItem(SESSIONS_KEY, JSON.stringify(lightSessions));
+        } catch {}
       }
       if (companyInfo && Object.keys(companyInfo).length > 0) {
         localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
@@ -394,7 +445,12 @@ export const StorageService = {
     _inMemorySessionsCache = sessions;
 
     try {
-      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      const lightSessions = sessions.map((s: any) => ({
+        ...s,
+        statements: (s.statements || []).map((st: any) => ({ ...st, orders: [] })),
+        unmatchedOrders: [],
+      }));
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(lightSessions));
     } catch (err) {
       console.warn('[LocalStorage Quota] Dữ liệu đầy đủ được lưu trên RAM cache và Server VPS.');
     }
@@ -407,7 +463,12 @@ export const StorageService = {
     const sessions = this.getSessions().filter(s => s.id !== sessionId);
     _inMemorySessionsCache = sessions;
     try {
-      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      const lightSessions = sessions.map((s: any) => ({
+        ...s,
+        statements: (s.statements || []).map((st: any) => ({ ...st, orders: [] })),
+        unmatchedOrders: [],
+      }));
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(lightSessions));
     } catch {}
     postServerSync('/api/db/sessions/delete', { id: sessionId });
   },
