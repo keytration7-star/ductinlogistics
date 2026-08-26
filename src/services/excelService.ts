@@ -956,13 +956,17 @@ export const ExcelService = {
     // 🌟 Thống kê chi tiết tài chính: Tách chuẩn xác Đơn Giao Thành Công (Hoàn COD) và Đơn Gửi Hàng (Tính Cước)
     // CHỈ cấn trừ công nợ đầu kỳ khi Shop bị nợ cước âm (< 0), tuyệt đối không cộng dồn số tiền dương của kỳ trước.
     const previousDebtVal = (statement.previousDebt && statement.previousDebt < 0) ? statement.previousDebt : 0;
-    const finalPayout = Math.max(0, statement.totalNetPayout + previousDebtVal);
-    const amountShopOwes = Math.max(0, -(statement.totalNetPayout + previousDebtVal));
+    const netBalance = statement.totalNetPayout + previousDebtVal;
+    const finalPayout = netBalance; // Giữ nguyên dấu âm (-) nếu Shop bị âm tiền theo yêu cầu người dùng
+    const amountShopOwes = Math.max(0, -netBalance);
 
     const codOrders = statement.orders.filter(o => (o.codAmount || 0) > 0);
     const feeOrders = statement.orders.filter(o => ((o.shopCalculatedFee || 0) + (o.shopOtherFee || 0)) > 0);
     const returnedOrdersList = statement.orders.filter(o => o.status === 'returned' || o.status === 'returning');
     const partialOrdersList = statement.orders.filter(o => o.isPartialDelivery);
+
+    const shopFeeVal = statement.totalShopFee > 0 ? -Math.abs(statement.totalShopFee) : 0;
+    const otherFeeVal = statement.totalShopOtherFee > 0 ? -Math.abs(statement.totalShopOtherFee) : 0;
 
     const rowsData = [
       ['1. Tổng số dòng đối soát trong kỳ', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
@@ -971,10 +975,10 @@ export const ExcelService = {
       ['4. Số đơn chuyển hoàn', returnedOrdersList.length, 'Đơn', returnedOrdersList.length > 0 ? `Phí hoàn: ${(statement.totalReturnedFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
       ['5. Số đơn giao 1 phần (GH1P)', partialOrdersList.length, 'Đơn', partialOrdersList.length > 0 ? `COD: ${(statement.totalPartialCod || 0).toLocaleString('vi-VN')} VNĐ | Cước/Phí: ${(statement.totalPartialFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
       ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],
-      ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', statement.totalShopFee, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
-      ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', statement.totalShopOtherFee, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
-      ['9. Công nợ đầu kỳ (-/+) ', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : 'Không có công nợ đầu kỳ'],
-      ['10. Shop còn nợ công ty', amountShopOwes, 'VNĐ', amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
+      ['7. TỔNG CƯỚC PHÍ VẬN CHUYỂN (-)', shopFeeVal, 'VNĐ', 'Cước tính theo biểu giá riêng của Shop'],
+      ['8. Phí phụ thu / Khai giá / GH1P / Bảo hiểm (-)', otherFeeVal, 'VNĐ', 'Bao gồm phụ phí, khai giá và cước GH1P'],
+      ['9. Công nợ kỳ trước mang sang (-)', previousDebtVal, 'VNĐ', previousDebtVal < 0 ? 'Shop nợ công ty (trừ vào kỳ này)' : 'Không có công nợ kỳ trước'],
+      ['10. Shop còn nợ công ty', amountShopOwes > 0 ? -amountShopOwes : 0, 'VNĐ', amountShopOwes > 0 ? 'Tự chuyển sang kỳ sau để cấn trừ' : 'Không phát sinh'],
     ];
 
     rowsData.forEach(r => {
@@ -984,15 +988,20 @@ export const ExcelService = {
       });
 
       const valCell = addedRow.getCell(2);
-      if (typeof r[1] === 'number' && (typeof r[0] === 'string' && (r[0].includes('TỔNG') || r[0].includes('Công nợ')))) {
-        valCell.numFmt = '#,##0';
-        valCell.font = { bold: true };
+      if (typeof r[1] === 'number' && (typeof r[0] === 'string' && (r[0].includes('TỔNG') || r[0].includes('Công nợ') || r[0].includes('nợ')))) {
+        valCell.numFmt = '#,##0;[Red]-#,##0';
+        valCell.font = { bold: true, color: (r[1] < 0) ? { argb: 'FFFF0000' } : undefined };
       }
       addedRow.getCell(3).alignment = { horizontal: 'center' };
     });
 
-    // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text
-    const grandRow = wsSummary.addRow(['▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)', finalPayout, 'VNĐ', amountShopOwes > 0 ? 'Không chuyển tiền; công nợ shop được chuyển sang kỳ sau' : 'Tiền công ty sẽ chuyển khoản cho Shop']);
+    // 🌟 GRAND TOTAL ROW (SỐ TIỀN THỰC CHUYỂN FOR SHOP) - Yellow Fill + Bold Red Text (Hiển thị số âm nếu Shop bị âm tiền)
+    const grandRow = wsSummary.addRow([
+      '▶ SỐ TIỀN THỰC CHUYỂN CHO SHOP (=)',
+      finalPayout,
+      'VNĐ',
+      finalPayout < 0 ? 'Shop đang nợ cước công ty; tự động cấn trừ sang kỳ sau' : 'Tiền công ty sẽ chuyển khoản cho Shop'
+    ]);
     grandRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
       cell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFF0000' } }; // Red
@@ -1003,7 +1012,7 @@ export const ExcelService = {
         right: { style: 'thin', color: { argb: 'FF000000' } },
       };
     });
-    grandRow.getCell(2).numFmt = '#,##0';
+    grandRow.getCell(2).numFmt = '#,##0;[Red]-#,##0';
     grandRow.getCell(3).alignment = { horizontal: 'center' };
 
     wsSummary.addRow([]);
