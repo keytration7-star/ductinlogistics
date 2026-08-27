@@ -1095,7 +1095,9 @@ export const ExcelService = {
           normLabel === 'cuoc_thu_shop' ||
           normSrc === 'cuoc_phi' ||
           normSrc.includes('phi_giao_hang') ||
+          normSrc.includes('phi_dich_vu') ||
           (normLabel.includes('phi_giao_hang') && !normLabel.includes('giao_lai')) ||
+          (normLabel.includes('phi_dich_vu')) ||
           (normLabel.includes('cuoc_phi') && !normLabel.includes('khac'))
         ) {
           // 🛡️ CƯỚC GIAO HÀNG TÍNH THEO GIÁ SHOP:
