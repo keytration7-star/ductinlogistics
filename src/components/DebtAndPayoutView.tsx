@@ -27,7 +27,7 @@ import { StorageService } from '../services/storage';
 import { ExcelService } from '../services/excelService';
 import { cleanSessionName } from '../utils/periodUtils';
 import { AuditService } from '../services/auditService';
-import { calculateOpeningDebtForNewStatement, calculateStatementSettlement, calculateLiveOpeningDebtForStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from '../services/settlementService';
+import { calculateOpeningDebtForNewStatement, getStatementPaidAmount, getStatementCollectedAmount, getStatementDebtAddedAmount, isShopMatching } from '../services/settlementService';
 import { BANK_CODES, VIETNAM_BANKS, toVietQrMemo } from '../constants/banks';
 
 interface DebtAndPayoutViewProps {
@@ -114,7 +114,7 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     return 'MB';
   };
 
-  // Compute Payout Stats for a specific Shop in a Session (with live dynamic opening debt)
+  // Compute Payout Stats for a specific Shop in a Session (Pure Daily Net COD minus Fee, no previous debt accumulation)
   const getStatementPayoutInfo = (sessionId: string, statement: ShopSettlementStatement) => {
     const matchedShopObj = shops.find(s => isShopMatching(s, statement));
     const shopMatcher = matchedShopObj || { id: statement.shopId, code: statement.shopCode, name: statement.shopName };
@@ -123,21 +123,36 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
     const collectedAmount = getStatementCollectedAmount(statement, sessionId, payments);
     const debtAddedAmount = getStatementDebtAddedAmount(statement, sessionId, payments);
 
-    const currentSession = sessions.find(s => s.id === sessionId);
-    
-    const openingDebt = currentSession 
-      ? calculateLiveOpeningDebtForStatement(statement, currentSession, sessions, payments, matchedShopObj)
-      : (statement.previousDebt || 0);
+    const totalFee = (statement.totalShopFee || 0) + (statement.totalShopOtherFee || 0);
+    const currentPeriodNet = (statement.totalCod || 0) - totalFee;
 
-    const stmtWithLiveDebt = { ...statement, previousDebt: openingDebt };
-    const settlement = calculateStatementSettlement(stmtWithLiveDebt, paidAmount, collectedAmount, debtAddedAmount);
-    const remainingDebt = settlement.amountPayable;
-
+    let amountPayable = 0;
+    let shopOwes = 0;
+    let remainingDebt = 0;
     let status: PayoutStatus = 'UNPAID';
-    if (paidAmount >= settlement.balanceBeforePayment && settlement.balanceBeforePayment > 0) {
-      status = 'PAID';
-    } else if (paidAmount > 0 || collectedAmount > 0) {
-      status = (settlement.amountShopOwes === 0 && settlement.amountPayable === 0) ? 'PAID' : 'PARTIAL';
+
+    if (currentPeriodNet >= 0) {
+      amountPayable = currentPeriodNet;
+      shopOwes = 0;
+      remainingDebt = Math.max(0, currentPeriodNet - paidAmount);
+      if (remainingDebt === 0 && currentPeriodNet > 0) {
+        status = 'PAID';
+      } else if (paidAmount > 0) {
+        status = 'PARTIAL';
+      } else {
+        status = 'UNPAID';
+      }
+    } else {
+      amountPayable = 0;
+      shopOwes = Math.abs(currentPeriodNet);
+      remainingDebt = Math.max(0, Math.abs(currentPeriodNet) - collectedAmount);
+      if (remainingDebt === 0) {
+        status = 'PAID';
+      } else if (collectedAmount > 0) {
+        status = 'PARTIAL';
+      } else {
+        status = 'UNPAID';
+      }
     }
 
     return { 
@@ -145,9 +160,10 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
       collectedAmount,
       debtAddedAmount,
       remainingDebt, 
-      openingDebt,
-      amountPayable: settlement.amountPayable,
-      shopOwes: settlement.amountShopOwes, 
+      openingDebt: 0,
+      currentPeriodNet,
+      amountPayable,
+      shopOwes, 
       status, 
       statementPayments 
     };
@@ -1348,12 +1364,11 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                     <th style={{ padding: '10px 12px', width: 100 }}>Mã Shop</th>
                     <th style={{ padding: '10px 14px' }}>Tên Shop / Đơn Vị</th>
                     <th style={{ padding: '10px 14px' }}>Thông Tin Ngân Hàng</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tiền COD</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Cước Shop</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>Nợ Cũ Dồn</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#4f46e5' }}>Thực Chuyển</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>Đã Chuyển</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626' }}>Còn Nợ</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#1d4ed8' }}>Tiền COD (+)</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#7e22ce' }}>Cước Shop (-)</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Kết Quả Kỳ Này (=)</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>Đã Thanh Toán</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626' }}>Còn Lại</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>Trạng Thái</th>
                     <th style={{ padding: '10px 14px', textAlign: 'right' }}>Thao Tác</th>
                   </tr>
@@ -1366,10 +1381,12 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                       return stmt.shopName.toLowerCase().includes(q) || stmt.shopCode.toLowerCase().includes(q) || (stmt.shopPhone && stmt.shopPhone.includes(q));
                     })
                     .map(stmt => {
-                      const { paidAmount, remainingDebt, openingDebt, amountPayable, shopOwes, status } = getStatementPayoutInfo(activeDetailSession.id, stmt);
+                      const { paidAmount, collectedAmount, remainingDebt, currentPeriodNet, shopOwes, status } = getStatementPayoutInfo(activeDetailSession.id, stmt);
 
                       const matchedShopObj = shops.find(s => s.id === stmt.shopId || s.code === stmt.shopCode || s.name.toLowerCase() === stmt.shopName.toLowerCase());
                       const aliasesList = [...(matchedShopObj?.nameAliases || []), ...(matchedShopObj?.phoneList || [])];
+
+                      const isPositive = currentPeriodNet >= 0;
 
                       return (
                         <tr
@@ -1455,127 +1472,140 @@ export const DebtAndPayoutView: React.FC<DebtAndPayoutViewProps> = ({
                             {formatVND(stmt.totalCod)}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
-                            -{formatVND(stmt.totalShopFee + stmt.totalShopOtherFee)}
+                            -{formatVND(stmt.totalShopFee + (stmt.totalShopOtherFee || 0))}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
-                            {openingDebt > 0 ? (
-                              <span style={{ color: '#d97706' }}>+{formatVND(openingDebt)}</span>
-                            ) : openingDebt < 0 ? (
-                              <span style={{ color: '#ef4444' }}>-{formatVND(Math.abs(openingDebt))}</span>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
+                            {isPositive ? (
+                              <div>
+                                <span style={{ fontWeight: 900, color: '#4f46e5', fontSize: 13 }}>+{formatVND(currentPeriodNet)}</span>
+                                <div style={{ fontSize: 9.5, color: '#4f46e5', fontWeight: 700 }}>Cần chuyển</div>
+                              </div>
                             ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>0 đ</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: shopOwes > 0 ? '#64748b' : '#4f46e5', fontSize: 13, fontFamily: 'monospace' }}>
-                            {formatVND(amountPayable)}
-                            {shopOwes > 0 && (
-                              <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>
-                                (Bù trừ nợ)
+                              <div>
+                                <span style={{ fontWeight: 900, color: '#dc2626', fontSize: 13 }}>-{formatVND(Math.abs(currentPeriodNet))}</span>
+                                <div style={{ fontSize: 9.5, color: '#dc2626', fontWeight: 700 }}>Cần thu</div>
                               </div>
                             )}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
-                            {formatVND(paidAmount)}
+                            {formatVND(isPositive ? paidAmount : collectedAmount)}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, fontSize: 13, fontFamily: 'monospace' }}>
-                            {shopOwes > 0 ? (
+                            {remainingDebt === 0 ? (
+                              <span style={{ color: '#059669' }}>0 đ</span>
+                            ) : isPositive ? (
                               <div>
-                                <span style={{ color: '#dc2626' }}>-{formatVND(shopOwes)}</span>
-                                <div style={{ marginTop: 2 }}>
-                                  <span style={{
-                                    fontSize: 9.5,
-                                    fontWeight: 800,
-                                    background: '#fef2f2',
-                                    color: '#dc2626',
-                                    padding: '1px 5px',
-                                    borderRadius: 4,
-                                    border: '1px solid #fecaca',
-                                    display: 'inline-block',
-                                  }}>
-                                    Shop nợ lại
-                                  </span>
-                                </div>
+                                <span style={{ color: '#4f46e5' }}>{formatVND(remainingDebt)}</span>
+                                <div style={{ fontSize: 9.5, color: '#6366f1', fontWeight: 700 }}>Chưa chuyển</div>
                               </div>
                             ) : (
-                              <span style={{ color: remainingDebt > 0 ? '#dc2626' : '#059669' }}>
-                                {formatVND(remainingDebt)}
-                              </span>
+                              <div>
+                                <span style={{ color: '#dc2626' }}>-{formatVND(remainingDebt)}</span>
+                                <div style={{ fontSize: 9.5, color: '#ef4444', fontWeight: 700 }}>Chưa thu</div>
+                              </div>
                             )}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            {shopOwes > 0 ? (
-                              <span style={{
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1.5px solid #fecaca',
-                                fontSize: 11,
-                                fontWeight: 800,
-                                padding: '3px 8px',
-                                borderRadius: 6,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                boxShadow: '0 1px 3px rgba(220, 38, 38, 0.08)',
-                              }}
-                              title={`Shop đang nợ ${formatVND(shopOwes)} sau khi cấn trừ ${formatVND(stmt.totalCod)} COD kỳ này. Số nợ sẽ tự động dồn sang kỳ sau.`}
-                              >
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }} />
-                                Shop nợ: {formatVND(shopOwes)}
-                              </span>
+                            {isPositive ? (
+                              status === 'PAID' ? (
+                                <span style={{
+                                  background: '#ecfdf5',
+                                  color: '#047857',
+                                  border: '1px solid #a7f3d0',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981' }} />
+                                  Đã chuyển đủ
+                                </span>
+                              ) : status === 'PARTIAL' ? (
+                                <span style={{
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3b82f6' }} />
+                                  Chuyển 1 phần
+                                </span>
+                              ) : (
+                                <span style={{
+                                  background: '#fef3c7',
+                                  color: '#b45309',
+                                  border: '1px solid #fde68a',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
+                                  Chưa chuyển
+                                </span>
+                              )
                             ) : (
-                              <>
-                                {status === 'PAID' && (
-                                  <span style={{
-                                    background: '#ecfdf5',
-                                    color: '#047857',
-                                    border: '1px solid #a7f3d0',
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    padding: '2px 8px',
-                                    borderRadius: 6,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                  }}>
-                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981' }} />
-                                    Đã đi đủ
-                                  </span>
-                                )}
-                                {status === 'PARTIAL' && (
-                                  <span style={{
-                                    background: '#eff6ff',
-                                    color: '#1d4ed8',
-                                    border: '1px solid #bfdbfe',
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    padding: '2px 8px',
-                                    borderRadius: 6,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                  }}>
-                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3b82f6' }} />
-                                    1 phần
-                                  </span>
-                                )}
-                                {status === 'UNPAID' && (
-                                  <span style={{
-                                    background: '#fef2f2',
-                                    color: '#dc2626',
-                                    border: '1px solid #fecaca',
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    padding: '2px 8px',
-                                    borderRadius: 6,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                  }}>
-                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626' }} />
-                                    Chưa đi
-                                  </span>
-                                )}
-                              </>
+                              status === 'PAID' ? (
+                                <span style={{
+                                  background: '#ecfdf5',
+                                  color: '#047857',
+                                  border: '1px solid #a7f3d0',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981' }} />
+                                  Đã thu đủ
+                                </span>
+                              ) : status === 'PARTIAL' ? (
+                                <span style={{
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  border: '1px solid #bfdbfe',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3b82f6' }} />
+                                  Thu 1 phần
+                                </span>
+                              ) : (
+                                <span style={{
+                                  background: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#ef4444' }} />
+                                  Cần thu cước
+                                </span>
+                              )
                             )}
                           </td>
                           <td style={{ padding: '10px 14px', textAlign: 'right' }}>
