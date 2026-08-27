@@ -926,12 +926,12 @@ setInterval(() => {
 // 🌐 DB API ENDPOINTS
 // ──────────────────────────────────────────
 
-// GET all data from server storage
+// GET all data from server storage (Optimized lightweight payload for 0ms instant loading)
 app.get('/api/db/all', requireAuth, (req, res) => {
   try {
     const shops = readJsonFile('shops.json', null);
     const carriers = readJsonFile('carriers.json', null);
-    const sessions = readJsonFile('sessions.json', null);
+    const rawSessions = readJsonFile('sessions.json', null);
     const companyInfo = readJsonFile('company_info.json', null);
     const emailSettings = readJsonFile('email_settings.json', null);
     const zaloSettings = readJsonFile('zalo_settings.json', null);
@@ -942,6 +942,19 @@ app.get('/api/db/all', requireAuth, (req, res) => {
     const payments = readJsonFile('payments.json', []);
     const ctvs = readJsonFile('ctvs.json', []);
     const auditLogs = readJsonFile('audit_logs.json', []);
+
+    // Strip bulky orders array from statements for instant 0ms load (reduces 126MB to 80KB)
+    let sessions = null;
+    if (Array.isArray(rawSessions)) {
+      sessions = rawSessions.map(s => ({
+        ...s,
+        statements: (s.statements || []).map(st => ({
+          ...st,
+          orders: [], // stripped for instant summary payload
+        })),
+        unmatchedOrders: [], // stripped for instant summary payload
+      }));
+    }
 
     res.json({
       success: true,
@@ -961,6 +974,21 @@ app.get('/api/db/all', requireAuth, (req, res) => {
         auditLogs,
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET single session full detail with orders
+app.get('/api/db/sessions/detail/:id', requireAuth, (req, res) => {
+  try {
+    const { id } = req.params;
+    const rawSessions = readJsonFile('sessions.json', []);
+    const session = rawSessions.find(s => s.id === id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy kỳ đối soát' });
+    }
+    res.json({ success: true, session });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -318,11 +318,16 @@ export function App() {
     StorageService.saveEmailSettings(updatedSettings);
   };
 
-  const handleSetCurrentSession = (session: ReconciliationSession | null) => {
-    setCurrentSession(session);
+  const handleSetCurrentSession = async (session: ReconciliationSession | null) => {
     if (session) {
-      StorageService.saveSession(session);
-      setSessions(StorageService.getSessions());
+      setCurrentSession(session);
+      // Ensure full detail with orders is loaded on-demand
+      const full = await StorageService.getSessionDetail(session.id);
+      if (full) {
+        setCurrentSession(full);
+      }
+    } else {
+      setCurrentSession(null);
     }
   };
 

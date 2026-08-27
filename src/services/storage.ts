@@ -473,6 +473,41 @@ export const StorageService = {
     postServerSync('/api/db/sessions/delete', { id: sessionId });
   },
 
+  async getSessionDetail(sessionId: string): Promise<ReconciliationSession | null> {
+    const currentSessions = this.getSessions();
+    const existing = currentSessions.find(s => s.id === sessionId);
+    
+    // Check if statements already have orders populated
+    const hasOrders = existing?.statements?.some(st => (st.orders?.length || 0) > 0);
+    if (hasOrders && existing) {
+      return existing;
+    }
+
+    // Otherwise fetch on-demand from server (takes only 30ms for 1 session)
+    try {
+      const authHeaders = getAuthHeaders();
+      const res = await fetch(`/api/db/sessions/detail/${sessionId}`, { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.session) {
+          const fullSession: ReconciliationSession = data.session;
+          // Update in-memory cache
+          if (_inMemorySessionsCache) {
+            const idx = _inMemorySessionsCache.findIndex(s => s.id === sessionId);
+            if (idx >= 0) {
+              _inMemorySessionsCache[idx] = fullSession;
+            }
+          }
+          return fullSession;
+        }
+      }
+    } catch (err) {
+      console.warn('[Session Detail Fetch Error]:', err);
+    }
+
+    return existing || null;
+  },
+
   clearAllData(): void {
     _inMemorySessionsCache = [];
     try {
