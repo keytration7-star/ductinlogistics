@@ -560,7 +560,7 @@ export function performReconciliation(
 
     // 🔑 STRICT BUSINESS RULE: Only charge Shop shipping fee if the NVC Carrier settlement file actually charged a fee for this order (nvcFee > 0 or nvcOtherFee > 0).
     // An order appears twice: 1st when shipped (fee is charged), 2nd when delivered (only COD returned, fee = 0đ). NEVER charge shop fee twice!
-    const nvcHasFee = (nvcFee > 0 || nvcOtherFee > 0);
+    const nvcHasFee = (Math.abs(nvcFee) > 0 || Math.abs(nvcOtherFee) > 0);
 
     if (nvcHasFee) {
       shopCalculatedFee = calculateWeightFee(weight, pricingPlan);
@@ -960,7 +960,7 @@ export function recalculateSessionFees(
       let shopOtherFee = 0;
 
       // 🔑 STRICT BUSINESS RULE: Only charge Shop fee if NVC file charged a fee for this order
-      const nvcHasFee = (order.nvcBaseFee + order.nvcOtherFee) > 0;
+      const nvcHasFee = (Math.abs(order.nvcBaseFee) + Math.abs(order.nvcOtherFee)) > 0;
 
       if (nvcHasFee) {
         shopCalculatedFee = calculateWeightFee(order.weight || 0.5, pricingPlan);
