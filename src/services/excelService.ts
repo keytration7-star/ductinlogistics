@@ -1092,29 +1092,27 @@ export const ExcelService = {
         } else if (
           col.id === 'shopFee' ||
           normLabel === 'cuoc_tinh_shop_vnd' ||
-          normLabel === 'cuoc_phi' ||
-          normLabel.includes('cuoc_phi') ||
-          normLabel.includes('cuoc_chinh') ||
-          normLabel.includes('tien_cuoc_pp_pm') ||
-          normLabel.includes('phi_giao_hang') ||
-          normLabel.includes('cuoc_thu_shop') ||
-          normLabel.includes('phi_dich_vu') ||
+          normLabel === 'cuoc_thu_shop' ||
           normSrc === 'cuoc_phi' ||
-          normSrc.includes('cuoc_phi') ||
-          normSrc.includes('cuoc_chinh') ||
-          normSrc.includes('tien_cuoc_pp_pm') ||
           normSrc.includes('phi_giao_hang') ||
-          normSrc.includes('phi_dich_vu')
+          (normLabel.includes('phi_giao_hang') && !normLabel.includes('giao_lai')) ||
+          (normLabel.includes('cuoc_phi') && !normLabel.includes('khac'))
         ) {
-          // 🛡️ BẢO VỆ GIÁ VỐN TUYỆT ĐỐI: Luôn xuất giá cước thỏa thuận của Shop (12.500đ), không bao giờ xuất cước gốc NVC GHN (11.500đ)
-          val = order.shopCalculatedFee ?? 0;
+          // 🛡️ CƯỚC GIAO HÀNG TÍNH THEO GIÁ SHOP:
+          // Nếu đơn hàng có phát sinh cước gửi, xuất đúng giá thỏa thuận của Shop (ví dụ -17.000đ hoặc -12.500đ).
+          // Nếu là đơn hoàn COD (cước = 0), xuất 0đ.
+          const fee = order.shopCalculatedFee ?? 0;
+          if (fee > 0) {
+            // Nếu cột gốc có dấu âm (-), giữ format âm
+            const rawVal = order.rawNvcData?.[col.sourceHeader || ''] ?? order.rawNvcData?.[col.label || ''];
+            val = (typeof rawVal === 'number' && rawVal < 0) || (typeof rawVal === 'string' && rawVal.startsWith('-')) ? -fee : fee;
+          } else {
+            val = 0;
+          }
         } else if (
           col.id === 'shopOtherFee' ||
           normLabel === 'phu_phi_shop_vnd' ||
-          normLabel.includes('phi_hoan_hang') ||
-          normLabel.includes('phu_thu') ||
-          normSrc.includes('phi_hoan_hang') ||
-          normSrc.includes('phu_thu')
+          normLabel.includes('phu_thu')
         ) {
           val = order.shopOtherFee ?? 0;
         } else if (
@@ -1123,12 +1121,16 @@ export const ExcelService = {
           normLabel.includes('so_tien_phai_tra_sau_can_tru') ||
           normLabel.includes('thuc_chuyen') ||
           normLabel.includes('thuc_tra') ||
+          normSrc.includes('so_tien_phai_tra_sau_can_tru')
+        ) {
+          // 🛡️ SỐ TIỀN THỰC CHUYỂN (= COD - Cước Shop)
+          val = order.netShopPayout ?? 0;
+        } else if (
           normLabel.includes('tong_doi_soat') ||
-          normSrc.includes('so_tien_phai_tra_sau_can_tru') ||
           normSrc.includes('tong_doi_soat')
         ) {
-          // 🛡️ BẢO VỆ SỐ TIỀN: Luôn xuất số tiền thực chuyển cho Shop (= COD - Cước Shop)
-          val = order.netShopPayout ?? 0;
+          // Cột Tổng đối soát của GHN: = COD - Cước Shop
+          val = (order.codAmount || 0) - (order.shopCalculatedFee || 0) - (order.shopOtherFee || 0);
         } else if (
           col.id === 'profit' ||
           col.id === 'nvcFee' ||
