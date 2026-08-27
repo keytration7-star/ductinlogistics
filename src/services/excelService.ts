@@ -407,26 +407,7 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
       }
     }
 
-    // Add standard normalized aliases so auto-mapping and matching works seamlessly
-    const standardAliases = [
-      'Mã đơn GHN',
-      'Mã đơn khách hàng',
-      'Cửa hàng',
-      'Tên Shop',
-      'Mã Shop/Kho',
-      'Người nhận',
-      'Địa chỉ nhận',
-      'Ngày tạo',
-      'Ngày giao/trả',
-      'Trạng thái',
-      'Tiền COD',
-      'Cước phí',
-      'Điều chỉnh',
-      'Tổng đối soát',
-      'Loại dòng đối soát',
-      'Sheet đối soát GHN',
-    ];
-    standardAliases.forEach(h => discoveredHeadersSet.add(h));
+    // (Note: standardAliases are added to rowObj below for internal reconciliation, but not added to discoveredHeadersSet to prevent duplicating columns in export)
 
     const rows: Record<string, any>[] = [];
     for (let dataIndex = rowIndex + 1; dataIndex < rawSheetData.length; dataIndex++) {
@@ -666,7 +647,7 @@ export function parseGhnSettlementWorkbook(workbook: XLSX.WorkBook, sheetNames?:
 
 export const ExcelService = {
   // Intelligent parser supporting title banners, multi-line headers and multiple sheets
-  async parseExcelFile(file: File, _options?: { sheetNames?: string[] }): Promise<ParsedExcelFile> {
+  async parseExcelFile(file: File, options?: { sheetNames?: string[] }): Promise<ParsedExcelFile> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
@@ -675,14 +656,13 @@ export const ExcelService = {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
 
-          // Disable custom GHN parsers as per user request to keep original columns without merging/injecting
-          // const ghnCodTransferParsed = parseGhnCodTransferWorkbook(workbook, _options?.sheetNames);
-          // if (ghnCodTransferParsed) {
-          //   resolve(ghnCodTransferParsed);
-          //   return;
-          // }
+          const ghnCodTransferParsed = parseGhnCodTransferWorkbook(workbook, options?.sheetNames);
+          if (ghnCodTransferParsed) {
+            resolve(ghnCodTransferParsed);
+            return;
+          }
 
-          // const ghnParsed = parseGhnSettlementWorkbook(workbook, _options?.sheetNames);
+          // const ghnParsed = parseGhnSettlementWorkbook(workbook, options?.sheetNames);
           // if (ghnParsed) {
           //   resolve(ghnParsed);
           //   return;
