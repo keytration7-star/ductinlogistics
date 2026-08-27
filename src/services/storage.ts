@@ -222,6 +222,17 @@ export const StorageService = {
       const authHeaders = getAuthHeaders();
       if (!authHeaders.Authorization) return false; // Skip server sync if no token present
       const res = await fetch('/api/db/all', { headers: authHeaders });
+      
+      // If server rejected token (401 Unauthorized), session expired -> clear expired token and prompt login
+      if (res.status === 401) {
+        console.warn('[Server 401]: Token phiên đăng nhập đã hết hạn. Đang làm mới phiên...');
+        localStorage.removeItem('gomdon_access_token_v1');
+        localStorage.removeItem('gomdon_current_user_v1');
+        sessionStorage.removeItem('gomdon_active_carrier_id');
+        window.location.reload();
+        return false;
+      }
+
       if (!res.ok) return false;
       const result = await res.json();
       if (!result.success || !result.data) return false;
