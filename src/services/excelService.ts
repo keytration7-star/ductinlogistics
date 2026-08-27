@@ -1222,7 +1222,16 @@ export const ExcelService = {
         src.includes('tong_doi_soat')
       ) {
         totalRowData.push(statement.totalNetPayout);
-      } else if (col.category === 'carrier' || (col.sourceHeader && (normLabel.includes('phi') || normLabel.includes('tien') || normLabel.includes('cuoc')))) {
+      } else if (
+        (col.id === 'codAmount' || normLabel.includes('cod') || normLabel.includes('thu_ho') ||
+         col.id === 'failCod' || normLabel.includes('that_bai') ||
+         col.id === 'prepaid' || normLabel.includes('thanh_toan_truoc') ||
+         normLabel.includes('khuyen_mai') ||
+         normLabel.includes('phi_') || normLabel.includes('cuoc_') ||
+         src.includes('Tiền') || src.includes('Phí') || src.includes('Cước')) &&
+        !normId.includes('code') && !normId.includes('id') &&
+        !normLabel.includes('ma_') && !normLabel.includes('so_dt') && !normLabel.includes('sdt') && !normLabel.includes('ngay') && !normLabel.includes('date')
+      ) {
         const colSum = statement.orders.reduce((sum, o) => {
           const v = (o.rawNvcData && col.sourceHeader ? o.rawNvcData[col.sourceHeader] : undefined) ??
                     (o.rawAppData && col.sourceHeader ? o.rawAppData[col.sourceHeader] : undefined) ??
