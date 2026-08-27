@@ -666,7 +666,7 @@ export function parseGhnSettlementWorkbook(workbook: XLSX.WorkBook, sheetNames?:
 
 export const ExcelService = {
   // Intelligent parser supporting title banners, multi-line headers and multiple sheets
-  async parseExcelFile(file: File, options?: { sheetNames?: string[] }): Promise<ParsedExcelFile> {
+  async parseExcelFile(file: File, _options?: { sheetNames?: string[] }): Promise<ParsedExcelFile> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
@@ -675,17 +675,18 @@ export const ExcelService = {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
 
-          const ghnCodTransferParsed = parseGhnCodTransferWorkbook(workbook, options?.sheetNames);
-          if (ghnCodTransferParsed) {
-            resolve(ghnCodTransferParsed);
-            return;
-          }
+          // Disable custom GHN parsers as per user request to keep original columns without merging/injecting
+          // const ghnCodTransferParsed = parseGhnCodTransferWorkbook(workbook, _options?.sheetNames);
+          // if (ghnCodTransferParsed) {
+          //   resolve(ghnCodTransferParsed);
+          //   return;
+          // }
 
-          const ghnParsed = parseGhnSettlementWorkbook(workbook, options?.sheetNames);
-          if (ghnParsed) {
-            resolve(ghnParsed);
-            return;
-          }
+          // const ghnParsed = parseGhnSettlementWorkbook(workbook, _options?.sheetNames);
+          // if (ghnParsed) {
+          //   resolve(ghnParsed);
+          //   return;
+          // }
 
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
