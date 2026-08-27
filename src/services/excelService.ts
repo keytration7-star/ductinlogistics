@@ -855,6 +855,20 @@ export const ExcelService = {
 
   async createShopStatementWorkbook(statement: ShopSettlementStatement, customExportSettings?: ExportColumnSettings): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
+    
+    // Auto-fetch full session orders if current statement in memory lacks order items
+    if (!statement.orders || statement.orders.length === 0) {
+      const allSessions = StorageService.getSessions();
+      const parentSession = allSessions.find(s => (s.statements || []).some(st => st.shopId === statement.shopId || st.shopCode === statement.shopCode || st.shopName === statement.shopName));
+      if (parentSession) {
+        const fullSession = await StorageService.getSessionDetail(parentSession.id);
+        const fullStmt = fullSession?.statements?.find(st => st.shopId === statement.shopId || st.shopCode === statement.shopCode || st.shopName === statement.shopName);
+        if (fullStmt && fullStmt.orders && fullStmt.orders.length > 0) {
+          statement = fullStmt;
+        }
+      }
+    }
+
     const carrierId = statement.orders?.[0]?.carrierId;
     const savedSettings = customExportSettings || (carrierId ? StorageService.getCarrierExportSettings(carrierId) : undefined);
     
@@ -1546,6 +1560,14 @@ export const ExcelService = {
   },
 
   async downloadAllStatementsZip(session: ReconciliationSession, onProgress?: (percent: number, currentShop: string) => void): Promise<void> {
+    // Auto-fetch full session orders if statements are stripped
+    if (session.statements.some(st => !st.orders || st.orders.length === 0)) {
+      const full = await StorageService.getSessionDetail(session.id);
+      if (full) {
+        session = full;
+      }
+    }
+
     const zip = new JSZip();
     const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
     const rootFolder = zip.folder(`DOI_SOAT_${carrierTag}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}`);
