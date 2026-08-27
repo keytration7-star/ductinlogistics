@@ -1092,20 +1092,29 @@ export const ExcelService = {
         } else if (
           col.id === 'shopFee' ||
           normLabel === 'cuoc_tinh_shop_vnd' ||
-          normLabel.includes('tien_cuoc_pp_pm') ||
+          normLabel === 'cuoc_phi' ||
+          normLabel.includes('cuoc_phi') ||
           normLabel.includes('cuoc_chinh') ||
-          normLabel.includes('cuoc_phi_van_chuyen') ||
+          normLabel.includes('tien_cuoc_pp_pm') ||
+          normLabel.includes('phi_giao_hang') ||
           normLabel.includes('cuoc_thu_shop') ||
+          normLabel.includes('phi_dich_vu') ||
+          normSrc === 'cuoc_phi' ||
+          normSrc.includes('cuoc_phi') ||
+          normSrc.includes('cuoc_chinh') ||
           normSrc.includes('tien_cuoc_pp_pm') ||
-          normSrc.includes('cuoc_chinh')
+          normSrc.includes('phi_giao_hang') ||
+          normSrc.includes('phi_dich_vu')
         ) {
-          // 🛡️ BẢO VỆ GIÁ VỐN: Luôn xuất giá cước thỏa thuận của Shop, không bao giờ xuất cước gốc NVC
+          // 🛡️ BẢO VỆ GIÁ VỐN TUYỆT ĐỐI: Luôn xuất giá cước thỏa thuận của Shop (12.500đ), không bao giờ xuất cước gốc NVC GHN (11.500đ)
           val = order.shopCalculatedFee ?? 0;
         } else if (
           col.id === 'shopOtherFee' ||
           normLabel === 'phu_phi_shop_vnd' ||
           normLabel.includes('phi_hoan_hang') ||
-          normLabel.includes('phu_thu')
+          normLabel.includes('phu_thu') ||
+          normSrc.includes('phi_hoan_hang') ||
+          normSrc.includes('phu_thu')
         ) {
           val = order.shopOtherFee ?? 0;
         } else if (
@@ -1114,7 +1123,9 @@ export const ExcelService = {
           normLabel.includes('so_tien_phai_tra_sau_can_tru') ||
           normLabel.includes('thuc_chuyen') ||
           normLabel.includes('thuc_tra') ||
-          normSrc.includes('so_tien_phai_tra_sau_can_tru')
+          normLabel.includes('tong_doi_soat') ||
+          normSrc.includes('so_tien_phai_tra_sau_can_tru') ||
+          normSrc.includes('tong_doi_soat')
         ) {
           // 🛡️ BẢO VỆ SỐ TIỀN: Luôn xuất số tiền thực chuyển cho Shop (= COD - Cước Shop)
           val = order.netShopPayout ?? 0;
@@ -1125,7 +1136,8 @@ export const ExcelService = {
           normLabel.includes('lai_rong') ||
           normLabel.includes('cuoc_goc') ||
           normLabel.includes('cuoc_nvc') ||
-          normSrc.includes('cuoc_goc')
+          normSrc.includes('cuoc_goc') ||
+          normSrc.includes('cuoc_nvc')
         ) {
           // 🛡️ TUYỆT ĐỐI ẨN LỢI NHUẬN / CƯỚC GỐC KHỎI FILE SHOP
           val = 0;
@@ -1200,9 +1212,16 @@ export const ExcelService = {
         col.id === 'shopFee' ||
         normLabel === 'cuoc_tinh_shop_vnd' ||
         normLabel === 'cuoc_thu_shop' ||
-        normLabel.includes('tien_cuoc_pp_pm') ||
+        normLabel === 'cuoc_phi' ||
+        normLabel.includes('cuoc_phi') ||
         normLabel.includes('cuoc_chinh') ||
-        src === 'Tiền cước PP_PM'
+        normLabel.includes('tien_cuoc_pp_pm') ||
+        normLabel.includes('phi_giao_hang') ||
+        normLabel.includes('phi_dich_vu') ||
+        src === 'Tiền cước PP_PM' ||
+        src === 'Cước phí' ||
+        src.includes('phi_giao_hang') ||
+        src.includes('phi_dich_vu')
       ) {
         totalRowData.push(statement.totalShopFee);
       } else if (col.id === 'shopOtherFee' || normLabel === 'phu_phi_shop_vnd') {
@@ -1211,7 +1230,11 @@ export const ExcelService = {
         col.id === 'netPayout' ||
         normLabel === 'thuc_chuyen_cho_shop_vnd' ||
         normLabel.includes('so_tien_phai_tra_sau_can_tru') ||
-        src === 'Số tiền phải trả sau cấn trừ'
+        normLabel.includes('thuc_chuyen') ||
+        normLabel.includes('thuc_tra') ||
+        normLabel.includes('tong_doi_soat') ||
+        src === 'Số tiền phải trả sau cấn trừ' ||
+        src.includes('tong_doi_soat')
       ) {
         totalRowData.push(statement.totalNetPayout);
       } else if (col.category === 'carrier' || (col.sourceHeader && (normLabel.includes('phi') || normLabel.includes('tien') || normLabel.includes('cuoc')))) {
