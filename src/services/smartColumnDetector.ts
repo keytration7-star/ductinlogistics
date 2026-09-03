@@ -50,7 +50,7 @@ const ALIASES = {
   weight: [
     'khoi_luong', 'trong_luong', 'can_nang', 'khoi_luong_tinh_cuoc', 'kl_quy_doi',
     'weight', 'gross_weight', 'khoi_luong_kg', 'trong_luong_kg', 'can_nang_kg',
-    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'kg', 'trong_luong_tinh_phi'
+    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'trong_luong_tinh_phi', 'tl_tinh_phi'
   ],
   status: [
     'trang_thai', 'tinh_trang', 'ket_qua_giao', 'trang_thai_don', 'trang_thai_giao_hang',
@@ -224,7 +224,8 @@ export function autoDetectColumnsWithConfidence(
       .filter(column => column !== mapping.otherFeeColumn);
     mapping.adjustmentColumn = findBestMatchWithScore('adjustmentColumn', 'Điều Chỉnh NVC', ALIASES.adjustment, savedMapping?.adjustmentColumn);
     mapping.settlementAmountColumn = findBestMatchWithScore('settlementAmountColumn', 'Số Tiền NVC Trả Sau Cấn Trừ', ALIASES.settlementAmount, savedMapping?.settlementAmountColumn);
-    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn);
+    const weightForbidden = ['dia_chi', 'address', 'ten', 'name', 'sdt', 'phone', 'noi_dung', 'san_pham', 'ghi_chu', 'ma_', 'trang_thai', 'ngay', 'date', 'nguoi_nhan', 'nguoi_gui', 'mat_hang'];
+    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn, weightForbidden);
     mapping.statusColumn = findBestMatchWithScore('statusColumn', 'Trạng Thái Đơn Hàng', ALIASES.status, savedMapping?.statusColumn);
     mapping.shopNameColumn = findBestMatchWithScore('shopNameColumn', 'Tên Shop / Cửa Hàng', ALIASES.shopName, savedMapping?.shopNameColumn, ['dia_chi', 'address', 'sdt', 'phone']);
     mapping.shopCodeColumn = findBestMatchWithScore('shopCodeColumn', 'Mã Shop / Kho', ['ma_shop', 'ma_kho', 'ma_cua_hang', 'store_id', 'client_id'], savedMapping?.shopCodeColumn);
@@ -241,7 +242,8 @@ export function autoDetectColumnsWithConfidence(
     mapping.receiverNameColumn = findBestMatchWithScore('receiverNameColumn', 'Tên Người Nhận', ALIASES.receiverName, savedMapping?.receiverNameColumn, ['dia_chi', 'address', 'sdt', 'phone', 'dien_thoai']);
     mapping.receiverPhoneColumn = findBestMatchWithScore('receiverPhoneColumn', 'SĐT Người Nhận', ALIASES.receiverPhone, savedMapping?.receiverPhoneColumn, ['dia_chi', 'address', 'ten', 'name']);
     mapping.receiverAddressColumn = findBestMatchWithScore('receiverAddressColumn', 'Địa Chỉ Người Nhận', ALIASES.receiverAddress, savedMapping?.receiverAddressColumn);
-    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn);
+    const weightForbidden = ['dia_chi', 'address', 'ten', 'name', 'sdt', 'phone', 'noi_dung', 'san_pham', 'ghi_chu', 'ma_', 'trang_thai', 'ngay', 'date', 'nguoi_nhan', 'nguoi_gui', 'mat_hang'];
+    mapping.weightColumn = findBestMatchWithScore('weightColumn', 'Trọng Lượng (kg)', ALIASES.weight, savedMapping?.weightColumn, weightForbidden);
     mapping.codColumn = findBestMatchWithScore('codColumn', 'Tiền COD Thu Hộ', ALIASES.cod, savedMapping?.codColumn);
     mapping.statusColumn = findBestMatchWithScore('statusColumn', 'Trạng Thái Đơn Hàng', ALIASES.status, savedMapping?.statusColumn);
   }
@@ -429,9 +431,34 @@ export function parseNumber(val: any): number {
 }
 
 export function parseWeightToKg(val: any): number {
-  const num = parseNumber(val);
-  if (num > 50) {
+  if (val === undefined || val === null || val === '') return 0.5;
+  if (typeof val === 'number') {
+    if (isNaN(val) || val <= 0) return 0.5;
+    if (val > 50 && val <= 50000) return parseFloat((val / 1000).toFixed(3));
+    if (val > 100) return 0.5; // Unrealistic parcel weight -> safety clamp to 0.5kg
+    return parseFloat(val.toFixed(3));
+  }
+
+  const str = String(val).trim();
+  // Check if string is an address or long text with spaces/words/commas
+  if (
+    str.length > 15 ||
+    /[a-zA-Z\u00C0-\u1EF9]{3,}\s+[a-zA-Z\u00C0-\u1EF9]{2,}/.test(str) ||
+    /tổ|ngõ|phố|đường|quận|huyện|thôn|xã|tỉnh|tp|sn|ấp|p\.|q\.|nghĩ|nghê/i.test(str) ||
+    (str.match(/\//g) || []).length >= 2 ||
+    (str.match(/,/g) || []).length >= 2
+  ) {
+    // Address or text mistakenly passed as weight
+    return 0.5;
+  }
+
+  const num = parseNumber(str);
+  if (isNaN(num) || num <= 0) return 0.5;
+  if (num > 50 && num <= 50000) {
     return parseFloat((num / 1000).toFixed(3));
+  }
+  if (num > 100) {
+    return 0.5; // Safety fallback for extreme values
   }
   return parseFloat(num.toFixed(3));
 }
