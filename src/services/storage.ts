@@ -323,12 +323,14 @@ export const StorageService = {
       if (telegramSettings && Object.keys(telegramSettings).length > 0) {
         localStorage.setItem(TELEGRAM_SETTINGS_KEY, JSON.stringify(telegramSettings));
       }
-      if (exportColumns && Object.keys(exportColumns).length > 0) {
+      if (exportColumns && Object.keys(exportColumns).length > 0 && Array.isArray(exportColumns.shopColumns) && exportColumns.shopColumns.length > 0) {
         localStorage.setItem(EXPORT_COLUMNS_KEY, JSON.stringify(exportColumns));
       }
-      if (carrierData && typeof carrierData === 'object') {
+      if (carrierData && typeof carrierData === 'object' && Object.keys(carrierData).length > 0) {
         Object.keys(carrierData).forEach(key => {
-          localStorage.setItem(key, JSON.stringify(carrierData[key]));
+          if (carrierData[key] !== undefined && carrierData[key] !== null) {
+            localStorage.setItem(key, JSON.stringify(carrierData[key]));
+          }
         });
       }
       if (users && Array.isArray(users) && users.length > 0) {
@@ -713,6 +715,10 @@ export const StorageService = {
           };
         }
       } catch { }
+    }
+    const globalSettings = this.getExportColumnSettings();
+    if (globalSettings && globalSettings.shopColumns && globalSettings.shopColumns.length > 0) {
+      return globalSettings;
     }
     return undefined;
   },

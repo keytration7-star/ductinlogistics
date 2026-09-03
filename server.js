@@ -1127,7 +1127,7 @@ app.post('/api/db/telegram-settings', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST save export columns
-app.post('/api/db/export-columns', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/export-columns', requireAuth, requireFinanceWrite, (req, res) => {
   const success = writeJsonFile('export_columns.json', req.body.exportColumns || {});
   res.json({ success });
 });
@@ -1139,7 +1139,7 @@ app.post('/api/db/audit-logs', requireAuth, requireFinanceWrite, (req, res) => {
 });
 
 // POST save carrier data
-app.post('/api/db/carrier-data', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/carrier-data', requireAuth, requireFinanceWrite, (req, res) => {
   const current = readJsonFile('carrier_data.json', {});
   const updated = { ...current, ...req.body.carrierData };
   const success = writeJsonFile('carrier_data.json', updated);
