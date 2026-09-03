@@ -403,11 +403,33 @@ app.post('/api/auth/login', (req, res) => {
   if (req.body?.deviceName) user.activeDeviceName = String(req.body.deviceName).slice(0, 120);
   writeJsonFile('users.json', users);
 
+  // 🛡️ KICK OUT ALL PREVIOUS SESSIONS:
+  // When an account logs in, immediately revoke all other active sessions on other machines
+  let kickedCount = 0;
+  for (const [existingToken, sess] of activeSessions.entries()) {
+    if (sess?.user?.id === user.id || sess?.user?.username?.toLowerCase() === user.username.toLowerCase()) {
+      activeSessions.delete(existingToken);
+      kickedCount++;
+    }
+  }
+
   const sessionTtl = getSessionTtlMs(user.role);
   const token = crypto.randomBytes(32).toString('base64url');
   const safeUser = publicUser(user);
   activeSessions.set(token, { user: safeUser, expiresAt: Date.now() + sessionTtl });
   persistActiveSessions();
+
+  if (kickedCount > 0) {
+    appendAuditLog({
+      action: 'SESSION_KICK_OUT',
+      category: 'AUTH',
+      actorId: user.id,
+      actorName: user.fullName || user.username,
+      actorRole: user.role,
+      description: `Đăng nhập mới: Tự động đăng xuất ${kickedCount} phiên làm việc cũ trên các thiết bị khác của tài khoản "${user.username}"`,
+      ipAddress: req.ip,
+    });
+  }
 
   appendAuditLog({
     action: 'LOGIN_SUCCESS',
@@ -456,6 +478,15 @@ app.post('/api/auth/verify-2fa', (req, res) => {
   user.lastLoginAt = now;
   user.lastActiveAt = now;
   writeJsonFile('users.json', users);
+
+  // 🛡️ KICK OUT ALL PREVIOUS SESSIONS:
+  let kickedCount = 0;
+  for (const [existingToken, sess] of activeSessions.entries()) {
+    if (sess?.user?.id === user.id || sess?.user?.username?.toLowerCase() === user.username.toLowerCase()) {
+      activeSessions.delete(existingToken);
+      kickedCount++;
+    }
+  }
 
   const sessionTtl = getSessionTtlMs(user.role);
   const token = crypto.randomBytes(32).toString('base64url');

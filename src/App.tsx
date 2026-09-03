@@ -128,8 +128,25 @@ export function App() {
         setCurrentUser(null);
         localStorage.removeItem('gomdon_is_locked');
         setIsScreenLocked(false);
+        return;
       }
-    }, 15000); // Check every 15 seconds
+
+      // 3. Real-time Single Active Session Check (Kicks out if logged in on another machine)
+      const token = AuthService.getAccessToken();
+      if (token) {
+        fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then(res => {
+            if (res.status === 401) {
+              AuthService.logout();
+              setCurrentUser(null);
+              localStorage.removeItem('gomdon_is_locked');
+              setIsScreenLocked(false);
+              alert('⚠️ Tài khoản của bạn vừa được đăng nhập trên một thiết bị/máy khác. Phiên làm việc này đã tự động đăng xuất để bảo mật an toàn.');
+            }
+          })
+          .catch(() => {});
+      }
+    }, 10000); // Check every 10 seconds for instant kick-out
 
     return () => {
       events.forEach(ev => window.removeEventListener(ev, onUserInteraction));
