@@ -219,7 +219,7 @@ export function resolveOrderColumnValue(order: any, col: ExportColumnItem, idx: 
   if (normId === 'codamount' || normLabel === 'tien_thu_ho_cod' || normLabel === 'tien_cod' || normLabel === 'cod' || normLabel.includes('tien_cod') || normLabel.includes('thu_ho')) {
     return order.codAmount ?? 0;
   }
-  if (normId === 'shopfee' || normLabel === 'cuoc_phi_van_chuyen' || normLabel === 'cuoc_thu_shop' || normLabel === 'cuoc_phi' || normLabel === 'phi_giao_hang' || normLabel === 'phi_dich_vu') {
+  if (normId === 'shopfee' || normLabel === 'cuoc_phi_van_chuyen' || normLabel === 'cuoc_thu_shop' || normLabel === 'cuoc_phi' || normLabel === 'phi_giao_hang' || normLabel === 'phi_dich_vu' || normLabel.includes('tien_cuoc') || normLabel.includes('cuoc_tinh_shop') || (normLabel.includes('cuoc') && !normLabel.includes('goc') && !normLabel.includes('nvc'))) {
     return (order.shopCalculatedFee !== undefined) ? order.shopCalculatedFee : (order.shopFee || 0);
   }
   if (normId === 'shopotherfee' || normLabel === 'phi_khac_phu_thu_hoan' || normLabel === 'phu_thu' || normLabel === 'phi_khac' || normLabel === 'phi_hoan_hang') {
@@ -1074,20 +1074,25 @@ export const ExcelService = {
           col.id === 'shopFee' ||
           normLabel === 'cuoc_tinh_shop_vnd' ||
           normLabel === 'cuoc_thu_shop' ||
+          normLabel === 'cuoc_phi_van_chuyen' ||
           normSrc === 'cuoc_phi' ||
           normSrc.includes('phi_giao_hang') ||
           normSrc.includes('phi_dich_vu') ||
+          normSrc.includes('tien_cuoc') ||
+          normSrc.includes('cuoc_pp_pm') ||
           (normLabel.includes('phi_giao_hang') && !normLabel.includes('giao_lai')) ||
           (normLabel.includes('phi_dich_vu')) ||
-          (normLabel.includes('cuoc_phi') && !normLabel.includes('khac'))
+          (normLabel.includes('tien_cuoc')) ||
+          (normLabel.includes('cuoc_phi') && !normLabel.includes('khac')) ||
+          (normLabel.includes('cuoc') && !normLabel.includes('khac') && !normLabel.includes('goc') && !normLabel.includes('nvc'))
         ) {
           // 🛡️ CƯỚC GIAO HÀNG TÍNH THEO GIÁ SHOP:
-          // Nếu đơn hàng có phát sinh cước gửi, xuất đúng giá thỏa thuận của Shop (ví dụ -17.000đ hoặc -12.500đ).
+          // Nếu đơn hàng có phát sinh cước gửi, xuất đúng giá thỏa thuận của Shop (ví dụ -17.000đ hoặc 13.000đ).
           // Nếu là đơn hoàn COD (cước = 0), xuất 0đ.
           const fee = order.shopCalculatedFee ?? 0;
           if (fee > 0) {
             // Nếu cột gốc có dấu âm (-), giữ format âm
-            const rawVal = order.rawNvcData?.[col.sourceHeader || ''] ?? order.rawNvcData?.[col.label || ''];
+            const rawVal = order.rawNvcData?.[col.sourceHeader || ''] ?? order.rawNvcData?.[col.label || ''] ?? order.rawAppData?.[col.sourceHeader || ''] ?? order.rawAppData?.[col.label || ''];
             val = (typeof rawVal === 'number' && rawVal < 0) || (typeof rawVal === 'string' && rawVal.startsWith('-')) ? -fee : fee;
           } else {
             val = 0;
