@@ -308,7 +308,15 @@ export const StorageService = {
         } catch {}
       }
       if (companyInfo && Object.keys(companyInfo).length > 0) {
-        localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
+        const localCompany = this.getCompanyInfo();
+        const isServerDummy = !companyInfo.companyName || companyInfo.companyName === 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN' || companyInfo.phone === '0988 000 000';
+        const isLocalReal = localCompany && localCompany.companyName && localCompany.companyName !== 'CÔNG TY TNHH LOGISTICS & GOM ĐƠN' && localCompany.phone !== '0988 000 000';
+
+        if (isServerDummy && isLocalReal) {
+          postServerSync('/api/db/company-info', { companyInfo: localCompany });
+        } else if (!isServerDummy) {
+          localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(companyInfo));
+        }
       }
       if (emailSettings && Object.keys(emailSettings).length > 0) {
         const localSettings = this.getEmailSettings();

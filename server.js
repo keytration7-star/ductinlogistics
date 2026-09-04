@@ -1112,7 +1112,7 @@ app.post('/api/db/sessions/delete', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST save company info
-app.post('/api/db/company-info', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/company-info', requireAuth, requireFinanceWrite, (req, res) => {
   const companyInfo = req.body.companyInfo || {};
   const success = writeJsonFile('company_info.json', companyInfo);
 
@@ -1140,19 +1140,19 @@ app.post('/api/db/company-info', requireAuth, requireAdmin, (req, res) => {
 });
 
 // POST save email settings
-app.post('/api/db/email-settings', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/email-settings', requireAuth, requireFinanceWrite, (req, res) => {
   const success = writeJsonFile('email_settings.json', req.body.emailSettings || {});
   res.json({ success });
 });
 
 // POST save zalo zns settings
-app.post('/api/db/zalo-settings', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/zalo-settings', requireAuth, requireFinanceWrite, (req, res) => {
   const success = writeJsonFile('zalo_settings.json', req.body.zaloSettings || {});
   res.json({ success });
 });
 
 // POST save telegram settings
-app.post('/api/db/telegram-settings', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/db/telegram-settings', requireAuth, requireFinanceWrite, (req, res) => {
   const success = writeJsonFile('telegram_settings.json', req.body.telegramSettings || {});
   res.json({ success });
 });
