@@ -475,10 +475,10 @@ export function performReconciliation(
     let matchedShop: Shop | undefined = undefined;
 
     if (mode === '1file') {
-      shopName = extractRowField(undefined, nvcRow, nvcMapping.shopNameColumn, ['ten_shop', 'ten_cua_hang', 'ten_kho', 'shop', 'store_name', 'cua_hang']) || 'Shop GHN';
+      shopName = extractRowField(undefined, nvcRow, nvcMapping.shopNameColumn, ['ten_nguoi_gui', 'ten_shop', 'ten_cua_hang', 'ten_kho', 'shop', 'store_name', 'cua_hang']) || `${carrierTier.carrierName || 'Shop'}`;
       shopPhone = extractRowField(undefined, nvcRow, nvcMapping.shopPhoneColumn, ['sdt_shop', 'phone_shop', 'sdt_gui', 'so_dien_thoai_gui']);
       shopAddress = extractRowField(undefined, nvcRow, nvcMapping.shopAddressColumn, ['dia_chi_gui', 'dc_gui', 'kho_gui']);
-      shopCode = extractRowField(undefined, nvcRow, nvcMapping.shopCodeColumn, ['ma_shop', 'ma_cua_hang', 'store_id']);
+      shopCode = extractRowField(undefined, nvcRow, nvcMapping.shopCodeColumn, ['ma_shop', 'ma_cua_hang', 'store_id', 'ma_khach_hang', 'ma_nguoi_ban']);
     } else if (appRow) {
       // J&T has no sender identity in the NVC settlement source. Never fill a
       // missing identity with a placeholder, otherwise a row can be assigned

@@ -29,7 +29,6 @@ import {
   Calendar,
   Edit3,
   X,
-  ShieldCheck,
   History,
 } from 'lucide-react';
 import type { 
@@ -264,7 +263,7 @@ const createOnboardingPricingPlan = (shopName?: string): ShopPricingPlan => ({
 
 const isVerifiedCarrier = (carrier?: CarrierWholesaleTier): boolean => {
   const identity = `${carrier?.carrierId || ''} ${carrier?.carrierName || ''}`;
-  return /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b|\bghn\b|giao\s*hang\s*nhanh/i.test(identity);
+  return /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|\bjnt\b|\bghn\b|giao\s*hang\s*nhanh|\bspx\b|shopee/i.test(identity);
 };
 
 export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
@@ -289,8 +288,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Check if current session strictly matches the active carrier workspace
   const isSessionForCarrier = !!currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId);
 
-  // 4-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Nhận Diện Shop, 4 = Kết Quả Đối Soát & Bảng Kê Chi Tiết
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(isSessionForCarrier ? 4 : 1);
+  // 5-Step Guided Wizard State: 1 = Nạp File, 2 = Khớp Nối & Kiểm Tra, 3 = Nhận Diện Shop, 4 = Bảng Kê Chi Tiết, 5 = Tổng Kết & Hoàn Tất
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(isSessionForCarrier ? 4 : 1);
 
   // Sync wizard step to Step 4 ONLY when a matching session for this carrier is loaded or reopened
   useEffect(() => {
@@ -827,7 +826,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const handleNvcFileChange = async (file: File) => {
     try {
       if (!isVerifiedSelectedCarrier) {
-        showToast('Chỉ nhận file đối soát J&T hoặc GHN trong giai đoạn hiện tại.', 'warning');
+        showToast('Chỉ nhận file đối soát J&T, GHN hoặc SPX Express trong giai đoạn hiện tại.', 'warning');
         return;
       }
       setNvcFile(file);
@@ -1515,18 +1514,24 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
           return `✓ ${currentSession.statements.length} Shop đối soát`;
         };
 
+        const getStep5Desc = () => {
+          if (!currentSession) return 'Chờ hoàn tất';
+          return 'Xuất hồ sơ & Chốt kỳ';
+        };
+
         const steps = [
           { step: '01', stepNum: 1, title: 'CHỌN HÃNG & NẠP FILE', desc: getStep1Desc(), active: wizardStep === 1, done: wizardStep > 1 || step1Done },
           { step: '02', stepNum: 2, title: 'KHỚP NỐI & KIỂM TRA', desc: getStep2Desc(), active: wizardStep === 2, done: wizardStep > 2 },
           { step: '03', stepNum: 3, title: 'KIỂM TRA & DUYỆT SHOP MỚI', desc: getStep3Desc(), active: wizardStep === 3, done: wizardStep > 3 || (!scannedShopAnalysis.hasNewShops && !!currentSession) },
-          { step: '04', stepNum: 4, title: 'BẢNG KÊ & XUẤT BÁO CÁO', desc: getStep4Desc(), active: wizardStep === 4, done: false },
+          { step: '04', stepNum: 4, title: 'BẢNG KÊ CHI TIẾT', desc: getStep4Desc(), active: wizardStep === 4, done: wizardStep > 4 },
+          { step: '05', stepNum: 5, title: 'TỔNG KẾT & HOÀN TẤT', desc: getStep5Desc(), active: wizardStep === 5, done: false },
         ];
 
         return (
           <div className="glass-panel" style={{
             padding: '8px 12px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
             gap: 8,
             alignItems: 'center',
             borderRadius: 14,
@@ -1548,7 +1553,10 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                     else showToast('Chưa có dữ liệu đối soát!', 'warning');
                   } else if (item.stepNum === 4) {
                     if (currentSession) setWizardStep(4);
-                    else showToast('Chưa có dữ liệu đối soát để xuất báo cáo!', 'warning');
+                    else showToast('Chưa có dữ liệu đối soát để xem bảng kê!', 'warning');
+                  } else if (item.stepNum === 5) {
+                    if (currentSession) setWizardStep(5);
+                    else showToast('Chưa có dữ liệu đối soát để hoàn tất!', 'warning');
                   }
                 }}
                 style={{
@@ -2852,410 +2860,430 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
 
-          {/* 🛡️ DATA INTEGRITY COMPACT RIBBON */}
-          <div style={{
-            background: 'var(--success-bg)',
-            border: '1.5px solid var(--success-border)',
-            borderRadius: 12,
-            padding: '8px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10,
-            boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: 'var(--success)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <ShieldCheck size={13} />
-              </div>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--success)' }}>
-                Đối Chiếu Toàn Vẹn:
-              </span>
-              <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px', fontWeight: 700 }}>
-                ✓ Khớp 100% ({currentSession.matchedOrdersCount.toLocaleString('vi-VN')} / {currentSession.totalOrders.toLocaleString('vi-VN')} đơn)
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11.5 }}>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>COD NVC: </span>
-                <strong className="mono" style={{ color: 'var(--info)', fontWeight: 800 }}>{formatVND(sourceCodTotal)}</strong>
-              </div>
-              <div style={{ width: 1, height: 14, background: 'var(--border-color)' }} />
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Cước NVC: </span>
-                <strong className="mono" style={{ color: 'var(--warning)', fontWeight: 800 }}>{formatVND(sourceNvcFeeTotal)}</strong>
-              </div>
-              {currentSession.unmatchedOrdersCount > 0 && (
-                <>
-                  <div style={{ width: 1, height: 14, background: 'var(--border-color)' }} />
-                  <div>
-                    <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Chưa khớp: </span>
-                    <strong className="mono" style={{ color: 'var(--danger)', fontWeight: 800 }}>{currentSession.unmatchedOrdersCount} đơn</strong>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* 🌟 PROMINENT SAVED SUCCESS BANNER WITH QUICK NAVIGATION */}
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(99, 102, 241, 0.08) 100%)',
-            border: '1.5px solid var(--success-border)',
-            borderRadius: 14,
-            padding: '12px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
-            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.08)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                background: 'var(--success)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 900,
-                fontSize: 16,
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.4)',
-              }}>
-                ✓
-              </div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>KỲ “{currentSession.sessionName}” ({currentSession.carrierName}) ĐÃ ĐƯỢC LƯU VÀO HỆ THỐNG!</span>
-                  <span className="badge badge-success" style={{ fontSize: 10 }}>Đã lưu</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                  Dữ liệu đã tự động cập nhật vào Lịch Sử Đối Soát, Công Nợ Shop, Đi Tiền Ngân Hàng & Gửi Mail.
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleStartNewReconciliation}
-                className="btn btn-sm"
-                style={{
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  fontSize: 12,
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
-                }}
-                title="Dọn sạch màn hình về Bước 1 để thả file cho kỳ đối soát tiếp theo"
-              >
-                <Plus size={14} />
-                <span>➕ Đối Soát Kỳ Mới (Thả File Tiếp)</span>
-              </button>
-
-              {onNavigateToHistory && (
-                <button
-                  type="button"
-                  onClick={onNavigateToHistory}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
-                >
-                  <History size={13} color="var(--primary)" />
-                  <span>Xem Trong Lịch Sử Kỳ Đối Soát</span>
-                </button>
-              )}
-              {onNavigateToDebt && (
-                <button
-                  type="button"
-                  onClick={onNavigateToDebt}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
-                >
-                  <DollarSign size={13} color="var(--success)" />
-                  <span>Đi Tiền & Công Nợ</span>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          {/* Financial KPI Summary Dashboard */}
+          {/* 🌟 3-COLUMN MASTER DASHBOARD (Trái: Kỳ đối soát | Giữa: Các Báo Cáo | Phải: Thao tác Xuất Hồ Sơ) */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gridTemplateColumns: 'minmax(280px, 1.15fr) minmax(460px, 2fr) minmax(280px, 1.15fr)',
             gap: 12,
+            alignItems: 'stretch',
           }}>
-            {/* Panel 1: Dòng Tiền Khách Hàng (Shop Payout) */}
-            <div className="card-3d" style={{
-              padding: '12px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
+            {/* CỘT 1 (BÊN TRÁI): THÔNG TIN KỲ ĐỐI SOÁT & HÃNG */}
+            <div className="glass-panel" style={{
+              padding: '12px 14px',
               borderRadius: 14,
               background: 'var(--bg-card)',
               border: '1.5px solid var(--border-color)',
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <DollarSign size={16} /> 💳 BÁO CÁO DÒNG TIỀN KHÁCH HÀNG (SHOP)
-                </span>
-                <span style={{ fontSize: 10.5, background: 'rgba(79,70,229,0.1)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                  {currentSession.statements.length} Shop Đối Soát
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div style={{ background: 'var(--bg-tertiary)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>TỔNG ĐƠN HÀNG</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: '2px 0' }}>
-                    {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 11, fontWeight: 500 }}>đơn</span>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--success)', fontWeight: 600 }}>
-                    ✓ {currentSession.matchedOrdersCount} đã khớp
-                  </div>
-                </div>
-
-                <div style={{ background: 'var(--info-bg)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--info-border)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--info)', fontWeight: 700, textTransform: 'uppercase' }}>TỔNG TIỀN COD THU HỘ</div>
-                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--info)', margin: '2px 0' }}>
-                    {formatVND(currentSession.totalCod)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Tiền NVC đã thu người nhận</div>
-                </div>
-
-                <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(99, 102, 241, 0.25)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>DOANH THU CƯỚC THU SHOP</div>
-                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--primary)', margin: '2px 0' }}>
-                    {formatVND(currentSession.totalShopRevenue)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Theo biểu giá Shop</div>
-                </div>
-
-                <div style={{ background: 'rgba(79, 70, 229, 0.15)', padding: '9px 12px', borderRadius: 8, border: '1.5px solid rgba(79, 70, 229, 0.35)', boxShadow: '0 2px 8px rgba(79, 70, 229, 0.08)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase' }}>THỰC CHUYỂN TRẢ SHOP</div>
-                  <div className="mono" style={{ fontSize: 17, fontWeight: 900, color: 'var(--primary)', margin: '2px 0' }}>
-                    {formatVND(currentSession.totalNetPayout)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>= COD thu - Cước & Phí Shop</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel 2: Lợi Nhuận & Hiệu Quả Nhà Gom (Profit & Ops) */}
-            <div className="card-3d" style={{
-              padding: '12px 16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               display: 'flex',
               flexDirection: 'column',
+              justifyContent: 'space-between',
               gap: 10,
-              borderRadius: 14,
-              background: 'var(--bg-card)',
-              border: '1.5px solid var(--border-color)',
             }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <TrendingUp size={16} /> 📈 BÁO CÁO KẾ TOÁN & LỢI NHUẬN ĐỐI SOÁT
-                </span>
-                <span style={{ fontSize: 10.5, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                  Hiệu Quả Kinh Doanh
-                </span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: 'var(--success)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: 15,
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
+                    flexShrink: 0,
+                  }}>
+                    ✓
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-main)', lineHeight: 1.3 }}>
+                      KỲ: <span style={{ color: 'var(--primary)' }}>{currentSession.sessionName}</span>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', marginTop: 2 }}>
+                      Hãng: <span style={{ color: 'var(--text-main)' }}>{currentSession.carrierName}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                  <span className="badge badge-success" style={{ fontSize: 9.5, padding: '2px 6px' }}>
+                    ✓ Đã lưu hệ thống
+                  </span>
+                  <span style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    color: '#059669',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                  }}>
+                    ✓ Khớp 100% ({currentSession.matchedOrdersCount.toLocaleString('vi-VN')} / {currentSession.totalOrders.toLocaleString('vi-VN')} đơn)
+                  </span>
+                  <span style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    background: 'rgba(79, 70, 229, 0.08)',
+                    color: 'var(--primary)',
+                    border: '1px solid rgba(79, 70, 229, 0.2)',
+                  }}>
+                    🏪 {currentSession.statements.length} Shop
+                  </span>
+                </div>
+
+                {/* Meta info box */}
+                <div style={{
+                  marginTop: 8,
+                  padding: '6px 8px',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-color)',
+                  fontSize: 11,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 3
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-dim)' }}>COD NVC:</span>
+                    <strong className="mono" style={{ color: 'var(--info)' }}>{formatVND(sourceCodTotal)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-dim)' }}>Cước NVC:</span>
+                    <strong className="mono" style={{ color: 'var(--warning)' }}>{formatVND(sourceNvcFeeTotal)}</strong>
+                  </div>
+                  {currentSession.unmatchedOrdersCount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
+                      <span>Chưa khớp:</span>
+                      <strong className="mono">{currentSession.unmatchedOrdersCount} đơn</strong>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div style={{ background: 'var(--warning-bg)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--warning-border)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 700, textTransform: 'uppercase' }}>CƯỚC GỐC PHẢI TRẢ NVC</div>
-                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--warning)', margin: '2px 0' }}>
-                    {formatVND(currentSession.totalNvcCost)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Theo giá sỉ {currentSession.carrierName}</div>
-                </div>
+              {/* Nút điều hướng nhanh */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleStartNewReconciliation}
+                  className="btn btn-sm"
+                  style={{
+                    flex: 1,
+                    minWidth: 100,
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 3,
+                    fontSize: 10.5,
+                    padding: '5px 8px',
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)',
+                  }}
+                  title="Dọn sạch màn hình về Bước 1 để thả file cho kỳ đối soát tiếp theo"
+                >
+                  <Plus size={11} />
+                  <span>➕ Kỳ Mới</span>
+                </button>
 
-                <div style={{ background: 'var(--success-bg)', padding: '9px 12px', borderRadius: 8, border: '1.5px solid var(--success-border)', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.1)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 800, textTransform: 'uppercase' }}>LỢI NHUẬN RÒNG (LÃI THUẦN)</div>
-                  <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: 'var(--success)', margin: '2px 0' }}>
-                    +{formatVND(currentSession.totalProfit)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>= Cước Shop thu - Cước NVC trả</div>
-                </div>
-
-                <div style={{ background: 'var(--bg-tertiary)', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>HOA HỒNG CHI TRẢ CTV</div>
-                  <div className="mono" style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: '2px 0' }}>
-                    {formatVND(currentSession.totalCtvCommission || 0)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>Hoa hồng chia cho CTV</div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(59, 130, 246, 0.12)', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                {onNavigateToHistory && (
                   <button
                     type="button"
-                    onClick={() => ExcelService.downloadCtvCommissionReport(currentSession)}
-                    disabled={currentSession.unmatchedOrdersCount > 0}
-                    className="btn btn-sm"
-                    style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: 'var(--info)', background: 'none', border: 'none', boxShadow: 'none' }}
+                    onClick={onNavigateToHistory}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontSize: 10.5, padding: '5px 7px' }}
+                    title="Xem lịch sử đối soát"
                   >
-                    <Download size={13} color="var(--info)" />
-                    <span>Tải Báo Cáo CTV</span>
+                    <History size={11} color="var(--primary)" />
+                    <span>Lịch Sử</span>
                   </button>
+                )}
+                {onNavigateToDebt && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToDebt}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontSize: 10.5, padding: '5px 7px' }}
+                    title="Đi tiền & công nợ"
+                  >
+                    <DollarSign size={11} color="var(--success)" />
+                    <span>Công Nợ</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* CỘT 2 (Ở GIỮA): CÁC BÁO CÁO (DÒNG TIỀN SHOP + KẾ TOÁN LỢI NHUẬN) */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+            }}>
+              {/* Card Dòng Tiền Shop */}
+              <div className="card-3d" style={{
+                padding: '10px 12px',
+                borderRadius: 14,
+                background: 'var(--bg-card)',
+                border: '1.5px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 6,
+              }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 5 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <DollarSign size={13} /> 💳 DÒNG TIỀN SHOP
+                  </span>
+                  <span style={{ fontSize: 9.5, background: 'rgba(79,70,229,0.1)', color: 'var(--primary)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                    {currentSession.statements.length} Shop
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                    <div style={{ background: 'var(--bg-tertiary)', padding: '5px 7px', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700 }}>TỔNG ĐƠN HÀNG</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)', marginTop: 1 }}>
+                        {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 9.5, fontWeight: 500 }}>đơn</span>
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 600 }}>✓ {currentSession.matchedOrdersCount} khớp</div>
+                    </div>
+
+                    <div style={{ background: 'var(--info-bg)', padding: '5px 7px', borderRadius: 6, border: '1px solid var(--info-border)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--info)', fontWeight: 700 }}>TỔNG COD THU HỘ</div>
+                      <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginTop: 1 }}>
+                        {formatVND(currentSession.totalCod)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>Thu người nhận</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                    <div style={{ background: 'rgba(99, 102, 241, 0.08)', padding: '5px 7px', borderRadius: 6, border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--primary)', fontWeight: 700 }}>CƯỚC THU SHOP</div>
+                      <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', marginTop: 1 }}>
+                        {formatVND(currentSession.totalShopRevenue)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>Theo giá Shop</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(79, 70, 229, 0.14)', padding: '5px 7px', borderRadius: 6, border: '1.5px solid rgba(79, 70, 229, 0.3)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--primary)', fontWeight: 800 }}>THỰC CHUYỂN SHOP</div>
+                      <div className="mono" style={{ fontSize: 13, fontWeight: 900, color: 'var(--primary)', marginTop: 1 }}>
+                        {formatVND(currentSession.totalNetPayout)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>= COD - Cước phí</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Kế Toán & Lợi Nhuận */}
+              <div className="card-3d" style={{
+                padding: '10px 12px',
+                borderRadius: 14,
+                background: 'var(--bg-card)',
+                border: '1.5px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 6,
+              }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: 5 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <TrendingUp size={13} /> 📈 KẾ TOÁN & LÃI RÒNG
+                  </span>
+                  <span style={{ fontSize: 9.5, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                    Hiệu Quả
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                    <div style={{ background: 'var(--warning-bg)', padding: '5px 7px', borderRadius: 6, border: '1px solid var(--warning-border)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--warning)', fontWeight: 700 }}>CƯỚC GỐC NVC</div>
+                      <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--warning)', marginTop: 1 }}>
+                        {formatVND(currentSession.totalNvcCost)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>Giá sỉ {currentSession.carrierName}</div>
+                    </div>
+
+                    <div style={{ background: 'var(--success-bg)', padding: '5px 7px', borderRadius: 6, border: '1.5px solid var(--success-border)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--success)', fontWeight: 800 }}>LỢI NHUẬN RÒNG</div>
+                      <div className="mono" style={{ fontSize: 13.5, fontWeight: 900, color: 'var(--success)', marginTop: 1 }}>
+                        +{formatVND(currentSession.totalProfit)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>= Thu Shop - NVC</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                    <div style={{ background: 'var(--bg-tertiary)', padding: '5px 7px', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700 }}>HOA HỒNG CTV</div>
+                      <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)', marginTop: 1 }}>
+                        {formatVND(currentSession.totalCtvCommission || 0)}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>Chia cho CTV</div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 5px', borderRadius: 6, border: '1px solid rgba(59, 130, 246, 0.25)' }}>
+                      <button
+                        type="button"
+                        onClick={() => ExcelService.downloadCtvCommissionReport(currentSession)}
+                        disabled={currentSession.unmatchedOrdersCount > 0}
+                        className="btn btn-sm"
+                        style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--info)', background: 'none', border: 'none', boxShadow: 'none', padding: 0 }}
+                        title="Xuất bảng kê chiết khấu hoa hồng cho Cộng Tác Viên"
+                      >
+                        <Download size={11} color="var(--info)" />
+                        <span>Tải BC CTV</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Smart Info Banner when NVC Fee is 0 (COD Return Settlement) */}
-          {sourceNvcFeeTotal === 0 && (
-            <div style={{
-              background: '#eff6ff',
-              border: '1.5px solid #bfdbfe',
-              borderRadius: 12,
-              padding: '10px 16px',
+            {/* CỘT 3 (BÊN PHẢI): THAO TÁC XUẤT HỒ SƠ & BÁO CÁO */}
+            <div className="glass-panel" style={{
+              padding: '12px 14px',
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
               justifyContent: 'space-between',
-              gap: 12,
-              color: '#1e40af',
-              fontSize: 12,
-              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.08)',
-              flexWrap: 'wrap',
+              gap: 8,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 280 }}>
-                <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />
-                <span>
-                  <strong>Kỳ hoàn tiền COD:</strong> Trong file đối soát này, Hãng không tính cước (Cước NVC = <strong>0 đ</strong> do đã tính ở kỳ phát sinh gửi hàng). Hệ thống tự động đặt <strong>Cước Shop = 0 đ</strong> để chuyển trọn vẹn tiền COD cho khách và không trừ cước 2 lần!
-                </span>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 5, borderBottom: '1px solid var(--border-color)', paddingBottom: 5 }}>
+                <FileSpreadsheet size={14} color="var(--primary)" />
+                <span>THAO TÁC XUẤT HỒ SƠ & BÁO CÁO</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {/* Nút Tính Lại Cước & Cài đặt cột */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 5 }}>
+                  <button
+                    type="button"
+                    onClick={handleRecalculateCurrentSession}
+                    className="btn btn-sm"
+                    style={{
+                      fontSize: 10.5,
+                      padding: '5px 6px',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 3,
+                      boxShadow: '0 2px 4px rgba(217, 119, 6, 0.2)',
+                    }}
+                    title="Tính lại toàn bộ cước thu Shop và lợi nhuận theo biểu giá mới nhất"
+                  >
+                    <Calculator size={11} />
+                    <span>⚡ Tính Lại</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowExportModal(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 10.5, padding: '5px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, fontWeight: 700 }}
+                    title="Tùy chọn bật/tắt cột xuất file Excel cho Shop và Báo cáo tổng"
+                  >
+                    <Settings2 size={11} color="var(--primary)" />
+                    <span>⚙️ Cột Xuất</span>
+                  </button>
+                </div>
+
+                {/* Báo cáo tổng .xlsx */}
+                <button
+                  onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
+                  disabled={currentSession.unmatchedOrdersCount > 0}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '6px 8px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                >
+                  <FileSpreadsheet size={12} color="var(--success)" />
+                  <span>Báo Cáo Tổng (.xlsx)</span>
+                </button>
+
+                {/* Tải Toàn Bộ Hồ Sơ ZIP */}
+                <button
+                  onClick={handleDownloadAllZip}
+                  disabled={zipProgress.active || currentSession.unmatchedOrdersCount > 0}
+                  className="btn btn-success btn-sm"
+                  style={{ fontSize: 11, padding: '6px 8px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                >
+                  <Download size={12} />
+                  <span>
+                    {zipProgress.active ? `Đang nén ZIP (${zipProgress.percent}%)...` : 'Tải ZIP Từng Shop'}
+                  </span>
+                </button>
+
+                {/* Gửi Email */}
+                <button
+                  onClick={() => onNavigateToEmail(currentSession)}
+                  disabled={currentSession.unmatchedOrdersCount > 0}
+                  className="btn btn-sm"
+                  style={{
+                    fontSize: 11,
+                    padding: '6px 8px',
+                    fontWeight: 700,
+                    background: 'rgba(236, 72, 153, 0.1)',
+                    color: '#db2777',
+                    border: '1px solid rgba(236, 72, 153, 0.3)',
+                    borderRadius: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5
+                  }}
+                >
+                  <Mail size={12} color="#db2777" />
+                  <span>Gửi Email Đối Soát</span>
+                </button>
+
+                {/* Nút Chuyển Sang Bước 5 Tổng Kết & Hoàn Tất Ngay Ở Phía Trên */}
+                <button
+                  type="button"
+                  onClick={() => setWizardStep(5)}
+                  className="btn btn-primary btn-sm"
+                  style={{
+                    fontSize: 11.5,
+                    padding: '7px 10px',
+                    fontWeight: 900,
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    boxShadow: '0 2px 6px rgba(99, 102, 241, 0.3)',
+                    marginTop: 2,
+                  }}
+                  title="Chuyển sang Bước 5: Tổng kết kỳ đối soát, bàn giao hồ sơ và làm mới phiên"
+                >
+                  <span>🎯 Tổng Kết & Hoàn Tất (Step 5)</span>
+                  <ArrowRight size={13} />
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Master Export Bar */}
-          <div className="glass-panel" style={{
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10,
-            borderRadius: 12,
-            background: 'var(--bg-card)',
-            border: '1.5px solid var(--border-color)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 800 }}>
-                Kỳ: <span style={{ color: 'var(--primary)' }}>{currentSession.sessionName}</span>
-              </span>
-              <span className="badge badge-success" style={{ fontSize: 10.5, padding: '2px 8px', fontWeight: 700 }}>
-                {currentSession.statements.length} Shop đã phân loại
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleStartNewReconciliation}
-                className="btn btn-sm"
-                style={{
-                  fontSize: 11.5,
-                  padding: '5px 12px',
-                  fontWeight: 800,
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  boxShadow: '0 2px 6px rgba(99, 102, 241, 0.3)',
-                }}
-                title="Dọn màn hình về Bước 1 để thả file cho kỳ đối soát tiếp theo"
-              >
-                <Plus size={13} />
-                <span>➕ Đối Soát Kỳ Mới</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleRecalculateCurrentSession}
-                className="btn btn-sm"
-                style={{
-                  fontSize: 11.5,
-                  padding: '5px 12px',
-                  fontWeight: 800,
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  boxShadow: '0 2px 6px rgba(217, 119, 6, 0.3)',
-                }}
-                title="Tính lại toàn bộ cước thu Shop và lợi nhuận theo biểu giá bậc thang mới nhất"
-              >
-                <Calculator size={13} />
-                <span>⚡ Tính Lại Cước</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowExportModal(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11.5, padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}
-                title="Tùy chọn bật/tắt cột xuất file Excel cho Shop và Báo cáo tổng"
-              >
-                <Settings2 size={13} color="var(--primary)" />
-                <span>⚙️ Cài đặt cột</span>
-              </button>
-
-              <button
-                onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
-                disabled={currentSession.unmatchedOrdersCount > 0}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: 11.5, padding: '5px 11px', fontWeight: 600 }}
-              >
-                <FileSpreadsheet size={13} />
-                <span>Báo Cáo Tổng (.xlsx)</span>
-              </button>
-
-              <button
-                onClick={handleDownloadAllZip}
-                disabled={zipProgress.active || currentSession.unmatchedOrdersCount > 0}
-                className="btn btn-success btn-sm"
-                style={{ fontSize: 11.5, padding: '5px 12px', fontWeight: 700 }}
-              >
-                <Download size={13} />
-                <span>
-                  {zipProgress.active ? `Đang nén ZIP (${zipProgress.percent}%)...` : 'Tải Toàn Bộ Hồ Sơ (ZIP Từng Shop)'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => onNavigateToEmail(currentSession)}
-                disabled={currentSession.unmatchedOrdersCount > 0}
-                className="btn btn-primary btn-sm"
-                style={{ fontSize: 11.5, padding: '5px 12px', fontWeight: 700 }}
-              >
-                <Mail size={13} />
-                <span>Gửi Email Đối Soát</span>
-              </button>
-            </div>
           </div>
+
+
 
           {zipProgress.active && (
             <div style={{
@@ -3279,31 +3307,102 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid var(--border-color)',
-            paddingBottom: 12,
             flexWrap: 'wrap',
             gap: 12,
+            padding: '4px 0',
           }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{
+              display: 'flex',
+              background: 'var(--bg-secondary)',
+              padding: 4,
+              borderRadius: 10,
+              border: '1.5px solid var(--border-color)',
+              gap: 6,
+            }}>
               <button
+                type="button"
                 onClick={() => setActiveResultTab('statements')}
-                className={`btn btn-sm ${activeResultTab === 'statements' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: activeResultTab === 'statements' ? 'var(--primary)' : 'transparent',
+                  color: activeResultTab === 'statements' ? '#ffffff' : 'var(--text-main)',
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  boxShadow: activeResultTab === 'statements' ? '0 2px 6px rgba(79, 70, 229, 0.25)' : 'none',
+                }}
               >
-                Bảng Tổng Hợp Từng Shop ({currentSession.statements.length})
+                <Store size={14} />
+                <span>Bảng Tổng Hợp Từng Shop</span>
+                <span style={{
+                  fontSize: 10.5,
+                  fontWeight: 900,
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                  background: activeResultTab === 'statements' ? 'rgba(255,255,255,0.25)' : 'rgba(79, 70, 229, 0.12)',
+                  color: activeResultTab === 'statements' ? '#fff' : 'var(--primary)',
+                }}>
+                  {currentSession.statements.length}
+                </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveResultTab('allOrders')}
-                className={`btn btn-sm ${activeResultTab === 'allOrders' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: activeResultTab === 'allOrders' ? 'var(--primary)' : 'transparent',
+                  color: activeResultTab === 'allOrders' ? '#ffffff' : 'var(--text-main)',
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease',
+                  boxShadow: activeResultTab === 'allOrders' ? '0 2px 6px rgba(79, 70, 229, 0.25)' : 'none',
+                }}
               >
-                Chi Tiết Tất Cả Mã Vận Đơn ({currentSession.matchedOrdersCount})
+                <FileSpreadsheet size={14} />
+                <span>Chi Tiết Tất Cả Mã Vận Đơn</span>
+                <span style={{
+                  fontSize: 10.5,
+                  fontWeight: 900,
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                  background: activeResultTab === 'allOrders' ? 'rgba(255,255,255,0.25)' : 'rgba(79, 70, 229, 0.12)',
+                  color: activeResultTab === 'allOrders' ? '#fff' : 'var(--primary)',
+                }}>
+                  {currentSession.matchedOrdersCount.toLocaleString('vi-VN')}
+                </span>
               </button>
 
               {currentSession.unmatchedOrdersCount > 0 && (
                 <button
+                  type="button"
                   onClick={() => setActiveResultTab('unmatched')}
-                  className={`btn btn-sm ${activeResultTab === 'unmatched' ? 'btn-danger' : 'btn-secondary'}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    background: activeResultTab === 'unmatched' ? 'var(--danger)' : 'transparent',
+                    color: activeResultTab === 'unmatched' ? '#ffffff' : 'var(--danger)',
+                    fontWeight: 800,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s ease',
+                  }}
                 >
                   <AlertTriangle size={14} />
                   <span>Đơn Chưa Khớp ({currentSession.unmatchedOrdersCount})</span>
@@ -3311,45 +3410,71 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
               )}
             </div>
 
-            {activeResultTab === 'statements' ? (
-              <div style={{ position: 'relative', width: 240 }}>
-                <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
-                <input
-                  type="text"
-                  placeholder="Lọc tên shop..."
-                  value={searchShopQuery}
-                  onChange={(e) => setSearchShopQuery(e.target.value)}
-                  className="input-field"
-                  style={{ padding: '6px 10px 6px 30px', fontSize: 13 }}
-                />
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="select-field"
-                  style={{ padding: '6px 10px', fontSize: 12 }}
-                >
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="delivered">Giao thành công</option>
-                  <option value="returned">Chuyển hoàn</option>
-                  <option value="in_transit">Đang giao</option>
-                </select>
-
-                <div style={{ position: 'relative', width: 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {activeResultTab === 'statements' ? (
+                <div style={{ position: 'relative', width: 220 }}>
                   <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
                   <input
                     type="text"
-                    placeholder="Mã đơn, SĐT..."
-                    value={searchOrderQuery}
-                    onChange={(e) => setSearchOrderQuery(e.target.value)}
+                    placeholder="Lọc tên shop..."
+                    value={searchShopQuery}
+                    onChange={(e) => setSearchShopQuery(e.target.value)}
                     className="input-field"
-                    style={{ padding: '6px 10px 6px 30px', fontSize: 13 }}
+                    style={{ padding: '6px 10px 6px 30px', fontSize: 12.5 }}
                   />
                 </div>
-              </div>
-            )}
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="select-field"
+                    style={{ padding: '5px 10px', fontSize: 12 }}
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="delivered">Giao thành công</option>
+                    <option value="returned">Chuyển hoàn</option>
+                    <option value="in_transit">Đang giao</option>
+                  </select>
+
+                  <div style={{ position: 'relative', width: 190 }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-dim)' }} />
+                    <input
+                      type="text"
+                      placeholder="Mã đơn, SĐT..."
+                      value={searchOrderQuery}
+                      onChange={(e) => setSearchOrderQuery(e.target.value)}
+                      className="input-field"
+                      style={{ padding: '6px 10px 6px 30px', fontSize: 12.5 }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setWizardStep(5)}
+                className="btn btn-primary btn-sm"
+                style={{
+                  fontWeight: 800,
+                  fontSize: 11.5,
+                  padding: '6px 12px',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 2px 6px rgba(99, 102, 241, 0.25)',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Chuyển sang Bước 5 để tổng kết và hoàn tất kỳ đối soát"
+              >
+                <span>Bước 5: Tổng Kết</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
           </div>
 
           {/* TAB 1: PER-SHOP STATEMENTS LIST WITH SORTING */}
@@ -3690,95 +3815,270 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             </div>
           )}
 
-          {/* 4 Action Cards Grid in Step 4 */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 16,
-          }}>
-            {/* Action 1: Xuất Excel Báo Cáo */}
-            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
-              <div>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                  <FileSpreadsheet size={22} />
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>1. Xuất Excel Báo Cáo Kỳ</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Tải file Excel tổng hợp gồm tất cả đơn hàng đã đối soát kèm phân tích chi tiết doanh thu & lợi nhuận.
-                </div>
-              </div>
+        </div>
+      )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* 🚀 BƯỚC 5: TỔNG KẾT & HOÀN TẤT KỲ ĐỐI SOÁT */}
+      {wizardStep === 5 && currentSession && (currentSession.carrierId || 'jnt') === (activeCarrierId || selectedCarrierId) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Hero Banner Chúc Mừng & Tổng Kết */}
+          <div className="glass-panel" style={{
+            padding: '18px 22px',
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240,253,244,0.95) 100%)',
+            border: '2px solid rgba(16, 185, 129, 0.35)',
+            boxShadow: '0 4px 16px rgba(16, 185, 129, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 14,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                flexShrink: 0,
+              }}>
+                <CheckCircle2 size={26} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h2 style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
+                    🎉 TỔNG KẾT & HOÀN TẤT: <span style={{ color: 'var(--primary)' }}>{currentSession.sessionName}</span>
+                  </h2>
+                  <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 7px' }}>
+                    ✓ Đã chốt số liệu
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 5, background: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                    ✓ Khớp 100% ({currentSession.matchedOrdersCount.toLocaleString('vi-VN')} đơn)
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
+                  Hãng vận chuyển: <strong>{currentSession.carrierName}</strong> • Đã đối soát xong <strong>{currentSession.statements.length} Shop</strong> • Dữ liệu đã lưu an toàn vào hệ thống.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setWizardStep(4)}
+                className="btn btn-secondary btn-sm"
+                style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '6px 10px' }}
+              >
+                <ArrowLeft size={12} />
+                <span>Xem Bảng Kê Chi Tiết (Bước 4)</span>
+              </button>
+              {onNavigateToHistory && (
                 <button
                   type="button"
-                  onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
-                  className="btn btn-primary"
-                  style={{ width: '100%', fontSize: 12.5, fontWeight: 700, padding: '10px 14px' }}
+                  onClick={onNavigateToHistory}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '6px 10px' }}
                 >
-                  <Download size={15} />
-                  <span>Tải Báo Cáo & Phân Tích Lợi Nhuận (.xlsx)</span>
+                  <History size={12} color="var(--primary)" />
+                  <span>Xem Lịch Sử</span>
                 </button>
+              )}
+            </div>
+          </div>
+
+          {/* 4 Large KPI Summary Cards */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 10,
+          }}>
+            <div className="card-3d" style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--bg-card)', border: '1.5px solid var(--border-color)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG ĐƠN ĐỐI SOÁT</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-main)', margin: '3px 0' }}>
+                {currentSession.totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 12, fontWeight: 600 }}>đơn</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>✓ Khớp {currentSession.statements.length} Shop</div>
+            </div>
+
+            <div className="card-3d" style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--info-bg)', border: '1.5px solid var(--info-border)' }}>
+              <div style={{ fontSize: 10, color: 'var(--info)', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG COD THU HỘ</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: 'var(--info)', margin: '3px 0' }}>
+                {formatVND(currentSession.totalCod)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Tiền NVC thu hộ khách</div>
+            </div>
+
+            <div className="card-3d" style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(79, 70, 229, 0.1)', border: '1.5px solid rgba(79, 70, 229, 0.3)' }}>
+              <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase' }}>THỰC CHUYỂN TRẢ SHOP</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary)', margin: '3px 0' }}>
+                {formatVND(currentSession.totalNetPayout)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cước thu shop: {formatVND(currentSession.totalShopRevenue)}</div>
+            </div>
+
+            <div className="card-3d" style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--success-bg)', border: '1.5px solid var(--success-border)' }}>
+              <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 800, textTransform: 'uppercase' }}>LỢI NHUẬN RÒNG GOM ĐƠN</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: 'var(--success)', margin: '3px 0' }}>
+                +{formatVND(currentSession.totalProfit)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cước NVC: {formatVND(currentSession.totalNvcCost)}</div>
+            </div>
+          </div>
+
+          {/* 3 Main Action Centers (Rõ ràng, chuyên nghiệp, 1 chạm) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 14,
+          }}>
+            {/* Khối 1: Đi Tiền & Thanh Toán Shop */}
+            <div className="card-3d" style={{
+              padding: '16px 18px',
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 13.5, color: 'var(--text-main)' }}>1. Đi Tiền & Thanh Toán Shop</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chuyển tiền COD cho {currentSession.statements.length} Shop</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  Chuyển dữ liệu sang phân hệ <strong>Quản Lý Công Nợ</strong> để quét mã VietQR thanh toán từng shop hoặc xuất danh sách ủy nhiệm chi ngân hàng.
+                </div>
+              </div>
+
+              {onNavigateToDebt && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDebt}
+                  className="btn btn-success"
+                  style={{ width: '100%', padding: '10px 14px', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)' }}
+                >
+                  <DollarSign size={15} />
+                  <span>Mở Đi Tiền & Quản Lý Công Nợ ➔</span>
+                </button>
+              )}
+            </div>
+
+            {/* Khối 2: Tải Hồ Sơ & Báo Cáo Kế Toán */}
+            <div className="card-3d" style={{
+              padding: '16px 18px',
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(79, 70, 229, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 13.5, color: 'var(--text-main)' }}>2. Tải Báo Cáo & Hồ Sơ Shop</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Xuất file Excel & ZIP bảng kê</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button
+                    onClick={() => ExcelService.downloadMasterProfitReport(currentSession)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', padding: '7px 10px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                  >
+                    <FileSpreadsheet size={13} color="var(--success)" />
+                    <span>Tải Báo Cáo Tổng Hợp (.xlsx)</span>
+                  </button>
+
+                  <button
+                    onClick={handleDownloadAllZip}
+                    disabled={zipProgress.active}
+                    className="btn btn-primary btn-sm"
+                    style={{ width: '100%', padding: '7px 10px', fontSize: 11.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none' }}
+                  >
+                    {zipProgress.active ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        <span>Đang nén ZIP ({zipProgress.percent}%)...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={13} />
+                        <span>Tải ZIP Bảng Kê Từng Shop</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => ExcelService.downloadCtvCommissionReport(currentSession)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', padding: '7px 10px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                  >
+                    <Download size={13} color="var(--info)" />
+                    <span>Tải Báo Cáo Hoa Hồng CTV (.xlsx)</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Action 2: Tải ZIP Trọn Bộ */}
-            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
+            {/* Khối 3: Gửi Email Bảng Kê Cho Khách Hàng */}
+            <div className="card-3d" style={{
+              padding: '16px 18px',
+              borderRadius: 14,
+              background: 'var(--bg-card)',
+              border: '1.5px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}>
               <div>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.12)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                  <Download size={22} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(236, 72, 153, 0.12)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Mail size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 13.5, color: 'var(--text-main)' }}>3. Gửi Email Bảng Kê Tự Động</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gửi email đối soát cho các shop</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>2. Tải File ZIP Bảng Kê Shop</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Tự động đóng gói trọn bộ {currentSession.statements.length} file Excel bảng kê riêng biệt của từng Shop vào 1 file ZIP duy nhất.
+
+                <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  Chuyển sang phân hệ <strong>Gửi Email</strong> với toàn bộ bảng kê và danh sách shop kỳ này được tự động nạp sẵn sàng 100%.
                 </div>
               </div>
 
               <button
-                type="button"
-                onClick={handleDownloadAllZip}
-                disabled={zipProgress.active}
-                className="btn btn-primary"
-                style={{ width: '100%', fontSize: 12.5, fontWeight: 800, padding: '10px 14px', background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)' }}
-              >
-                {zipProgress.active ? (
-                  <>
-                    <RefreshCw size={15} className="animate-spin" />
-                    <span>Đang nén ZIP ({zipProgress.percent}%)...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download size={15} />
-                    <span>Tải File ZIP Trọn Bộ {currentSession.statements.length} Shop</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Action 3: Gửi Email Hàng Loạt */}
-            <div style={{ background: 'var(--bg-secondary)', borderRadius: 14, padding: 20, border: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
-              <div>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(236, 72, 153, 0.12)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                  <Mail size={22} />
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-main)' }}>3. Gửi Email Bảng Kê Hàng Loạt</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Mở ngay phân hệ Gửi Email với nội dung và bảng kê đối soát của kỳ này được nạp sẵn sàng 100%.
-                </div>
-              </div>
-
-              <button
-                type="button"
                 onClick={() => onNavigateToEmail(currentSession)}
                 className="btn btn-secondary"
-                style={{ width: '100%', fontSize: 12.5, fontWeight: 800, padding: '10px 14px', borderColor: '#ec4899', color: '#db2777' }}
+                style={{ width: '100%', padding: '10px 14px', fontSize: 12, fontWeight: 800, borderColor: '#ec4899', color: '#db2777', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 <Mail size={15} />
-                <span>Chuyển Sang Gửi Email Ngay ➔</span>
+                <span>Chuyển Sang Gửi Email Đối Soát ➔</span>
               </button>
             </div>
           </div>
 
-          {/* Action Bar of Step 4 */}
+          {/* Master Final Action Bar (Làm Mới Trình Đối Soát) */}
           <div className="glass-panel" style={{
             display: 'flex',
             alignItems: 'center',
@@ -3786,25 +4086,36 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             flexWrap: 'wrap',
             gap: 12,
             padding: '16px 22px',
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
+            border: '2px solid rgba(79, 70, 229, 0.25)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
           }}>
-            <button
-              type="button"
-              onClick={() => setWizardStep(3)}
-              className="btn btn-secondary btn-lg"
-              style={{ fontWeight: 700, fontSize: 13 }}
-            >
-              <ArrowLeft size={16} />
-              <span>Quay Lại Bước 3 (Duyệt & Cấu Hình Shop)</span>
-            </button>
+            <div>
+              <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>Đã xong kỳ đối soát này?</strong>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Bấm nút bên phải để dọn sạch dữ liệu tạm và bắt đầu nạp file cho kỳ đối soát tiếp theo.</div>
+            </div>
 
             <button
               type="button"
               onClick={handleResetReconciliation}
-              className="btn btn-success btn-lg"
-              style={{ fontWeight: 900, fontSize: 13.5, padding: '12px 26px' }}
+              className="btn btn-primary btn-lg"
+              style={{
+                fontWeight: 900,
+                fontSize: 13.5,
+                padding: '11px 26px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 8,
+                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+              }}
             >
               <CheckCircle2 size={18} />
-              <span>✓ Hoàn Tất & Làm Mới Phiên Đối Soát</span>
+              <span>✓ Hoàn Tất & Làm Mới (Bắt Đầu Kỳ Mới)</span>
             </button>
           </div>
         </div>

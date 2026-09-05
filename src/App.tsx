@@ -845,6 +845,10 @@ export function App() {
 
             {activeTab === 'ctv' && (
               <CtvManagementView
+                shops={shops}
+                onSaveShops={handleSaveShops}
+                sessions={sessions}
+                currentUser={currentUser || undefined}
                 activeCarrierId={activeCarrierId}
                 activeCarrierName={activeCarrierObj.carrierName}
               />

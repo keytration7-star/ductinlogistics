@@ -1680,6 +1680,157 @@ export const ExcelService = {
     saveBlobFile(blob, filename);
   },
 
+  async downloadSingleCtvStatementReport(
+    ctv: any,
+    session: ReconciliationSession,
+    orders: any[],
+    companyInfo?: any
+  ): Promise<void> {
+    const carrierTag = getCleanCarrierTag(session.carrierId, session.carrierName);
+    const workbook = new ExcelJS.Workbook();
+    
+    // Worksheet 1: Summary & Details
+    const ws = workbook.addWorksheet(`Bảng Kê CTV ${ctv.code}`);
+
+    // Company Header
+    if (companyInfo && companyInfo.companyName) {
+      ws.addRow([companyInfo.companyName.toUpperCase()]);
+      ws.addRow([`Địa chỉ: ${companyInfo.address || ''} | Hotline: ${companyInfo.phone || ''}`]);
+    }
+    ws.addRow(['BẢNG ĐỐI SOÁT & QUYẾT TOÁN HOA HỒNG CỘNG TÁC VIÊN']);
+    ws.addRow([`Kỳ đối soát: ${session.sessionName} | Hãng vận chuyển: ${session.carrierName || carrierTag}`]);
+    ws.addRow([`Cộng Tác Viên: ${ctv.name} (${ctv.code}) | SĐT: ${ctv.phone || '---'} | STK: ${ctv.bankAccount?.accountNumber || '---'} (${ctv.bankAccount?.bankName || ''} - ${ctv.bankAccount?.accountHolder || ''})`]);
+    ws.addRow([`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')}`]);
+    ws.addRow([]);
+
+    // KPI Summary
+    const totalOrders = orders.length;
+    const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
+    const returnedOrders = orders.filter(o => o.status === 'returned').length;
+    const totalCod = orders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
+    const totalShopFee = orders.reduce((sum, o) => sum + (o.shopCalculatedFee || 0), 0);
+    const totalNvcFee = orders.reduce((sum, o) => sum + (o.nvcBaseFee || 0), 0);
+    const totalCommission = orders.reduce((sum, o) => sum + (o.ctvCommission || 0), 0);
+
+    ws.addRow(['TỔNG KẾT TÀI CHÍNH KỲ NÀY']);
+    const summaryHeader = ws.addRow(['Tổng đơn hàng', 'Đơn giao thành công', 'Đơn hoàn', 'Tổng COD thu hộ', 'Tổng cước thu khách', 'Cước gốc nhà gom', 'HOA HỒNG CTV THỰC NHẬN']);
+    summaryHeader.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center' };
+    });
+
+    const summaryRow = ws.addRow([
+      totalOrders,
+      deliveredOrders,
+      returnedOrders,
+      totalCod,
+      totalShopFee,
+      totalNvcFee,
+      totalCommission
+    ]);
+    summaryRow.font = { bold: true };
+    summaryRow.getCell(4).numFmt = '#,##0';
+    summaryRow.getCell(5).numFmt = '#,##0';
+    summaryRow.getCell(6).numFmt = '#,##0';
+    summaryRow.getCell(7).numFmt = '#,##0';
+    summaryRow.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+    ws.addRow([]);
+
+    // Order Details Table
+    ws.addRow(['DANH SÁCH CHI TIẾT ĐƠN HÀNG CỦA KHÁCH HÀNG THUỘC CTV']);
+    const detailHeaders = ws.addRow([
+      'STT',
+      'Mã Vận Đơn',
+      'Mã Shop',
+      'Tên Shop',
+      'SĐT Shop',
+      'Người Nhận',
+      'SĐT Nhận',
+      'Địa Chỉ Nhận',
+      'Khối Lượng (kg)',
+      'Trạng Thái',
+      'Tiền COD (VNĐ)',
+      'Cước Thu Shop (VNĐ)',
+      'Cước Nhà Gom (VNĐ)',
+      'Hoa Hồng CTV (VNĐ)'
+    ]);
+
+    detailHeaders.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B82F6' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+
+    orders.forEach((order, idx) => {
+      const r = ws.addRow([
+        idx + 1,
+        order.waybill,
+        order.shopId || '',
+        order.shopName,
+        order.shopPhone || '',
+        order.receiverName || '',
+        order.receiverPhone || '',
+        order.receiverAddress || '',
+        order.weight || 0,
+        order.status === 'delivered' ? 'Giao thành công' : (order.status === 'returned' ? 'Đơn hoàn' : order.statusText || order.status),
+        order.codAmount || 0,
+        order.shopCalculatedFee || 0,
+        order.nvcBaseFee || 0,
+        order.ctvCommission || 0
+      ]);
+
+      r.getCell(11).numFmt = '#,##0';
+      r.getCell(12).numFmt = '#,##0';
+      r.getCell(13).numFmt = '#,##0';
+      r.getCell(14).numFmt = '#,##0';
+    });
+
+    const totalDetailRow = ws.addRow([
+      'TỔNG CỘNG',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      totalCod,
+      totalShopFee,
+      totalNvcFee,
+      totalCommission
+    ]);
+    totalDetailRow.font = { bold: true };
+    totalDetailRow.getCell(11).numFmt = '#,##0';
+    totalDetailRow.getCell(12).numFmt = '#,##0';
+    totalDetailRow.getCell(13).numFmt = '#,##0';
+    totalDetailRow.getCell(14).numFmt = '#,##0';
+
+    ws.columns = [
+      { width: 6 },
+      { width: 18 },
+      { width: 12 },
+      { width: 22 },
+      { width: 14 },
+      { width: 20 },
+      { width: 14 },
+      { width: 30 },
+      { width: 14 },
+      { width: 16 },
+      { width: 16 },
+      { width: 16 },
+      { width: 16 },
+      { width: 18 },
+    ];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `Bang_Ke_CTV_${ctv.code}_${session.sessionName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveBlobFile(blob, filename);
+  },
+
   async exportBankPayoutExcel(items: {
     shopCode: string;
     shopName: string;

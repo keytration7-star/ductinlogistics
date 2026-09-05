@@ -23,7 +23,7 @@ const ALIASES = {
     'ma_phieu_gui', 'ma_buu_gui', 'order_code', 'tracking', 'ma_bill', 'so_hieu',
     'so_hieu_buu_gui', 'ma_kien_hang', 'waybill', 'ma_giao_hang', 'ma_tra_cuu',
     'client_order_code', 'order_id', 'order_no', 'order_number', 'ma_don_nvc',
-    'ma_don_ghn', 'ma_don_ghtk', 'ma_don_khach_hang', 'tracking_id', 'shipment_id',
+    'ma_don_ghn', 'ma_don_ghtk', 'ma_don_spx', 'ma_don_khach_hang', 'tracking_id', 'shipment_id',
     'so_phieu_gui', 'ma_buu_gui_nvc', 'stt_ma_don'
   ],
   cod: [
@@ -31,31 +31,34 @@ const ALIASES = {
     'tien_cod_thuc_nhan', 'so_tien_thu_ho', 'tong_cod', 'cod_thu_ho', 'so_tien_thu',
     'cod_amount', 'collect_amount', 'tong_tien_thu_ho', 'cod_chuyen_khoan', 'tong_nhan',
     'cod_giao_thanh_cong', 'tien_co_cod', 'cod_tra_shop', 'tien_cod_da_ky_nhan',
-    'tien_cod_1'
+    'tien_cod_1', 'tien_thu_ho_vnd_a', 'tien_thu_ho_vnd'
   ],
   fee: [
     'cuoc_phi', 'tong_cuoc', 'cuoc_van_chuyen', 'phi_van_chuyen', 'cuoc_chinh',
     'phi_dich_vu', 'phi_dich_vu_5', 'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
     'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh', 'phi_giao_hang', 'phi_giao_hang_5_1',
-    'cuoc_tru', 'phi_chinh', 'tong_phi_giao_hang', 'phi_dich_vu_chinh', 'tien_cuoc_pp_pm'
+    'cuoc_tru', 'phi_chinh', 'tong_phi_giao_hang', 'phi_dich_vu_chinh', 'tien_cuoc_pp_pm',
+    'tong_phi_phai_tra_vnd_c_1_2_3', 'tong_phi_phai_tra', 'phi_giao_hang_vnd_1_1_1_1_2_1_3_1_4_1_5'
   ],
   otherFee: [
     'phi_khac', 'phu_phi', 'phi_bao_hiem', 'phi_chuyen_hoan', 'phi_hoan', 'phi_hoan_hang',
     'phi_hoan_hang_5_4', 'phi_khai_gia_5_3', 'phi_giao_lai_5_2', 'phi_doi_dia_chi_hoan_5_5',
     'phi_doi_dia_chi_giao_5_6', 'phi_giao_lai', 'phi_kiem_dem', 'phu_phi_vung_xa', 'other_fee',
-    'surcharge', 'phi_hoan_thanh_cong', 'phi_chuyen_tra'
+    'surcharge', 'phi_hoan_thanh_cong', 'phi_chuyen_tra', 'phi_hoan_hang_vnd_2',
+    'recipient_reject_collect_service_fee', 'phi_dich_vu_giao_that_bai_thu_tien'
   ],
-  adjustment: ['dieu_chinh', 'adjustment', 'phi_dieu_chinh', 'khuyen_mai_4', 'khuyen_mai', 'da_thanh_toan_truoc_3', 'giao_that_bai_thu_tien_2'],
-  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat', 'tong_doi_soat', 'tong_doi_soat_3_4_5'],
+  adjustment: ['dieu_chinh', 'adjustment', 'phi_dieu_chinh', 'khuyen_mai_4', 'khuyen_mai', 'da_thanh_toan_truoc_3', 'giao_that_bai_thu_tien_2', 'so_tien_dieu_chinh_vnd_d', 'so_tien_dieu_chinh'],
+  settlementAmount: ['so_tien_phai_tra_sau_can_tru', 'tien_thuc_nhan_sau_can_tru', 'net_settlement', 'so_tien_doi_soat', 'tong_doi_soat', 'tong_doi_soat_3_4_5', 'tong_tien_vao_so_du_tai_khoan_vnd', 'tong_tien_vao_so_du_tai_khoan'],
   weight: [
     'khoi_luong', 'trong_luong', 'can_nang', 'khoi_luong_tinh_cuoc', 'kl_quy_doi',
     'weight', 'gross_weight', 'khoi_luong_kg', 'trong_luong_kg', 'can_nang_kg',
-    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'trong_luong_tinh_phi', 'tl_tinh_phi'
+    'khoi_luong_gram', 'trong_luong_g', 'can_nang_gram', 'trong_luong_tinh_phi', 'tl_tinh_phi',
+    'can_nang_tinh_cuoc_kg', 'can_nang_tinh_cuoc', 'can_nang_tu_nguoi_ban_kg', 'can_nang_thuc_te_kg'
   ],
   status: [
     'trang_thai', 'tinh_trang', 'ket_qua_giao', 'trang_thai_don', 'trang_thai_giao_hang',
     'status', 'delivery_status', 'ket_qua', 'trang_thai_doi_soat', 'ghi_chu',
-    'trang_thai_giao', 'tinh_trang_don_hang'
+    'trang_thai_giao', 'tinh_trang_don_hang', 'trang_thai_van_don'
   ],
   shopName: [
     'ten_shop', 'shop_name', 'ten_nguoi_gui', 'ho_ten_nguoi_gui', 'ten_khach_hang',
@@ -80,7 +83,8 @@ const ALIASES = {
   ],
   receiverAddress: [
     'dia_chi_nhan', 'dia_chi_nguoi_nhan', 'dia_chi_giao_hang', 'dia_chi_khach_nhan',
-    'receiver_address', 'dia_chi', 'noi_nhan', 'tinh_thanh_nhan', 'quan_huyen_nhan'
+    'receiver_address', 'dia_chi', 'noi_nhan', 'tinh_thanh_nhan', 'quan_huyen_nhan',
+    'tinh_nhan', 'tinh_giao'
   ],
 };
 
