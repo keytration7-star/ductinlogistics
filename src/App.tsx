@@ -17,7 +17,7 @@ import { UIFeedbackProvider } from './components/UIFeedback';
 import { CarrierHubDashboard } from './components/CarrierHubDashboard';
 import { TaxAccountantPortal } from './components/TaxAccountantPortal';
 import { ScreenLockModal } from './components/ScreenLockModal';
-import { Truck, Database, Settings, LogOut, Lock } from 'lucide-react';
+import { Truck, Database, Settings, LogOut, Lock, FileSpreadsheet } from 'lucide-react';
 
 import type { 
   Shop, 
@@ -358,14 +358,14 @@ export function App() {
   }
 
   // 🏛️ TAX ACCOUNTANT DEDICATED WORKSPACE: Isolated environment for tax & compliance
-  if (currentUser.role === 'TAX_ACCOUNTANT') {
+  if (currentUser.role === 'TAX_ACCOUNTANT' || window.location.pathname.startsWith('/tax-portal') || window.location.pathname.startsWith('/tax')) {
     return (
       <UIFeedbackProvider>
         <TaxAccountantPortal
           currentUser={currentUser}
-          carriers={carriers}
-          sessions={sessions}
-          shops={shops}
+          carriers={carriers.length > 0 ? carriers : StorageService.getCarriers()}
+          sessions={sessions.length > 0 ? sessions : StorageService.getSessions()}
+          shops={shops.length > 0 ? shops : StorageService.getShops()}
           onLogout={handleLogout}
         />
       </UIFeedbackProvider>
@@ -417,6 +417,22 @@ export function App() {
               <span className={`badge ${dataConnection === 'connected' ? 'badge-success' : dataConnection === 'offline' ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: 11 }}>
                 {dataConnection === 'connected' ? '● Đã đồng bộ dữ liệu' : dataConnection === 'offline' ? '● Chưa kết nối máy chủ' : '● Đang kiểm tra'}
               </span>
+
+              {/* 🏛️ Cổng Kế Toán Thuế Button */}
+              {currentUser.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = '/tax-portal';
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 8, background: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' }}
+                  title="Mở Cổng Kế Toán Thuế & Xuất Hóa Đơn GTGT"
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Kế Toán Thuế</span>
+                </button>
+              )}
 
               {/* 💾 Sao Lưu Dữ Liệu Button */}
               {currentUser.role === 'ADMIN' && (

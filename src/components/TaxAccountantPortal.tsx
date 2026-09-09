@@ -21,7 +21,11 @@ import {
   ArrowLeft,
   CheckCircle2,
   TrendingUp,
-  Globe
+  Globe,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
 import { getCarrierTheme } from './CarrierHubDashboard';
@@ -225,21 +229,167 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Date range filter for monthly/quarterly tax report
-  const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const todayStr = now.toISOString().split('T')[0];
+  // 🔄 Always guarantee fresh fallback data from StorageService even if props are momentarily empty
+  const effectiveSessions = useMemo(() => {
+    if (sessions && sessions.length > 0) return sessions;
+    return StorageService.getSessions();
+  }, [sessions]);
 
-  const [fromDate, setFromDate] = useState<string>(firstDayOfMonth);
-  const [toDate, setToDate] = useState<string>(todayStr);
+  // 📦 Full session order cache for detailed tax ledger & export
+  const [fullSessionsMap, setFullSessionsMap] = useState<Record<string, ReconciliationSession>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadFullSessions = async () => {
+      const neededSessions = effectiveSessions.filter(s => {
+        const full = fullSessionsMap[s.id];
+        const hasOrders = full?.statements?.some(st => (st.orders?.length || 0) > 0);
+        return !hasOrders;
+      });
+
+      if (neededSessions.length === 0) return;
+
+      for (const sess of neededSessions) {
+        try {
+          const detail = await StorageService.getSessionDetail(sess.id);
+          if (detail && isMounted) {
+            setFullSessionsMap(prev => ({
+              ...prev,
+              [sess.id]: detail
+            }));
+          }
+        } catch (e) {
+          console.warn('[TaxAccountantPortal] Failed to load session detail:', sess.id, e);
+        }
+      }
+    };
+
+    loadFullSessions();
+    return () => { isMounted = false; };
+  }, [effectiveSessions]);
+
+  const detailedSessions = useMemo(() => {
+    return effectiveSessions.map(sess => {
+      const detailed = fullSessionsMap[sess.id];
+      if (detailed && detailed.statements && detailed.statements.some(st => (st.orders?.length || 0) > 0)) {
+        return detailed;
+      }
+      return sess;
+    });
+  }, [effectiveSessions, fullSessionsMap]);
+
+  const effectiveShops = useMemo(() => {
+    if (shops && shops.length > 0) return shops;
+    return StorageService.getShops();
+  }, [shops]);
+
+  const effectiveCarriers = useMemo(() => {
+    if (carriers && carriers.length > 0) return carriers;
+    return StorageService.getCarriers();
+  }, [carriers]);
+
+  // 📅 Intelligent Default Month/Year: Detect latest available session date, fallback to today
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const latestSessDate = useMemo(() => {
+    if (!effectiveSessions || effectiveSessions.length === 0) return new Date();
+    const sorted = effectiveSessions.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return new Date(sorted[0].createdAt || Date.now());
+  }, [effectiveSessions]);
+
+  const initMonth = latestSessDate.getMonth() + 1;
+  const initYear = latestSessDate.getFullYear();
+  const initStart = `${initYear}-${String(initMonth).padStart(2, '0')}-01`;
+  const initLastDay = new Date(initYear, initMonth, 0).getDate();
+  const initEnd = `${initYear}-${String(initMonth).padStart(2, '0')}-${String(initLastDay).padStart(2, '0')}`;
+
+  const [fromDate, setFromDate] = useState<string>(initStart);
+  const [toDate, setToDate] = useState<string>(initEnd);
+  const [selectedMonth, setSelectedMonth] = useState<number>(initMonth);
+  const [selectedYear, setSelectedYear] = useState<number>(initYear);
+  const [vatRate, setVatRate] = useState<number>(8); // 8% Default VAT for logistics/transport
+  const [invoiceRefCode, setInvoiceRefCode] = useState<string>('');
+  
+  // Modal for viewing detailed monthly orders of a specific shop
+  const [viewingShopOrders, setViewingShopOrders] = useState<{
+    shopId: string;
+    shopCode: string;
+    shopName: string;
+    phone: string;
+    bankInfo: string;
+    totalOrders: number;
+    totalCod: number;
+    totalServiceFee: number;
+    totalNetPayout: number;
+    orders: any[];
+  } | null>(null);
+  const [modalOrderSearch, setModalOrderSearch] = useState<string>('');
+
+  // Sub-view toggle in Monthly Tab ('shops' summary breakdown or 'orders' raw full ledger)
+  const [monthlySubTab, setMonthlySubTab] = useState<'shops' | 'orders'>('shops');
+  const [monthlyOrderSearch, setMonthlyOrderSearch] = useState<string>('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  const [orderPage, setOrderPage] = useState<number>(1);
+  const ordersPerPage = 50;
+
+  const applyMonthYear = (month: number, year: number) => {
+    setSelectedMonth(month);
+    setSelectedYear(year);
+    const start = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    setFromDate(start);
+    setToDate(end);
+    setOrderPage(1);
+  };
+
+  // 📊 Discovered months that have actual reconciliation sessions
+  const availableDataMonths = useMemo(() => {
+    const monthMap = new Map<string, { month: number; year: number; label: string; orderCount: number; sessionCount: number }>();
+    effectiveSessions.forEach(s => {
+      const matchCarrier = !activeCarrierId || activeCarrierId === 'all' || (s.carrierId || 'jnt') === activeCarrierId;
+      if (!matchCarrier) return;
+      const d = new Date(s.createdAt);
+      if (!isNaN(d.getTime())) {
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+        const key = `${y}-${m}`;
+        if (!monthMap.has(key)) {
+          monthMap.set(key, {
+            month: m,
+            year: y,
+            label: `Tháng ${m < 10 ? '0' + m : m}/${y}`,
+            orderCount: 0,
+            sessionCount: 0,
+          });
+        }
+        const item = monthMap.get(key)!;
+        item.orderCount += (s.totalOrders || 0);
+        item.sessionCount += 1;
+      }
+    });
+    return Array.from(monthMap.values()).sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
+  }, [effectiveSessions, activeCarrierId]);
+
+  // 🔄 Auto-select latest month with data if current selection has 0 sessions/orders
+  useEffect(() => {
+    if (availableDataMonths.length > 0) {
+      const currentHasData = availableDataMonths.some(d => d.month === selectedMonth && d.year === selectedYear);
+      if (!currentHasData) {
+        const bestMonth = availableDataMonths[0];
+        applyMonthYear(bestMonth.month, bestMonth.year);
+      }
+    }
+  }, [availableDataMonths, selectedMonth, selectedYear]);
 
   // Compute live statistics per carrier for the Hub cards
   const carrierStats = useMemo(() => {
     const statsMap = new Map<string, { shopCount: number; sessionCount: number; orderCount: number; totalCod: number; totalServiceFee: number; totalNetPayout: number; lastSessionDate?: string }>();
 
-    carriers.forEach(c => {
-      const cShops = shops.filter(s => (s.carrierId || 'jnt') === c.carrierId);
-      const cSessions = sessions.filter(sess => (sess.carrierId || 'jnt') === c.carrierId);
+    effectiveCarriers.forEach(c => {
+      const cShops = effectiveShops.filter(s => (s.carrierId || 'jnt') === c.carrierId);
+      const cSessions = effectiveSessions.filter(sess => (sess.carrierId || 'jnt') === c.carrierId);
       const totalOrders = cSessions.reduce((sum, s) => sum + (s.totalOrders || 0), 0);
       const totalCod = cSessions.reduce((sum, s) => sum + (s.totalCod || 0), 0);
       const totalServiceFee = cSessions.reduce((sum, s) => sum + (s.totalShopRevenue || 0), 0);
@@ -259,31 +409,31 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     });
 
     return statsMap;
-  }, [carriers, shops, sessions]);
+  }, [effectiveCarriers, effectiveShops, effectiveSessions]);
 
   // Active carrier metadata
   const activeCarrierObj = useMemo(() => {
     if (!activeCarrierId || activeCarrierId === 'all') return null;
-    return carriers.find(c => c.carrierId === activeCarrierId) || {
+    return effectiveCarriers.find(c => c.carrierId === activeCarrierId) || {
       id: activeCarrierId,
       carrierId: activeCarrierId,
       carrierName: activeCarrierId.toUpperCase(),
     };
-  }, [carriers, activeCarrierId]);
+  }, [effectiveCarriers, activeCarrierId]);
 
   // Filtered carriers for Hub
   const filteredCarriers = useMemo(() => {
-    if (!hubSearchTerm) return carriers;
+    if (!hubSearchTerm) return effectiveCarriers;
     const term = hubSearchTerm.toLowerCase();
-    return carriers.filter(c => 
+    return effectiveCarriers.filter(c => 
       c.carrierName.toLowerCase().includes(term) || 
       c.carrierId.toLowerCase().includes(term)
     );
-  }, [carriers, hubSearchTerm]);
+  }, [effectiveCarriers, hubSearchTerm]);
 
   // Filtered sessions for the selected carrier
   const filteredSessions = useMemo(() => {
-    return sessions.filter(sess => {
+    return effectiveSessions.filter(sess => {
       const matchCarrier = !activeCarrierId || activeCarrierId === 'all' || (sess.carrierId || 'jnt') === activeCarrierId;
       const name = sess.sessionName || '';
       const matchSearch = !searchQuery || 
@@ -292,7 +442,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         (sess.carrierName ? sess.carrierName.toLowerCase().includes(searchQuery.toLowerCase()) : false);
       return matchCarrier && matchSearch;
     });
-  }, [sessions, activeCarrierId, searchQuery]);
+  }, [effectiveSessions, activeCarrierId, searchQuery]);
 
   // Active selected session for Tab 1 Detail panel
   const activeDetailSession = useMemo(() => {
@@ -305,7 +455,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
   // Filtered shops for the selected carrier
   const filteredShops = useMemo(() => {
-    return shops.filter(s => {
+    return effectiveShops.filter(s => {
       const matchCarrier = !activeCarrierId || activeCarrierId === 'all' || (s.carrierId || 'jnt') === activeCarrierId;
       const q = searchQuery.toLowerCase();
       const matchSearch = !q ||
@@ -315,17 +465,23 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         (s.bankAccount?.accountNumber && s.bankAccount.accountNumber.includes(q));
       return matchCarrier && matchSearch;
     });
-  }, [shops, activeCarrierId, searchQuery]);
+  }, [effectiveShops, activeCarrierId, searchQuery]);
 
   // Aggregated data for Monthly/Quarterly report for the selected carrier
   const monthlyAggregatedData = useMemo(() => {
-    const from = new Date(fromDate).getTime();
-    const to = new Date(toDate + 'T23:59:59').getTime();
+    const fromTime = new Date(fromDate + 'T00:00:00').getTime();
+    const toTime = new Date(toDate + 'T23:59:59').getTime();
 
-    const inRangeSessions = sessions.filter(sess => {
+    const inRangeSessions = detailedSessions.filter(sess => {
       const matchCarrier = !activeCarrierId || activeCarrierId === 'all' || (sess.carrierId || 'jnt') === activeCarrierId;
-      const sessDate = new Date(sess.createdAt).getTime();
-      return matchCarrier && sessDate >= from && sessDate <= to;
+      
+      const sessDateStr = (sess.createdAt || '').slice(0, 10);
+      const isDateInRange = sessDateStr >= fromDate && sessDateStr <= toDate;
+
+      const sessTime = new Date(sess.createdAt).getTime();
+      const isTimeInRange = !isNaN(sessTime) && sessTime >= fromTime && sessTime <= toTime;
+
+      return matchCarrier && (isDateInRange || isTimeInRange);
     });
 
     let totalOrders = 0;
@@ -344,18 +500,19 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       totalCod: number;
       totalServiceFee: number;
       totalNetPayout: number;
+      orders: any[];
     }>();
 
     inRangeSessions.forEach(sess => {
-      totalOrders += sess.totalOrders;
-      totalCod += sess.totalCod;
+      totalOrders += (sess.totalOrders || 0);
+      totalCod += (sess.totalCod || 0);
       totalServiceRevenue += (sess.totalShopRevenue || 0);
-      totalNetPayout += sess.totalNetPayout;
+      totalNetPayout += (sess.totalNetPayout || 0);
 
       (sess.statements || []).forEach(stmt => {
         const key = stmt.shopId || stmt.shopName;
         if (!shopMap.has(key)) {
-          const shopObj = shops.find(s => s.id === stmt.shopId || s.name === stmt.shopName);
+          const shopObj = effectiveShops.find(s => s.id === stmt.shopId || s.name === stmt.shopName);
           const bankStr = shopObj?.bankAccount?.accountNumber 
             ? `${shopObj.bankAccount.bankName || ''} - ${shopObj.bankAccount.accountNumber} (${shopObj.bankAccount.accountHolder || ''})`
             : (stmt.bankInfo?.accountNumber ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}` : 'Chưa cập nhật');
@@ -371,17 +528,64 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             totalCod: 0,
             totalServiceFee: 0,
             totalNetPayout: 0,
+            orders: [],
           });
         }
 
         const sData = shopMap.get(key)!;
         sData.sessionCount += 1;
-        sData.totalOrders += stmt.totalOrders;
-        sData.totalCod += stmt.totalCod;
-        sData.totalServiceFee += (stmt.totalShopFee + stmt.totalShopOtherFee);
-        sData.totalNetPayout += stmt.totalNetPayout;
+        sData.totalOrders += (stmt.totalOrders || 0);
+        sData.totalCod += (stmt.totalCod || 0);
+        sData.totalServiceFee += ((stmt.totalShopFee || 0) + (stmt.totalShopOtherFee || 0));
+        sData.totalNetPayout += (stmt.totalNetPayout || 0);
+
+        // Robust order extraction: stmt.orders -> sess.reconciledRows -> sess.orders
+        let stmtOrders: any[] = stmt.orders || [];
+        if (stmtOrders.length === 0 && Array.isArray((sess as any).reconciledRows)) {
+          stmtOrders = (sess as any).reconciledRows.filter((r: any) =>
+            (r.shopId && (r.shopId === stmt.shopId || r.shopId === sData.shopId)) ||
+            (r.shopName && (r.shopName === stmt.shopName || r.shopName === sData.shopName))
+          );
+        }
+        if (stmtOrders.length === 0 && Array.isArray((sess as any).orders)) {
+          stmtOrders = (sess as any).orders.filter((r: any) =>
+            (r.shopId && (r.shopId === stmt.shopId || r.shopId === sData.shopId)) ||
+            (r.shopName && (r.shopName === stmt.shopName || r.shopName === sData.shopName))
+          );
+        }
+
+        stmtOrders.forEach(ord => {
+          sData.orders.push({
+            ...ord,
+            sessionName: sess.sessionName,
+            sessionDate: sess.createdAt,
+            carrierName: sess.carrierName || sess.carrierId || 'NVC',
+            shopName: stmt.shopName || sData.shopName,
+            shopCode: sData.shopCode,
+          });
+        });
       });
     });
+
+    const shopBreakdown = Array.from(shopMap.values()).sort((a, b) => b.totalOrders - a.totalOrders);
+    let allMonthlyOrders = shopBreakdown.flatMap(s => s.orders);
+
+    // Fallback extraction if stmt.orders were not distributed by shop
+    if (allMonthlyOrders.length === 0 && inRangeSessions.length > 0) {
+      inRangeSessions.forEach(sess => {
+        const rawRows = (sess as any).orders || (sess as any).reconciledRows || (sess as any).unmatchedOrders || [];
+        rawRows.forEach((ord: any) => {
+          allMonthlyOrders.push({
+            ...ord,
+            sessionName: sess.sessionName,
+            sessionDate: sess.createdAt,
+            carrierName: sess.carrierName || sess.carrierId || 'NVC',
+            shopName: ord.shopName || 'Khách hàng',
+            shopCode: ord.shopCode || '-',
+          });
+        });
+      });
+    }
 
     return {
       sessionCount: inRangeSessions.length,
@@ -389,9 +593,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       totalCod,
       totalServiceRevenue,
       totalNetPayout,
-      shopBreakdown: Array.from(shopMap.values()).sort((a, b) => b.totalOrders - a.totalOrders),
+      shopBreakdown,
+      allMonthlyOrders,
     };
-  }, [sessions, shops, activeCarrierId, fromDate, toDate]);
+  }, [detailedSessions, effectiveShops, activeCarrierId, fromDate, toDate]);
 
   // Helper to add Corporate Header to any worksheet
   const addCorporateHeader = (
@@ -1064,38 +1269,660 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   };
 
   // --------------------------------------------------------------------------
-  // EXPORT 6: Monthly / Quarterly Consolidated Tax Report
+  // 🔄 Helper: Ensure all in-range sessions have full order details loaded from API
+  // --------------------------------------------------------------------------
+  const ensureRangeSessionDetailsLoaded = async (): Promise<{
+    inRangeSessions: ReconciliationSession[];
+    shopBreakdown: any[];
+    allMonthlyOrders: any[];
+    sessionCount: number;
+    totalOrders: number;
+    totalCod: number;
+    totalServiceRevenue: number;
+    totalNetPayout: number;
+  }> => {
+    const fromTime = new Date(fromDate + 'T00:00:00').getTime();
+    const toTime = new Date(toDate + 'T23:59:59').getTime();
+
+    const inRange = effectiveSessions.filter(sess => {
+      const matchCarrier = !activeCarrierId || activeCarrierId === 'all' || (sess.carrierId || 'jnt') === activeCarrierId;
+      const sessDateStr = (sess.createdAt || '').slice(0, 10);
+      const isDateInRange = sessDateStr >= fromDate && sessDateStr <= toDate;
+      const sessTime = new Date(sess.createdAt).getTime();
+      const isTimeInRange = !isNaN(sessTime) && sessTime >= fromTime && sessTime <= toTime;
+      return matchCarrier && (isDateInRange || isTimeInRange);
+    });
+
+    const fullSessions: ReconciliationSession[] = [];
+    for (const sess of inRange) {
+      let full = fullSessionsMap[sess.id];
+      const hasOrders = full?.statements?.some(st => (st.orders?.length || 0) > 0);
+      if (!hasOrders) {
+        full = await StorageService.getSessionDetail(sess.id) || sess;
+        if (full && full.statements?.some(st => (st.orders?.length || 0) > 0)) {
+          setFullSessionsMap(prev => ({ ...prev, [sess.id]: full! }));
+        }
+      }
+      fullSessions.push(full || sess);
+    }
+
+    let totalOrders = 0;
+    let totalCod = 0;
+    let totalServiceRevenue = 0;
+    let totalNetPayout = 0;
+
+    const shopMap = new Map<string, any>();
+
+    fullSessions.forEach(sess => {
+      totalOrders += (sess.totalOrders || 0);
+      totalCod += (sess.totalCod || 0);
+      totalServiceRevenue += (sess.totalShopRevenue || 0);
+      totalNetPayout += (sess.totalNetPayout || 0);
+
+      (sess.statements || []).forEach(stmt => {
+        const key = stmt.shopId || stmt.shopName;
+        if (!shopMap.has(key)) {
+          const shopObj = effectiveShops.find(s => s.id === stmt.shopId || s.name === stmt.shopName);
+          const bankStr = shopObj?.bankAccount?.accountNumber 
+            ? `${shopObj.bankAccount.bankName || ''} - ${shopObj.bankAccount.accountNumber} (${shopObj.bankAccount.accountHolder || ''})`
+            : (stmt.bankInfo?.accountNumber ? `${stmt.bankInfo.bankName || ''} - ${stmt.bankInfo.accountNumber}` : 'Chưa cập nhật');
+
+          shopMap.set(key, {
+            shopId: stmt.shopId,
+            shopCode: stmt.shopCode || shopObj?.code || '-',
+            shopName: stmt.shopName,
+            phone: stmt.shopPhone || shopObj?.phone || '-',
+            bankInfo: bankStr,
+            sessionCount: 0,
+            totalOrders: 0,
+            totalCod: 0,
+            totalServiceFee: 0,
+            totalNetPayout: 0,
+            orders: [],
+          });
+        }
+
+        const sData = shopMap.get(key)!;
+        sData.sessionCount += 1;
+        sData.totalOrders += (stmt.totalOrders || 0);
+        sData.totalCod += (stmt.totalCod || 0);
+        sData.totalServiceFee += ((stmt.totalShopFee || 0) + (stmt.totalShopOtherFee || 0));
+        sData.totalNetPayout += (stmt.totalNetPayout || 0);
+
+        let stmtOrders: any[] = stmt.orders || [];
+        if (stmtOrders.length === 0 && Array.isArray((sess as any).reconciledRows)) {
+          stmtOrders = (sess as any).reconciledRows.filter((r: any) =>
+            (r.shopId && (r.shopId === stmt.shopId || r.shopId === sData.shopId)) ||
+            (r.shopName && (r.shopName === stmt.shopName || r.shopName === sData.shopName))
+          );
+        }
+        if (stmtOrders.length === 0 && Array.isArray((sess as any).orders)) {
+          stmtOrders = (sess as any).orders.filter((r: any) =>
+            (r.shopId && (r.shopId === stmt.shopId || r.shopId === sData.shopId)) ||
+            (r.shopName && (r.shopName === stmt.shopName || r.shopName === sData.shopName))
+          );
+        }
+
+        stmtOrders.forEach(ord => {
+          sData.orders.push({
+            ...ord,
+            sessionName: sess.sessionName,
+            sessionDate: sess.createdAt,
+            carrierName: sess.carrierName || sess.carrierId || 'NVC',
+            shopName: stmt.shopName || sData.shopName,
+            shopCode: sData.shopCode,
+          });
+        });
+      });
+    });
+
+    const shopBreakdown = Array.from(shopMap.values()).sort((a, b) => b.totalOrders - a.totalOrders);
+    let allMonthlyOrders = shopBreakdown.flatMap(s => s.orders);
+
+    if (allMonthlyOrders.length === 0 && fullSessions.length > 0) {
+      fullSessions.forEach(sess => {
+        const rawRows = (sess as any).orders || (sess as any).reconciledRows || (sess as any).unmatchedOrders || [];
+        rawRows.forEach((ord: any) => {
+          allMonthlyOrders.push({
+            ...ord,
+            sessionName: sess.sessionName,
+            sessionDate: sess.createdAt,
+            carrierName: sess.carrierName || sess.carrierId || 'NVC',
+            shopName: ord.shopName || 'Khách hàng',
+            shopCode: ord.shopCode || '-',
+          });
+        });
+      });
+    }
+
+    return {
+      inRangeSessions: fullSessions,
+      shopBreakdown,
+      allMonthlyOrders,
+      sessionCount: fullSessions.length,
+      totalOrders,
+      totalCod,
+      totalServiceRevenue,
+      totalNetPayout
+    };
+  };
+
+  // Helper for opening single shop modal with full loaded orders
+  const handleOpenShopOrders = async (s: any) => {
+    let shopOrders = s.orders || [];
+    if (shopOrders.length === 0) {
+      showToast(`Đang tải danh sách đơn hàng của Shop ${s.shopName}...`, 'info');
+      const loaded = await ensureRangeSessionDetailsLoaded();
+      const found = loaded.shopBreakdown.find(item => item.shopId === s.shopId || item.shopName === s.shopName);
+      if (found && found.orders) {
+        shopOrders = found.orders;
+      }
+    }
+    setViewingShopOrders({
+      ...s,
+      orders: shopOrders
+    });
+    setModalOrderSearch('');
+  };
+
+  // --------------------------------------------------------------------------
+  // EXPORT 6A: Single Shop Detailed Invoice Statement (Excel Chuẩn Thuế)
+  // --------------------------------------------------------------------------
+  const exportShopMonthlyInvoiceStatement = async (shopData: any) => {
+    try {
+      let ordersToExport = shopData.orders || [];
+      if (ordersToExport.length === 0) {
+        showToast(`Đang tải đơn hàng cho Shop ${shopData.shopName}...`, 'info');
+        const loaded = await ensureRangeSessionDetailsLoaded();
+        const found = loaded.shopBreakdown.find(s => s.shopId === shopData.shopId || s.shopName === shopData.shopName);
+        if (found && found.orders && found.orders.length > 0) {
+          ordersToExport = found.orders;
+        }
+      }
+
+      if (ordersToExport.length === 0) {
+        showToast(`Shop ${shopData?.shopName || ''} không có đơn hàng nào trong khoảng thời gian đã chọn.`, 'warning');
+        return;
+      }
+
+      showToast(`Đang tạo Bảng kê Hóa đơn chi tiết cho Shop ${shopData.shopName}...`, 'info');
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('BANG_KE_HOA_DON_GTGT');
+      ws.views = [{ showGridLines: false }];
+
+      const company = StorageService.getCompanyInfo();
+      const carrierLabel = activeCarrierObj ? activeCarrierObj.carrierName : 'Tất Cả Hãng';
+      const numCols = 11;
+
+      // 1. Corporate Header
+      const r1 = ws.addRow([(company.companyName || 'CÔNG TY LOGISTICS & VẬN TẢI ENTERPRISE').toUpperCase()]);
+      ws.mergeCells(1, 1, 1, numCols);
+      r1.height = 28;
+      r1.getCell(1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E3A8A' } };
+      r1.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      r1.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+      const r2 = ws.addRow([`Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`]);
+      ws.mergeCells(2, 1, 2, numCols);
+      r2.height = 20;
+      r2.getCell(1).font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+      r2.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      r2.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+      // 2. Report Title
+      const r3 = ws.addRow(['BẢNG KÊ CHI TIẾT CƯỚC DỊCH VỤ VẬN CHUYỂN ĐÍNH KÈM HÓA ĐƠN GTGT']);
+      ws.mergeCells(3, 1, 3, numCols);
+      r3.height = 26;
+      r3.getCell(1).font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FF4338CA' } };
+      r3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const r4 = ws.addRow([`Kỳ cước: Tháng ${selectedMonth}/${selectedYear} (Từ ${fromDate} đến ${toDate}) | Hãng vận chuyển: ${carrierLabel}`]);
+      ws.mergeCells(4, 1, 4, numCols);
+      r4.height = 20;
+      r4.getCell(1).font = { name: 'Calibri', size: 10.5, italic: true, color: { argb: 'FF334155' } };
+      r4.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // 3. Buyer Block
+      const rSpace1 = ws.addRow([]);
+      rSpace1.height = 8;
+
+      const b1 = ws.addRow(['Đơn vị mua hàng (Khách hàng):', shopData.shopName, '', 'Mã khách hàng:', shopData.shopCode || '-']);
+      b1.getCell(1).font = { bold: true, color: { argb: 'FF1E293B' } };
+      b1.getCell(2).font = { bold: true, color: { argb: 'FF1D4ED8' } };
+      b1.getCell(4).font = { bold: true };
+      
+      const b2 = ws.addRow(['Điện thoại liên hệ:', shopData.phone || '-', '', 'Kèm Hóa đơn GTGT số:', invoiceRefCode || 'Theo Hóa Đơn Điện Tử']);
+      b2.getCell(1).font = { bold: true };
+      b2.getCell(4).font = { bold: true };
+      b2.getCell(5).font = { bold: true, color: { argb: 'FFDC2626' } };
+
+      const b3 = ws.addRow(['Tài khoản nhận tiền COD:', shopData.bankInfo || 'Chưa cập nhật', '', 'Thuế suất GTGT:', `${vatRate}%`]);
+      b3.getCell(1).font = { bold: true };
+      b3.getCell(4).font = { bold: true };
+      b3.getCell(5).font = { bold: true, color: { argb: 'FF059669' } };
+
+      const rSpace2 = ws.addRow([]);
+      rSpace2.height = 8;
+
+      // 4. Detailed Orders Table Header
+      const headers = [
+        'STT',
+        'Kỳ / Ngày',
+        'Mã Vận Đơn',
+        'Tên Người Nhận',
+        'SĐT Nhận',
+        'Địa Chỉ Giao Hàng',
+        'Cân Nặng (kg)',
+        'Trạng Thái',
+        'Cước Vận Chuyển Trước Thuế (VNĐ)',
+        `Thuế VAT (${vatRate}%)`,
+        'Tổng Tiền Cước (VNĐ)'
+      ];
+
+      const hRow = ws.addRow(headers);
+      formatTableHeader(hRow);
+
+      let totalWeight = 0;
+      let totalPreTaxFee = 0;
+      let totalVat = 0;
+      let grandTotalFee = 0;
+
+      ordersToExport.forEach((ord: any, idx: number) => {
+        const orderFee = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+        const vat = Math.round(orderFee * (vatRate / 100));
+        const total = orderFee + vat;
+        const w = ord.weight || 0.5;
+
+        totalWeight += w;
+        totalPreTaxFee += orderFee;
+        totalVat += vat;
+        grandTotalFee += total;
+
+        const dateStr = ord.sessionName || (ord.sessionDate ? ord.sessionDate.slice(0, 10) : '-');
+        const stText = ord.status === 'delivered' ? 'Giao thành công' : (ord.status === 'returned' ? 'Đã hoàn' : (ord.statusText || ord.status));
+
+        const r = ws.addRow([
+          idx + 1,
+          dateStr,
+          ord.waybill,
+          ord.receiverName || 'Khách nhận',
+          ord.receiverPhone || '',
+          ord.receiverAddress || '',
+          w,
+          stText,
+          orderFee,
+          vat,
+          total
+        ]);
+
+        r.height = 21;
+        r.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 10.5, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          if (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 5 || colNum === 8) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 4 || colNum === 6) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          } else if (colNum === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.numFmt = '0.00';
+          } else if (colNum >= 9) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
+      });
+
+      // 5. Total Row
+      const totalRow = ws.addRow([
+        'TỔNG CỘNG',
+        '',
+        `${ordersToExport.length} đơn`,
+        '',
+        '',
+        '',
+        totalWeight,
+        '',
+        totalPreTaxFee,
+        totalVat,
+        grandTotalFee
+      ]);
+      const totNum = totalRow.number;
+      ws.mergeCells(totNum, 1, totNum, 2);
+      totalRow.height = 26;
+      totalRow.eachCell((cell, colNum) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+        cell.font = { name: 'Calibri', size: 11.5, bold: true, color: { argb: 'FFDC2626' } };
+        cell.border = TOTAL_BORDER;
+
+        if (colNum <= 2) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum === 3 || colNum === 7) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          if (colNum === 7) cell.numFmt = '0.00 "kg"';
+        } else if (colNum >= 9) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      // 6. Signature Block
+      const rSpace3 = ws.addRow([]);
+      rSpace3.height = 16;
+
+      const signDate = new Date();
+      const rDate = ws.addRow(['', '', '', '', '', '', '', '', `Ngày ${signDate.getDate()} tháng ${signDate.getMonth() + 1} năm ${signDate.getFullYear()}`]);
+      ws.mergeCells(rDate.number, 9, rDate.number, 11);
+      rDate.getCell(9).alignment = { horizontal: 'center', vertical: 'middle' };
+      rDate.getCell(9).font = { italic: true, size: 10.5 };
+
+      const rSign = ws.addRow(['NGƯỜI LẬP BẢNG', '', 'KẾ TOÁN TRƯỞNG', '', '', '', '', '', 'ĐẠI DIỆN BÊN BÁN (KÝ & ĐÓNG DẤU)']);
+      ws.mergeCells(rSign.number, 1, rSign.number, 2);
+      ws.mergeCells(rSign.number, 3, rSign.number, 5);
+      ws.mergeCells(rSign.number, 9, rSign.number, 11);
+      rSign.height = 24;
+      [1, 3, 9].forEach(cIdx => {
+        rSign.getCell(cIdx).font = { bold: true, size: 11, color: { argb: 'FF1E293B' } };
+        rSign.getCell(cIdx).alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      const rSignNote = ws.addRow(['(Ký, ghi rõ họ tên)', '', '(Ký, ghi rõ họ tên)', '', '', '', '', '', '(Ký, đóng dấu, ghi rõ họ tên)']);
+      ws.mergeCells(rSignNote.number, 1, rSignNote.number, 2);
+      ws.mergeCells(rSignNote.number, 3, rSignNote.number, 5);
+      ws.mergeCells(rSignNote.number, 9, rSignNote.number, 11);
+      [1, 3, 9].forEach(cIdx => {
+        rSignNote.getCell(cIdx).font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+        rSignNote.getCell(cIdx).alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      autoFitColumns(ws, [6, 14, 18, 20, 14, 28, 12, 14, 20, 16, 20]);
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const safeShop = (shopData.shopCode || shopData.shopName).replace(/[^a-zA-Z0-9]/g, '_');
+      saveAs(new Blob([buffer]), `Bang_Ke_Hoa_Don_Thang_${selectedMonth}_${selectedYear}_${safeShop}.xlsx`);
+      showToast(`Đã xuất bảng kê hóa đơn Shop ${shopData.shopName} thành công!`, 'success');
+    } catch (err: any) {
+      showToast('Lỗi xuất bảng kê hóa đơn: ' + err?.message, 'error');
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // EXPORT 6B: Bulk ZIP All Shops Monthly Invoice Statements
+  // --------------------------------------------------------------------------
+  const exportAllShopsMonthlyInvoiceZip = async () => {
+    try {
+      showToast('Đang tổng hợp đơn hàng toàn bộ các Shop...', 'info');
+      const loadedData = await ensureRangeSessionDetailsLoaded();
+      const shopsWithOrders = loadedData.shopBreakdown.filter(s => s.orders.length > 0);
+
+      if (shopsWithOrders.length === 0) {
+        showToast(`Không có shop nào có đơn hàng trong khoảng thời gian đã chọn (Tháng ${selectedMonth}/${selectedYear}).`, 'warning');
+        return;
+      }
+
+      showToast(`Đang tạo gói ZIP chứa ${shopsWithOrders.length} file Bảng kê Hóa đơn Excel...`, 'info');
+      const zip = new JSZip();
+      const company = StorageService.getCompanyInfo();
+      const carrierLabel = activeCarrierObj ? activeCarrierObj.carrierName : 'Tất Cả Hãng';
+      const numCols = 11;
+
+      for (const shopData of shopsWithOrders) {
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('BANG_KE_HOA_DON_GTGT');
+        ws.views = [{ showGridLines: false }];
+
+        // 1. Corporate Header
+        const r1 = ws.addRow([(company.companyName || 'CÔNG TY LOGISTICS & VẬN TẢI ENTERPRISE').toUpperCase()]);
+        ws.mergeCells(1, 1, 1, numCols);
+        r1.height = 28;
+        r1.getCell(1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E3A8A' } };
+        r1.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        r1.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+        const r2 = ws.addRow([`Địa chỉ: ${company.address || ''}${company.phone ? ' | SĐT: ' + company.phone : ''}${company.taxCode ? ' | MST: ' + company.taxCode : ''}`]);
+        ws.mergeCells(2, 1, 2, numCols);
+        r2.height = 20;
+        r2.getCell(1).font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+        r2.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        r2.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+        // 2. Report Title
+        const r3 = ws.addRow(['BẢNG KÊ CHI TIẾT CƯỚC DỊCH VỤ VẬN CHUYỂN ĐÍNH KÈM HÓA ĐƠN GTGT']);
+        ws.mergeCells(3, 1, 3, numCols);
+        r3.height = 26;
+        r3.getCell(1).font = { name: 'Calibri', size: 13, bold: true, color: { argb: 'FF4338CA' } };
+        r3.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+        const r4 = ws.addRow([`Kỳ cước: Tháng ${selectedMonth}/${selectedYear} (Từ ${fromDate} đến ${toDate}) | Hãng vận chuyển: ${carrierLabel}`]);
+        ws.mergeCells(4, 1, 4, numCols);
+        r4.height = 20;
+        r4.getCell(1).font = { name: 'Calibri', size: 10.5, italic: true, color: { argb: 'FF334155' } };
+        r4.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+        const rSpace1 = ws.addRow([]);
+        rSpace1.height = 8;
+
+        const b1 = ws.addRow(['Đơn vị mua hàng (Khách hàng):', shopData.shopName, '', 'Mã khách hàng:', shopData.shopCode || '-']);
+        b1.getCell(1).font = { bold: true, color: { argb: 'FF1E293B' } };
+        b1.getCell(2).font = { bold: true, color: { argb: 'FF1D4ED8' } };
+        b1.getCell(4).font = { bold: true };
+        
+        const b2 = ws.addRow(['Điện thoại liên hệ:', shopData.phone || '-', '', 'Kèm Hóa đơn GTGT số:', invoiceRefCode || 'Theo Hóa Đơn Điện Tử']);
+        b2.getCell(1).font = { bold: true };
+        b2.getCell(4).font = { bold: true };
+        b2.getCell(5).font = { bold: true, color: { argb: 'FFDC2626' } };
+
+        const b3 = ws.addRow(['Tài khoản nhận tiền COD:', shopData.bankInfo || 'Chưa cập nhật', '', 'Thuế suất GTGT:', `${vatRate}%`]);
+        b3.getCell(1).font = { bold: true };
+        b3.getCell(4).font = { bold: true };
+        b3.getCell(5).font = { bold: true, color: { argb: 'FF059669' } };
+
+        const rSpace2 = ws.addRow([]);
+        rSpace2.height = 8;
+
+        const headers = [
+          'STT',
+          'Kỳ / Ngày',
+          'Mã Vận Đơn',
+          'Tên Người Nhận',
+          'SĐT Nhận',
+          'Địa Chỉ Giao Hàng',
+          'Cân Nặng (kg)',
+          'Trạng Thái',
+          'Cước Vận Chuyển Trước Thuế (VNĐ)',
+          `Thuế VAT (${vatRate}%)`,
+          'Tổng Tiền Cước (VNĐ)'
+        ];
+
+        const hRow = ws.addRow(headers);
+        formatTableHeader(hRow);
+
+        let totalWeight = 0;
+        let totalPreTaxFee = 0;
+        let totalVat = 0;
+        let grandTotalFee = 0;
+
+        shopData.orders.forEach((ord: any, idx: number) => {
+          const orderFee = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+          const vat = Math.round(orderFee * (vatRate / 100));
+          const total = orderFee + vat;
+          const w = ord.weight || 0.5;
+
+          totalWeight += w;
+          totalPreTaxFee += orderFee;
+          totalVat += vat;
+          grandTotalFee += total;
+
+          const dateStr = ord.sessionName || (ord.sessionDate ? ord.sessionDate.slice(0, 10) : '-');
+          const stText = ord.status === 'delivered' ? 'Giao thành công' : (ord.status === 'returned' ? 'Đã hoàn' : (ord.statusText || ord.status));
+
+          const r = ws.addRow([
+            idx + 1,
+            dateStr,
+            ord.waybill,
+            ord.receiverName || 'Khách nhận',
+            ord.receiverPhone || '',
+            ord.receiverAddress || '',
+            w,
+            stText,
+            orderFee,
+            vat,
+            total
+          ]);
+
+          r.height = 21;
+          r.eachCell((cell, colNum) => {
+            cell.font = { name: 'Calibri', size: 10.5, color: { argb: 'FF0F172A' } };
+            cell.border = THIN_BORDER;
+
+            if (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 5 || colNum === 8) {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            } else if (colNum === 4 || colNum === 6) {
+              cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            } else if (colNum === 7) {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              cell.numFmt = '0.00';
+            } else if (colNum >= 9) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0 "đ"';
+            }
+          });
+        });
+
+        const totalRow = ws.addRow([
+          'TỔNG CỘNG',
+          '',
+          `${shopData.orders.length} đơn`,
+          '',
+          '',
+          '',
+          totalWeight,
+          '',
+          totalPreTaxFee,
+          totalVat,
+          grandTotalFee
+        ]);
+        const totNum = totalRow.number;
+        ws.mergeCells(totNum, 1, totNum, 2);
+        totalRow.height = 26;
+        totalRow.eachCell((cell, colNum) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+          cell.font = { name: 'Calibri', size: 11.5, bold: true, color: { argb: 'FFDC2626' } };
+          cell.border = TOTAL_BORDER;
+
+          if (colNum <= 2) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 3 || colNum === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            if (colNum === 7) cell.numFmt = '0.00 "kg"';
+          } else if (colNum >= 9) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
+
+        // Signature Block
+        const rSpace3 = ws.addRow([]);
+        rSpace3.height = 16;
+
+        const signDate = new Date();
+        const rDate = ws.addRow(['', '', '', '', '', '', '', '', `Ngày ${signDate.getDate()} tháng ${signDate.getMonth() + 1} năm ${signDate.getFullYear()}`]);
+        ws.mergeCells(rDate.number, 9, rDate.number, 11);
+        rDate.getCell(9).alignment = { horizontal: 'center', vertical: 'middle' };
+        rDate.getCell(9).font = { italic: true, size: 10.5 };
+
+        const rSign = ws.addRow(['NGƯỜI LẬP BẢNG', '', 'KẾ TOÁN TRƯỞNG', '', '', '', '', '', 'ĐẠI DIỆN BÊN BÁN (KÝ & ĐÓNG DẤU)']);
+        ws.mergeCells(rSign.number, 1, rSign.number, 2);
+        ws.mergeCells(rSign.number, 3, rSign.number, 5);
+        ws.mergeCells(rSign.number, 9, rSign.number, 11);
+        rSign.height = 24;
+        [1, 3, 9].forEach(cIdx => {
+          rSign.getCell(cIdx).font = { bold: true, size: 11, color: { argb: 'FF1E293B' } };
+          rSign.getCell(cIdx).alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        const rSignNote = ws.addRow(['(Ký, ghi rõ họ tên)', '', '(Ký, ghi rõ họ tên)', '', '', '', '', '', '(Ký, đóng dấu, ghi rõ họ tên)']);
+        ws.mergeCells(rSignNote.number, 1, rSignNote.number, 2);
+        ws.mergeCells(rSignNote.number, 3, rSignNote.number, 5);
+        ws.mergeCells(rSignNote.number, 9, rSignNote.number, 11);
+        [1, 3, 9].forEach(cIdx => {
+          rSignNote.getCell(cIdx).font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+          rSignNote.getCell(cIdx).alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        autoFitColumns(ws, [6, 14, 18, 20, 14, 28, 12, 14, 20, 16, 20]);
+
+        const fileBuffer = await workbook.xlsx.writeBuffer();
+        const safeShop = (shopData.shopCode || shopData.shopName).replace(/[^a-zA-Z0-9]/g, '_');
+        zip.file(`Bang_Ke_Hoa_Don_Thang_${selectedMonth}_${selectedYear}_${safeShop}.xlsx`, fileBuffer);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `Goi_Bang_Ke_Hoa_Don_Thang_${selectedMonth}_${selectedYear}_${shopsWithOrders.length}_Shop.zip`);
+      showToast(`Đã xuất trọn bộ gói ZIP cho ${shopsWithOrders.length} Shop thành công!`, 'success');
+    } catch (err: any) {
+      showToast('Lỗi tạo gói ZIP bảng kê hóa đơn: ' + err?.message, 'error');
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // EXPORT 6C: Monthly / Quarterly Master Multi-Sheet Tax & Orders Report
   // --------------------------------------------------------------------------
   const exportMonthlyConsolidatedTaxReport = async () => {
     try {
+      showToast('Đang kiểm tra và tải đầy đủ dữ liệu chi tiết...', 'info');
+      const loadedData = await ensureRangeSessionDetailsLoaded();
+
+      if (!loadedData || loadedData.allMonthlyOrders.length === 0) {
+        showToast(`Không có đơn hàng nào trong khoảng thời gian đã chọn (Tháng ${selectedMonth}/${selectedYear}). Vui lòng chọn Tháng có phát sinh đối soát (VD: Tháng 8/2026) hoặc bấm "Toàn Bộ Lịch Sử".`, 'warning');
+        return;
+      }
+
+      showToast(`Đang tạo file Excel Báo cáo Thuế & Danh sách toàn bộ ${loadedData.allMonthlyOrders.length.toLocaleString('vi-VN')} đơn hàng trong tháng...`, 'info');
       const carrierLabel = activeCarrierObj ? activeCarrierObj.carrierName : 'Tất Cả Hãng';
       const workbook = new ExcelJS.Workbook();
-      const ws = workbook.addWorksheet('BAO_CAO_THUE_TONG_HOP');
 
+      // ==========================================
+      // SHEET 1: BẢNG TỔNG HỢP DOANH THU HÓA ĐƠN CÁC SHOP
+      // ==========================================
+      const ws = workbook.addWorksheet('TONG_HOP_DOANH_THU_HOA_DON');
       const headers = [
         'STT', 
         'Mã Khách', 
         'Tên Khách Hàng / Shop', 
         'Số Điện Thoại', 
         'Tài Khoản Ngân Hàng', 
-        'Số Kỳ Tham Gia', 
+        'Số Kỳ', 
         'Tổng Số Đơn', 
+        'Doanh Thu Cước Trước Thuế (VNĐ)',
+        `Thuế VAT (${vatRate}%)`,
+        'Tổng Tiền Trên Hóa Đơn (VNĐ)',
         'Tổng COD Thu Hộ (VNĐ)', 
-        'Doanh Thu Cước Dịch Vụ (VNĐ)', 
-        'Tổng Thực Trả (VNĐ)'
+        'Tổng Thực Trả Shop (VNĐ)'
       ];
 
       addCorporateHeader(
         ws,
-        `BÁO CÁO DOANH THU DỊCH VỤ VẬN CHUYỂN & DÒNG TIỀN COD (${carrierLabel.toUpperCase()})`,
-        `Thời gian: Từ ngày ${fromDate} đến ngày ${toDate} | Số kỳ: ${monthlyAggregatedData.sessionCount} kỳ | Tổng đơn: ${monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')} đơn`,
+        `BÁO CÁO DOANH THU HÓA ĐƠN DỊCH VỤ VẬN CHUYỂN & DÒNG TIỀN (${carrierLabel.toUpperCase()})`,
+        `Kỳ cước: Tháng ${selectedMonth}/${selectedYear} (Từ ${fromDate} đến ${toDate}) | Thuế VAT: ${vatRate}% | Số kỳ: ${loadedData.sessionCount} | Tổng đơn: ${loadedData.totalOrders.toLocaleString('vi-VN')}`,
         headers.length
       );
 
       const hRow = ws.addRow(headers);
       formatTableHeader(hRow);
 
-      monthlyAggregatedData.shopBreakdown.forEach((s, idx) => {
+      let grandPreTax = 0;
+      let grandVat = 0;
+      let grandWithVat = 0;
+
+      loadedData.shopBreakdown.forEach((s, idx) => {
+        const preTax = s.totalServiceFee;
+        const vat = Math.round(preTax * (vatRate / 100));
+        const withVat = preTax + vat;
+
+        grandPreTax += preTax;
+        grandVat += vat;
+        grandWithVat += withVat;
+
         const r = ws.addRow([
           idx + 1,
           s.shopCode,
@@ -1104,8 +1931,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           s.bankInfo,
           s.sessionCount,
           s.totalOrders,
+          preTax,
+          vat,
+          withVat,
           s.totalCod,
-          s.totalServiceFee,
           s.totalNetPayout
         ]);
 
@@ -1128,18 +1957,20 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         });
       });
 
-      // 🌟 HÀNG TỔNG CỘNG: Nền vàng chữ đỏ
+      // HÀNG TỔNG CỘNG SHEET 1
       const totalRow = ws.addRow([
         'TỔNG CỘNG',
         '',
         '',
         '',
         '',
-        `${monthlyAggregatedData.sessionCount} kỳ`,
-        monthlyAggregatedData.totalOrders,
-        monthlyAggregatedData.totalCod,
-        monthlyAggregatedData.totalServiceRevenue,
-        monthlyAggregatedData.totalNetPayout
+        `${loadedData.sessionCount} kỳ`,
+        loadedData.totalOrders,
+        grandPreTax,
+        grandVat,
+        grandWithVat,
+        loadedData.totalCod,
+        loadedData.totalNetPayout
       ]);
 
       const totalRowNum = totalRow.number;
@@ -1161,12 +1992,138 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         }
       });
 
-      autoFitColumns(ws, [8, 14, 26, 16, 32, 14, 14, 22, 22, 22]);
+      autoFitColumns(ws, [8, 14, 26, 16, 30, 12, 14, 22, 18, 22, 22, 22]);
+
+      // ==========================================
+      // SHEET 2: TOÀN BỘ ĐƠN HÀNG TRONG THÁNG (RAW LEDGER)
+      // ==========================================
+      const wsDetail = workbook.addWorksheet('TOAN_BO_DON_HANG_TRONG_THANG');
+      const detailHeaders = [
+        'STT',
+        'Tên Khách Hàng / Shop',
+        'Mã Shop',
+        'Kỳ Đối Soát',
+        'Hãng Vận Chuyển',
+        'Mã Vận Đơn',
+        'Tên Người Nhận',
+        'SĐT Người Nhận',
+        'Địa Chỉ Giao Hàng',
+        'Cân Nặng (kg)',
+        'Trạng Thái',
+        'Tiền COD Thu Hộ (VNĐ)',
+        'Cước Dịch Vụ Trước Thuế (VNĐ)',
+        `Thuế VAT (${vatRate}%)`,
+        'Tổng Tiền Cước (VNĐ)'
+      ];
+
+      addCorporateHeader(
+        wsDetail,
+        `BẢNG KÊ TOÀN BỘ ĐƠN HÀNG CHI TIẾT TRONG THÁNG (${carrierLabel.toUpperCase()})`,
+        `Thời gian: Từ ${fromDate} đến ${toDate} | Tổng cộng: ${loadedData.allMonthlyOrders.length.toLocaleString('vi-VN')} đơn hàng`,
+        detailHeaders.length
+      );
+
+      const dHRow = wsDetail.addRow(detailHeaders);
+      formatTableHeader(dHRow);
+
+      let dTotalCod = 0;
+      let dTotalPreTax = 0;
+      let dTotalVat = 0;
+      let dTotalWithVat = 0;
+
+      loadedData.allMonthlyOrders.forEach((ord: any, idx: number) => {
+        const orderFee = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+        const vat = Math.round(orderFee * (vatRate / 100));
+        const total = orderFee + vat;
+        const cod = ord.codAmount || ord.cod || 0;
+        const w = ord.weight || 0.5;
+
+        dTotalCod += cod;
+        dTotalPreTax += orderFee;
+        dTotalVat += vat;
+        dTotalWithVat += total;
+
+        const stText = ord.status === 'delivered' ? 'Giao thành công' : (ord.status === 'returned' ? 'Đã hoàn' : (ord.statusText || ord.status));
+
+        const r = wsDetail.addRow([
+          idx + 1,
+          ord.shopName,
+          ord.shopCode || '-',
+          ord.sessionName,
+          ord.carrierName,
+          ord.waybill,
+          ord.receiverName || '',
+          ord.receiverPhone || '',
+          ord.receiverAddress || '',
+          w,
+          stText,
+          cod,
+          orderFee,
+          vat,
+          total
+        ]);
+
+        r.height = 20;
+        r.eachCell((cell, colNum) => {
+          cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF0F172A' } };
+          cell.border = THIN_BORDER;
+
+          if (colNum === 1 || colNum === 3 || colNum === 4 || colNum === 5 || colNum === 6 || colNum === 8 || colNum === 11) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 2 || colNum === 7 || colNum === 9) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          } else if (colNum === 10) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.numFmt = '0.00';
+          } else if (colNum >= 12) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+          }
+        });
+      });
+
+      const dTotalRow = wsDetail.addRow([
+        'TỔNG CỘNG',
+        '',
+        '',
+        '',
+        '',
+        `${loadedData.allMonthlyOrders.length} đơn`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        dTotalCod,
+        dTotalPreTax,
+        dTotalVat,
+        dTotalWithVat
+      ]);
+
+      const dTotalRowNum = dTotalRow.number;
+      wsDetail.mergeCells(dTotalRowNum, 1, dTotalRowNum, 5);
+      dTotalRow.height = 26;
+
+      dTotalRow.eachCell((cell, colNum) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF08A' } };
+        cell.font = { name: 'Calibri', size: 11.5, bold: true, color: { argb: 'FFDC2626' } };
+        cell.border = TOTAL_BORDER;
+
+        if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum === 6) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNum >= 12) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      autoFitColumns(wsDetail, [6, 22, 14, 18, 16, 18, 18, 14, 28, 12, 14, 18, 20, 16, 20]);
 
       const buffer = await workbook.xlsx.writeBuffer();
       const safeCarrier = carrierLabel.replace(/[^a-zA-Z0-9]/g, '_');
-      saveAs(new Blob([buffer]), `Bao_Cao_Doanh_Thu_Thue_${safeCarrier}_${fromDate}_den_${toDate}.xlsx`);
-      showToast('Đã xuất báo cáo thuế định kỳ thành công!', 'success');
+      saveAs(new Blob([buffer]), `Bao_Cao_Thue_Tong_Hop_Thang_${selectedMonth}_${selectedYear}_${safeCarrier}.xlsx`);
+      showToast('Đã xuất báo cáo thuế tổng hợp đa Sheet thành công!', 'success');
     } catch (err: any) {
       showToast('Lỗi xuất báo cáo định kỳ: ' + err?.message, 'error');
     }
@@ -1234,6 +2191,22 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Back to Gom Don App for ADMIN */}
+            {currentUser.role === 'ADMIN' && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/app/hub';
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 8, padding: '7px 12px' }}
+                title="Quay lại giao diện vận hành gom đơn"
+              >
+                <ArrowLeft size={15} />
+                <span>Quay Lại Quản Trị Gom Đơn</span>
+              </button>
+            )}
+
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -1733,6 +2706,22 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Back to Gom Don App for ADMIN */}
+            {currentUser.role === 'ADMIN' && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/app/hub';
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, borderRadius: 8, padding: '6px 12px', fontSize: 12 }}
+                title="Quay lại giao diện vận hành gom đơn"
+              >
+                <ArrowLeft size={14} />
+                <span>Quay Lại Gom Đơn</span>
+              </button>
+            )}
+
             {/* User badge */}
             <div style={{
               display: 'flex',
@@ -2609,101 +3598,301 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: BÁO CÁO THUẾ TỔNG HỢP (THÁNG / QUÝ)                                 */}
+        {/* TAB 3: BÁO CÁO THUẾ & XUẤT HÓA ĐƠN KÈM BẢNG KÊ THÁNG (PRO)                */}
         {/* ========================================================================= */}
         {activeTab === 'monthly' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Date Range Filter Bar */}
+            {/* Invoice & Period Control Panel */}
             <div style={{
               background: 'var(--surface, #ffffff)',
-              padding: '10px 18px',
+              padding: '14px 20px',
               borderRadius: 14,
               border: '1.5px solid var(--border, #e2e8f0)',
               boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
+              flexDirection: 'column',
               gap: 12
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>Khoảng thời gian:</span>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Từ ngày:</span>
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
+              {/* Row 1: Month/Year Selector + Presets */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', padding: '4px 10px', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+                    <Calendar size={15} color="#1d4ed8" />
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#1d4ed8' }}>KỲ HÓA ĐƠN THÁNG:</span>
+                  </div>
+
+                  {/* Month Picker */}
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => applyMonthYear(Number(e.target.value), selectedYear)}
                     className="input-field"
-                    style={{ padding: '4px 8px', fontSize: 12, height: 32, borderRadius: 6 }}
-                  />
+                    style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700, borderRadius: 8, borderColor: '#93c5fd', minWidth: 120, height: 34 }}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                      <option key={m} value={m}>Tháng {m < 10 ? '0' + m : m}</option>
+                    ))}
+                  </select>
+
+                  {/* Year Picker */}
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => applyMonthYear(selectedMonth, Number(e.target.value))}
+                    className="input-field"
+                    style={{ padding: '5px 10px', fontSize: 13, fontWeight: 700, borderRadius: 8, borderColor: '#93c5fd', minWidth: 90, height: 34 }}
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>Năm {y}</option>
+                    ))}
+                  </select>
+
+                  {/* Quick Preset Buttons & Discovered Data Months */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginLeft: 4 }}>
+                    {/* Discovered active months with real data */}
+                    {availableDataMonths.map(dm => (
+                      <button
+                        key={dm.label}
+                        type="button"
+                        onClick={() => applyMonthYear(dm.month, dm.year)}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '5px 11px',
+                          fontSize: 12,
+                          fontWeight: selectedMonth === dm.month && selectedYear === dm.year ? 800 : 700,
+                          borderRadius: 6,
+                          background: selectedMonth === dm.month && selectedYear === dm.year ? '#dbeafe' : '#f0fdf4',
+                          borderColor: selectedMonth === dm.month && selectedYear === dm.year ? '#3b82f6' : '#86efac',
+                          color: selectedMonth === dm.month && selectedYear === dm.year ? '#1d4ed8' : '#15803d',
+                        }}
+                        title={`Bấm để xem và xuất hóa đơn cho ${dm.label}`}
+                      >
+                        🔥 {dm.label} ({dm.orderCount.toLocaleString('vi-VN')} đơn)
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => applyMonthYear(now.getMonth() + 1, now.getFullYear())}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: 12,
+                        fontWeight: selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear() ? 800 : 600,
+                        borderRadius: 6,
+                      }}
+                    >
+                      Tháng Hiện Tại
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        applyMonthYear(prevDate.getMonth() + 1, prevDate.getFullYear());
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600, borderRadius: 6 }}
+                    >
+                      Tháng Trước
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFromDate('2020-01-01');
+                        setToDate('2030-12-31');
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '5px 10px', fontSize: 12, fontWeight: 700, borderRadius: 6, background: '#fef3c7', color: '#b45309', borderColor: '#fde68a' }}
+                      title="Gom tất cả các đơn hàng từ mọi kỳ đối soát từ trước tới nay"
+                    >
+                      Toàn Bộ Lịch Sử
+                    </button>
+                  </div>
+
+                  {/* Date range manual refine */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+                    <span>(Từ:</span>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="input-field"
+                      style={{ padding: '3px 6px', fontSize: 11.5, height: 30, borderRadius: 6 }}
+                    />
+                    <span>- Đến:</span>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="input-field"
+                      style={{ padding: '3px 6px', fontSize: 11.5, height: 30, borderRadius: 6 }}
+                    />
+                    <span>)</span>
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Đến ngày:</span>
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="input-field"
-                    style={{ padding: '4px 8px', fontSize: 12, height: 32, borderRadius: 6 }}
-                  />
-                </div>
+                {/* VAT Rate & Invoice Ref Code Config */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Thuế suất VAT:</span>
+                    <select
+                      value={vatRate}
+                      onChange={(e) => setVatRate(Number(e.target.value))}
+                      className="input-field"
+                      style={{ padding: '4px 8px', fontSize: 12, fontWeight: 800, color: '#059669', height: 32, borderRadius: 6, borderColor: '#a7f3d0' }}
+                    >
+                      <option value={8}>8% (Vận tải - NĐ 72)</option>
+                      <option value={10}>10% (Tiêu chuẩn)</option>
+                      <option value={0}>0% (Không chịu thuế)</option>
+                      <option value={5}>5% (Ưu đãi)</option>
+                    </select>
+                  </div>
 
-                {/* Quick select buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFromDate(firstDayOfMonth);
-                      setToDate(todayStr);
-                    }}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6 }}
-                  >
-                    Tháng Này
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const prevMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-                      const prevMonthLast = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-                      setFromDate(prevMonthFirst);
-                      setToDate(prevMonthLast);
-                    }}
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6 }}
-                  >
-                    Tháng Trước
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Số HĐ GTGT:</span>
+                    <input
+                      type="text"
+                      placeholder="VD: 0001234 / HĐĐT"
+                      value={invoiceRefCode}
+                      onChange={(e) => setInvoiceRefCode(e.target.value)}
+                      className="input-field"
+                      style={{ padding: '4px 8px', fontSize: 12, width: 140, height: 32, borderRadius: 6 }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Export Monthly Report Button (Emerald Green) */}
-              <button
-                type="button"
-                onClick={exportMonthlyConsolidatedTaxReport}
-                className="btn btn-sm"
-                style={{
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  borderColor: 'transparent',
-                  color: '#ffffff',
-                  padding: '8px 16px',
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  borderRadius: 8,
-                  boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
-                }}
-              >
-                <Download size={15} />
-                <span>Xuất Báo Cáo Doanh Thu Thuế ({currentCarrierTitle})</span>
-              </button>
+              {/* Row 2: Header Export Action Buttons */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 10,
+                paddingTop: 10,
+                borderTop: '1px solid var(--border, #f1f5f9)'
+              }}>
+                <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                  ⚡ Tổng hợp toàn bộ <strong>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')}</strong> đơn hàng từ <strong>{monthlyAggregatedData.sessionCount}</strong> kỳ đối soát của <strong>{monthlyAggregatedData.shopBreakdown.length}</strong> khách hàng trong Tháng {selectedMonth}/{selectedYear}.
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Export All Zip Button */}
+                  <button
+                    type="button"
+                    onClick={exportAllShopsMonthlyInvoiceZip}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      padding: '7px 14px',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      borderRadius: 8,
+                      background: '#faf5ff',
+                      borderColor: '#d8b4fe',
+                      color: '#7e22ce'
+                    }}
+                    title="Xuất nén ZIP chứa riêng file Bảng kê Hóa đơn Excel của từng Shop có đơn trong tháng"
+                  >
+                    <Archive size={15} color="#7e22ce" />
+                    <span>Xuất Gói ZIP Bảng Kê Từng Shop</span>
+                  </button>
+
+                  {/* Export Consolidated Multi-Sheet Excel */}
+                  <button
+                    type="button"
+                    onClick={exportMonthlyConsolidatedTaxReport}
+                    className="btn btn-sm"
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      borderColor: 'transparent',
+                      color: '#ffffff',
+                      padding: '7px 16px',
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      borderRadius: 8,
+                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                    }}
+                    title="Xuất 1 file Excel 2 Sheet: Sheet 1 Tổng hợp Doanh thu Hóa đơn & Sheet 2 Sổ cái chi tiết toàn bộ đơn"
+                  >
+                    <Download size={15} />
+                    <span>Xuất Báo Cáo Thuế 2 Sheet (.xlsx)</span>
+                  </button>
+                </div>
+              </div>
             </div>
+
+            {/* ⚠️ Zero Orders Warning Banner with Instant 1-Click Fix */}
+            {monthlyAggregatedData.totalOrders === 0 && (
+              <div style={{
+                background: '#fffbeb',
+                border: '1.5px solid #fde68a',
+                borderRadius: 14,
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12,
+                boxShadow: '0 2px 8px rgba(217, 119, 6, 0.08)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', flexShrink: 0 }}>
+                    <AlertCircle size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#92400e' }}>
+                      Chưa có kỳ đối soát nào trong Tháng {selectedMonth}/{selectedYear} ({fromDate} đến {toDate})
+                    </div>
+                    <div style={{ fontSize: 12, color: '#b45309', marginTop: 2 }}>
+                      {availableDataMonths.length > 0 
+                        ? `Hệ thống ghi nhận có dữ liệu đối soát ở: ${availableDataMonths.map(d => `${d.label} (${d.orderCount.toLocaleString('vi-VN')} đơn)`).join(', ')}.`
+                        : 'Hiện tại chưa có kỳ đối soát nào được tạo cho hãng này.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {availableDataMonths.map(dm => (
+                    <button
+                      key={dm.label}
+                      type="button"
+                      onClick={() => applyMonthYear(dm.month, dm.year)}
+                      className="btn btn-sm"
+                      style={{
+                        background: '#d97706',
+                        borderColor: '#d97706',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        boxShadow: '0 2px 8px rgba(217, 119, 6, 0.25)',
+                      }}
+                    >
+                      👉 Chuyển Sang {dm.label} ({dm.orderCount.toLocaleString('vi-VN')} đơn)
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFromDate('2020-01-01');
+                      setToDate('2030-12-31');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '7px 14px', borderRadius: 8, fontWeight: 700, fontSize: 12.5 }}
+                  >
+                    Xem Toàn Bộ Lịch Sử
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 4 Summary KPI Cards Pro */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
@@ -2719,7 +3908,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#94a3b8' }} />
                 <div style={{ fontSize: 10.5, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Kỳ Đối Soát Trong Khoảng</div>
                 <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4, color: '#1e293b' }}>{monthlyAggregatedData.sessionCount} kỳ</div>
-                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}><strong>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')}</strong> tổng đơn</div>
+                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}><strong>{monthlyAggregatedData.totalOrders.toLocaleString('vi-VN')}</strong> tổng đơn đã gửi</div>
               </div>
 
               <div style={{
@@ -2749,11 +3938,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 overflow: 'hidden'
               }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #c084fc, #7e22ce)' }} />
-                <div style={{ fontSize: 10.5, color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Doanh Thu Cước Dịch Vụ</div>
+                <div style={{ fontSize: 10.5, color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>Cước Dịch Vụ Trước Thuế</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#7e22ce', marginTop: 4 }}>
                   {monthlyAggregatedData.totalServiceRevenue.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Doanh thu chịu thuế GTGT/TNDN</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  + Thuế VAT ({vatRate}%): <strong>{Math.round(monthlyAggregatedData.totalServiceRevenue * (vatRate / 100)).toLocaleString('vi-VN')} đ</strong>
+                </div>
               </div>
 
               <div style={{
@@ -2770,11 +3961,11 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 4 }}>
                   {monthlyAggregatedData.totalNetPayout.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 700 }}>đ</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Tổng chuyển khoản cho các Shop</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Tổng thực chuyển khoản cho các Shop</div>
               </div>
             </div>
 
-            {/* Aggregated Shop Breakdown Table Pro */}
+            {/* Aggregated Shop Breakdown & All Monthly Orders Table Pro */}
             <div style={{
               background: 'var(--surface, #ffffff)',
               borderRadius: 14,
@@ -2782,100 +3973,790 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               overflow: 'hidden',
               boxShadow: '0 2px 10px rgba(0,0,0,0.03)'
             }}>
+              {/* Header with Sub-tab Switcher */}
               <div style={{
                 padding: '10px 18px',
                 borderBottom: '1.5px solid var(--border, #e2e8f0)',
                 background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10
               }}>
-                <span style={{ fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, color: '#334155' }}>
-                  BẢNG PHÂN BỔ DOANH THU & DÒNG TIỀN THEO TỪNG KHÁCH HÀNG ({currentCarrierTitle})
-                </span>
-                <span style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>
-                  Khung cuộn tự động • Cố định tiêu đề
-                </span>
+                {/* Switcher Pill */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e2e8f0', padding: '3px', borderRadius: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMonthlySubTab('shops')}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      borderRadius: 8,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: monthlySubTab === 'shops' ? '#ffffff' : 'transparent',
+                      color: monthlySubTab === 'shops' ? '#1e293b' : '#64748b',
+                      boxShadow: monthlySubTab === 'shops' ? '0 2px 5px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    🏢 BẢNG PHÂN BỔ SHOP ({monthlyAggregatedData.shopBreakdown.length} khách)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMonthlySubTab('orders');
+                      setOrderPage(1);
+                    }}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      borderRadius: 8,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: monthlySubTab === 'orders' ? '#3b82f6' : 'transparent',
+                      color: monthlySubTab === 'orders' ? '#ffffff' : '#64748b',
+                      boxShadow: monthlySubTab === 'orders' ? '0 2px 5px rgba(59,130,246,0.3)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    📦 TOÀN BỘ ĐƠN HÀNG TRONG THÁNG ({monthlyAggregatedData.allMonthlyOrders.length.toLocaleString('vi-VN')} đơn)
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11.5, color: '#4f46e5', fontWeight: 700 }}>
+                    Thuế suất: {vatRate}% • Tháng {selectedMonth}/{selectedYear} ({currentCarrierTitle})
+                  </span>
+                </div>
               </div>
 
-              <div style={{ maxHeight: 'calc(100vh - 310px)', minHeight: 350, overflowY: 'auto', overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                      <th style={{ padding: '10px 12px', width: 45, textAlign: 'center' }}>STT</th>
-                      <th style={{ padding: '10px 14px', width: 130 }}>Mã Khách</th>
-                      <th style={{ padding: '10px 14px' }}>Tên Khách Hàng / Shop</th>
-                      <th style={{ padding: '10px 14px', width: 120 }}>Số Điện Thoại</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', width: 110 }}>Số Kỳ</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', width: 100 }}>Tổng Số Đơn</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Tổng COD Luân Chuyển</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Doanh Thu Cước</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Tổng Thực Trả</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyAggregatedData.shopBreakdown.map((s, idx) => (
-                      <tr
-                        key={idx}
-                        style={{
-                          borderBottom: '1px solid var(--border, #f1f5f9)',
-                          fontSize: 12.5,
-                          transition: 'background 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        <td style={{ padding: '10px 12px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 700 }}>
-                          {idx + 1}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <span style={{
-                            background: '#eff6ff',
-                            color: '#1d4ed8',
-                            border: '1px solid #bfdbfe',
-                            padding: '2px 7px',
-                            borderRadius: 6,
-                            fontSize: 11.5,
-                            fontWeight: 800,
-                            fontFamily: 'monospace',
-                          }}>
-                            {s.shopCode}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                          {s.shopName}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: '#475569', fontWeight: 600 }}>
-                          {s.phone}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700 }}>
-                          <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
-                            {s.sessionCount} kỳ
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800 }}>
-                          <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
-                            {s.totalOrders.toLocaleString('vi-VN')}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', fontFamily: 'monospace' }}>
-                          {s.totalCod.toLocaleString('vi-VN')} đ
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
-                          {s.totalServiceFee.toLocaleString('vi-VN')} đ
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, color: '#047857', fontSize: 13, fontFamily: 'monospace' }}>
-                          {s.totalNetPayout.toLocaleString('vi-VN')} đ
-                        </td>
+              {/* VIEW 1: SHOP BREAKDOWN TABLE */}
+              {monthlySubTab === 'shops' && (
+                <div style={{ maxHeight: 'calc(100vh - 310px)', minHeight: 350, overflowY: 'auto', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                        <th style={{ padding: '10px 10px', width: 40, textAlign: 'center' }}>STT</th>
+                        <th style={{ padding: '10px 12px', width: 110 }}>Mã Khách</th>
+                        <th style={{ padding: '10px 14px' }}>Tên Khách Hàng / Shop</th>
+                        <th style={{ padding: '10px 12px', width: 115 }}>Số Điện Thoại</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'center', width: 75 }}>Số Kỳ</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'center', width: 90 }}>Tổng Đơn</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tổng COD</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Cước Chưa VAT</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Thuế VAT ({vatRate}%)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tổng Tiền HĐ</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tổng Thực Trả</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center', width: 180 }}>Hành Động Hóa Đơn</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {monthlyAggregatedData.shopBreakdown.map((s, idx) => {
+                        const shopVat = Math.round(s.totalServiceFee * (vatRate / 100));
+                        const shopTotalInvoice = s.totalServiceFee + shopVat;
+
+                        return (
+                          <tr
+                            key={idx}
+                            style={{
+                              borderBottom: '1px solid var(--border, #f1f5f9)',
+                              fontSize: 12.5,
+                              transition: 'background 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <td style={{ padding: '10px 10px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 700 }}>
+                              {idx + 1}
+                            </td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <span style={{
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                padding: '2px 7px',
+                                borderRadius: 6,
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                fontFamily: 'monospace',
+                              }}>
+                                {s.shopCode}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                              {s.shopName}
+                            </td>
+                            <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: '#475569', fontWeight: 600 }}>
+                              {s.phone}
+                            </td>
+                            <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 700 }}>
+                              <span style={{ background: '#f1f5f9', padding: '2px 7px', borderRadius: 6, fontSize: 11.5 }}>
+                                {s.sessionCount}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 800 }}>
+                              <span style={{ background: '#f1f5f9', padding: '2px 7px', borderRadius: 6, fontSize: 11.5 }}>
+                                {s.totalOrders.toLocaleString('vi-VN')}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#1d4ed8', fontFamily: 'monospace' }}>
+                              {s.totalCod.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
+                              {s.totalServiceFee.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
+                              {shopVat.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>
+                              {shopTotalInvoice.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#047857', fontSize: 13, fontFamily: 'monospace' }}>
+                              {s.totalNetPayout.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                {/* View Orders Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenShopOrders(s)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    borderRadius: 6,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                  title="Xem danh sách chi tiết toàn bộ đơn hàng của Shop trong tháng"
+                                >
+                                  <Eye size={13} />
+                                  <span>Xem Đơn</span>
+                                </button>
+
+                                {/* Export Single Shop Invoice Statement */}
+                                <button
+                                  type="button"
+                                  onClick={() => exportShopMonthlyInvoiceStatement(s)}
+                                  className="btn btn-sm"
+                                  style={{
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    borderColor: 'transparent',
+                                    color: '#ffffff',
+                                    padding: '4px 8px',
+                                    fontSize: 11.5,
+                                    fontWeight: 800,
+                                    borderRadius: 6,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                                  }}
+                                  title="Xuất Bảng Kê Chi Tiết Cước Vận Chuyển Đính Kèm Hóa Đơn GTGT cho Shop này"
+                                >
+                                  <Download size={13} />
+                                  <span>Bảng Kê HĐ</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* VIEW 2: FULL RAW ALL-ORDERS MONTHLY LEDGER TABLE */}
+              {monthlySubTab === 'orders' && (() => {
+                let filtered = monthlyAggregatedData.allMonthlyOrders;
+                if (orderStatusFilter !== 'all') {
+                  if (orderStatusFilter === 'delivered') {
+                    filtered = filtered.filter(o => o.status === 'delivered' || (o.statusText || '').toLowerCase().includes('thành công') || (o.statusText || '').toLowerCase().includes('phát thành công'));
+                  } else if (orderStatusFilter === 'returned') {
+                    filtered = filtered.filter(o => o.status === 'returned' || (o.statusText || '').toLowerCase().includes('hoàn') || (o.statusText || '').toLowerCase().includes('trả'));
+                  } else if (orderStatusFilter === 'in_transit') {
+                    filtered = filtered.filter(o => o.status === 'in_transit' || o.status === 'shipping' || (o.statusText || '').toLowerCase().includes('chuyển') || (o.statusText || '').toLowerCase().includes('giao'));
+                  }
+                }
+                if (monthlyOrderSearch.trim()) {
+                  const q = monthlyOrderSearch.trim().toLowerCase();
+                  filtered = filtered.filter(o => 
+                    (o.waybill || '').toLowerCase().includes(q) ||
+                    (o.shopName || '').toLowerCase().includes(q) ||
+                    (o.shopCode || '').toLowerCase().includes(q) ||
+                    (o.receiverName || '').toLowerCase().includes(q) ||
+                    (o.receiverPhone || '').toLowerCase().includes(q) ||
+                    (o.receiverAddress || '').toLowerCase().includes(q) ||
+                    (o.sessionName || '').toLowerCase().includes(q)
+                  );
+                }
+
+                const totalPages = Math.max(1, Math.ceil(filtered.length / ordersPerPage));
+                const currentPage = Math.min(orderPage, totalPages);
+                const startIndex = (currentPage - 1) * ordersPerPage;
+                const pageOrders = filtered.slice(startIndex, startIndex + ordersPerPage);
+
+                let totalPageCod = 0;
+                let totalPagePreTax = 0;
+                let totalPageVat = 0;
+                let totalPageWithVat = 0;
+
+                filtered.forEach((ord: any) => {
+                  const f = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+                  const v = Math.round(f * (vatRate / 100));
+                  totalPageCod += (ord.codAmount || ord.cod || 0);
+                  totalPagePreTax += f;
+                  totalPageVat += v;
+                  totalPageWithVat += (f + v);
+                });
+
+                return (
+                  <div>
+                    {/* Search & Filter Toolbar */}
+                    <div style={{
+                      padding: '10px 18px',
+                      background: '#ffffff',
+                      borderBottom: '1px solid var(--border, #e2e8f0)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 10
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 260 }}>
+                        <Search size={15} color="#64748b" />
+                        <input
+                          type="text"
+                          placeholder="Tìm kiếm mã vận đơn, tên shop, người nhận, SĐT, kỳ đối soát..."
+                          value={monthlyOrderSearch}
+                          onChange={(e) => {
+                            setMonthlyOrderSearch(e.target.value);
+                            setOrderPage(1);
+                          }}
+                          className="input-field"
+                          style={{ flex: 1, padding: '5px 10px', fontSize: 12.5, height: 32, borderRadius: 6 }}
+                        />
+                        {monthlyOrderSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMonthlyOrderSearch('');
+                              setOrderPage(1);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: 11 }}
+                          >
+                            Xóa
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        {/* Status Filter */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Filter size={13} color="#64748b" />
+                          <select
+                            value={orderStatusFilter}
+                            onChange={(e) => {
+                              setOrderStatusFilter(e.target.value);
+                              setOrderPage(1);
+                            }}
+                            className="input-field"
+                            style={{ padding: '4px 8px', fontSize: 12, height: 32, borderRadius: 6 }}
+                          >
+                            <option value="all">Tất cả trạng thái ({monthlyAggregatedData.allMonthlyOrders.length})</option>
+                            <option value="delivered">Giao thành công</option>
+                            <option value="in_transit">Đang giao / Trung chuyển</option>
+                            <option value="returned">Đã hoàn / Trả hàng</option>
+                          </select>
+                        </div>
+
+                        {/* Quick KPI info */}
+                        <div style={{ fontSize: 12, color: '#475569', background: '#f8fafc', padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                          Khớp: <strong>{filtered.length.toLocaleString('vi-VN')}</strong> / {monthlyAggregatedData.allMonthlyOrders.length.toLocaleString('vi-VN')} đơn | Tiền Cước: <strong style={{ color: '#dc2626' }}>{totalPageWithVat.toLocaleString('vi-VN')} đ</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table of Orders */}
+                    <div style={{ maxHeight: 'calc(100vh - 370px)', minHeight: 350, overflowY: 'auto', overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                            <th style={{ padding: '10px 8px', width: 40, textAlign: 'center' }}>STT</th>
+                            <th style={{ padding: '10px 10px', width: 110 }}>Kỳ / Ngày</th>
+                            <th style={{ padding: '10px 10px', width: 135 }}>Mã Vận Đơn</th>
+                            <th style={{ padding: '10px 12px' }}>Shop / Khách Gửi</th>
+                            <th style={{ padding: '10px 10px', width: 120 }}>Người Nhận</th>
+                            <th style={{ padding: '10px 10px', width: 105 }}>SĐT Nhận</th>
+                            <th style={{ padding: '10px 8px', textAlign: 'center', width: 75 }}>TL (kg)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'center', width: 120 }}>Trạng Thái</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tiền COD</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Cước Trước Thuế</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>VAT ({vatRate}%)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng Tiền Cước</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageOrders.length === 0 ? (
+                            <tr>
+                              <td colSpan={12} style={{ padding: 30, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                                Không tìm thấy đơn hàng nào phù hợp với bộ lọc tìm kiếm.
+                              </td>
+                            </tr>
+                          ) : (
+                            pageOrders.map((ord: any, idx: number) => {
+                              const orderFee = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+                              const vat = Math.round(orderFee * (vatRate / 100));
+                              const total = orderFee + vat;
+                              const cod = ord.codAmount || ord.cod || 0;
+                              const w = ord.weight || 0.5;
+                              const stText = ord.status === 'delivered' ? 'Giao thành công' : (ord.status === 'returned' ? 'Đã hoàn' : (ord.statusText || ord.status));
+                              const globalIdx = startIndex + idx + 1;
+
+                              return (
+                                <tr
+                                  key={ord.id || ord.waybill || idx}
+                                  style={{
+                                    borderBottom: '1px solid var(--border, #f1f5f9)',
+                                    fontSize: 12,
+                                    transition: 'background 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                  <td style={{ padding: '8px 8px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600 }}>
+                                    {globalIdx}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569' }}>
+                                    {ord.sessionName || (ord.sessionDate ? ord.sessionDate.slice(0, 10) : '-')}
+                                  </td>
+                                  <td style={{ padding: '8px 10px' }}>
+                                    <span style={{
+                                      background: '#f1f5f9',
+                                      color: '#1e293b',
+                                      padding: '2px 6px',
+                                      borderRadius: 5,
+                                      fontWeight: 800,
+                                      fontFamily: 'monospace',
+                                      fontSize: 11.5
+                                    }}>
+                                      {ord.waybill}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '8px 12px' }}>
+                                    <div style={{ fontWeight: 700, color: '#1e293b' }}>{ord.shopName}</div>
+                                    {ord.shopCode && ord.shopCode !== '-' && (
+                                      <div style={{ fontSize: 10.5, color: '#64748b', fontFamily: 'monospace' }}>{ord.shopCode}</div>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', color: '#334155', fontWeight: 600 }}>
+                                    {ord.receiverName || '-'}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#64748b', fontSize: 11.5 }}>
+                                    {ord.receiverPhone || '-'}
+                                  </td>
+                                  <td style={{ padding: '8px 8px', textAlign: 'center', fontFamily: 'monospace', color: '#475569' }}>
+                                    {Number(w).toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                    <span style={{
+                                      padding: '2px 7px',
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      background: ord.status === 'delivered' ? '#ecfdf5' : (ord.status === 'returned' ? '#fef2f2' : '#eff6ff'),
+                                      color: ord.status === 'delivered' ? '#047857' : (ord.status === 'returned' ? '#b91c1c' : '#1d4ed8'),
+                                      border: `1px solid ${ord.status === 'delivered' ? '#a7f3d0' : (ord.status === 'returned' ? '#fecaca' : '#bfdbfe')}`
+                                    }}>
+                                      {stText}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#1d4ed8', fontFamily: 'monospace' }}>
+                                    {cod.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
+                                    {orderFee.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
+                                    {vat.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>
+                                    {total.toLocaleString('vi-VN')} đ
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination & Export Footer Bar */}
+                    <div style={{
+                      padding: '10px 18px',
+                      background: '#f8fafc',
+                      borderTop: '1.5px solid var(--border, #e2e8f0)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 10
+                    }}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Hiển thị <strong>{filtered.length === 0 ? 0 : startIndex + 1}</strong> - <strong>{Math.min(startIndex + ordersPerPage, filtered.length)}</strong> trên tổng <strong>{filtered.length.toLocaleString('vi-VN')}</strong> đơn hàng
+                      </div>
+
+                      {/* Pagination buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setOrderPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 10px', fontSize: 11.5, borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}
+                        >
+                          <ChevronLeft size={13} />
+                          <span>Trước</span>
+                        </button>
+
+                        <span style={{ fontSize: 12, fontWeight: 800, padding: '0 8px', color: '#1e293b' }}>
+                          Trang {currentPage} / {totalPages}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => setOrderPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 10px', fontSize: 11.5, borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}
+                        >
+                          <span>Sau</span>
+                          <ChevronRight size={13} />
+                        </button>
+                      </div>
+
+                      {/* Direct Export 2 Sheet Button */}
+                      <button
+                        type="button"
+                        onClick={exportMonthlyConsolidatedTaxReport}
+                        className="btn btn-sm"
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          borderColor: 'transparent',
+                          color: '#ffffff',
+                          padding: '6px 14px',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          borderRadius: 8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+                        }}
+                      >
+                        <Download size={14} />
+                        <span>Xuất File Excel 2 Sheet</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
       </main>
+
+      {/* 🏢 FOOTER THÔNG TIN ĐƠN VỊ PHÁT TRIỂN PHẦN MỀM (TQ DIGITAL) */}
+      <SoftwareDeveloperFooter />
+
+      {/* 👁️ MODAL: CHI TIẾT TOÀN BỘ ĐƠN HÀNG THÁNG CỦA SHOP (XUẤT HÓA ĐƠN GTGT) */}
+      {viewingShopOrders && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 110,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            background: 'var(--surface, #ffffff)',
+            borderRadius: 18,
+            width: '100%',
+            maxWidth: 1100,
+            maxHeight: '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1.5px solid var(--border, #e2e8f0)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 22px',
+              borderBottom: '1.5px solid var(--border, #e2e8f0)',
+              background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12
+            }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-main)' }}>
+                  <span>TOÀN BỘ ĐƠN HÀNG THÁNG {selectedMonth}/{selectedYear}:</span>
+                  <span style={{ color: '#1d4ed8' }}>{viewingShopOrders.shopName}</span>
+                  <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>
+                    {viewingShopOrders.shopCode}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                  SĐT: <strong>{viewingShopOrders.phone || '-'}</strong> • STK/Ngân hàng: <strong>{viewingShopOrders.bankInfo || 'Chưa cập nhật'}</strong> • Tổng số <strong>{viewingShopOrders.orders.length}</strong> đơn gửi trong tháng
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* Single Shop Excel Export Button */}
+                <button
+                  type="button"
+                  onClick={() => exportShopMonthlyInvoiceStatement(viewingShopOrders)}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: 'transparent',
+                    color: '#ffffff',
+                    padding: '7px 14px',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                  }}
+                  title="Tải Bảng Kê Chi Tiết Cước Đính Kèm Hóa Đơn GTGT (.xlsx)"
+                >
+                  <Download size={14} />
+                  <span>Xuất Bảng Kê Hóa Đơn Excel</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingShopOrders(null)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '7px', borderRadius: 8 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI in Modal */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: 10,
+              padding: '12px 22px',
+              background: '#f8fafc',
+              borderBottom: '1px solid var(--border, #e2e8f0)'
+            }}>
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG ĐƠN HÀNG</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#1e293b', marginTop: 2 }}>
+                  {viewingShopOrders.orders.length} <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>đơn</span>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG TIỀN COD</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#1d4ed8', marginTop: 2, fontFamily: 'monospace' }}>
+                  {viewingShopOrders.totalCod.toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 10, color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase' }}>CƯỚC TRƯỚC THUẾ</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#7e22ce', marginTop: 2, fontFamily: 'monospace' }}>
+                  {viewingShopOrders.totalServiceFee.toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid #fecdd3' }}>
+                <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 800, textTransform: 'uppercase' }}>TỔNG HÓA ĐƠN (+VAT {vatRate}%)</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#dc2626', marginTop: 2, fontFamily: 'monospace' }}>
+                  {(viewingShopOrders.totalServiceFee + Math.round(viewingShopOrders.totalServiceFee * (vatRate / 100))).toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                <div style={{ fontSize: 10, color: '#047857', fontWeight: 800, textTransform: 'uppercase' }}>THỰC CHUYỂN SHOP</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', marginTop: 2, fontFamily: 'monospace' }}>
+                  {viewingShopOrders.totalNetPayout.toLocaleString('vi-VN')} đ
+                </div>
+              </div>
+            </div>
+
+            {/* Search Filter Bar inside Modal */}
+            <div style={{ padding: '8px 22px', borderBottom: '1px solid var(--border, #e2e8f0)', display: 'flex', alignItems: 'center', gap: 10, background: '#ffffff' }}>
+              <Search size={14} color="#64748b" />
+              <input
+                type="text"
+                placeholder="Tìm theo mã vận đơn, tên người nhận, số điện thoại..."
+                value={modalOrderSearch}
+                onChange={(e) => setModalOrderSearch(e.target.value)}
+                className="input-field"
+                style={{ flex: 1, padding: '5px 10px', fontSize: 12, height: 32, borderRadius: 6 }}
+              />
+              {modalOrderSearch && (
+                <button
+                  type="button"
+                  onClick={() => setModalOrderSearch('')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '3px 8px', fontSize: 11 }}
+                >
+                  Xóa Lọc
+                </button>
+              )}
+            </div>
+
+            {/* Modal Table Content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 22px 16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#ffffff', zIndex: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <tr style={{ borderBottom: '2px solid var(--border, #e2e8f0)', textAlign: 'left', fontSize: 11.5, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    <th style={{ padding: '10px 8px', width: 35, textAlign: 'center' }}>STT</th>
+                    <th style={{ padding: '10px 10px', width: 110 }}>Kỳ / Ngày</th>
+                    <th style={{ padding: '10px 10px', width: 140 }}>Mã Vận Đơn</th>
+                    <th style={{ padding: '10px 10px' }}>Người Nhận</th>
+                    <th style={{ padding: '10px 10px', width: 110 }}>SĐT Nhận</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', width: 80 }}>TL (kg)</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'center', width: 110 }}>Trạng Thái</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tiền COD</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Cước Trước Thuế</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>VAT ({vatRate}%)</th>
+                    <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng Tiền Cước</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingShopOrders.orders
+                    .filter((ord: any) => {
+                      if (!modalOrderSearch) return true;
+                      const q = modalOrderSearch.toLowerCase();
+                      return (
+                        (ord.waybill || '').toLowerCase().includes(q) ||
+                        (ord.receiverName || '').toLowerCase().includes(q) ||
+                        (ord.receiverPhone || '').toLowerCase().includes(q) ||
+                        (ord.sessionName || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((ord: any, idx: number) => {
+                      const orderFee = ord.shopCalculatedFee !== undefined ? ord.shopCalculatedFee : (ord.fee || 0);
+                      const vat = Math.round(orderFee * (vatRate / 100));
+                      const total = orderFee + vat;
+                      const dateStr = ord.sessionName || (ord.sessionDate ? ord.sessionDate.slice(0, 10) : '-');
+
+                      return (
+                        <tr key={ord.id || idx} style={{ borderBottom: '1px solid var(--border, #f1f5f9)', fontSize: 12 }}>
+                          <td style={{ padding: '8px 4px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
+                          <td style={{ padding: '8px 10px', color: '#64748b', fontSize: 11.5 }}>{dateStr}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 800, fontFamily: 'monospace', color: '#1e293b' }}>
+                            {ord.waybill}
+                          </td>
+                          <td style={{ padding: '8px 10px', fontWeight: 600 }}>{ord.receiverName || '-'}</td>
+                          <td style={{ padding: '8px 10px', fontFamily: 'monospace' }}>{ord.receiverPhone || '-'}</td>
+                          <td style={{ padding: '8px 8px', textAlign: 'center', fontWeight: 600 }}>{(ord.weight || 0.5).toFixed(2)}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                            <span style={{
+                              background: ord.status === 'delivered' ? '#dcfce7' : (ord.status === 'returned' ? '#fee2e2' : '#f1f5f9'),
+                              color: ord.status === 'delivered' ? '#166534' : (ord.status === 'returned' ? '#991b1b' : '#64748b'),
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 4
+                            }}>
+                              {ord.status === 'delivered' ? 'Giao thành công' : (ord.status === 'returned' ? 'Đã hoàn' : (ord.statusText || ord.status))}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#1d4ed8', fontFamily: 'monospace' }}>
+                            {(ord.codAmount || 0).toLocaleString('vi-VN')} đ
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#7e22ce', fontFamily: 'monospace' }}>
+                            {orderFee.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
+                            {vat.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900, color: '#dc2626', fontFamily: 'monospace' }}>
+                            {total.toLocaleString('vi-VN')} đ
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 24px',
+              borderTop: '1px solid var(--border, #e2e8f0)',
+              background: 'var(--bg-app, #f8fafc)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ fontSize: 13 }}>
+                Tổng cước hóa đơn (+VAT {vatRate}%): <strong style={{ color: '#dc2626', fontSize: 15 }}>
+                  {(viewingShopOrders.totalServiceFee + Math.round(viewingShopOrders.totalServiceFee * (vatRate / 100))).toLocaleString('vi-VN')} đ
+                </strong>
+                <span style={{ margin: '0 8px', color: '#cbd5e1' }}>•</span>
+                Thực chuyển Shop: <strong style={{ color: '#047857', fontSize: 15 }}>{viewingShopOrders.totalNetPayout.toLocaleString('vi-VN')} đ</strong>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => exportShopMonthlyInvoiceStatement(viewingShopOrders)}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderColor: 'transparent',
+                    color: '#ffffff',
+                    padding: '7px 16px',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                  }}
+                >
+                  <Download size={15} /> Tải Bảng Kê Excel Cho Shop Này
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingShopOrders(null)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '7px 14px', borderRadius: 8 }}
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🏢 FOOTER THÔNG TIN ĐƠN VỊ PHÁT TRIỂN PHẦN MỀM (TQ DIGITAL) */}
       <SoftwareDeveloperFooter />
