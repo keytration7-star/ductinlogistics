@@ -198,17 +198,23 @@ export const DEFAULT_EXPORT_COLUMNS: ExportColumnSettings = {
 };
 
 // Helper for sending server sync requests asynchronously
-async function postServerSync(endpoint: string, body: any) {
+async function postServerSync(endpoint: string, body: any): Promise<boolean> {
   try {
     const authHeaders = getAuthHeaders();
-    if (!authHeaders.Authorization) return; // Skip sync if not logged in
-    await fetch(endpoint, {
+    if (!authHeaders.Authorization) return false; // Skip sync if not logged in
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      console.warn(`[Server Sync Warning] ${endpoint}: status ${res.status}`);
+      return false;
+    }
+    return true;
   } catch (err) {
-    // Quiet failure in offline/local mode
+    console.warn(`[Server Sync Exception] ${endpoint}:`, err);
+    return false;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ReconciliationView } from './components/ReconciliationView';
 import { ShopManagementView } from './components/ShopManagementView';
@@ -247,13 +247,16 @@ export function App() {
     else setDataConnection('offline');
   }, [currentUser]);
 
-  // Synchronize currentSession with activeCarrierId: When switching carrier, load the matching carrier session or reset to null
+  // Synchronize currentSession only when activeCarrierId explicitly changes (e.g. from Hub/Switcher)
+  const prevCarrierIdRef = useRef<string | null>(activeCarrierId);
   useEffect(() => {
-    if (activeCarrierId) {
-      const isMatching = currentSession && (currentSession.carrierId || 'jnt') === activeCarrierId;
-      if (!isMatching) {
+    if (prevCarrierIdRef.current !== activeCarrierId) {
+      prevCarrierIdRef.current = activeCarrierId;
+      if (activeCarrierId) {
         const matchingSessions = sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId);
         setCurrentSession(matchingSessions.length > 0 ? matchingSessions[0] : null);
+      } else {
+        setCurrentSession(null);
       }
     }
   }, [activeCarrierId, sessions]);
@@ -835,8 +838,9 @@ export function App() {
 
             {activeTab === 'history' && (
               <HistoryAndAnalyticsView
-                sessions={sessions.filter(s => (s.carrierId || 'jnt') === activeCarrierId)}
-                shops={carrierShops}
+                sessions={sessions}
+                shops={shops}
+                activeCarrierId={activeCarrierId}
                 onSelectSession={(session) => {
                   handleSetCurrentSession({ ...session });
                   setActiveTab('reconciliation');

@@ -27,6 +27,7 @@ interface HistoryAndAnalyticsViewProps {
   onNavigateToEmail?: (session: ReconciliationSession) => void;
   onNavigateToZalo?: (session: ReconciliationSession) => void;
   onRefreshSessions?: () => void;
+  activeCarrierId?: string | null;
 }
 
 export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = ({
@@ -36,11 +37,12 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   onNavigateToEmail,
   onNavigateToZalo,
   onRefreshSessions,
+  activeCarrierId,
 }) => {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
-  const [carrierFilter, setCarrierFilter] = useState('ALL');
+  const [carrierFilter, setCarrierFilter] = useState(activeCarrierId || 'ALL');
 
   const handleDeleteSession = async (session: ReconciliationSession) => {
     const ok = await showConfirm({
@@ -87,7 +89,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     StorageService.saveSession(updatedSession);
     showToast('Đã cập nhật Ngày/Kỳ đối soát thành công!', 'success');
     setEditingSession(null);
-    window.location.reload();
+    if (onRefreshSessions) onRefreshSessions();
   };
 
   const formatVND = (num: number) => new Intl.NumberFormat('vi-VN').format(num) + ' đ';

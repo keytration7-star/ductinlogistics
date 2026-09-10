@@ -1212,11 +1212,11 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   // Reset uploaded files and current session while preserving shops, pricing & column mapping
   const handleResetReconciliation = async () => {
     const ok = await showConfirm({
-      title: 'Làm Mới File Đối Soát',
-      message: 'Bạn có chắc muốn làm mới để tải lại 2 file Excel khác? Danh sách Shop, Bảng giá và Cấu hình ánh xạ cột sẽ được GIỮ NGUYÊN 100%.',
-      confirmText: 'Làm Mới',
-      cancelText: 'Giữ lại',
-      warning: true,
+      title: 'Bắt Đầu Kỳ Đối Soát Mới',
+      message: `Kỳ đối soát "${currentSession?.sessionName || 'này'}" đã được LƯU AN TOÀN vào Lịch Sử. Bạn có muốn làm mới màn hình để nạp file cho kỳ đối soát tiếp theo?`,
+      confirmText: 'Bắt Đầu Kỳ Mới',
+      cancelText: 'Ở Lại Xem',
+      warning: false,
     });
     if (ok) {
       setNvcFile(null);
@@ -1233,6 +1233,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       setIsPeriodConfirmed(false);
       setPendingFileAction(null);
       setWizardStep(1);
+      showToast('Đã sẵn sàng cho kỳ đối soát mới! Hãy chọn ngày chốt và tải file lên.', 'info');
     }
   };
 
@@ -4087,36 +4088,64 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
             gap: 12,
             padding: '16px 22px',
             borderRadius: 14,
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)',
-            border: '2px solid rgba(79, 70, 229, 0.25)',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(240,253,244,0.95) 100%)',
+            border: '2px solid rgba(16, 185, 129, 0.35)',
+            boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)',
           }}>
-            <div>
-              <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>Đã xong kỳ đối soát này?</strong>
-              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Bấm nút bên phải để dọn sạch dữ liệu tạm và bắt đầu nạp file cho kỳ đối soát tiếp theo.</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <strong style={{ fontSize: 13.5, color: 'var(--text-main)' }}>✓ Kỳ "{currentSession.sessionName}" Đã Lưu An Toàn Vào Hệ Thống</strong>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Bạn có thể mở xem lại trong Lịch Sử bất cứ lúc nào hoặc bấm bắt đầu kỳ đối soát mới.</div>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleResetReconciliation}
-              className="btn btn-primary btn-lg"
-              style={{
-                fontWeight: 900,
-                fontSize: 13.5,
-                padding: '11px 26px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 8,
-                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
-              }}
-            >
-              <CheckCircle2 size={18} />
-              <span>✓ Hoàn Tất & Làm Mới (Bắt Đầu Kỳ Mới)</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {onNavigateToHistory && (
+                <button
+                  type="button"
+                  onClick={onNavigateToHistory}
+                  className="btn btn-secondary btn-lg"
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 13,
+                    padding: '10px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    borderRadius: 8,
+                  }}
+                  title="Mở tab Lịch Sử & Báo Cáo để xem danh sách tất cả các kỳ đã đối soát"
+                >
+                  <History size={16} color="var(--primary)" />
+                  <span>💾 Xem Trong Lịch Sử</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleResetReconciliation}
+                className="btn btn-primary btn-lg"
+                style={{
+                  fontWeight: 900,
+                  fontSize: 13,
+                  padding: '10px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                }}
+              >
+                <Plus size={16} />
+                <span>➕ Đối Soát Kỳ Mới (Nạp File Tiếp)</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
