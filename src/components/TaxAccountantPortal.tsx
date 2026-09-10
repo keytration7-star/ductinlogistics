@@ -25,19 +25,24 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  UploadCloud,
+  RefreshCw,
+  FileUp
 } from 'lucide-react';
 import { useToast, useConfirm } from './UIFeedback';
 import { getCarrierTheme } from './CarrierHubDashboard';
 import { StorageService } from '../services/storage';
-import { getCleanCarrierTag } from '../services/excelService';
+import { getCleanCarrierTag, ExcelService } from '../services/excelService';
+import { calculateWeightFee, findRegisteredShop } from '../services/reconciliationService';
+import { normalizeHeader } from '../services/smartColumnDetector';
 import type { 
   ReconciliationSession, 
   Shop, 
   UserAccount, 
   ReconciledOrder, 
   ShopSettlementStatement,
-  CarrierWholesaleTier 
+  CarrierWholesaleTier
 } from '../types';
 
 interface TaxAccountantPortalProps {
@@ -155,7 +160,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     const segments = path.split('/').filter(Boolean);
 
     let carrierId: string | null = null;
-    let tab: 'sessions' | 'shops' | 'monthly' = 'sessions';
+    let tab: 'sessions' | 'shops' | 'monthly' | 'outbound' = 'sessions';
     let sessId: string | null = search.get('session_id') || null;
 
     if (segments[0] === 'tax-portal' || segments[0] === 'tax') {
@@ -168,7 +173,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
     if (search.has('tab')) {
       const t = search.get('tab');
-      if (t === 'shops' || t === 'monthly' || t === 'sessions') tab = t;
+      if (t === 'shops' || t === 'monthly' || t === 'sessions' || t === 'outbound') tab = t;
     }
 
     return { carrierId, tab, sessId };
@@ -178,9 +183,29 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
   // Active carrier selection: null = Hub view (select carrier card), 'all' | carrierId = inside carrier workspace
   const [activeCarrierId, setActiveCarrierId] = useState<string | null>(initialTaxRoute.carrierId);
-  const [activeTab, setActiveTab] = useState<'sessions' | 'shops' | 'monthly'>(initialTaxRoute.tab);
+  const [activeTab, setActiveTab] = useState<'sessions' | 'shops' | 'monthly' | 'outbound'>(initialTaxRoute.tab);
   const [searchQuery, setSearchQuery] = useState('');
   const [hubSearchTerm, setHubSearchTerm] = useState('');
+
+  // ──────────────────────────────────────────
+  // 📦 TAB 4: BÁO CÁO CƯỚC ĐƠN GỬI THÁNG (FILE APP) STATE
+  // ──────────────────────────────────────────
+  const [outboundFile, setOutboundFile] = useState<File | null>(null);
+  const [isParsingOutbound, setIsParsingOutbound] = useState(false);
+  const [outboundSelectedMonth, setOutboundSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${mm}`;
+  });
+  const [outboundRawRows, setOutboundRawRows] = useState<Record<string, any>[]>([]);
+  const [outboundOrders, setOutboundOrders] = useState<any[]>([]);
+  const [outboundSubTab, setOutboundSubTab] = useState<'shops' | 'orders'>('shops');
+  const [outboundSearchQuery, setOutboundSearchQuery] = useState('');
+  const [outboundShopFilter, setOutboundShopFilter] = useState('ALL');
+  const [outboundPage, setOutboundPage] = useState(1);
+  const [isDraggingOutbound, setIsDraggingOutbound] = useState(false);
+  const [outboundVatRate, setOutboundVatRate] = useState<number>(8);
+  const [outboundInvoiceRefCode, setOutboundInvoiceRefCode] = useState<string>('');
   
   // Selected session for viewing details modal
   const [selectedSession, setSelectedSession] = useState<ReconciliationSession | null>(null);
@@ -2129,6 +2154,754 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // 📦 TAB 4 HELPERS: XỬ LÝ FILE ĐƠN GỬI THÁNG & TÍNH CƯỚC THEO GIÁ SHOP
+  // ─────────────────────────────────────────────────────────────────────────
+  const extractOutboundField = (row: Record<string, any>, keywords: string[]): string => {
+    for (const key of Object.keys(row)) {
+      const norm = normalizeHeader(key);
+      if (keywords.some(kw => norm.includes(kw))) {
+        const v = row[key];
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+          return String(v).trim();
+        }
+      }
+    }
+    return '';
+  };
+
+  const extractOutboundNumber = (row: Record<string, any>, keywords: string[], defaultVal = 0): number => {
+    for (const key of Object.keys(row)) {
+      const norm = normalizeHeader(key);
+      if (keywords.some(kw => norm.includes(kw))) {
+        const v = row[key];
+        if (v !== undefined && v !== null) {
+          const cleaned = String(v).replace(/[^0-9.-]/g, '');
+          const num = parseFloat(cleaned);
+          if (!isNaN(num)) return num;
+        }
+      }
+    }
+    return defaultVal;
+  };
+
+  const processOutboundOrders = (rawRows: Record<string, any>[], currentShops: Shop[] = effectiveShops) => {
+    const orders: any[] = [];
+
+    rawRows.forEach((row, idx) => {
+      // Extract Waybill
+      let waybill = extractOutboundField(row, [
+        'ma_van_don', 'mvd', 'waybill', 'tracking_code', 'tracking', 'ma_don_hang', 'so_hieu', 'so_hd', 'ma_don'
+      ]);
+      if (!waybill) {
+        const firstKey = Object.keys(row)[0];
+        if (firstKey && row[firstKey]) {
+          waybill = String(row[firstKey]).trim();
+        }
+      }
+      if (!waybill) return;
+
+      // Extract Shop info
+      const rawShopName = extractOutboundField(row, [
+        'ten_shop', 'shop', 'khach_hang', 'ten_khach_hang', 'nguoi_gui', 'sender_name', 'tai_khoan_gui', 'sender'
+      ]);
+      const rawShopCode = extractOutboundField(row, [
+        'ma_shop', 'shop_code', 'customer_code', 'ma_khach_hang', 'ma_kh'
+      ]);
+      const rawShopPhone = extractOutboundField(row, [
+        'sdt_gui', 'sender_phone', 'sdt_shop', 'phone_gui', 'dien_thoai_gui'
+      ]);
+
+      // Extract Weight (kg)
+      let weight = extractOutboundNumber(row, [
+        'khoi_luong_kg', 'tl_tinh_cuoc', 'trong_luong', 'khoi_luong', 'can_nang', 'weight', 'tl'
+      ], 0.5);
+      if (weight > 50) {
+        weight = Math.round((weight / 1000) * 100) / 100;
+      }
+      if (weight <= 0) weight = 0.5;
+
+      // Extract Date
+      const shipDate = extractOutboundField(row, [
+        'ngay_tao', 'ngay_gui', 'ngay_gui_hang', 'created_at', 'thoi_gian_tao', 'ngay_nhan_don', 'ngay', 'date'
+      ]);
+
+      // Extract Receiver info
+      const receiverName = extractOutboundField(row, [
+        'nguoi_nhan', 'ten_nguoi_nhan', 'receiver_name', 'ten_khach_nhan', 'receiver'
+      ]);
+      const receiverPhone = extractOutboundField(row, [
+        'sdt_nhan', 'sdt_nguoi_nhan', 'receiver_phone', 'phone_nhan', 'dien_thoai_nhan'
+      ]);
+      const receiverProvince = extractOutboundField(row, [
+        'tinh_thanh', 'tinh_nhan', 'tinh', 'dia_chi', 'destination', 'dia_chi_nhan', 'receiver_address'
+      ]);
+
+      // Extract COD
+      const codAmount = extractOutboundNumber(row, [
+        'tien_cod', 'cod', 'tien_thu_ho', 'thu_ho', 'tong_thu_ho'
+      ], 0);
+
+      // Extract Status
+      const rawStatus = extractOutboundField(row, [
+        'trang_thai', 'status', 'tinh_trang', 'trang_thai_don'
+      ]) || 'Đã gửi hàng';
+
+      // Extract app fee if present
+      const appFee = extractOutboundNumber(row, [
+        'cuoc_phi', 'phi_van_chuyen', 'tien_cuoc', 'phi_dich_vu', 'tong_cuoc'
+      ], 0);
+
+      // Match with registered shops
+      const matchResult = findRegisteredShop(currentShops, {
+        phone: rawShopPhone,
+        code: rawShopCode,
+        name: rawShopName,
+      });
+
+      const matchedShop = matchResult.matched ? matchResult.shop : undefined;
+
+      // Calculate fee using shop's tiered pricing plan
+      let calculatedFee = 0;
+      if (matchedShop && matchedShop.pricingPlan) {
+        calculatedFee = calculateWeightFee(weight, matchedShop.pricingPlan);
+        if (matchedShop.pricingPlan.fixedSurcharge) {
+          calculatedFee += matchedShop.pricingPlan.fixedSurcharge;
+        }
+      } else {
+        calculatedFee = 25000;
+      }
+
+      orders.push({
+        id: `outbound_${idx}_${waybill}`,
+        waybill,
+        shopId: matchedShop?.id || 'UNASSIGNED',
+        shopCode: matchedShop?.code || rawShopCode || 'KH_CHUA_GAN',
+        shopName: matchedShop?.name || rawShopName || 'Khách vãng lai / Chưa gán',
+        shopLegalName: (matchedShop as any)?.taxInfo?.businessName || (matchedShop as any)?.businessName || matchedShop?.name || rawShopName || 'Chưa đăng ký pháp nhân',
+        shopTaxCode: (matchedShop as any)?.taxInfo?.taxCode || (matchedShop as any)?.taxCode || 'Chưa có MST',
+        shopTaxAddress: (matchedShop as any)?.taxInfo?.address || (matchedShop as any)?.address || '',
+        senderPhone: rawShopPhone || matchedShop?.phone || '',
+        receiverName: receiverName || '-',
+        receiverPhone: receiverPhone || '-',
+        receiverProvince: receiverProvince || '-',
+        weight,
+        codAmount,
+        shipDate: shipDate || '-',
+        status: rawStatus,
+        appFee,
+        calculatedFee,
+        pricingPlanName: matchedShop?.pricingPlan?.name || 'Mặc định',
+        matchedShop,
+      });
+    });
+
+    return orders;
+  };
+
+  const handleOutboundFileSelect = async (file: File) => {
+    if (!file) return;
+    try {
+      setIsParsingOutbound(true);
+      setOutboundFile(file);
+      const parsed = await ExcelService.parseExcelFile(file);
+      if (!parsed.rows || parsed.rows.length === 0) {
+        showToast('File Excel không có dữ liệu hàng nào!', 'warning');
+        setIsParsingOutbound(false);
+        return;
+      }
+
+      setOutboundRawRows(parsed.rows);
+
+      const processed = processOutboundOrders(parsed.rows, effectiveShops);
+      setOutboundOrders(processed);
+      setOutboundPage(1);
+
+      const fname = file.name;
+      const mMatch = fname.match(/(?:thang|t|m)[_ -]?0?([1-9]|1[0-2])[_ -]?(202[0-9])/i);
+      if (mMatch) {
+        const mm = String(mMatch[1]).padStart(2, '0');
+        const yyyy = mMatch[2];
+        setOutboundSelectedMonth(`${yyyy}-${mm}`);
+      }
+
+      showToast(`Đã nạp và tính cước thành công ${processed.length.toLocaleString('vi-VN')} đơn gửi!`, 'success');
+    } catch (err: any) {
+      showToast('Lỗi đọc file Excel đơn gửi: ' + (err?.message || err), 'error');
+    } finally {
+      setIsParsingOutbound(false);
+    }
+  };
+
+  const handleRecalculateOutbound = () => {
+    if (outboundRawRows.length === 0) {
+      showToast('Chưa có dữ liệu file đơn gửi để tính lại!', 'warning');
+      return;
+    }
+    const processed = processOutboundOrders(outboundRawRows, effectiveShops);
+    setOutboundOrders(processed);
+    showToast(`Đã cập nhật lại cước cho ${processed.length.toLocaleString('vi-VN')} đơn!`, 'success');
+  };
+
+  const outboundShopSummaries = useMemo(() => {
+    const map = new Map<string, {
+      shopId: string;
+      shopCode: string;
+      shopName: string;
+      shopLegalName: string;
+      shopTaxCode: string;
+      shopTaxAddress: string;
+      phone: string;
+      orderCount: number;
+      totalWeight: number;
+      totalFee: number;
+      totalCod: number;
+      avgFee: number;
+      orders: any[];
+    }>();
+
+    outboundOrders.forEach(ord => {
+      const key = ord.shopId !== 'UNASSIGNED' ? ord.shopId : `${ord.shopCode}_${ord.shopName}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          shopId: ord.shopId,
+          shopCode: ord.shopCode,
+          shopName: ord.shopName,
+          shopLegalName: ord.shopLegalName,
+          shopTaxCode: ord.shopTaxCode,
+          shopTaxAddress: ord.shopTaxAddress,
+          phone: ord.senderPhone,
+          orderCount: 0,
+          totalWeight: 0,
+          totalFee: 0,
+          totalCod: 0,
+          avgFee: 0,
+          orders: [],
+        });
+      }
+      const item = map.get(key)!;
+      item.orderCount += 1;
+      item.totalWeight += (ord.weight || 0);
+      item.totalFee += (ord.calculatedFee || 0);
+      item.totalCod += (ord.codAmount || 0);
+      item.orders.push(ord);
+    });
+
+    const list = Array.from(map.values());
+    list.forEach(item => {
+      item.avgFee = item.orderCount > 0 ? Math.round(item.totalFee / item.orderCount) : 0;
+    });
+
+    return list.sort((a, b) => b.totalFee - a.totalFee);
+  }, [outboundOrders]);
+
+  const filteredOutboundOrders = useMemo(() => {
+    return outboundOrders.filter(ord => {
+      if (outboundShopFilter !== 'ALL') {
+        const matchShop = ord.shopId === outboundShopFilter || ord.shopCode === outboundShopFilter;
+        if (!matchShop) return false;
+      }
+      if (!outboundSearchQuery) return true;
+      const q = outboundSearchQuery.toLowerCase();
+      return (
+        ord.waybill.toLowerCase().includes(q) ||
+        ord.shopName.toLowerCase().includes(q) ||
+        ord.shopCode.toLowerCase().includes(q) ||
+        ord.receiverName.toLowerCase().includes(q) ||
+        ord.receiverPhone.includes(q) ||
+        ord.receiverProvince.toLowerCase().includes(q)
+      );
+    });
+  }, [outboundOrders, outboundShopFilter, outboundSearchQuery]);
+
+  const exportOutbound2SheetExcel = async () => {
+    if (outboundOrders.length === 0) {
+      showToast('Chưa có dữ liệu đơn gửi để xuất file!', 'warning');
+      return;
+    }
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'GomDon Tax Portal Pro';
+      workbook.created = new Date();
+
+      const [yStr, mStr] = outboundSelectedMonth.split('-');
+      const monthDisplay = `Tháng ${mStr}/${yStr}`;
+
+      const totalFeeAll = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
+      const totalWeightAll = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
+      const totalVatAll = Math.round(totalFeeAll * (outboundVatRate / 100));
+      const totalInvoiceAll = totalFeeAll + totalVatAll;
+
+      // ─────────────────────────────────────────────
+      // SHEET 1: BANG_KE_CUOC_THEO_SHOP
+      // ─────────────────────────────────────────────
+      const wsShop = workbook.addWorksheet('BANG_KE_CUOC_THEO_SHOP', {
+        views: [{ showGridLines: true }],
+        pageSetup: { orientation: 'landscape', paperSize: 9 }
+      });
+
+      wsShop.mergeCells('A1:L1');
+      const titleCell = wsShop.getCell('A1');
+      titleCell.value = `BẢNG KÊ TỔNG HỢP DOANH THU CƯỚC ĐƠN GỬI THEO KHÁCH HÀNG - ${monthDisplay.toUpperCase()}`;
+      titleCell.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      wsShop.getRow(1).height = 36;
+
+      wsShop.getCell('A2').value = `Đơn vị hạch toán: CÔNG TY CỔ PHẦN GOM ĐƠN LOGISTICS`;
+      wsShop.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
+      wsShop.getCell('A3').value = `Kỳ tính cước: ${monthDisplay} (Dựa trên File phát sinh đơn gửi)`;
+      wsShop.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
+      wsShop.getCell('H2').value = `Thuế suất GTGT: ${outboundVatRate}%`;
+      wsShop.getCell('H2').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFDC2626' } };
+      wsShop.getCell('H3').value = `Mã ký hiệu / HĐ: ${outboundInvoiceRefCode || 'HDDT-' + outboundSelectedMonth.replace('-', '')}`;
+      wsShop.getCell('H3').font = { name: 'Arial', size: 10 };
+
+      const shopHeaders = [
+        'STT',
+        'MÃ SHOP',
+        'TÊN KHÁCH HÀNG / SHOP',
+        'TÊN PHÁP NHÂN XUẤT HÓA ĐƠN',
+        'MÃ SỐ THUẾ (MST)',
+        'SỐ ĐIỆN THOẠI',
+        'SỐ ĐƠN GỬI',
+        'TỔNG CÂN NẶNG (KG)',
+        'ĐƠN GIÁ TB/ĐƠN (Đ)',
+        'DOANH THU CƯỚC TRƯỚC THUẾ (Đ)',
+        `THUẾ GTGT (${outboundVatRate}%) (Đ)`,
+        'TỔNG TIỀN THANH TOÁN (+VAT) (Đ)'
+      ];
+
+      const headerRowShop = wsShop.getRow(5);
+      headerRowShop.values = shopHeaders;
+      headerRowShop.height = 28;
+      headerRowShop.eachCell((cell) => {
+        cell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+        };
+      });
+
+      let currentRowIdx = 6;
+      outboundShopSummaries.forEach((s, idx) => {
+        const vatVal = Math.round(s.totalFee * (outboundVatRate / 100));
+        const totalWithVat = s.totalFee + vatVal;
+
+        const row = wsShop.getRow(currentRowIdx);
+        row.values = [
+          idx + 1,
+          s.shopCode,
+          s.shopName,
+          s.shopLegalName,
+          s.shopTaxCode,
+          s.phone || '-',
+          s.orderCount,
+          s.totalWeight,
+          s.avgFee,
+          s.totalFee,
+          vatVal,
+          totalWithVat
+        ];
+        row.height = 22;
+
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Arial', size: 10 };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+
+          if (colNum === 1) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 2) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.font = { name: 'Arial', size: 10, bold: true };
+          } else if (colNum === 5 || colNum === 6) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.numFmt = '#,##0';
+            cell.font = { name: 'Arial', size: 10, bold: true };
+          } else if (colNum === 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.00 "kg"';
+          } else if (colNum >= 9) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+            if (colNum === 10 || colNum === 12) {
+              cell.font = { name: 'Arial', size: 10, bold: true };
+            }
+          }
+        });
+
+        if (idx % 2 === 1) {
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          });
+        }
+
+        currentRowIdx++;
+      });
+
+      const totalRowShop = wsShop.getRow(currentRowIdx);
+      totalRowShop.values = [
+        'TỔNG CỘNG',
+        '',
+        '',
+        '',
+        '',
+        `${outboundShopSummaries.length} Shops`,
+        outboundOrders.length,
+        totalWeightAll,
+        outboundOrders.length > 0 ? Math.round(totalFeeAll / outboundOrders.length) : 0,
+        totalFeeAll,
+        totalVatAll,
+        totalInvoiceAll
+      ];
+      wsShop.mergeCells(`A${currentRowIdx}:E${currentRowIdx}`);
+      totalRowShop.height = 28;
+      totalRowShop.eachCell((cell, colNum) => {
+        cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF1E293B' } },
+          bottom: { style: 'double', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+        };
+
+        if (colNum === 1) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNum === 6 || colNum === 7) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          if (colNum === 7) cell.numFmt = '#,##0';
+        } else if (colNum === 8) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0.00 "kg"';
+        } else if (colNum >= 9) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+          if (colNum === 12) {
+            cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFB91C1C' } };
+          }
+        }
+      });
+
+      const shopColWidths = [6, 16, 26, 30, 18, 16, 14, 18, 18, 24, 20, 26];
+      shopColWidths.forEach((w, i) => {
+        wsShop.getColumn(i + 1).width = w;
+      });
+
+      // ─────────────────────────────────────────────
+      // SHEET 2: CHI_TIET_DON_GUI_TRONG_THANG
+      // ─────────────────────────────────────────────
+      const wsDetail = workbook.addWorksheet('CHI_TIET_DON_GUI_TRONG_THANG', {
+        views: [{ showGridLines: true }],
+        pageSetup: { orientation: 'landscape', paperSize: 9 }
+      });
+
+      wsDetail.mergeCells('A1:O1');
+      const titleCell2 = wsDetail.getCell('A1');
+      titleCell2.value = `BẢNG KÊ CHI TIẾT TỪNG ĐƠN HÀNG GỬI TRONG ${monthDisplay.toUpperCase()}`;
+      titleCell2.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF047857' } };
+      titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
+      wsDetail.getRow(1).height = 36;
+
+      wsDetail.getCell('A2').value = `Tổng số lượng đơn phát sinh: ${outboundOrders.length.toLocaleString('vi-VN')} đơn`;
+      wsDetail.getCell('A2').font = { name: 'Arial', size: 10, bold: true };
+      wsDetail.getCell('A3').value = `Thời gian xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`;
+      wsDetail.getCell('A3').font = { name: 'Arial', size: 10, italic: true };
+
+      const detailHeaders = [
+        'STT',
+        'MÃ VẬN ĐƠN',
+        'NGÀY GỬI',
+        'MÃ SHOP',
+        'TÊN SHOP',
+        'NGƯỜI NHẬN',
+        'SĐT NHẬN',
+        'TỈNH/THÀNH NHẬN',
+        'TRỌNG LƯỢNG (KG)',
+        'CƯỚC THU SHOP (Đ)',
+        `THUẾ VAT ${outboundVatRate}% (Đ)`,
+        'TỔNG CƯỚC (+VAT) (Đ)',
+        'TIỀN THU HỘ COD (Đ)',
+        'TRẠNG THÁI ĐƠN',
+        'BẢNG GIÁ ÁP DỤNG'
+      ];
+
+      const headerRowDetail = wsDetail.getRow(5);
+      headerRowDetail.values = detailHeaders;
+      headerRowDetail.height = 28;
+      headerRowDetail.eachCell((cell) => {
+        cell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'medium', color: { argb: 'FF064E3B' } },
+          left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+        };
+      });
+
+      let currentDetailIdx = 6;
+      outboundOrders.forEach((ord, idx) => {
+        const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
+        const total = ord.calculatedFee + vat;
+
+        const row = wsDetail.getRow(currentDetailIdx);
+        row.values = [
+          idx + 1,
+          ord.waybill,
+          ord.shipDate,
+          ord.shopCode,
+          ord.shopName,
+          ord.receiverName,
+          ord.receiverPhone,
+          ord.receiverProvince,
+          ord.weight,
+          ord.calculatedFee,
+          vat,
+          total,
+          ord.codAmount,
+          ord.status,
+          ord.pricingPlanName
+        ];
+        row.height = 20;
+
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Arial', size: 9.5 };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+
+          if (colNum === 1) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 2) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            cell.font = { name: 'Courier New', size: 9.5, bold: true };
+          } else if (colNum === 3 || colNum === 4 || colNum === 7 || colNum === 14) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 9) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.00 "kg"';
+          } else if (colNum === 10 || colNum === 11 || colNum === 12 || colNum === 13) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+            if (colNum === 10 || colNum === 12) {
+              cell.font = { name: 'Arial', size: 9.5, bold: true };
+            }
+          }
+        });
+
+        if (idx % 2 === 1) {
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+          });
+        }
+
+        currentDetailIdx++;
+      });
+
+      const totalRowDetail = wsDetail.getRow(currentDetailIdx);
+      const totalCodAll = outboundOrders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
+      totalRowDetail.values = [
+        'TỔNG CỘNG',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        `${outboundOrders.length} Đơn`,
+        totalWeightAll,
+        totalFeeAll,
+        totalVatAll,
+        totalInvoiceAll,
+        totalCodAll,
+        '',
+        ''
+      ];
+      wsDetail.mergeCells(`A${currentDetailIdx}:G${currentDetailIdx}`);
+      totalRowDetail.height = 26;
+      totalRowDetail.eachCell((cell, colNum) => {
+        cell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FF1E293B' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF065F46' } },
+          bottom: { style: 'double', color: { argb: 'FF065F46' } },
+          left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+        };
+
+        if (colNum === 1) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNum === 8) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNum === 9) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0.00 "kg"';
+        } else if (colNum >= 10 && colNum <= 13) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      const detailColWidths = [6, 22, 14, 16, 24, 20, 16, 18, 16, 20, 18, 22, 20, 18, 20];
+      detailColWidths.forEach((w, i) => {
+        wsDetail.getColumn(i + 1).width = w;
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const safeMonth = outboundSelectedMonth.replace('-', '_');
+      saveAs(new Blob([buffer]), `Bao_Cao_Cuoc_Don_Gui_Thang_${safeMonth}_2Sheet.xlsx`);
+      showToast('Đã xuất Báo Cáo Cước Đơn Gửi 2 Sheet thành công!', 'success');
+    } catch (err: any) {
+      showToast('Lỗi xuất báo cáo cước đơn gửi: ' + (err?.message || err), 'error');
+    }
+  };
+
+  const exportOutboundSingleShopExcel = async (shopItem: any) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'GomDon Tax Portal Pro';
+      workbook.created = new Date();
+
+      const [yStr, mStr] = outboundSelectedMonth.split('-');
+      const monthDisplay = `Tháng ${mStr}/${yStr}`;
+
+      const ws = workbook.addWorksheet(`CUOC_${shopItem.shopCode}`.slice(0, 31), {
+        views: [{ showGridLines: true }]
+      });
+
+      ws.mergeCells('A1:K1');
+      const titleCell = ws.getCell('A1');
+      titleCell.value = `BẢNG KÊ CHI TIẾT CƯỚC VẬN CHUYỂN - ${shopItem.shopName.toUpperCase()}`;
+      titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(1).height = 34;
+
+      ws.getCell('A2').value = `Đơn vị phát hành: CÔNG TY CỔ PHẦN GOM ĐƠN LOGISTICS`;
+      ws.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
+      ws.getCell('A3').value = `Khách hàng / Shop: ${shopItem.shopName} (${shopItem.shopCode}) | MST: ${shopItem.shopTaxCode || '-'}`;
+      ws.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
+      ws.getCell('A4').value = `Kỳ phát sinh cước: ${monthDisplay} | Tổng số đơn: ${shopItem.orderCount} đơn`;
+      ws.getCell('A4').font = { name: 'Arial', size: 10 };
+
+      const headers = [
+        'STT', 'MÃ VẬN ĐƠN', 'NGÀY GỬI', 'NGƯỜI NHẬN', 'SĐT', 'ĐỊA CHỈ / TỈNH', 
+        'TRỌNG LƯỢNG (KG)', 'CƯỚC CHƯA THUẾ (Đ)', `THUẾ VAT ${outboundVatRate}% (Đ)`, 'TỔNG CƯỚC (+VAT) (Đ)', 'TRẠNG THÁI'
+      ];
+
+      const headerRow = ws.getRow(6);
+      headerRow.values = headers;
+      headerRow.height = 26;
+      headerRow.eachCell(cell => {
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      let rIdx = 7;
+      shopItem.orders.forEach((ord: any, idx: number) => {
+        const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
+        const total = ord.calculatedFee + vat;
+
+        const row = ws.getRow(rIdx);
+        row.values = [
+          idx + 1,
+          ord.waybill,
+          ord.shipDate,
+          ord.receiverName,
+          ord.receiverPhone,
+          ord.receiverProvince,
+          ord.weight,
+          ord.calculatedFee,
+          vat,
+          total,
+          ord.status
+        ];
+        row.height = 20;
+
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Arial', size: 9.5 };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 2) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            cell.font = { name: 'Courier New', size: 9.5, bold: true };
+          } else if (colNum === 3 || colNum === 5 || colNum === 11) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNum === 7) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.00 "kg"';
+          } else if (colNum >= 8 && colNum <= 10) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0 "đ"';
+            if (colNum === 10) cell.font = { name: 'Arial', size: 9.5, bold: true };
+          }
+        });
+        rIdx++;
+      });
+
+      const totalRow = ws.getRow(rIdx);
+      const vatAll = Math.round(shopItem.totalFee * (outboundVatRate / 100));
+      totalRow.values = [
+        'TỔNG CỘNG', '', '', '', '', '',
+        shopItem.totalWeight,
+        shopItem.totalFee,
+        vatAll,
+        shopItem.totalFee + vatAll,
+        ''
+      ];
+      ws.mergeCells(`A${rIdx}:F${rIdx}`);
+      totalRow.height = 26;
+      totalRow.eachCell((cell, colNum) => {
+        cell.font = { name: 'Arial', size: 10.5, bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+        if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        else if (colNum === 7) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0.00 "kg"';
+        } else if (colNum >= 8 && colNum <= 10) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0 "đ"';
+        }
+      });
+
+      const colWidths = [6, 20, 14, 20, 16, 18, 16, 20, 18, 22, 18];
+      colWidths.forEach((w, i) => {
+        ws.getColumn(i + 1).width = w;
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const safeCode = shopItem.shopCode.replace(/[^a-zA-Z0-9]/g, '_');
+      saveAs(new Blob([buffer]), `Bang_Ke_Cuoc_${safeCode}_Thang_${outboundSelectedMonth.replace('-', '_')}.xlsx`);
+      showToast(`Đã xuất bảng kê cước cho shop ${shopItem.shopName}!`, 'success');
+    } catch (err: any) {
+      showToast('Lỗi xuất bảng kê shop: ' + (err?.message || err), 'error');
+    }
+  };
+
   const handleLogoutClick = async () => {
     const ok = await showConfirm({
       title: 'ĐĂNG XUẤT',
@@ -2768,7 +3541,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             {[
               { id: 'sessions', label: `1. Báo Cáo Đối Soát Theo Kỳ (${filteredSessions.length})`, icon: FileSpreadsheet },
               { id: 'shops', label: `2. Danh Mục Khách Hàng / Shop (${filteredShops.length})`, icon: Store },
-              { id: 'monthly', label: '3. Báo Cáo Thuế Tổng Hợp (Tháng / Quý)', icon: Calendar },
+              { id: 'monthly', label: '3. Báo Cáo Thuế Tổng Hợp (Kỳ Đối Soát)', icon: Calendar },
+              { id: 'outbound', label: `4. Báo Cáo Cước Đơn Gửi Tháng (File App)${outboundOrders.length > 0 ? ` (${outboundOrders.length.toLocaleString('vi-VN')})` : ''}`, icon: Package },
             ].map(tab => {
               const isActive = activeTab === tab.id;
               const Icon = tab.icon;
@@ -4470,6 +5244,779 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                 );
               })()}
             </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {/* 📦 TAB 4: BÁO CÁO CƯỚC ĐƠN GỬI THÁNG (FILE APP / STORE EXPORT)       */}
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'outbound' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* 1. Header Banner & Action Bar */}
+            <div style={{
+              background: 'var(--surface, #ffffff)',
+              borderRadius: 16,
+              padding: '20px 24px',
+              border: '1px solid var(--border, #e2e8f0)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)'
+                  }}>
+                    <Package size={24} />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-main, #1e293b)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      4. Báo Cáo Cước Đơn Gửi Tháng (File App)
+                      <span style={{
+                        fontSize: 11,
+                        background: '#ede9fe',
+                        color: '#6d28d9',
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontWeight: 700
+                      }}>
+                        Theo Ngày Gửi Trong Tháng
+                      </span>
+                    </h2>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-muted, #64748b)', margin: '3px 0 0' }}>
+                      Nạp file xuất từ App để tự động áp bảng giá Admin cho từng shop & xuất Báo cáo Thuế / Bảng kê Hóa đơn 2 Sheet.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right Top Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {/* Month Picker */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #e2e8f0)' }}>
+                    <Calendar size={15} color="#64748b" />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Kỳ Báo Cáo:</span>
+                    <input
+                      type="month"
+                      value={outboundSelectedMonth}
+                      onChange={(e) => {
+                        if (e.target.value) setOutboundSelectedMonth(e.target.value);
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: '#1e293b',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    />
+                  </div>
+
+                  {/* VAT Rate Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #e2e8f0)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>VAT:</span>
+                    <select
+                      value={outboundVatRate}
+                      onChange={(e) => setOutboundVatRate(Number(e.target.value))}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: '#dc2626',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value={8}>8% (Logistics / Vận tải)</option>
+                      <option value={10}>10% (Tiêu chuẩn)</option>
+                      <option value={0}>0% (Không thuế)</option>
+                    </select>
+                  </div>
+
+                  {/* Invoice Ref Code */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #e2e8f0)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Ký Hiệu HĐ:</span>
+                    <input
+                      type="text"
+                      placeholder={`HDDT-${outboundSelectedMonth.replace('-', '')}`}
+                      value={outboundInvoiceRefCode}
+                      onChange={(e) => setOutboundInvoiceRefCode(e.target.value)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        outline: 'none',
+                        width: 120
+                      }}
+                    />
+                  </div>
+
+                  {/* Export 2-Sheet Excel Button */}
+                  <button
+                    type="button"
+                    onClick={exportOutbound2SheetExcel}
+                    disabled={outboundOrders.length === 0}
+                    className="btn btn-sm"
+                    style={{
+                      background: outboundOrders.length > 0 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#94a3b8',
+                      borderColor: 'transparent',
+                      color: '#ffffff',
+                      padding: '8px 16px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      cursor: outboundOrders.length > 0 ? 'pointer' : 'not-allowed',
+                      boxShadow: outboundOrders.length > 0 ? '0 2px 10px rgba(16, 185, 129, 0.3)' : 'none'
+                    }}
+                    title="Xuất file Báo cáo Thuế Cước Đơn Gửi 2 Sheet (.xlsx)"
+                  >
+                    <Download size={16} />
+                    <span>Xuất Báo Cáo 2 Sheet (.xlsx)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Dropzone */}
+              {outboundOrders.length === 0 ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingOutbound(true);
+                  }}
+                  onDragLeave={() => setIsDraggingOutbound(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingOutbound(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      handleOutboundFileSelect(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  onClick={() => {
+                    const input = document.getElementById('outbound-file-input');
+                    if (input) input.click();
+                  }}
+                  style={{
+                    border: isDraggingOutbound ? '2px dashed #7c3aed' : '2px dashed #cbd5e1',
+                    background: isDraggingOutbound ? '#f5f3ff' : '#f8fafc',
+                    borderRadius: 14,
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 12
+                  }}
+                >
+                  <input
+                    id="outbound-file-input"
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleOutboundFileSelect(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    background: '#ede9fe',
+                    color: '#7c3aed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {isParsingOutbound ? <RefreshCw size={28} className="animate-spin" /> : <UploadCloud size={30} />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#1e293b' }}>
+                      {isParsingOutbound ? 'Đang đọc và phân tích dữ liệu file Excel...' : 'Kéo thả File Excel Đơn Gửi Trong Tháng vào đây hoặc Nhấn để chọn file'}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 4 }}>
+                      Hỗ trợ định dạng .xlsx, .xls, .csv từ phần mềm Gom Đơn, Shop, hoặc App Quản lý vận đơn
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <CheckCircle2 size={20} color="#16a34a" />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>
+                        File hiện tại: <strong>{outboundFile?.name || 'File đơn gửi'}</strong> ({outboundOrders.length.toLocaleString('vi-VN')} đơn hàng)
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#15803d', marginTop: 2 }}>
+                        Kỳ tính cước: <strong>{outboundSelectedMonth}</strong> • Đã tự động khớp bảng giá và tính cước cho <strong>{outboundShopSummaries.length}</strong> shop.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleRecalculateOutbound}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
+                      title="Tính lại cước nếu có thay đổi bảng giá Shop"
+                    >
+                      <RefreshCw size={13} />
+                      <span>Tính Lại Cước</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.getElementById('outbound-file-input-reupload');
+                        if (input) input.click();
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                      <input
+                        id="outbound-file-input-reupload"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleOutboundFileSelect(e.target.files[0]);
+                          }
+                        }}
+                      />
+                      <FileUp size={13} />
+                      <span>Chọn File Khác</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. KPI Summary Cards (When Data Loaded) */}
+            {outboundOrders.length > 0 && (() => {
+              const totalOrders = outboundOrders.length;
+              const totalWeight = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
+              const totalFee = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
+              const totalVat = Math.round(totalFee * (outboundVatRate / 100));
+              const totalInvoice = totalFee + totalVat;
+              const totalShops = outboundShopSummaries.length;
+              const avgWeight = totalOrders > 0 ? (totalWeight / totalOrders).toFixed(2) : '0.00';
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                  {/* Card 1: Total Orders */}
+                  <div style={{
+                    background: 'var(--surface, #ffffff)',
+                    padding: '16px 20px',
+                    borderRadius: 14,
+                    border: '1px solid var(--border, #e2e8f0)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      TỔNG ĐƠN GỬI TRONG THÁNG
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#1e293b', marginTop: 4, fontFamily: 'monospace' }}>
+                      {totalOrders.toLocaleString('vi-VN')} <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>đơn</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
+                      TB cân nặng: <strong>{avgWeight} kg/đơn</strong>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Total Weight */}
+                  <div style={{
+                    background: 'var(--surface, #ffffff)',
+                    padding: '16px 20px',
+                    borderRadius: 14,
+                    border: '1px solid var(--border, #e2e8f0)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: 11.5, color: '#0284c7', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      TỔNG TRỌNG LƯỢNG TÍNH CƯỚC
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#0284c7', marginTop: 4, fontFamily: 'monospace' }}>
+                      {totalWeight.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} <span style={{ fontSize: 13, fontWeight: 600 }}>kg</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
+                      Tổng khối lượng phát sinh từ file
+                    </div>
+                  </div>
+
+                  {/* Card 3: Total Service Fee (Pre-tax & Post-tax) */}
+                  <div style={{
+                    background: 'var(--surface, #ffffff)',
+                    padding: '16px 20px',
+                    borderRadius: 14,
+                    border: '1px solid rgba(124, 58, 237, 0.2)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      DOANH THU CƯỚC CHƯA THUẾ
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#7c3aed', marginTop: 4, fontFamily: 'monospace' }}>
+                      {totalFee.toLocaleString('vi-VN')} đ
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#dc2626', marginTop: 4, fontWeight: 700 }}>
+                      + VAT ({outboundVatRate}%): {totalVat.toLocaleString('vi-VN')} đ = {totalInvoice.toLocaleString('vi-VN')} đ
+                    </div>
+                  </div>
+
+                  {/* Card 4: Total Shops */}
+                  <div style={{
+                    background: 'var(--surface, #ffffff)',
+                    padding: '16px 20px',
+                    borderRadius: 14,
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                  }}>
+                    <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      SỐ SHOP PHÁT SINH ĐƠN
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#059669', marginTop: 4, fontFamily: 'monospace' }}>
+                      {totalShops} <span style={{ fontSize: 13, fontWeight: 600 }}>Shops</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
+                      Đã phân bổ doanh thu theo từng shop
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 3. Subtab Navigation & Data Views */}
+            {outboundOrders.length > 0 && (
+              <div style={{
+                background: 'var(--surface, #ffffff)',
+                borderRadius: 16,
+                border: '1px solid var(--border, #e2e8f0)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                overflow: 'hidden'
+              }}>
+                {/* Subtab Header Switcher */}
+                <div style={{
+                  padding: '14px 20px',
+                  borderBottom: '1px solid var(--border, #e2e8f0)',
+                  background: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setOutboundSubTab('shops')}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        background: outboundSubTab === 'shops' ? '#4f46e5' : '#ffffff',
+                        color: outboundSubTab === 'shops' ? '#ffffff' : '#64748b',
+                        boxShadow: outboundSubTab === 'shops' ? '0 2px 8px rgba(79, 70, 229, 0.3)' : '0 1px 2px rgba(0,0,0,0.05)'
+                      }}
+                    >
+                      🏢 Bảng Phân Bổ Theo Shop ({outboundShopSummaries.length})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOutboundSubTab('orders')}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        background: outboundSubTab === 'orders' ? '#4f46e5' : '#ffffff',
+                        color: outboundSubTab === 'orders' ? '#ffffff' : '#64748b',
+                        boxShadow: outboundSubTab === 'orders' ? '0 2px 8px rgba(79, 70, 229, 0.3)' : '0 1px 2px rgba(0,0,0,0.05)'
+                      }}
+                    >
+                      📦 Toàn Bộ Đơn Gửi Trong Tháng ({outboundOrders.length.toLocaleString('vi-VN')})
+                    </button>
+                  </div>
+
+                  {/* Subtab quick info */}
+                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                    Kỳ tính cước: <strong style={{ color: '#1e293b' }}>{outboundSelectedMonth}</strong>
+                  </div>
+                </div>
+
+                {/* Subtab 1: Shop Summary Breakdown */}
+                {outboundSubTab === 'shops' && (
+                  <div style={{ padding: '16px 20px' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{
+                            borderBottom: '2px solid var(--border, #e2e8f0)',
+                            textAlign: 'left',
+                            fontSize: 11.5,
+                            color: '#475569',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.3,
+                            background: '#f8fafc'
+                          }}>
+                            <th style={{ padding: '10px 8px', width: 40, textAlign: 'center' }}>STT</th>
+                            <th style={{ padding: '10px 10px', width: 110 }}>Mã Shop</th>
+                            <th style={{ padding: '10px 10px' }}>Tên Khách Hàng / Shop</th>
+                            <th style={{ padding: '10px 10px' }}>Pháp Nhân & MST</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'center' }}>Số Đơn</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng kg</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Đơn Giá TB</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Doanh Thu Cước (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>VAT ({outboundVatRate}%)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng Hóa Đơn (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'center', width: 110 }}>Thao Tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outboundShopSummaries.map((shopItem, idx) => {
+                            const vat = Math.round(shopItem.totalFee * (outboundVatRate / 100));
+                            const total = shopItem.totalFee + vat;
+
+                            return (
+                              <tr
+                                key={shopItem.shopId + idx}
+                                style={{
+                                  borderBottom: '1px solid var(--border, #f1f5f9)',
+                                  fontSize: 12.5,
+                                  background: idx % 2 === 1 ? '#fafafa' : '#ffffff'
+                                }}
+                              >
+                                <td style={{ padding: '10px 8px', textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                                <td style={{ padding: '10px 10px' }}>
+                                  <span style={{
+                                    fontFamily: 'monospace',
+                                    fontWeight: 800,
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    fontSize: 11.5
+                                  }}>
+                                    {shopItem.shopCode}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px 10px' }}>
+                                  <div style={{ fontWeight: 800, color: '#1e293b' }}>{shopItem.shopName}</div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>SĐT: {shopItem.phone || '-'}</div>
+                                </td>
+                                <td style={{ padding: '10px 10px' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{shopItem.shopLegalName}</div>
+                                  <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>MST: {shopItem.shopTaxCode}</div>
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 800, color: '#1e293b' }}>
+                                  {shopItem.orderCount.toLocaleString('vi-VN')}
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#0284c7', fontFamily: 'monospace' }}>
+                                  {shopItem.totalWeight.toFixed(2)}
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
+                                  {shopItem.avgFee.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace' }}>
+                                  {shopItem.totalFee.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
+                                  {vat.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 900, color: '#dc2626', fontFamily: 'monospace' }}>
+                                  {total.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => exportOutboundSingleShopExcel(shopItem)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: 11.5,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4
+                                    }}
+                                    title="Tải bảng kê cước riêng cho shop này"
+                                  >
+                                    <Download size={12} />
+                                    <span>Tải Excel</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          {(() => {
+                            const totalOrd = outboundOrders.length;
+                            const totalW = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
+                            const totalF = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
+                            const totalV = Math.round(totalF * (outboundVatRate / 100));
+                            const totalAll = totalF + totalV;
+
+                            return (
+                              <tr style={{
+                                background: '#fef9c3',
+                                borderTop: '2px solid #ca8a04',
+                                fontWeight: 900,
+                                fontSize: 13
+                              }}>
+                                <td colSpan={4} style={{ padding: '12px 10px', textAlign: 'center', color: '#854d0e' }}>
+                                  TỔNG CỘNG ({outboundShopSummaries.length} SHOPS)
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'center', color: '#1e293b' }}>
+                                  {totalOrd.toLocaleString('vi-VN')}
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
+                                  {totalW.toFixed(2)} kg
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'right', color: '#854d0e', fontFamily: 'monospace' }}>
+                                  {totalOrd > 0 ? Math.round(totalF / totalOrd).toLocaleString('vi-VN') : 0} đ
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'right', color: '#7c3aed', fontFamily: 'monospace' }}>
+                                  {totalF.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'right', color: '#854d0e', fontFamily: 'monospace' }}>
+                                  {totalV.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td style={{ padding: '12px 10px', textAlign: 'right', color: '#dc2626', fontFamily: 'monospace', fontSize: 14 }}>
+                                  {totalAll.toLocaleString('vi-VN')} đ
+                                </td>
+                                <td></td>
+                              </tr>
+                            );
+                          })()}
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subtab 2: Detailed Parcel Table */}
+                {outboundSubTab === 'orders' && (
+                  <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {/* Filters Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 280 }}>
+                        <div style={{
+                          position: 'relative',
+                          flex: 1,
+                          maxWidth: 360
+                        }}>
+                          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                          <input
+                            type="text"
+                            placeholder="Tìm mã vận đơn, người nhận, SĐT, tỉnh thành..."
+                            value={outboundSearchQuery}
+                            onChange={(e) => {
+                              setOutboundSearchQuery(e.target.value);
+                              setOutboundPage(1);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '7px 12px 7px 32px',
+                              borderRadius: 8,
+                              border: '1px solid var(--border, #cbd5e1)',
+                              fontSize: 12.5,
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+
+                        {/* Shop Selector */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Filter size={15} color="#64748b" />
+                          <select
+                            value={outboundShopFilter}
+                            onChange={(e) => {
+                              setOutboundShopFilter(e.target.value);
+                              setOutboundPage(1);
+                            }}
+                            style={{
+                              padding: '7px 12px',
+                              borderRadius: 8,
+                              border: '1px solid var(--border, #cbd5e1)',
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              background: '#ffffff',
+                              outline: 'none'
+                            }}
+                          >
+                            <option value="ALL">Tất cả Shop ({outboundOrders.length.toLocaleString('vi-VN')} đơn)</option>
+                            {outboundShopSummaries.map(s => (
+                              <option key={s.shopId} value={s.shopId}>
+                                {s.shopName} ({s.shopCode}) - {s.orderCount} đơn
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Pagination Summary */}
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Hiển thị <strong>{Math.min(filteredOutboundOrders.length, (outboundPage - 1) * ordersPerPage + 1)}</strong> - <strong>{Math.min(filteredOutboundOrders.length, outboundPage * ordersPerPage)}</strong> / <strong>{filteredOutboundOrders.length.toLocaleString('vi-VN')}</strong> đơn
+                      </div>
+                    </div>
+
+                    {/* Table of Orders */}
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{
+                            borderBottom: '2px solid var(--border, #e2e8f0)',
+                            textAlign: 'left',
+                            fontSize: 11.5,
+                            color: '#475569',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.3,
+                            background: '#f8fafc'
+                          }}>
+                            <th style={{ padding: '10px 8px', width: 40, textAlign: 'center' }}>STT</th>
+                            <th style={{ padding: '10px 10px' }}>Mã Vận Đơn</th>
+                            <th style={{ padding: '10px 10px' }}>Ngày Gửi</th>
+                            <th style={{ padding: '10px 10px' }}>Shop</th>
+                            <th style={{ padding: '10px 10px' }}>Người Nhận</th>
+                            <th style={{ padding: '10px 10px' }}>SĐT</th>
+                            <th style={{ padding: '10px 10px' }}>Tỉnh / Thành</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'center' }}>Cân Nặng (kg)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Cước Thu Shop (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tiền COD (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'center' }}>Trạng Thái</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredOutboundOrders
+                            .slice((outboundPage - 1) * ordersPerPage, outboundPage * ordersPerPage)
+                            .map((ord, idx) => {
+                              const globalIdx = (outboundPage - 1) * ordersPerPage + idx + 1;
+                              return (
+                                <tr
+                                  key={ord.id || globalIdx}
+                                  style={{
+                                    borderBottom: '1px solid var(--border, #f1f5f9)',
+                                    fontSize: 12,
+                                    background: idx % 2 === 1 ? '#fafafa' : '#ffffff'
+                                  }}
+                                >
+                                  <td style={{ padding: '8px', textAlign: 'center', color: '#64748b' }}>{globalIdx}</td>
+                                  <td style={{ padding: '8px 10px', fontWeight: 800, fontFamily: 'monospace', color: '#1e293b' }}>
+                                    {ord.waybill}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', color: '#64748b', fontSize: 11.5 }}>
+                                    {ord.shipDate}
+                                  </td>
+                                  <td style={{ padding: '8px 10px' }}>
+                                    <div style={{ fontWeight: 700, color: '#334155' }}>{ord.shopName}</div>
+                                    <div style={{ fontSize: 10.5, color: '#1d4ed8', fontFamily: 'monospace' }}>{ord.shopCode}</div>
+                                  </td>
+                                  <td style={{ padding: '8px 10px', fontWeight: 600 }}>{ord.receiverName}</td>
+                                  <td style={{ padding: '8px 10px', fontFamily: 'monospace' }}>{ord.receiverPhone}</td>
+                                  <td style={{ padding: '8px 10px' }}>{ord.receiverProvince}</td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: '#0284c7' }}>
+                                    {ord.weight.toFixed(2)}
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace' }}>
+                                    {ord.calculatedFee.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#1d4ed8', fontFamily: 'monospace' }}>
+                                    {ord.codAmount.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                    <span style={{
+                                      background: '#f1f5f9',
+                                      color: '#475569',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      padding: '2px 7px',
+                                      borderRadius: 4
+                                    }}>
+                                      {ord.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {Math.ceil(filteredOutboundOrders.length / ordersPerPage) > 1 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 0',
+                        borderTop: '1px solid var(--border, #e2e8f0)'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => setOutboundPage(prev => Math.max(1, prev - 1))}
+                          disabled={outboundPage === 1}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <ChevronLeft size={14} /> Trang Trước
+                        </button>
+
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+                          Trang {outboundPage} / {Math.ceil(filteredOutboundOrders.length / ordersPerPage)}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setOutboundPage(prev => Math.min(Math.ceil(filteredOutboundOrders.length / ordersPerPage), prev + 1))}
+                          disabled={outboundPage >= Math.ceil(filteredOutboundOrders.length / ordersPerPage)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          Trang Tiếp <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
