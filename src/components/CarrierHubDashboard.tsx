@@ -286,9 +286,16 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
     });
 
     sessions.forEach(sess => {
-      const cId = sess.carrierId || 'jnt';
-      const existing = statsMap.get(cId) || {
-        shopCount: shops.filter(s => (s.carrierId || 'jnt') === cId).length,
+      const isJntSess = !sess.carrierId || sess.carrierId === 'jnt' || sess.carrierId === 'j&t' || sess.carrierId === 'jt' || /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|jnt/i.test(`${sess.carrierId} ${sess.carrierName || ''}`);
+      const cId = isJntSess ? 'jnt' : (sess.carrierId || '').toLowerCase().trim();
+      const matchedTier = displayCarriers.find(c => c.carrierId.toLowerCase().trim() === cId);
+      const targetCid = matchedTier ? matchedTier.carrierId : cId;
+
+      const existing = statsMap.get(targetCid) || {
+        shopCount: shops.filter(s => {
+          const sIsJnt = !s.carrierId || s.carrierId === 'jnt' || s.carrierId === 'j&t';
+          return isJntSess ? sIsJnt : (s.carrierId || '').toLowerCase().trim() === targetCid;
+        }).length,
         sessionCount: 0,
         orderCount: 0,
         totalCod: 0,
@@ -302,7 +309,7 @@ export const CarrierHubDashboard: React.FC<CarrierHubDashboardProps> = ({
       if (!existing.lastSessionDate || new Date(sess.createdAt) > new Date(existing.lastSessionDate)) {
         existing.lastSessionDate = sess.createdAt;
       }
-      statsMap.set(cId, existing);
+      statsMap.set(targetCid, existing);
     });
 
     return statsMap;

@@ -44,6 +44,11 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [carrierFilter, setCarrierFilter] = useState(activeCarrierId || 'ALL');
 
+  // Sync carrierFilter when activeCarrierId prop changes (e.g. from Hub or Switcher)
+  React.useEffect(() => {
+    setCarrierFilter(activeCarrierId || 'ALL');
+  }, [activeCarrierId]);
+
   const handleDeleteSession = async (session: ReconciliationSession) => {
     const ok = await showConfirm({
       title: 'Xóa Kỳ Đối Soát',
@@ -178,7 +183,18 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     const matchQuery = s.sessionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.carrierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.nvcFileName && s.nvcFileName.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchCarrier = carrierFilter === 'ALL' || s.carrierId === carrierFilter;
+
+    let matchCarrier = false;
+    if (carrierFilter === 'ALL') {
+      matchCarrier = true;
+    } else if (carrierFilter === 'jnt') {
+      const cId = (s.carrierId || '').toLowerCase().trim();
+      const cName = (s.carrierName || '').toLowerCase().trim();
+      matchCarrier = !cId || cId === 'jnt' || cId === 'j&t' || cId === 'jt' || /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|jnt/i.test(`${cId} ${cName}`);
+    } else {
+      matchCarrier = (s.carrierId || '').toLowerCase().trim() === carrierFilter.toLowerCase().trim();
+    }
+
     return matchQuery && matchCarrier;
   });
 

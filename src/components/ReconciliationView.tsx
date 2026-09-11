@@ -1091,7 +1091,13 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     setIsProcessing(true);
 
     setTimeout(() => {
-      const carrierTier = carriers.find(c => c.carrierId === selectedCarrierId) || carriers[0];
+      const effectiveCid = activeCarrierId || selectedCarrierId || 'jnt';
+      const carrierTier = carriers.find(c => 
+        c.carrierId === effectiveCid || 
+        c.id === effectiveCid ||
+        (effectiveCid === 'jnt' && /(^|[^a-z])j\s*&?\s*t([^a-z]|$)|jnt/i.test(`${c.carrierId} ${c.carrierName}`))
+      ) || carriers.find(c => c.carrierId === 'jnt') || carriers[0];
+
       const rowsToUse = customNvcRows || nvcRows;
       
       const session = performReconciliation(
@@ -1106,6 +1112,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         reconcileMode === '1file' ? undefined : appFile?.name,
         reconcileMode
       );
+
+      session.carrierId = carrierTier.carrierId || effectiveCid || 'jnt';
 
       if (sessionPeriodDate) {
         session.createdAt = new Date(sessionPeriodDate + 'T12:00:00.000Z').toISOString();

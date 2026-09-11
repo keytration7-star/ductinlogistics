@@ -208,7 +208,7 @@ function requireAdmin(req, res, next) {
 }
 
 function requireFinanceWrite(req, res, next) {
-  if (!['ADMIN', 'ACCOUNTANT', 'STAFF'].includes(req.authUser?.role)) {
+  if (!['ADMIN', 'ACCOUNTANT', 'STAFF', 'TAX_ACCOUNTANT'].includes(req.authUser?.role)) {
     return res.status(403).json({ success: false, error: 'Tài khoản không có quyền ghi dữ liệu vận hành.' });
   }
   next();
