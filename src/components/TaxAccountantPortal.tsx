@@ -2933,6 +2933,116 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     }
   };
 
+  const exportOutboundAllShopsZip = async () => {
+    if (outboundOrders.length === 0 || outboundShopSummaries.length === 0) {
+      showToast('Chưa có dữ liệu đơn gửi để đóng gói ZIP!', 'warning');
+      return;
+    }
+    try {
+      showToast('Đang đóng gói toàn bộ bảng kê Shop thành file ZIP...', 'info');
+      const zip = new JSZip();
+      const [yStr, mStr] = outboundSelectedMonth.split('-');
+      const safeMonth = outboundSelectedMonth.replace('-', '_');
+
+      for (const s of outboundShopSummaries) {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'GomDon Tax Portal Pro';
+        const ws = wb.addWorksheet(`CUOC_${s.shopCode}`.slice(0, 31), {
+          views: [{ showGridLines: true }]
+        });
+        ws.mergeCells('A1:K1');
+        const titleCell = ws.getCell('A1');
+        titleCell.value = `BẢNG KÊ CHI TIẾT CƯỚC VẬN CHUYỂN - ${s.shopName.toUpperCase()}`;
+        titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+        titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+        titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(1).height = 34;
+
+        ws.getCell('A2').value = `Đơn vị phát hành: CÔNG TY CỔ PHẦN GOM ĐƠN LOGISTICS`;
+        ws.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
+        ws.getCell('A3').value = `Khách hàng: ${s.shopName} | SĐT: ${s.phone || '-'} | MST: ${s.shopTaxCode || '-'}`;
+        ws.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
+        ws.getCell('A4').value = `Kỳ cước: Tháng ${mStr}/${yStr} | Thuế suất: ${outboundVatRate}%`;
+        ws.getCell('A4').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFDC2626' } };
+
+        const headers = ['STT', 'Mã Vận Đơn', 'Ngày Gửi', 'Người Nhận', 'SĐT Nhận', 'Địa Chỉ / Tỉnh Thành', 'Cân Nặng (kg)', 'Cước Chưa Thuế (đ)', `VAT (${outboundVatRate}%) (đ)`, 'Tổng Cước (+VAT) (đ)', 'Tiền COD (đ)'];
+        const hRow = ws.getRow(6);
+        hRow.values = headers;
+        hRow.height = 26;
+        hRow.eachCell(cell => {
+          cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        let rIdx = 7;
+        let sTotalWeight = 0;
+        let sTotalFee = 0;
+        let sTotalVat = 0;
+        let sTotalWithVat = 0;
+        let sTotalCod = 0;
+
+        (s.orders || []).forEach((ord: any, idx: number) => {
+          const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
+          const total = ord.calculatedFee + vat;
+          sTotalWeight += ord.weight || 0;
+          sTotalFee += ord.calculatedFee || 0;
+          sTotalVat += vat;
+          sTotalWithVat += total;
+          sTotalCod += ord.codAmount || 0;
+
+          const row = ws.getRow(rIdx);
+          row.values = [
+            idx + 1,
+            ord.waybill,
+            ord.shipDate,
+            ord.receiverName,
+            ord.receiverPhone,
+            ord.receiverProvince,
+            ord.weight,
+            ord.calculatedFee,
+            vat,
+            total,
+            ord.codAmount
+          ];
+          row.height = 20;
+          row.eachCell((cell, colNum) => {
+            cell.font = { name: 'Arial', size: 9.5 };
+            if (colNum === 1 || colNum === 3 || colNum === 5) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            else if (colNum === 7) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0.00 "kg"'; }
+            else if (colNum >= 8) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0 "đ"'; }
+          });
+          rIdx++;
+        });
+
+        const totalRow = ws.getRow(rIdx);
+        totalRow.values = ['TỔNG CỘNG', '', '', '', '', `${(s.orders || []).length} Đơn`, sTotalWeight, sTotalFee, sTotalVat, sTotalWithVat, sTotalCod];
+        ws.mergeCells(`A${rIdx}:E${rIdx}`);
+        totalRow.height = 26;
+        totalRow.eachCell((cell, colNum) => {
+          cell.font = { name: 'Arial', size: 10.5, bold: true };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+          if (colNum === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          else if (colNum === 7) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0.00 "kg"'; }
+          else if (colNum >= 8) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0 "đ"'; }
+        });
+
+        const colWidths = [6, 20, 14, 20, 16, 22, 16, 20, 18, 22, 18];
+        colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+        const buf = await wb.xlsx.writeBuffer();
+        const safeName = s.shopName.replace(/[^a-zA-Z0-9\u00C0-\u024F\u1E00-\u1EFF_-]/g, '_');
+        zip.file(`Bang_Ke_Cuoc_${safeName}_${s.shopCode}.xlsx`, buf);
+      }
+
+      const zipContent = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipContent, `Bo_Bang_Ke_Cuoc_Don_Gui_Thang_${safeMonth}_ZIP.zip`);
+      showToast('Đã xuất toàn bộ bảng kê Shop thành file ZIP thành công!', 'success');
+    } catch (err: any) {
+      showToast('Lỗi đóng gói file ZIP: ' + (err?.message || err), 'error');
+    }
+  };
+
   const handleLogoutClick = async () => {
     const ok = await showConfirm({
       title: 'ĐĂNG XUẤT',
@@ -5419,6 +5529,32 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                   >
                     <Download size={16} />
                     <span>Xuất Báo Cáo 2 Sheet (.xlsx)</span>
+                  </button>
+
+                  {/* Export ZIP Button */}
+                  <button
+                    type="button"
+                    onClick={exportOutboundAllShopsZip}
+                    disabled={outboundOrders.length === 0}
+                    className="btn btn-sm"
+                    style={{
+                      background: outboundOrders.length > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)' : '#94a3b8',
+                      borderColor: 'transparent',
+                      color: '#ffffff',
+                      padding: '8px 16px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      cursor: outboundOrders.length > 0 ? 'pointer' : 'not-allowed',
+                      boxShadow: outboundOrders.length > 0 ? '0 2px 10px rgba(79, 70, 229, 0.3)' : 'none'
+                    }}
+                    title="Tải toàn bộ Bảng kê từng Shop thành 1 file nén (.zip)"
+                  >
+                    <Archive size={16} />
+                    <span>Tải Bộ Bảng Kê (File ZIP)</span>
                   </button>
                 </div>
               </div>
