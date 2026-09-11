@@ -1090,7 +1090,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
   const executeReconciliation = (effectiveShops: Shop[], customNvcRows?: Record<string, any>[]) => {
     setIsProcessing(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const effectiveCid = activeCarrierId || selectedCarrierId || 'jnt';
       const carrierTier = carriers.find(c => 
         c.carrierId === effectiveCid || 
@@ -1120,7 +1120,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
       }
 
       // 💾 Tự động lưu kỳ đối soát vào danh sách hệ thống
-      StorageService.saveSession(session);
+      await StorageService.saveSession(session);
       if (onRefreshSessions) {
         onRefreshSessions();
       }

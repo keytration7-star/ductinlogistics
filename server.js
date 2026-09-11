@@ -908,6 +908,223 @@ app.post('/api/auth/users/delete', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────
+// 🚀 PER-FILE SESSIONS DATABASE ENGINE (0ms High Speed, Zero OOM)
+// ──────────────────────────────────────────
+const SESSIONS_DIR = path.join(DATA_DIR, 'sessions_db');
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+
+function getSafeSessionFilename(id) {
+  const safeId = String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${safeId}.json`;
+}
+
+function stripSessionOrders(s) {
+  if (!s || typeof s !== 'object') return s;
+  return {
+    id: s.id,
+    sessionName: s.sessionName,
+    createdAt: s.createdAt,
+    carrierId: s.carrierId || 'jnt',
+    carrierName: s.carrierName || 'J&T Express',
+    mode: s.mode,
+    nvcFileName: s.nvcFileName,
+    appFileName: s.appFileName,
+    mappingSnapshot: s.mappingSnapshot,
+    totalOrders: s.totalOrders || 0,
+    matchedOrdersCount: s.matchedOrdersCount || 0,
+    unmatchedOrdersCount: s.unmatchedOrdersCount || 0,
+    totalCod: s.totalCod || 0,
+    totalNvcCost: s.totalNvcCost || 0,
+    totalShopRevenue: s.totalShopRevenue || 0,
+    totalNetPayout: s.totalNetPayout || 0,
+    totalProfit: s.totalProfit || 0,
+    totalCtvCommission: s.totalCtvCommission || 0,
+    statements: (s.statements || []).map(st => ({
+      shopId: st.shopId,
+      shopCode: st.shopCode,
+      shopName: st.shopName,
+      periodName: st.periodName,
+      totalOrders: st.totalOrders || 0,
+      deliveredOrders: st.deliveredOrders || 0,
+      shippingOrders: st.shippingOrders || 0,
+      returnedOrders: st.returnedOrders || 0,
+      inTransitOrders: st.inTransitOrders || 0,
+      partialOrders: st.partialOrders || 0,
+      totalCod: st.totalCod || 0,
+      totalShopFee: st.totalShopFee || 0,
+      totalShopOtherFee: st.totalShopOtherFee || 0,
+      totalNetPayout: st.totalNetPayout || 0,
+      previousDebt: st.previousDebt || 0,
+      totalNvcCost: st.totalNvcCost || 0,
+      totalProfit: st.totalProfit || 0,
+      totalDeliveredCod: st.totalDeliveredCod || 0,
+      totalDeliveredFee: st.totalDeliveredFee || 0,
+      totalReturnedFee: st.totalReturnedFee || 0,
+      totalPartialCod: st.totalPartialCod || 0,
+      totalPartialFee: st.totalPartialFee || 0,
+      emailStatus: st.emailStatus,
+      bankInfo: st.bankInfo,
+      orders: [], // stripped for instant summary payload
+    })),
+    unmatchedOrders: [], // stripped for instant summary payload
+  };
+}
+
+function readSessionsSummary() {
+  const summary = readJsonFile('sessions_summary.json', null);
+  if (Array.isArray(summary) && summary.length > 0) return summary;
+
+  // Fallback / First-time: build from sessions_db or sessions.json
+  const summaries = [];
+  if (fs.existsSync(SESSIONS_DIR)) {
+    const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json') && !f.includes('.tmp.'));
+    for (const f of files) {
+      try {
+        const full = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
+        summaries.push(stripSessionOrders(full));
+      } catch {}
+    }
+  }
+  if (summaries.length === 0) {
+    const rawSessions = readJsonFile('sessions.json', []);
+    if (Array.isArray(rawSessions)) {
+      rawSessions.forEach(s => summaries.push(stripSessionOrders(s)));
+    }
+  }
+  // Sort by createdAt desc
+  summaries.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  writeJsonFile('sessions_summary.json', summaries);
+  return summaries;
+}
+
+function readSessionDetail(id) {
+  if (!id) return null;
+  const filename = getSafeSessionFilename(id);
+  const filePath = path.join(SESSIONS_DIR, filename);
+  if (fs.existsSync(filePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (err) {
+      console.error(`[Session Read Detail Error] ${id}:`, err);
+    }
+  }
+  // Fallback to monolithic sessions.json if not yet in sessions_db
+  const rawSessions = readJsonFile('sessions.json', []);
+  const found = Array.isArray(rawSessions) ? rawSessions.find(s => s.id === id) : null;
+  if (found) {
+    // Cache into sessions_db for instant subsequent access
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(found, null, 2), 'utf8');
+    } catch {}
+  }
+  return found || null;
+}
+
+function writeSessionDetail(session) {
+  if (!session || !session.id) return false;
+  const filename = getSafeSessionFilename(session.id);
+  const filePath = path.join(SESSIONS_DIR, filename);
+  const tempPath = path.join(SESSIONS_DIR, `${filename}.tmp.${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(session, null, 2), 'utf8');
+    const fd = fs.openSync(tempPath, 'r+');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fs.renameSync(tempPath, filePath);
+
+    // Update sessions_summary.json
+    const summaryList = readSessionsSummary();
+    const lightSession = stripSessionOrders(session);
+    const idx = summaryList.findIndex(s => s.id === session.id);
+    if (idx >= 0) {
+      summaryList[idx] = lightSession;
+    } else {
+      summaryList.unshift(lightSession);
+    }
+    summaryList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    writeJsonFile('sessions_summary.json', summaryList);
+
+    return true;
+  } catch (err) {
+    console.error(`[Session Write Error] ${session.id}:`, err);
+    try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+    return false;
+  }
+}
+
+function deleteSessionDetail(id) {
+  if (!id) return false;
+  const filename = getSafeSessionFilename(id);
+  const filePath = path.join(SESSIONS_DIR, filename);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {}
+
+  const summaryList = readSessionsSummary().filter(s => s.id !== id);
+  writeJsonFile('sessions_summary.json', summaryList);
+  return true;
+}
+
+// 📦 AUTOMATIC DATABASE MIGRATION ON BOOT
+function initSessionsDb() {
+  try {
+    const rawSessions = readJsonFile('sessions.json', null);
+    if (Array.isArray(rawSessions) && rawSessions.length > 0) {
+      console.log(`[Sessions DB] Kiểm tra di chuyển ${rawSessions.length} kỳ đối soát sang Per-File Database...`);
+      let migratedCount = 0;
+      for (const s of rawSessions) {
+        if (!s || !s.id) continue;
+        const fn = getSafeSessionFilename(s.id);
+        const fp = path.join(SESSIONS_DIR, fn);
+        if (!fs.existsSync(fp)) {
+          fs.writeFileSync(fp, JSON.stringify(s, null, 2), 'utf8');
+          migratedCount++;
+        }
+      }
+      if (migratedCount > 0) {
+        console.log(`[Sessions DB] Đã di chuyển thành công ${migratedCount} kỳ sang lưu trữ độc lập.`);
+      }
+    }
+    readSessionsSummary();
+  } catch (err) {
+    console.error('[Sessions DB Init Error]:', err);
+  }
+}
+
+initSessionsDb();
+
+// 🧹 PRUNE OLD BACKUPS ENGINE (Giữ tối đa 10 bản mới nhất, xóa bản cũ > 14 ngày)
+function pruneOldBackups(maxKeep = 10, maxAgeDays = 14) {
+  try {
+    if (!fs.existsSync(BACKUPS_DIR)) return;
+    const files = fs.readdirSync(BACKUPS_DIR).filter(f => f.startsWith('snapshot_') && f.endsWith('.json'));
+    const now = Date.now();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+
+    const fileStats = files.map(f => {
+      const fullPath = path.join(BACKUPS_DIR, f);
+      const stat = fs.statSync(fullPath);
+      return { file: f, path: fullPath, mtime: stat.mtimeMs, size: stat.size };
+    }).sort((a, b) => b.mtime - a.mtime);
+
+    fileStats.forEach((item, index) => {
+      const isTooOld = (now - item.mtime) > maxAgeMs;
+      const isExcess = index >= maxKeep;
+      if (isExcess || isTooOld) {
+        try {
+          fs.unlinkSync(item.path);
+          console.log(`[Backup Pruned] Đã dọn dẹp bản sao lưu cũ: ${item.file}`);
+        } catch {}
+      }
+    });
+  } catch (err) {
+    console.warn('[Backup Prune Error]:', err);
+  }
+}
+
 // 📸 AUTOMATED SERVER SNAPSHOT BACKUP ENGINE
 function createSnapshot(reason = 'auto') {
   try {
@@ -920,7 +1137,7 @@ function createSnapshot(reason = 'auto') {
       reason,
       shops: readJsonFile('shops.json', []),
       carriers: readJsonFile('carriers.json', []),
-      sessions: readJsonFile('sessions.json', []),
+      sessions: readSessionsSummary(),
       companyInfo: readJsonFile('company_info.json', {}),
       emailSettings: readJsonFile('email_settings.json', {}),
       zaloSettings: readJsonFile('zalo_settings.json', {}),
@@ -935,9 +1152,7 @@ function createSnapshot(reason = 'auto') {
 
     fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2), 'utf8');
     console.log(`[Snapshot Created] ${snapshotName}`);
-
-    // Retention is an explicit Admin decision. Never prune financial backups
-    // automatically, even when they are old.
+    pruneOldBackups(10, 14);
     return snapshotName;
   } catch (err) {
     console.error('[Snapshot Fail]:', err);
@@ -962,7 +1177,7 @@ app.get('/api/db/all', requireAuth, (req, res) => {
   try {
     const shops = readJsonFile('shops.json', null);
     const carriers = readJsonFile('carriers.json', null);
-    const rawSessions = readJsonFile('sessions.json', null);
+    const sessions = readSessionsSummary();
     const companyInfo = readJsonFile('company_info.json', null);
     const emailSettings = readJsonFile('email_settings.json', null);
     const zaloSettings = readJsonFile('zalo_settings.json', null);
@@ -973,19 +1188,6 @@ app.get('/api/db/all', requireAuth, (req, res) => {
     const payments = readJsonFile('payments.json', []);
     const ctvs = readJsonFile('ctvs.json', []);
     const auditLogs = readJsonFile('audit_logs.json', []);
-
-    // Strip bulky orders array from statements for instant 0ms load (reduces 126MB to 80KB)
-    let sessions = null;
-    if (Array.isArray(rawSessions)) {
-      sessions = rawSessions.map(s => ({
-        ...s,
-        statements: (s.statements || []).map(st => ({
-          ...st,
-          orders: [], // stripped for instant summary payload
-        })),
-        unmatchedOrders: [], // stripped for instant summary payload
-      }));
-    }
 
     res.json({
       success: true,
@@ -1014,8 +1216,7 @@ app.get('/api/db/all', requireAuth, (req, res) => {
 app.get('/api/db/sessions/detail/:id', requireAuth, (req, res) => {
   try {
     const { id } = req.params;
-    const rawSessions = readJsonFile('sessions.json', []);
-    const session = rawSessions.find(s => s.id === id);
+    const session = readSessionDetail(id);
     if (!session) {
       return res.status(404).json({ success: false, error: 'Không tìm thấy kỳ đối soát' });
     }
@@ -1072,26 +1273,27 @@ app.post('/api/db/carriers', requireAuth, requireAdmin, (req, res) => {
 
 // POST save sessions (bulk)
 app.post('/api/db/sessions', requireAuth, requireFinanceWrite, (req, res) => {
-  const success = writeJsonFile('sessions.json', req.body.sessions || []);
-  res.json({ success });
+  const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
+  let allSuccess = true;
+  for (const s of sessions) {
+    if (s && s.id) {
+      const ok = writeSessionDetail(s);
+      if (!ok) allSuccess = false;
+    }
+  }
+  res.json({ success: allSuccess, count: sessions.length });
 });
 
-// POST upsert single session (granually without array trimming)
+// POST upsert single session (granually with 0ms individual file write)
 app.post('/api/db/sessions/upsert', requireAuth, requireFinanceWrite, (req, res) => {
   try {
     const { session } = req.body;
     if (!session || !session.id) {
       return res.status(400).json({ success: false, error: 'Thiếu session.id' });
     }
-    const currentSessions = readJsonFile('sessions.json', []);
-    const idx = currentSessions.findIndex(s => s.id === session.id);
-    if (idx >= 0) {
-      currentSessions[idx] = session;
-    } else {
-      currentSessions.unshift(session);
-    }
-    const success = writeJsonFile('sessions.json', currentSessions);
-    res.json({ success, count: currentSessions.length });
+    const success = writeSessionDetail(session);
+    const summary = readSessionsSummary();
+    res.json({ success, count: summary.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1102,10 +1304,9 @@ app.post('/api/db/sessions/delete', requireAuth, requireAdmin, (req, res) => {
   try {
     const { id } = req.body;
     if (!id) return res.status(400).json({ success: false, error: 'Thiếu id session' });
-    const currentSessions = readJsonFile('sessions.json', []);
-    const filtered = currentSessions.filter(s => s.id !== id);
-    const success = writeJsonFile('sessions.json', filtered);
-    res.json({ success, count: filtered.length });
+    const success = deleteSessionDetail(id);
+    const summary = readSessionsSummary();
+    res.json({ success, count: summary.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

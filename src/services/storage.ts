@@ -459,7 +459,7 @@ export const StorageService = {
     }
   },
 
-  saveSession(session: ReconciliationSession): void {
+  async saveSession(session: ReconciliationSession): Promise<boolean> {
     const currentSessions = this.getSessions();
     const sessions = [...currentSessions];
     const index = sessions.findIndex(s => s.id === session.id);
@@ -479,14 +479,14 @@ export const StorageService = {
       }));
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(lightSessions));
     } catch (err) {
-      console.warn('[LocalStorage Quota] Dữ liệu đầy đủ được lưu trên RAM cache và Server VPS.');
+      console.warn('[LocalStorage Quota] Dữ liệu tóm tắt được lưu an toàn trên RAM cache và Server VPS.');
     }
 
-    // Granular server upsert keeps the authoritative history independently of browser cache capacity
-    postServerSync('/api/db/sessions/upsert', { session });
+    // Granular server upsert with instant 0ms per-file write
+    return await postServerSync('/api/db/sessions/upsert', { session });
   },
 
-  deleteSession(sessionId: string): void {
+  async deleteSession(sessionId: string): Promise<boolean> {
     const sessions = this.getSessions().filter(s => s.id !== sessionId);
     _inMemorySessionsCache = sessions;
     try {
@@ -497,7 +497,7 @@ export const StorageService = {
       }));
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(lightSessions));
     } catch {}
-    postServerSync('/api/db/sessions/delete', { id: sessionId });
+    return await postServerSync('/api/db/sessions/delete', { id: sessionId });
   },
 
   async getSessionDetail(sessionId: string): Promise<ReconciliationSession | null> {

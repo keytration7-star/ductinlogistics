@@ -2157,28 +2157,33 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   // ─────────────────────────────────────────────────────────────────────────
   // 📦 TAB 4 HELPERS: XỬ LÝ FILE ĐƠN GỬI THÁNG & TÍNH CƯỚC THEO GIÁ SHOP
   // ─────────────────────────────────────────────────────────────────────────
-  const extractOutboundField = (row: Record<string, any>, keywords: string[]): string => {
-    for (const key of Object.keys(row)) {
-      const norm = normalizeHeader(key);
-      if (keywords.some(kw => norm.includes(kw))) {
-        const v = row[key];
-        if (v !== undefined && v !== null && String(v).trim() !== '') {
-          return String(v).trim();
+  const extractOutboundField = (row: Record<string, any>, prioritizedKeywords: string[], excludeKeywords: string[] = []): string => {
+    for (const kw of prioritizedKeywords) {
+      for (const key of Object.keys(row)) {
+        const norm = normalizeHeader(key);
+        if (excludeKeywords.some(ex => norm.includes(ex))) continue;
+        if (norm === kw || norm.includes(kw)) {
+          const v = row[key];
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            return String(v).trim();
+          }
         }
       }
     }
     return '';
   };
 
-  const extractOutboundNumber = (row: Record<string, any>, keywords: string[], defaultVal = 0): number => {
-    for (const key of Object.keys(row)) {
-      const norm = normalizeHeader(key);
-      if (keywords.some(kw => norm.includes(kw))) {
-        const v = row[key];
-        if (v !== undefined && v !== null) {
-          const cleaned = String(v).replace(/[^0-9.-]/g, '');
-          const num = parseFloat(cleaned);
-          if (!isNaN(num)) return num;
+  const extractOutboundNumber = (row: Record<string, any>, prioritizedKeywords: string[], defaultVal = 0): number => {
+    for (const kw of prioritizedKeywords) {
+      for (const key of Object.keys(row)) {
+        const norm = normalizeHeader(key);
+        if (norm === kw || norm.includes(kw)) {
+          const v = row[key];
+          if (v !== undefined && v !== null) {
+            const cleaned = String(v).replace(/[^0-9.-]/g, '');
+            const num = parseFloat(cleaned);
+            if (!isNaN(num)) return num;
+          }
         }
       }
     }
@@ -2191,7 +2196,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
     rawRows.forEach((row, idx) => {
       // Extract Waybill
       let waybill = extractOutboundField(row, [
-        'ma_van_don', 'mvd', 'waybill', 'tracking_code', 'tracking', 'ma_don_hang', 'so_hieu', 'so_hd', 'ma_don'
+        'ma_van_don', 'mvd', 'tracking_code', 'waybill', 'tracking', 'ma_don_hang', 'so_hieu', 'so_hd', 'ma_don'
       ]);
       if (!waybill) {
         const firstKey = Object.keys(row)[0];
@@ -2201,53 +2206,61 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       }
       if (!waybill) return;
 
-      // Extract Shop info
+      // Extract Shop info (Tên người gửi / Tên Shop - Loại trừ địa chỉ, số điện thoại)
       const rawShopName = extractOutboundField(row, [
-        'ten_shop', 'shop', 'khach_hang', 'ten_khach_hang', 'nguoi_gui', 'sender_name', 'tai_khoan_gui', 'sender'
-      ]);
+        'ten_nguoi_gui', 'ten_shop', 'ten_khach_hang', 'sender_name', 'tai_khoan_gui', 'sender', 'khach_hang', 'nguoi_gui'
+      ], ['dia_chi', 'sdt', 'phone', 'dien_thoai', 'mat_khau', 'email']);
+
       const rawShopCode = extractOutboundField(row, [
-        'ma_shop', 'shop_code', 'customer_code', 'ma_khach_hang', 'ma_kh'
-      ]);
-      const rawShopPhone = extractOutboundField(row, [
-        'sdt_gui', 'sender_phone', 'sdt_shop', 'phone_gui', 'dien_thoai_gui'
+        'ma_don_kh', 'ma_shop', 'shop_code', 'customer_code', 'ma_khach_hang', 'ma_kh'
       ]);
 
-      // Extract Weight (kg)
+      const rawShopPhone = extractOutboundField(row, [
+        'so_dien_thoai_di_dong_cua_nguoi_gui', 'sdt_nguoi_gui', 'sdt_gui', 'sender_phone', 'sdt_shop', 'dien_thoai_gui', 'phone_gui', 'so_dt_gui'
+      ], ['nhan', 'receiver', 'nguoi_nhan']);
+
+      const rawShopAddress = extractOutboundField(row, [
+        'dia_chi_nguoi_gui', 'dia_chi_gui', 'dia_chi_shop', 'sender_address'
+      ]);
+
+      // Extract Weight (kg) - Trọng lượng tính phí
       let weight = extractOutboundNumber(row, [
-        'khoi_luong_kg', 'tl_tinh_cuoc', 'trong_luong', 'khoi_luong', 'can_nang', 'weight', 'tl'
+        'trong_luong_tinh_phi', 'khoi_luong_kg', 'tl_tinh_cuoc', 'trong_luong', 'khoi_luong', 'can_nang', 'weight', 'tl'
       ], 0.5);
       if (weight > 50) {
         weight = Math.round((weight / 1000) * 100) / 100;
       }
       if (weight <= 0) weight = 0.5;
 
-      // Extract Date
+      // Extract Date - Thời gian tạo đơn
       const shipDate = extractOutboundField(row, [
-        'ngay_tao', 'ngay_gui', 'ngay_gui_hang', 'created_at', 'thoi_gian_tao', 'ngay_nhan_don', 'ngay', 'date'
+        'thoi_gian_tao_don', 'ngay_tao', 'ngay_gui', 'ngay_gui_hang', 'created_at', 'thoi_gian_tao', 'ngay_nhan_don', 'ngay_ky_nhan', 'thoi_gian_lay_hang', 'ngay', 'date'
       ]);
 
       // Extract Receiver info
       const receiverName = extractOutboundField(row, [
-        'nguoi_nhan', 'ten_nguoi_nhan', 'receiver_name', 'ten_khach_nhan', 'receiver'
-      ]);
-      const receiverPhone = extractOutboundField(row, [
-        'sdt_nhan', 'sdt_nguoi_nhan', 'receiver_phone', 'phone_nhan', 'dien_thoai_nhan'
-      ]);
-      const receiverProvince = extractOutboundField(row, [
-        'tinh_thanh', 'tinh_nhan', 'tinh', 'dia_chi', 'destination', 'dia_chi_nhan', 'receiver_address'
-      ]);
+        'ten_nguoi_nhan', 'nguoi_nhan', 'receiver_name', 'ten_khach_nhan', 'receiver'
+      ], ['gui', 'sender']);
 
-      // Extract COD
+      const receiverPhone = extractOutboundField(row, [
+        'sdt_nguoi_nhan', 'sdt_nhan', 'receiver_phone', 'phone_nhan', 'dien_thoai_nhan'
+      ], ['gui', 'sender']);
+
+      const receiverProvince = extractOutboundField(row, [
+        'dia_chi_nguoi_nhan', 'dia_chi_hanh_chinh', 'tinh_thanh', 'tinh_nhan', 'tinh', 'dia_chi', 'destination', 'dia_chi_nhan', 'receiver_address'
+      ], ['gui', 'sender']);
+
+      // Extract COD - Tiền thu hộ COD
       const codAmount = extractOutboundNumber(row, [
-        'tien_cod', 'cod', 'tien_thu_ho', 'thu_ho', 'tong_thu_ho'
+        'tien_thu_ho_cod', 'cod_thuc_thu', 'tien_cod', 'cod', 'tien_thu_ho', 'thu_ho', 'tong_thu_ho'
       ], 0);
 
-      // Extract Status
+      // Extract Status - Trạng thái vận đơn
       const rawStatus = extractOutboundField(row, [
-        'trang_thai', 'status', 'tinh_trang', 'trang_thai_don'
+        'trang_thai_van_don', 'trang_thai', 'status', 'tinh_trang', 'trang_thai_don'
       ]) || 'Đã gửi hàng';
 
-      // Extract app fee if present
+      // Extract app fee (Cước phí NVC) if present
       const appFee = extractOutboundNumber(row, [
         'cuoc_phi', 'phi_van_chuyen', 'tien_cuoc', 'phi_dich_vu', 'tong_cuoc'
       ], 0);
@@ -2263,13 +2276,30 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
       // Calculate fee using shop's tiered pricing plan
       let calculatedFee = 0;
+      let pricingPlanName = 'Mặc định';
       if (matchedShop && matchedShop.pricingPlan) {
         calculatedFee = calculateWeightFee(weight, matchedShop.pricingPlan);
         if (matchedShop.pricingPlan.fixedSurcharge) {
           calculatedFee += matchedShop.pricingPlan.fixedSurcharge;
         }
+        pricingPlanName = matchedShop.pricingPlan.name || 'Biểu giá Shop';
       } else {
-        calculatedFee = 25000;
+        calculatedFee = calculateWeightFee(weight, {
+          id: 'default_plan',
+          name: 'Biểu phí chuẩn',
+          carrierId: 'jnt',
+          weightRules: [
+            { minWeight: 0, maxWeight: 0.5, price: 22000 },
+            { minWeight: 0.501, maxWeight: 1.0, price: 26000 },
+            { minWeight: 1.001, maxWeight: 2.0, price: 32000 },
+          ],
+          extraStepWeight: 0.5,
+          extraStepPrice: 5000,
+          returnFeePercent: 0,
+          insuranceFeePercent: 0,
+          fixedSurcharge: 0,
+        });
+        pricingPlanName = 'Biểu phí chuẩn (22k)';
       }
 
       orders.push({
@@ -2280,8 +2310,9 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         shopName: matchedShop?.name || rawShopName || 'Khách vãng lai / Chưa gán',
         shopLegalName: (matchedShop as any)?.taxInfo?.businessName || (matchedShop as any)?.businessName || matchedShop?.name || rawShopName || 'Chưa đăng ký pháp nhân',
         shopTaxCode: (matchedShop as any)?.taxInfo?.taxCode || (matchedShop as any)?.taxCode || 'Chưa có MST',
-        shopTaxAddress: (matchedShop as any)?.taxInfo?.address || (matchedShop as any)?.address || '',
+        shopTaxAddress: (matchedShop as any)?.taxInfo?.address || (matchedShop as any)?.address || rawShopAddress || '',
         senderPhone: rawShopPhone || matchedShop?.phone || '',
+        senderAddress: rawShopAddress || (matchedShop as any)?.address || '',
         receiverName: receiverName || '-',
         receiverPhone: receiverPhone || '-',
         receiverProvince: receiverProvince || '-',
@@ -2291,7 +2322,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         status: rawStatus,
         appFee,
         calculatedFee,
-        pricingPlanName: matchedShop?.pricingPlan?.name || 'Mặc định',
+        pricingPlanName,
         matchedShop,
       });
     });
