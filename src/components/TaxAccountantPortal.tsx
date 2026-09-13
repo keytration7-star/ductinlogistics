@@ -205,7 +205,26 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
   const [outboundPage, setOutboundPage] = useState(1);
   const [isDraggingOutbound, setIsDraggingOutbound] = useState(false);
   const [outboundVatRate, setOutboundVatRate] = useState<number>(8);
+  const [outboundVatMode, setOutboundVatMode] = useState<'inclusive' | 'exclusive'>('inclusive');
   const [outboundInvoiceRefCode, setOutboundInvoiceRefCode] = useState<string>('');
+  
+  // Helper calculate tax breakdown (Reverse tax extraction vs Add-on tax)
+  const getOutboundTaxDetails = (amount: number, vatRate: number = outboundVatRate, mode: 'inclusive' | 'exclusive' = outboundVatMode) => {
+    if (mode === 'inclusive') {
+      // Đơn giá ĐÃ BAO GỒM VAT (Bóc tách thuế ngược - Khớp 100% hóa đơn J&T / App gom đơn)
+      // Ví dụ: Tổng cước = 1.214.000 đ, Thuế 8% -> Tiền trước thuế = 1.124.074 đ, Thuế GTGT = 89.926 đ, Tổng cộng = 1.214.000 đ
+      const preTax = vatRate > 0 ? Math.round(amount / (1 + vatRate / 100)) : amount;
+      const vat = amount - preTax;
+      const total = amount;
+      return { preTax, vat, total };
+    } else {
+      // Đơn giá CHƯA BAO GỒM VAT (Cộng thêm VAT)
+      const preTax = amount;
+      const vat = Math.round(preTax * (vatRate / 100));
+      const total = preTax + vat;
+      return { preTax, vat, total };
+    }
+  };
   
   // Selected session for viewing details modal
   const [selectedSession, setSelectedSession] = useState<ReconciliationSession | null>(null);
@@ -2208,11 +2227,11 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
       // Extract Shop info (Tên người gửi / Tên Shop - Loại trừ địa chỉ, số điện thoại)
       const rawShopName = extractOutboundField(row, [
-        'ten_nguoi_gui', 'ten_shop', 'ten_khach_hang', 'sender_name', 'tai_khoan_gui', 'sender', 'khach_hang', 'nguoi_gui'
-      ], ['dia_chi', 'sdt', 'phone', 'dien_thoai', 'mat_khau', 'email']);
+        'ten_nguoi_gui', 'nguoi_gui', 'sender_name', 'sender', 'ten_khach_hang', 'ten_shop', 'tai_khoan_gui', 'khach_hang', 'shop_name', 'ten_nguoi_ban', 'nguoi_ban'
+      ], ['dia_chi', 'sdt', 'phone', 'dien_thoai', 'mat_khau', 'email', 'nhan', 'receiver']);
 
       const rawShopCode = extractOutboundField(row, [
-        'ma_don_kh', 'ma_shop', 'shop_code', 'customer_code', 'ma_khach_hang', 'ma_kh'
+        'ma_don_kh', 'ma_shop', 'shop_code', 'customer_code', 'ma_khach_hang', 'ma_kh', 'ma_khach'
       ]);
 
       const rawShopPhone = extractOutboundField(row, [
@@ -2260,21 +2279,21 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         'trang_thai_van_don', 'trang_thai', 'status', 'tinh_trang', 'trang_thai_don'
       ]) || 'Đã gửi hàng';
 
-      // Extract app fee (Cước phí NVC) if present
+      // Extract app fee (Cước phí NVC / Cước gốc từ file) if present
       const appFee = extractOutboundNumber(row, [
         'cuoc_phi', 'phi_van_chuyen', 'tien_cuoc', 'phi_dich_vu', 'tong_cuoc'
       ], 0);
 
-      // Match with registered shops
+      // Match with registered shops - Prioritize sender name & alias match
       const matchResult = findRegisteredShop(currentShops, {
+        name: rawShopName,
         phone: rawShopPhone,
         code: rawShopCode,
-        name: rawShopName,
       });
 
       const matchedShop = matchResult.matched ? matchResult.shop : undefined;
 
-      // Calculate fee using shop's tiered pricing plan
+      // Calculate selling fee using shop's configured pricing plan
       let calculatedFee = 0;
       let pricingPlanName = 'Mặc định';
       if (matchedShop && matchedShop.pricingPlan) {
@@ -2302,12 +2321,17 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         pricingPlanName = 'Biểu phí chuẩn (22k)';
       }
 
+      // Shop code and name derivation
+      const finalShopName = matchedShop?.name || rawShopName || 'Khách vãng lai';
+      const finalShopCode = matchedShop?.code || rawShopCode || ('KH_' + (rawShopName ? rawShopName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10) : 'CHUA_GAN'));
+      const finalShopId = matchedShop?.id || (rawShopName ? `SENDER_${rawShopName.trim().toUpperCase()}` : 'UNASSIGNED');
+
       orders.push({
         id: `outbound_${idx}_${waybill}`,
         waybill,
-        shopId: matchedShop?.id || 'UNASSIGNED',
-        shopCode: matchedShop?.code || rawShopCode || 'KH_CHUA_GAN',
-        shopName: matchedShop?.name || rawShopName || 'Khách vãng lai / Chưa gán',
+        shopId: finalShopId,
+        shopCode: finalShopCode,
+        shopName: finalShopName,
         shopLegalName: (matchedShop as any)?.taxInfo?.businessName || (matchedShop as any)?.businessName || matchedShop?.name || rawShopName || 'Chưa đăng ký pháp nhân',
         shopTaxCode: (matchedShop as any)?.taxInfo?.taxCode || (matchedShop as any)?.taxCode || 'Chưa có MST',
         shopTaxAddress: (matchedShop as any)?.taxInfo?.address || (matchedShop as any)?.address || rawShopAddress || '',
@@ -2386,13 +2410,14 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       orderCount: number;
       totalWeight: number;
       totalFee: number;
+      totalAppFee: number;
       totalCod: number;
       avgFee: number;
       orders: any[];
     }>();
 
     outboundOrders.forEach(ord => {
-      const key = ord.shopId !== 'UNASSIGNED' ? ord.shopId : `${ord.shopCode}_${ord.shopName}`;
+      const key = ord.shopId && ord.shopId !== 'UNASSIGNED' ? ord.shopId : `${ord.shopCode}_${ord.shopName}`;
       if (!map.has(key)) {
         map.set(key, {
           shopId: ord.shopId,
@@ -2405,6 +2430,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           orderCount: 0,
           totalWeight: 0,
           totalFee: 0,
+          totalAppFee: 0,
           totalCod: 0,
           avgFee: 0,
           orders: [],
@@ -2414,6 +2440,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       item.orderCount += 1;
       item.totalWeight += (ord.weight || 0);
       item.totalFee += (ord.calculatedFee || 0);
+      item.totalAppFee += (ord.appFee || 0);
       item.totalCod += (ord.codAmount || 0);
       item.orders.push(ord);
     });
@@ -2460,9 +2487,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       const monthDisplay = `Tháng ${mStr}/${yStr}`;
 
       const totalFeeAll = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
+      const totalAppFeeAll = outboundOrders.reduce((sum, o) => sum + (o.appFee || 0), 0);
       const totalWeightAll = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
-      const totalVatAll = Math.round(totalFeeAll * (outboundVatRate / 100));
-      const totalInvoiceAll = totalFeeAll + totalVatAll;
+      const totalCodAll = outboundOrders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
+      const taxAll = getOutboundTaxDetails(totalFeeAll, outboundVatRate, outboundVatMode);
+      const totalPreTaxAll = taxAll.preTax;
+      const totalVatAll = taxAll.vat;
+      const totalInvoiceAll = taxAll.total;
 
       // ─────────────────────────────────────────────
       // SHEET 1: BANG_KE_CUOC_THEO_SHOP
@@ -2472,7 +2503,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         pageSetup: { orientation: 'landscape', paperSize: 9 }
       });
 
-      wsShop.mergeCells('A1:L1');
+      wsShop.mergeCells('A1:N1');
       const titleCell = wsShop.getCell('A1');
       titleCell.value = `BẢNG KÊ TỔNG HỢP DOANH THU CƯỚC ĐƠN GỬI THEO KHÁCH HÀNG - ${monthDisplay.toUpperCase()}`;
       titleCell.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -2484,24 +2515,26 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       wsShop.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
       wsShop.getCell('A3').value = `Kỳ tính cước: ${monthDisplay} (Dựa trên File phát sinh đơn gửi)`;
       wsShop.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
-      wsShop.getCell('H2').value = `Thuế suất GTGT: ${outboundVatRate}%`;
-      wsShop.getCell('H2').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFDC2626' } };
-      wsShop.getCell('H3').value = `Mã ký hiệu / HĐ: ${outboundInvoiceRefCode || 'HDDT-' + outboundSelectedMonth.replace('-', '')}`;
-      wsShop.getCell('H3').font = { name: 'Arial', size: 10 };
+      wsShop.getCell('I2').value = `Thuế suất GTGT: ${outboundVatRate}% (${outboundVatMode === 'inclusive' ? 'Đã gồm VAT - Bóc tách thuế' : 'Chưa gồm VAT - Cộng thêm thuế'})`;
+      wsShop.getCell('I2').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFDC2626' } };
+      wsShop.getCell('I3').value = `Mã ký hiệu / HĐ: ${outboundInvoiceRefCode || 'HDDT-' + outboundSelectedMonth.replace('-', '')}`;
+      wsShop.getCell('I3').font = { name: 'Arial', size: 10 };
 
       const shopHeaders = [
         'STT',
         'MÃ SHOP',
-        'TÊN KHÁCH HÀNG / SHOP',
+        'TÊN NGƯỜI GỬI / SHOP',
         'TÊN PHÁP NHÂN XUẤT HÓA ĐƠN',
         'MÃ SỐ THUẾ (MST)',
         'SỐ ĐIỆN THOẠI',
         'SỐ ĐƠN GỬI',
         'TỔNG CÂN NẶNG (KG)',
         'ĐƠN GIÁ TB/ĐƠN (Đ)',
-        'DOANH THU CƯỚC TRƯỚC THUẾ (Đ)',
+        'DOANH THU TRƯỚC THUẾ (Đ)',
         `THUẾ GTGT (${outboundVatRate}%) (Đ)`,
-        'TỔNG TIỀN THANH TOÁN (+VAT) (Đ)'
+        'TỔNG CƯỚC BÁN (+VAT) (Đ)',
+        'CƯỚC GỐC NVC (Đ)',
+        'LÃI CƯỚC GỘP (Đ)'
       ];
 
       const headerRowShop = wsShop.getRow(5);
@@ -2521,8 +2554,8 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
       let currentRowIdx = 6;
       outboundShopSummaries.forEach((s, idx) => {
-        const vatVal = Math.round(s.totalFee * (outboundVatRate / 100));
-        const totalWithVat = s.totalFee + vatVal;
+        const sTax = getOutboundTaxDetails(s.totalFee, outboundVatRate, outboundVatMode);
+        const sGrossProfit = s.totalAppFee > 0 ? s.totalFee - s.totalAppFee : 0;
 
         const row = wsShop.getRow(currentRowIdx);
         row.values = [
@@ -2535,9 +2568,11 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           s.orderCount,
           s.totalWeight,
           s.avgFee,
-          s.totalFee,
-          vatVal,
-          totalWithVat
+          sTax.preTax,
+          sTax.vat,
+          sTax.total,
+          s.totalAppFee || 0,
+          sGrossProfit
         ];
         row.height = 22;
 
@@ -2593,9 +2628,11 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         outboundOrders.length,
         totalWeightAll,
         outboundOrders.length > 0 ? Math.round(totalFeeAll / outboundOrders.length) : 0,
-        totalFeeAll,
+        totalPreTaxAll,
         totalVatAll,
-        totalInvoiceAll
+        totalInvoiceAll,
+        totalAppFeeAll,
+        totalFeeAll - totalAppFeeAll
       ];
       wsShop.mergeCells(`A${currentRowIdx}:E${currentRowIdx}`);
       totalRowShop.height = 28;
@@ -2626,7 +2663,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         }
       });
 
-      const shopColWidths = [6, 16, 26, 30, 18, 16, 14, 18, 18, 24, 20, 26];
+      const shopColWidths = [6, 16, 26, 30, 18, 16, 14, 18, 18, 24, 20, 26, 20, 20];
       shopColWidths.forEach((w, i) => {
         wsShop.getColumn(i + 1).width = w;
       });
@@ -2639,7 +2676,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         pageSetup: { orientation: 'landscape', paperSize: 9 }
       });
 
-      wsDetail.mergeCells('A1:O1');
+      wsDetail.mergeCells('A1:P1');
       const titleCell2 = wsDetail.getCell('A1');
       titleCell2.value = `BẢNG KÊ CHI TIẾT TỪNG ĐƠN HÀNG GỬI TRONG ${monthDisplay.toUpperCase()}`;
       titleCell2.font = { name: 'Arial', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -2657,14 +2694,15 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         'MÃ VẬN ĐƠN',
         'NGÀY GỬI',
         'MÃ SHOP',
-        'TÊN SHOP',
+        'TÊN NGƯỜI GỬI / SHOP',
         'NGƯỜI NHẬN',
         'SĐT NHẬN',
         'TỈNH/THÀNH NHẬN',
         'TRỌNG LƯỢNG (KG)',
-        'CƯỚC THU SHOP (Đ)',
+        'CƯỚC BÁN TRƯỚC THUẾ (Đ)',
         `THUẾ VAT ${outboundVatRate}% (Đ)`,
-        'TỔNG CƯỚC (+VAT) (Đ)',
+        'TỔNG CƯỚC BÁN (+VAT) (Đ)',
+        'CƯỚC GỐC NVC (Đ)',
         'TIỀN THU HỘ COD (Đ)',
         'TRẠNG THÁI ĐƠN',
         'BẢNG GIÁ ÁP DỤNG'
@@ -2687,8 +2725,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
       let currentDetailIdx = 6;
       outboundOrders.forEach((ord, idx) => {
-        const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
-        const total = ord.calculatedFee + vat;
+        const ordTax = getOutboundTaxDetails(ord.calculatedFee || 0, outboundVatRate, outboundVatMode);
 
         const row = wsDetail.getRow(currentDetailIdx);
         row.values = [
@@ -2701,9 +2738,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           ord.receiverPhone,
           ord.receiverProvince,
           ord.weight,
-          ord.calculatedFee,
-          vat,
-          total,
+          ordTax.preTax,
+          ordTax.vat,
+          ordTax.total,
+          ord.appFee || 0,
           ord.codAmount,
           ord.status,
           ord.pricingPlanName
@@ -2724,12 +2762,12 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           } else if (colNum === 2) {
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
             cell.font = { name: 'Courier New', size: 9.5, bold: true };
-          } else if (colNum === 3 || colNum === 4 || colNum === 7 || colNum === 14) {
+          } else if (colNum === 3 || colNum === 4 || colNum === 7 || colNum === 15) {
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNum === 9) {
             cell.alignment = { horizontal: 'right', vertical: 'middle' };
             cell.numFmt = '#,##0.00 "kg"';
-          } else if (colNum === 10 || colNum === 11 || colNum === 12 || colNum === 13) {
+          } else if (colNum >= 10 && colNum <= 14) {
             cell.alignment = { horizontal: 'right', vertical: 'middle' };
             cell.numFmt = '#,##0 "đ"';
             if (colNum === 10 || colNum === 12) {
@@ -2748,7 +2786,6 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       });
 
       const totalRowDetail = wsDetail.getRow(currentDetailIdx);
-      const totalCodAll = outboundOrders.reduce((sum, o) => sum + (o.codAmount || 0), 0);
       totalRowDetail.values = [
         'TỔNG CỘNG',
         '',
@@ -2759,9 +2796,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         '',
         `${outboundOrders.length} Đơn`,
         totalWeightAll,
-        totalFeeAll,
+        totalPreTaxAll,
         totalVatAll,
         totalInvoiceAll,
+        totalAppFeeAll,
         totalCodAll,
         '',
         ''
@@ -2785,13 +2823,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         } else if (colNum === 9) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           cell.numFmt = '#,##0.00 "kg"';
-        } else if (colNum >= 10 && colNum <= 13) {
+        } else if (colNum >= 10 && colNum <= 14) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           cell.numFmt = '#,##0 "đ"';
         }
       });
 
-      const detailColWidths = [6, 22, 14, 16, 24, 20, 16, 18, 16, 20, 18, 22, 20, 18, 20];
+      const detailColWidths = [6, 22, 14, 16, 24, 20, 16, 18, 16, 20, 18, 22, 20, 20, 18, 20];
       detailColWidths.forEach((w, i) => {
         wsDetail.getColumn(i + 1).width = w;
       });
@@ -2818,7 +2856,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         views: [{ showGridLines: true }]
       });
 
-      ws.mergeCells('A1:K1');
+      ws.mergeCells('A1:L1');
       const titleCell = ws.getCell('A1');
       titleCell.value = `BẢNG KÊ CHI TIẾT CƯỚC VẬN CHUYỂN - ${shopItem.shopName.toUpperCase()}`;
       titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -2830,12 +2868,12 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       ws.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
       ws.getCell('A3').value = `Khách hàng / Shop: ${shopItem.shopName} (${shopItem.shopCode}) | MST: ${shopItem.shopTaxCode || '-'}`;
       ws.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
-      ws.getCell('A4').value = `Kỳ phát sinh cước: ${monthDisplay} | Tổng số đơn: ${shopItem.orderCount} đơn`;
+      ws.getCell('A4').value = `Kỳ phát sinh cước: ${monthDisplay} | Tổng số đơn: ${shopItem.orderCount} đơn | Thuế VAT: ${outboundVatRate}% (${outboundVatMode === 'inclusive' ? 'Đã gồm VAT' : 'Chưa gồm VAT'})`;
       ws.getCell('A4').font = { name: 'Arial', size: 10 };
 
       const headers = [
         'STT', 'MÃ VẬN ĐƠN', 'NGÀY GỬI', 'NGƯỜI NHẬN', 'SĐT', 'ĐỊA CHỈ / TỈNH', 
-        'TRỌNG LƯỢNG (KG)', 'CƯỚC CHƯA THUẾ (Đ)', `THUẾ VAT ${outboundVatRate}% (Đ)`, 'TỔNG CƯỚC (+VAT) (Đ)', 'TRẠNG THÁI'
+        'TRỌNG LƯỢNG (KG)', 'CƯỚC TRƯỚC THUẾ (Đ)', `THUẾ VAT ${outboundVatRate}% (Đ)`, 'TỔNG CƯỚC (+VAT) (Đ)', 'CƯỚC GỐC NVC (Đ)', 'TRẠNG THÁI'
       ];
 
       const headerRow = ws.getRow(6);
@@ -2849,8 +2887,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
 
       let rIdx = 7;
       shopItem.orders.forEach((ord: any, idx: number) => {
-        const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
-        const total = ord.calculatedFee + vat;
+        const ordTax = getOutboundTaxDetails(ord.calculatedFee || 0, outboundVatRate, outboundVatMode);
 
         const row = ws.getRow(rIdx);
         row.values = [
@@ -2861,9 +2898,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           ord.receiverPhone,
           ord.receiverProvince,
           ord.weight,
-          ord.calculatedFee,
-          vat,
-          total,
+          ordTax.preTax,
+          ordTax.vat,
+          ordTax.total,
+          ord.appFee || 0,
           ord.status
         ];
         row.height = 20;
@@ -2880,12 +2918,12 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           else if (colNum === 2) {
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
             cell.font = { name: 'Courier New', size: 9.5, bold: true };
-          } else if (colNum === 3 || colNum === 5 || colNum === 11) {
+          } else if (colNum === 3 || colNum === 5 || colNum === 12) {
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
           } else if (colNum === 7) {
             cell.alignment = { horizontal: 'right', vertical: 'middle' };
             cell.numFmt = '#,##0.00 "kg"';
-          } else if (colNum >= 8 && colNum <= 10) {
+          } else if (colNum >= 8 && colNum <= 11) {
             cell.alignment = { horizontal: 'right', vertical: 'middle' };
             cell.numFmt = '#,##0 "đ"';
             if (colNum === 10) cell.font = { name: 'Arial', size: 9.5, bold: true };
@@ -2895,13 +2933,14 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
       });
 
       const totalRow = ws.getRow(rIdx);
-      const vatAll = Math.round(shopItem.totalFee * (outboundVatRate / 100));
+      const sTaxAll = getOutboundTaxDetails(shopItem.totalFee, outboundVatRate, outboundVatMode);
       totalRow.values = [
         'TỔNG CỘNG', '', '', '', '', '',
         shopItem.totalWeight,
-        shopItem.totalFee,
-        vatAll,
-        shopItem.totalFee + vatAll,
+        sTaxAll.preTax,
+        sTaxAll.vat,
+        sTaxAll.total,
+        shopItem.totalAppFee || 0,
         ''
       ];
       ws.mergeCells(`A${rIdx}:F${rIdx}`);
@@ -2913,13 +2952,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         else if (colNum === 7) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           cell.numFmt = '#,##0.00 "kg"';
-        } else if (colNum >= 8 && colNum <= 10) {
+        } else if (colNum >= 8 && colNum <= 11) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           cell.numFmt = '#,##0 "đ"';
         }
       });
 
-      const colWidths = [6, 20, 14, 20, 16, 18, 16, 20, 18, 22, 18];
+      const colWidths = [6, 20, 14, 20, 16, 18, 16, 20, 18, 22, 18, 18];
       colWidths.forEach((w, i) => {
         ws.getColumn(i + 1).width = w;
       });
@@ -2950,7 +2989,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         const ws = wb.addWorksheet(`CUOC_${s.shopCode}`.slice(0, 31), {
           views: [{ showGridLines: true }]
         });
-        ws.mergeCells('A1:K1');
+        ws.mergeCells('A1:L1');
         const titleCell = ws.getCell('A1');
         titleCell.value = `BẢNG KÊ CHI TIẾT CƯỚC VẬN CHUYỂN - ${s.shopName.toUpperCase()}`;
         titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -2962,10 +3001,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         ws.getCell('A2').font = { name: 'Arial', size: 10, italic: true };
         ws.getCell('A3').value = `Khách hàng: ${s.shopName} | SĐT: ${s.phone || '-'} | MST: ${s.shopTaxCode || '-'}`;
         ws.getCell('A3').font = { name: 'Arial', size: 10, bold: true };
-        ws.getCell('A4').value = `Kỳ cước: Tháng ${mStr}/${yStr} | Thuế suất: ${outboundVatRate}%`;
+        ws.getCell('A4').value = `Kỳ cước: Tháng ${mStr}/${yStr} | Thuế suất: ${outboundVatRate}% (${outboundVatMode === 'inclusive' ? 'Đã gồm VAT' : 'Chưa gồm VAT'})`;
         ws.getCell('A4').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFDC2626' } };
 
-        const headers = ['STT', 'Mã Vận Đơn', 'Ngày Gửi', 'Người Nhận', 'SĐT Nhận', 'Địa Chỉ / Tỉnh Thành', 'Cân Nặng (kg)', 'Cước Chưa Thuế (đ)', `VAT (${outboundVatRate}%) (đ)`, 'Tổng Cước (+VAT) (đ)', 'Tiền COD (đ)'];
+        const headers = ['STT', 'Mã Vận Đơn', 'Ngày Gửi', 'Người Nhận', 'SĐT Nhận', 'Địa Chỉ / Tỉnh Thành', 'Cân Nặng (kg)', 'Cước Trước Thuế (đ)', `VAT (${outboundVatRate}%) (đ)`, 'Tổng Cước (+VAT) (đ)', 'Cước Gốc NVC (đ)', 'Tiền COD (đ)'];
         const hRow = ws.getRow(6);
         hRow.values = headers;
         hRow.height = 26;
@@ -2978,17 +3017,20 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         let rIdx = 7;
         let sTotalWeight = 0;
         let sTotalFee = 0;
+        let sTotalAppFee = 0;
+        let sTotalPreTax = 0;
         let sTotalVat = 0;
         let sTotalWithVat = 0;
         let sTotalCod = 0;
 
         (s.orders || []).forEach((ord: any, idx: number) => {
-          const vat = Math.round(ord.calculatedFee * (outboundVatRate / 100));
-          const total = ord.calculatedFee + vat;
+          const ordTax = getOutboundTaxDetails(ord.calculatedFee || 0, outboundVatRate, outboundVatMode);
           sTotalWeight += ord.weight || 0;
           sTotalFee += ord.calculatedFee || 0;
-          sTotalVat += vat;
-          sTotalWithVat += total;
+          sTotalAppFee += ord.appFee || 0;
+          sTotalPreTax += ordTax.preTax;
+          sTotalVat += ordTax.vat;
+          sTotalWithVat += ordTax.total;
           sTotalCod += ord.codAmount || 0;
 
           const row = ws.getRow(rIdx);
@@ -3000,9 +3042,10 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
             ord.receiverPhone,
             ord.receiverProvince,
             ord.weight,
-            ord.calculatedFee,
-            vat,
-            total,
+            ordTax.preTax,
+            ordTax.vat,
+            ordTax.total,
+            ord.appFee || 0,
             ord.codAmount
           ];
           row.height = 20;
@@ -3016,7 +3059,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
         });
 
         const totalRow = ws.getRow(rIdx);
-        totalRow.values = ['TỔNG CỘNG', '', '', '', '', `${(s.orders || []).length} Đơn`, sTotalWeight, sTotalFee, sTotalVat, sTotalWithVat, sTotalCod];
+        totalRow.values = ['TỔNG CỘNG', '', '', '', '', `${(s.orders || []).length} Đơn`, sTotalWeight, sTotalPreTax, sTotalVat, sTotalWithVat, sTotalAppFee, sTotalCod];
         ws.mergeCells(`A${rIdx}:E${rIdx}`);
         totalRow.height = 26;
         totalRow.eachCell((cell, colNum) => {
@@ -3027,7 +3070,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
           else if (colNum >= 8) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = '#,##0 "đ"'; }
         });
 
-        const colWidths = [6, 20, 14, 20, 16, 22, 16, 20, 18, 22, 18];
+        const colWidths = [6, 20, 14, 20, 16, 22, 16, 20, 18, 22, 18, 18];
         colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
         const buf = await wb.xlsx.writeBuffer();
@@ -5463,6 +5506,27 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     />
                   </div>
 
+                  {/* VAT Mode Selector: Inclusive vs Exclusive */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #e2e8f0)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Kiểu Thuế:</span>
+                    <select
+                      value={outboundVatMode}
+                      onChange={(e) => setOutboundVatMode(e.target.value as 'inclusive' | 'exclusive')}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: 12.5,
+                        fontWeight: 800,
+                        color: '#2563eb',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="inclusive">Đơn giá ĐÃ GỒM VAT (Bóc tách thuế)</option>
+                      <option value="exclusive">Đơn giá CHƯA GỒM VAT (Cộng thêm VAT)</option>
+                    </select>
+                  </div>
+
                   {/* VAT Rate Selector */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #e2e8f0)' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>VAT:</span>
@@ -5644,7 +5708,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                         File hiện tại: <strong>{outboundFile?.name || 'File đơn gửi'}</strong> ({outboundOrders.length.toLocaleString('vi-VN')} đơn hàng)
                       </div>
                       <div style={{ fontSize: 11.5, color: '#15803d', marginTop: 2 }}>
-                        Kỳ tính cước: <strong>{outboundSelectedMonth}</strong> • Đã tự động khớp bảng giá và tính cước cho <strong>{outboundShopSummaries.length}</strong> shop.
+                        Kỳ tính cước: <strong>{outboundSelectedMonth}</strong> • Đã tự động phân bổ theo Tên người gửi cho <strong>{outboundShopSummaries.length}</strong> shop.
                       </div>
                     </div>
                   </div>
@@ -5694,8 +5758,11 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
               const totalOrders = outboundOrders.length;
               const totalWeight = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
               const totalFee = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
-              const totalVat = Math.round(totalFee * (outboundVatRate / 100));
-              const totalInvoice = totalFee + totalVat;
+              const totalAppFee = outboundOrders.reduce((sum, o) => sum + (o.appFee || 0), 0);
+              const taxBreakdown = getOutboundTaxDetails(totalFee, outboundVatRate, outboundVatMode);
+              const totalPreTax = taxBreakdown.preTax;
+              const totalVat = taxBreakdown.vat;
+              const totalInvoice = taxBreakdown.total;
               const totalShops = outboundShopSummaries.length;
               const avgWeight = totalOrders > 0 ? (totalWeight / totalOrders).toFixed(2) : '0.00';
 
@@ -5748,13 +5815,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                     boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
                   }}>
                     <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                      DOANH THU CƯỚC CHƯA THUẾ
+                      TỔNG CƯỚC BÁN THU SHOP ({outboundVatMode === 'inclusive' ? 'ĐÃ GỒM VAT' : 'CHƯA GỒM VAT'})
                     </div>
                     <div style={{ fontSize: 24, fontWeight: 900, color: '#7c3aed', marginTop: 4, fontFamily: 'monospace' }}>
-                      {totalFee.toLocaleString('vi-VN')} đ
+                      {totalInvoice.toLocaleString('vi-VN')} đ
                     </div>
-                    <div style={{ fontSize: 11.5, color: '#dc2626', marginTop: 4, fontWeight: 700 }}>
-                      + VAT ({outboundVatRate}%): {totalVat.toLocaleString('vi-VN')} đ = {totalInvoice.toLocaleString('vi-VN')} đ
+                    <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4, fontWeight: 700 }}>
+                      Trước thuế: <strong style={{ color: '#1e293b' }}>{totalPreTax.toLocaleString('vi-VN')} đ</strong> • VAT ({outboundVatRate}%): <strong style={{ color: '#dc2626' }}>{totalVat.toLocaleString('vi-VN')} đ</strong>
                     </div>
                   </div>
 
@@ -5773,7 +5840,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                       {totalShops} <span style={{ fontSize: 13, fontWeight: 600 }}>Shops</span>
                     </div>
                     <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
-                      Đã phân bổ doanh thu theo từng shop
+                      {totalAppFee > 0 ? `Lãi cước gộp: ${(totalFee - totalAppFee).toLocaleString('vi-VN')} đ` : 'Đã phân bổ doanh thu theo từng shop'}
                     </div>
                   </div>
                 </div>
@@ -5864,21 +5931,20 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                           }}>
                             <th style={{ padding: '10px 8px', width: 40, textAlign: 'center' }}>STT</th>
                             <th style={{ padding: '10px 10px', width: 110 }}>Mã Shop</th>
-                            <th style={{ padding: '10px 10px' }}>Tên Khách Hàng / Shop</th>
+                            <th style={{ padding: '10px 10px' }}>Tên Người Gửi / Shop</th>
                             <th style={{ padding: '10px 10px' }}>Pháp Nhân & MST</th>
                             <th style={{ padding: '10px 10px', textAlign: 'center' }}>Số Đơn</th>
                             <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng kg</th>
                             <th style={{ padding: '10px 10px', textAlign: 'right' }}>Đơn Giá TB</th>
-                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Doanh Thu Cước (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Doanh Thu Trước Thuế (đ)</th>
                             <th style={{ padding: '10px 10px', textAlign: 'right' }}>VAT ({outboundVatRate}%)</th>
-                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng Hóa Đơn (đ)</th>
+                            <th style={{ padding: '10px 10px', textAlign: 'right' }}>Tổng Cước Bán (+VAT) (đ)</th>
                             <th style={{ padding: '10px 10px', textAlign: 'center', width: 110 }}>Thao Tác</th>
                           </tr>
                         </thead>
                         <tbody>
                           {outboundShopSummaries.map((shopItem, idx) => {
-                            const vat = Math.round(shopItem.totalFee * (outboundVatRate / 100));
-                            const total = shopItem.totalFee + vat;
+                            const sTax = getOutboundTaxDetails(shopItem.totalFee, outboundVatRate, outboundVatMode);
 
                             return (
                               <tr
@@ -5921,13 +5987,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                                   {shopItem.avgFee.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace' }}>
-                                  {shopItem.totalFee.toLocaleString('vi-VN')} đ
+                                  {sTax.preTax.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, color: '#64748b', fontFamily: 'monospace' }}>
-                                  {vat.toLocaleString('vi-VN')} đ
+                                  {sTax.vat.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 900, color: '#dc2626', fontFamily: 'monospace' }}>
-                                  {total.toLocaleString('vi-VN')} đ
+                                  {sTax.total.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '10px 10px', textAlign: 'center' }}>
                                   <button
@@ -5956,8 +6022,7 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                             const totalOrd = outboundOrders.length;
                             const totalW = outboundOrders.reduce((sum, o) => sum + (o.weight || 0), 0);
                             const totalF = outboundOrders.reduce((sum, o) => sum + (o.calculatedFee || 0), 0);
-                            const totalV = Math.round(totalF * (outboundVatRate / 100));
-                            const totalAll = totalF + totalV;
+                            const tTax = getOutboundTaxDetails(totalF, outboundVatRate, outboundVatMode);
 
                             return (
                               <tr style={{
@@ -5979,13 +6044,13 @@ export const TaxAccountantPortal: React.FC<TaxAccountantPortalProps> = ({
                                   {totalOrd > 0 ? Math.round(totalF / totalOrd).toLocaleString('vi-VN') : 0} đ
                                 </td>
                                 <td style={{ padding: '12px 10px', textAlign: 'right', color: '#7c3aed', fontFamily: 'monospace' }}>
-                                  {totalF.toLocaleString('vi-VN')} đ
+                                  {tTax.preTax.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '12px 10px', textAlign: 'right', color: '#854d0e', fontFamily: 'monospace' }}>
-                                  {totalV.toLocaleString('vi-VN')} đ
+                                  {tTax.vat.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td style={{ padding: '12px 10px', textAlign: 'right', color: '#dc2626', fontFamily: 'monospace', fontSize: 14 }}>
-                                  {totalAll.toLocaleString('vi-VN')} đ
+                                  {tTax.total.toLocaleString('vi-VN')} đ
                                 </td>
                                 <td></td>
                               </tr>
