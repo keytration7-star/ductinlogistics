@@ -366,10 +366,10 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
     const codIndex = groupHeaders.findIndex(header => header === 'tien_cod');
     const settlementIndex = groupHeaders.findIndex(header => header === 'tong_doi_soat');
     const feeIndexes = groupHeaders
-      .map((header, index) => header === 'phi_dich_vu' ? index : -1)
+      .map((header, index) => (header === 'phi_dich_vu' || header.startsWith('phi_dich_vu')) ? index : -1)
       .filter(index => index >= 0);
 
-    if (waybillIndex < 0 || shopIndex < 0 || statusIndex < 0 || codIndex < 0 || settlementIndex < 0 || feeIndexes.length !== 1) continue;
+    if (waybillIndex < 0 || shopIndex < 0 || statusIndex < 0 || codIndex < 0 || settlementIndex < 0 || feeIndexes.length < 1) continue;
 
     const validWaybill = (value: any) => {
       const text = String(value || '').trim();
@@ -407,7 +407,15 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
       }
     }
 
-    // (Note: standardAliases are added to rowObj below for internal reconciliation, but not added to discoveredHeadersSet to prevent duplicating columns in export)
+    // Find summary fee column (5) or sub-columns (5.1 to 5.6)
+    const summaryFeeCol = colNameMap.find(c => {
+      const n = normalizeHeader(c.name);
+      return n === 'phi_dich_vu_5' || n === 'phi_dich_vu';
+    });
+    const subFeeCols = colNameMap.filter(c => {
+      const n = normalizeHeader(c.name);
+      return n.startsWith('phi_giao_hang') || n.startsWith('phi_giao_lai') || n.startsWith('phi_khai_gia') || n.startsWith('phi_hoan_hang') || n.startsWith('phi_doi_dia_chi');
+    });
 
     const rows: Record<string, any>[] = [];
     for (let dataIndex = rowIndex + 1; dataIndex < rawSheetData.length; dataIndex++) {
@@ -418,7 +426,17 @@ function parseGhnCodTransferSheet(rawSheetData: any[][], sheetName: string): { r
       // GHN stores service fees as negative deductions. The reconciliation
       // engine represents carrier cost as a positive number and adjustment as
       // a signed offset, yielding COD - fee + adjustment = total settlement.
-      const fee = Math.abs(ghnNumber(row[feeIndexes[0]]));
+      let fee = 0;
+      if (summaryFeeCol && row[summaryFeeCol.index] !== undefined && row[summaryFeeCol.index] !== '') {
+        fee = Math.abs(ghnNumber(row[summaryFeeCol.index]));
+      }
+      if (fee === 0 && subFeeCols.length > 0) {
+        fee = subFeeCols.reduce((sum, col) => sum + Math.abs(ghnNumber(row[col.index])), 0);
+      }
+      if (fee === 0 && feeIndexes.length > 0) {
+        fee = Math.abs(ghnNumber(row[feeIndexes[0]]));
+      }
+
       const codOnly = ghnNumber(row[codIndex]);
       // GHN column (2) is 'Giao thất bại - thu tiền'. In GHN settlement, this is collected money paid out to the shop.
       const failCollection = (codIndex >= 0 && row[codIndex + 1] !== undefined) ? ghnNumber(row[codIndex + 1]) : 0;
@@ -956,7 +974,7 @@ export const ExcelService = {
     const amountShopOwes = Math.max(0, -netBalance);
 
     const codOrders = statement.orders.filter(o => (o.codAmount || 0) > 0);
-    const feeOrders = statement.orders.filter(o => ((o.shopCalculatedFee || 0) + (o.shopOtherFee || 0)) > 0);
+    const feeOrders = statement.orders.filter(o => ((o.shopCalculatedFee || 0) + (o.shopOtherFee || 0)) > 0 || (Math.abs(o.nvcBaseFee || 0) + Math.abs(o.nvcOtherFee || 0)) > 0 || o.status === 'in_transit' || o.status === 'fee_charged');
     const returnedOrdersList = statement.orders.filter(o => o.status === 'returned' || o.status === 'returning');
     const partialOrdersList = statement.orders.filter(o => o.isPartialDelivery);
 
@@ -966,7 +984,7 @@ export const ExcelService = {
     const rowsData = [
       ['1. Tổng số dòng đối soát trong kỳ', statement.totalOrders, 'Đơn', 'Tổng đơn xuất đối soát trong kỳ'],
       ['2. Số đơn giao thành công (Hoàn COD)', codOrders.length, 'Đơn', `Tiền COD hoàn: ${statement.totalCod.toLocaleString('vi-VN')} VNĐ | Cước: 0 VNĐ`],
-      ['3. Số đơn phát sinh gửi hàng (Tính cước)', feeOrders.length, 'Đơn', `Cước gửi: ${(statement.totalShopFee + statement.totalShopOtherFee).toLocaleString('vi-VN')} VNĐ | COD: 0 VNĐ`],
+      ['3. Số đơn phát sinh gửi hàng (Tính cước)', statement.shippingOrders !== undefined ? statement.shippingOrders : feeOrders.length, 'Đơn', `Cước gửi: ${(statement.totalShopFee + statement.totalShopOtherFee).toLocaleString('vi-VN')} VNĐ`],
       ['4. Số đơn chuyển hoàn', returnedOrdersList.length, 'Đơn', returnedOrdersList.length > 0 ? `Phí hoàn: ${(statement.totalReturnedFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
       ['5. Số đơn giao 1 phần (GH1P)', partialOrdersList.length, 'Đơn', partialOrdersList.length > 0 ? `COD: ${(statement.totalPartialCod || 0).toLocaleString('vi-VN')} VNĐ | Cước/Phí: ${(statement.totalPartialFee || 0).toLocaleString('vi-VN')} VNĐ` : 'Không có'],
       ['6. TỔNG TIỀN THU HỘ (COD) (+)', statement.totalCod, 'VNĐ', 'Tổng tiền COD NVC đã thu từ người nhận'],

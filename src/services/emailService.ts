@@ -206,7 +206,7 @@ export const EmailService = {
                       ${statement.totalOrders.toLocaleString('vi-VN')} <span style="font-size: 13px; font-weight: 500; color: #64748b;">đơn</span>
                     </div>
                     <div style="font-size: 11.5px; color: #16a34a; margin-top: 4px;">
-                      ✓ Hoàn COD: <strong>${statement.deliveredOrders || 0}</strong> • Tính cước: <strong>${statement.shippingOrders || statement.totalOrders}</strong> • Hoàn: <strong>${statement.returnedOrders || 0}</strong>
+                      ✓ Hoàn COD: <strong>${statement.deliveredOrders || 0}</strong> • Tính cước: <strong>${statement.shippingOrders !== undefined ? statement.shippingOrders : (statement.orders.filter(o => ((o.shopCalculatedFee || 0) + (o.shopOtherFee || 0) > 0) || (o.nvcBaseFee || 0) > 0).length)}</strong> • Hoàn: <strong>${statement.returnedOrders || 0}</strong>
                     </div>
                   </td>
 

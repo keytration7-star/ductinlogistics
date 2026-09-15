@@ -139,10 +139,15 @@ export const StatementPreviewModal: React.FC<StatementPreviewModalProps> = ({
               marginBottom: 16,
             }}>
               <div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tổng số đơn gửi</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{statement.totalOrders} đơn</div>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                  {statement.deliveredOrders} giao xong • {statement.returnedOrders} chuyển hoàn
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Đơn hoàn COD / Tính cước</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  <span style={{ color: 'var(--info)' }}>{statement.deliveredOrders || 0}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}> COD</span> •{' '}
+                  <span style={{ color: '#d97706' }}>{statement.shippingOrders || 0}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}> cước</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                  {statement.returnedOrders ? `${statement.returnedOrders} hoàn • ` : ''}{statement.totalOrders} dòng trong kỳ
                 </div>
               </div>
 

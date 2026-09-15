@@ -34,8 +34,8 @@ const ALIASES = {
     'tien_cod_1', 'tien_thu_ho_vnd_a', 'tien_thu_ho_vnd'
   ],
   fee: [
-    'cuoc_phi', 'tong_cuoc', 'cuoc_van_chuyen', 'phi_van_chuyen', 'cuoc_chinh',
-    'phi_dich_vu', 'phi_dich_vu_5', 'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
+    'phi_dich_vu_5', 'phi_dich_vu', 'cuoc_phi', 'tong_cuoc', 'cuoc_van_chuyen', 'phi_van_chuyen', 'cuoc_chinh',
+    'tong_phi', 'cuoc_thuc_te', 'cuoc_phi_goc', 'cuoc_nvc',
     'shipping_fee', 'fee', 'tong_tien_cuoc', 'cuoc_tam_tinh', 'phi_giao_hang', 'phi_giao_hang_5_1',
     'cuoc_tru', 'phi_chinh', 'tong_phi_giao_hang', 'phi_dich_vu_chinh', 'tien_cuoc_pp_pm',
     'tong_phi_phai_tra_vnd_c_1_2_3', 'tong_phi_phai_tra', 'phi_giao_hang_vnd_1_1_1_1_2_1_3_1_4_1_5'
@@ -92,7 +92,11 @@ function detectAdditionalFeeColumns(headers: string[], savedColumns?: string[]):
   if (savedColumns && savedColumns.length > 0) {
     return savedColumns.filter(column => headers.includes(column));
   }
-  const feeMarkers = ['phi_thu_ho', 'phi_chuyen_hoan', 'phi_giao_mot_phan', 'phi_bao_hiem', 'phu_phi', 'surcharge', 'other_fee'];
+  const feeMarkers = [
+    'phi_thu_ho', 'phi_chuyen_hoan', 'phi_hoan_hang', 'phi_hoan', 'phi_giao_mot_phan',
+    'phi_bao_hiem', 'phi_khai_gia', 'phi_giao_lai', 'phi_doi_dia_chi', 'phu_phi',
+    'surcharge', 'other_fee', 'phi_khac', 'phi_dich_vu'
+  ];
   return headers.filter(header => {
     const normalized = normalizeHeader(header);
     return feeMarkers.some(marker => normalized.includes(marker));

@@ -737,8 +737,9 @@ export function performReconciliation(
       stmt.totalDeliveredCod = (stmt.totalDeliveredCod || 0) + order.codAmount;
     }
 
-    // 2. Đơn gửi trong kỳ (Tính cước): Đơn có phát sinh cước vận chuyển
-    if (((order.shopCalculatedFee || 0) + (order.shopOtherFee || 0)) > 0) {
+    // 2. Đơn gửi trong kỳ (Tính cước): Đơn có phát sinh cước vận chuyển (Shop hoặc NVC) hoặc đơn mới gửi trong kỳ
+    const hasShippingFee = ((order.shopCalculatedFee || 0) + (order.shopOtherFee || 0)) > 0 || (Math.abs(order.nvcBaseFee || 0) + Math.abs(order.nvcOtherFee || 0)) > 0 || order.status === 'in_transit' || order.status === 'fee_charged';
+    if (hasShippingFee) {
       stmt.shippingOrders = (stmt.shippingOrders || 0) + 1;
       stmt.totalDeliveredFee = (stmt.totalDeliveredFee || 0) + (order.shopCalculatedFee || 0) + (order.shopOtherFee || 0);
     }
@@ -1016,6 +1017,7 @@ export function recalculateSessionFees(
           bankInfo: matchedShop?.bankAccount || stmt.bankInfo,
           totalOrders: 0,
           deliveredOrders: 0,
+          shippingOrders: 0,
           returnedOrders: 0,
           inTransitOrders: 0,
           partialOrders: 0,
@@ -1038,14 +1040,19 @@ export function recalculateSessionFees(
       const currentStmt = statementsMap.get(key)!;
       currentStmt.orders.push(updatedOrder);
       currentStmt.totalOrders += 1;
-      if (updatedOrder.status === 'delivered') {
+      if ((updatedOrder.codAmount || 0) > 0) {
         currentStmt.deliveredOrders += 1;
         currentStmt.totalDeliveredCod = (currentStmt.totalDeliveredCod || 0) + updatedOrder.codAmount;
+      }
+      const hasShippingFee = ((updatedOrder.shopCalculatedFee || 0) + (updatedOrder.shopOtherFee || 0)) > 0 || (Math.abs(updatedOrder.nvcBaseFee || 0) + Math.abs(updatedOrder.nvcOtherFee || 0)) > 0 || updatedOrder.status === 'in_transit' || updatedOrder.status === 'fee_charged';
+      if (hasShippingFee) {
+        currentStmt.shippingOrders = (currentStmt.shippingOrders || 0) + 1;
         currentStmt.totalDeliveredFee = (currentStmt.totalDeliveredFee || 0) + updatedOrder.shopCalculatedFee + updatedOrder.shopOtherFee;
-      } else if (updatedOrder.status === 'returned' || updatedOrder.status === 'returning') {
+      }
+      if (updatedOrder.status === 'returned' || updatedOrder.status === 'returning') {
         currentStmt.returnedOrders += 1;
         currentStmt.totalReturnedFee = (currentStmt.totalReturnedFee || 0) + updatedOrder.shopCalculatedFee + updatedOrder.shopOtherFee;
-      } else {
+      } else if (updatedOrder.status === 'in_transit') {
         currentStmt.inTransitOrders += 1;
       }
 

@@ -1328,10 +1328,12 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
     if (stmtIndex >= 0) {
       const stmt = updatedStatements[stmtIndex];
       const newOrders = [...stmt.orders, updatedOrder];
+      const hasShippingFee = ((updatedOrder.shopCalculatedFee || 0) + (updatedOrder.shopOtherFee || 0)) > 0 || (Math.abs(updatedOrder.nvcBaseFee || 0) + Math.abs(updatedOrder.nvcOtherFee || 0)) > 0 || updatedOrder.status === 'in_transit';
       updatedStatements[stmtIndex] = {
         ...stmt,
         totalOrders: stmt.totalOrders + 1,
-        deliveredOrders: stmt.deliveredOrders + (isDelivered ? 1 : 0),
+        deliveredOrders: (stmt.deliveredOrders || 0) + ((updatedOrder.codAmount || 0) > 0 ? 1 : 0),
+        shippingOrders: (stmt.shippingOrders || 0) + (hasShippingFee ? 1 : 0),
         returnedOrders: stmt.returnedOrders + (isReturned ? 1 : 0),
         inTransitOrders: stmt.inTransitOrders + (isInTransit ? 1 : 0),
         partialOrders: (stmt.partialOrders || 0) + (updatedOrder.isPartialDelivery ? 1 : 0),
@@ -1349,6 +1351,7 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         orders: newOrders,
       };
     } else {
+      const hasShippingFee = ((updatedOrder.shopCalculatedFee || 0) + (updatedOrder.shopOtherFee || 0)) > 0 || (Math.abs(updatedOrder.nvcBaseFee || 0) + Math.abs(updatedOrder.nvcOtherFee || 0)) > 0 || updatedOrder.status === 'in_transit';
       updatedStatements.push({
         shopId: targetShop.id,
         shopCode: targetShop.code,
@@ -1359,7 +1362,8 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
         bankInfo: targetShop.bankAccount,
         periodName: currentSession.sessionName,
         totalOrders: 1,
-        deliveredOrders: isDelivered ? 1 : 0,
+        deliveredOrders: (updatedOrder.codAmount || 0) > 0 ? 1 : 0,
+        shippingOrders: hasShippingFee ? 1 : 0,
         returnedOrders: isReturned ? 1 : 0,
         inTransitOrders: isInTransit ? 1 : 0,
         partialOrders: updatedOrder.isPartialDelivery ? 1 : 0,
@@ -3569,9 +3573,21 @@ export const ReconciliationView: React.FC<ReconciliationViewProps> = ({
                         </td>
 
                         <td>
-                          <strong>{stmt.totalOrders} đơn</strong>
-                          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                            {stmt.deliveredOrders} xong • {stmt.returnedOrders} hoàn
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: 13 }}>
+                              {stmt.deliveredOrders || 0} đơn hoàn COD
+                            </span>
+                            <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              <span style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#d97706', padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>
+                                {stmt.shippingOrders || 0} tính cước
+                              </span>
+                              {stmt.returnedOrders > 0 && (
+                                <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>
+                                  {stmt.returnedOrders} hoàn
+                                </span>
+                              )}
+                              <span style={{ color: 'var(--text-dim)' }}>({stmt.totalOrders} dòng)</span>
+                            </div>
                           </div>
                         </td>
 
